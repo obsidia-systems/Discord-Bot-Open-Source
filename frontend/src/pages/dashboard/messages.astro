@@ -1,0 +1,23 @@
+---
+import DashboardLayout from "../../layouts/DashboardLayout.astro";
+import { EmbedBuilder } from "../../components/custom/EmbedBuilder";
+import { MessageSender } from "../../components/custom/MessageSender";
+---
+
+<DashboardLayout
+  title="Mensajes & Embeds"
+  description="Envía texto simple o embeds enriquecidos a cualquier canal."
+>
+  <div class="space-y-10">
+    <EmbedBuilder client:load />
+
+    <details class="rounded-lg border border-border bg-card/60 p-4">
+      <summary class="cursor-pointer text-sm font-medium text-foreground">
+        Envío de texto simple (legacy)
+      </summary>
+      <div class="mt-4">
+        <MessageSender client:load />
+      </div>
+    </details>
+  </div>
+</DashboardLayout>

@@ -1,0 +1,50 @@
+# Desarrollo local (OrbStack / Mac M1 ARM64) — hot reload, sin build de producción.
+# Uso: docker compose up --build
+#
+# Producción (TrueNAS AMD64): ver docker-compose.prod.yml
+
+services:
+  adobos-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    platform: linux/arm64
+    image: adobos-bot:dev
+    container_name: adobos-bot-dev
+    ports:
+      - "3000:3000"
+      - "4321:4321"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: development
+      HOST: 0.0.0.0
+      PORT: 3000
+      # SQLite persistente fuera del bind-mount del código
+      DATABASE_URL: file:/data/database.sqlite
+      # File watching fiable con volumen montado desde macOS
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+    volumes:
+      # Código del monorepo → hot reload
+      - .:/app
+      # Persistencia SQLite (no se pierde al reiniciar el contenedor)
+      - ./data:/data
+      # node_modules Linux aislados del host (evita binarios Darwin vs musl)
+      - adobos_node_modules:/app/node_modules
+      - adobos_backend_modules:/app/backend/node_modules
+      - adobos_frontend_modules:/app/frontend/node_modules
+      - adobos_shared_modules:/app/packages/shared/node_modules
+      - adobos_pnpm_store:/app/.pnpm-store
+    working_dir: /app
+    command: sh -c "pnpm install && pnpm dev"
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+volumes:
+  adobos_node_modules:
+  adobos_backend_modules:
+  adobos_frontend_modules:
+  adobos_shared_modules:
+  adobos_pnpm_store:

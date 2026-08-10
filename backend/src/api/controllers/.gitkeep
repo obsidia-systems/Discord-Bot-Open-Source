@@ -1,0 +1,2 @@
+/** Controllers HTTP — reservado para lógica de dominio del panel. */
+export {};

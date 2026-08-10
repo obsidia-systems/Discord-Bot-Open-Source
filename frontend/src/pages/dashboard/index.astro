@@ -1,0 +1,43 @@
+---
+import type { HealthResponse } from "@adobos/shared";
+import DashboardLayout from "../../layouts/DashboardLayout.astro";
+import { StatusIsland } from "../../components/custom/StatusIsland";
+
+const API_ORIGIN = import.meta.env.INTERNAL_API_URL ?? "http://127.0.0.1:3000";
+
+let initialHealth: HealthResponse | null = null;
+try {
+  const response = await fetch(`${API_ORIGIN}/api/health`, {
+    headers: { Accept: "application/json" },
+  });
+  if (response.ok) {
+    initialHealth = (await response.json()) as HealthResponse;
+  }
+} catch {
+  initialHealth = null;
+}
+---
+
+<DashboardLayout
+  title="Dashboard"
+  description="Vista general del bot, la API y el estado de Discord."
+>
+  <div class="grid gap-6 lg:grid-cols-2">
+    <StatusIsland client:load initialHealth={initialHealth} />
+    <section class="rounded-lg border border-border bg-card/80 p-5 shadow-sm">
+      <h2 class="font-display text-base font-semibold">Próximos módulos</h2>
+      <ul class="mt-3 space-y-2 text-sm text-muted-foreground">
+        <li>• Mensajes & Embeds — disponible ahora</li>
+        <li>• Action Logs, Bienvenidas, Autoroles</li>
+        <li>• Economía y Moderación</li>
+        <li>• Plugins: Minecraft, Osu!, Valorant, Gachas</li>
+      </ul>
+      <a
+        href="/dashboard/messages"
+        class="mt-5 inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
+      >
+        Ir a Mensajes & Embeds →
+      </a>
+    </section>
+  </div>
+</DashboardLayout>

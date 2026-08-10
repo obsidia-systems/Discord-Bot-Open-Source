@@ -1,0 +1,46 @@
+---
+import BaseLayout from "./BaseLayout.astro";
+import { Sidebar } from "../components/custom/Sidebar";
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
+---
+
+<BaseLayout title={`${title} — Adobos Bot`} description={description}>
+  <div class="flex min-h-dvh bg-background">
+    <Sidebar client:load currentPath={currentPath} />
+    <div class="flex min-w-0 flex-1 flex-col">
+      <header class="hidden border-b border-border bg-card/60 px-8 py-5 lg:block">
+        <p class="font-display text-xs font-semibold tracking-[0.18em] text-primary uppercase">
+          Adobos Bot
+        </p>
+        <h1 class="mt-1 font-display text-2xl font-semibold tracking-tight text-foreground">
+          {title}
+        </h1>
+        {
+          description && (
+            <p class="mt-1 max-w-2xl text-sm text-muted-foreground">{description}</p>
+          )
+        }
+      </header>
+
+      <div class="border-b border-border px-4 py-4 lg:hidden">
+        <h1 class="font-display text-xl font-semibold tracking-tight">{title}</h1>
+        {
+          description && (
+            <p class="mt-1 text-sm text-muted-foreground">{description}</p>
+          )
+        }
+      </div>
+
+      <main class="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <slot />
+      </main>
+    </div>
+  </div>
+</BaseLayout>
