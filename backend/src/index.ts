@@ -1,9 +1,11 @@
 import "dotenv/config";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createBotClient } from "./bot/client.js";
-import { createApp } from "./api/server.js";
 import { initDatabase } from "./db/client.js";
+import { loadModules } from "./core/modules/index.js";
+import { createBotClient } from "./core/bot/createClient.js";
+import { createApp } from "./core/http/createApp.js";
+import { ENABLED_MODULES } from "./modules/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -13,13 +15,13 @@ const HOST = process.env.HOST ?? "0.0.0.0";
 async function main(): Promise<void> {
   initDatabase();
 
-  const bot = createBotClient();
+  const registry = loadModules(ENABLED_MODULES);
+  const bot = createBotClient(registry);
   const app = createApp({
     bot,
-    // En Docker: ./public (inyectado). En monorepo: frontend/dist vía env o default.
+    registry,
     staticDir:
-      process.env.STATIC_DIR ??
-      path.resolve(__dirname, "../public"),
+      process.env.STATIC_DIR ?? path.resolve(__dirname, "../public"),
   });
 
   if (process.env.DISCORD_TOKEN) {

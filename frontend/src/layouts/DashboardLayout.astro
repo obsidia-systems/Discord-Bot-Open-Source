@@ -12,25 +12,49 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
 ---
 
 <BaseLayout title={`${title} — Adobos Bot`} description={description}>
-  <div class="flex min-h-dvh bg-background">
-    <Sidebar client:load currentPath={currentPath} />
-    <div class="flex min-w-0 flex-1 flex-col">
-      <header class="hidden border-b border-border bg-card/60 px-8 py-5 lg:block">
-        <p class="font-display text-xs font-semibold tracking-[0.18em] text-primary uppercase">
+  <div class="ado-shell flex h-dvh overflow-hidden bg-background">
+    <div
+      id="dashboard-sidebar"
+      class="shrink-0"
+      transition:persist="dashboard-sidebar"
+    >
+      <Sidebar client:load currentPath={currentPath} />
+    </div>
+
+    <div
+      class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto"
+      transition:animate="fade"
+    >
+      <header
+        class="hidden border-b border-border/70 bg-card/40 px-8 py-5 backdrop-blur-md lg:block"
+      >
+        <p
+          class="font-display text-xs font-semibold uppercase tracking-[0.2em] text-primary"
+        >
           Adobos Bot
         </p>
-        <h1 class="mt-1 font-display text-2xl font-semibold tracking-tight text-foreground">
+        <h1
+          class="mt-1 font-display text-2xl font-semibold tracking-tight text-foreground"
+          transition:name="page-title"
+        >
           {title}
         </h1>
         {
           description && (
-            <p class="mt-1 max-w-2xl text-sm text-muted-foreground">{description}</p>
+            <p class="mt-1 max-w-2xl text-sm text-muted-foreground">
+              {description}
+            </p>
           )
         }
       </header>
 
-      <div class="border-b border-border px-4 py-4 lg:hidden">
-        <h1 class="font-display text-xl font-semibold tracking-tight">{title}</h1>
+      <div class="border-b border-border/70 px-4 py-4 lg:hidden">
+        <h1
+          class="font-display text-xl font-semibold tracking-tight"
+          transition:name="page-title-mobile"
+        >
+          {title}
+        </h1>
         {
           description && (
             <p class="mt-1 text-sm text-muted-foreground">{description}</p>

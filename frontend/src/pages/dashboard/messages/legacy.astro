@@ -1,0 +1,11 @@
+---
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { MessageSender } from "../../../features/messages";
+---
+
+<DashboardLayout
+  title="Mensajes Legacy"
+  description="Envío rápido de texto plano a cualquier canal."
+>
+  <MessageSender client:load />
+</DashboardLayout>

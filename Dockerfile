@@ -7,7 +7,7 @@ ARG NODE_VERSION=22
 # ─── Base ───────────────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION}-bookworm-slim AS base
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates python3 make g++ \
+  && apt-get install -y --no-install-recommends ca-certificates python3 make g++ fontconfig fonts-liberation \
   && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 WORKDIR /app
@@ -54,6 +54,7 @@ RUN pnpm install --filter @adobos/backend... --prod --frozen-lockfile
 
 COPY --from=shared-build /app/packages/shared/dist ./packages/shared/dist
 COPY --from=backend-build /app/backend/dist ./backend/dist
+COPY --from=backend-build /app/backend/assets ./backend/assets
 COPY --from=frontend-build /app/frontend/dist ./backend/public
 
 RUN mkdir -p /data \

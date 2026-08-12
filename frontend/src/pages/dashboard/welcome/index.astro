@@ -1,0 +1,11 @@
+---
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { WelcomeBuilder } from "../../../features/welcome";
+---
+
+<DashboardLayout
+  title="Bienvenidas"
+  description="Diseña la tarjeta PNG de bienvenida y elige el canal donde se publicará."
+>
+  <WelcomeBuilder client:load />
+</DashboardLayout>

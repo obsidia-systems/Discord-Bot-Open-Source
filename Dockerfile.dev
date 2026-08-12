@@ -2,7 +2,7 @@
 # El código se monta por volumen; no hace falta rebuild en cada cambio.
 FROM --platform=linux/arm64 node:22-alpine
 
-RUN apk add --no-cache libc6-compat python3 make g++ \
+RUN apk add --no-cache libc6-compat python3 make g++ fontconfig \
   && corepack enable \
   && corepack prepare pnpm@9.15.4 --activate
 

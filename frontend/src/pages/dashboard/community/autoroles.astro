@@ -1,0 +1,11 @@
+---
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { AutoRoleBuilder } from "../../../features/autoroles";
+---
+
+<DashboardLayout
+  title="Autoroles"
+  description="Asigna roles con reacciones o botones desde el panel."
+>
+  <AutoRoleBuilder client:load />
+</DashboardLayout>

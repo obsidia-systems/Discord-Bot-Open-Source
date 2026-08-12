@@ -1,0 +1,60 @@
+export interface HealthResponse {
+  status: "ok" | "degraded";
+  uptime: number;
+  botReady: boolean;
+  timestamp: string;
+}
+
+export interface GuildSummary {
+  id: string;
+  name: string;
+  memberCount: number;
+  iconUrl: string | null;
+}
+
+export interface ApiErrorBody {
+  error: string;
+  code?: string;
+}
+
+export interface GuildChannelAsset {
+  id: string;
+  name: string;
+  type: number;
+  parentId: string | null;
+  position: number;
+}
+
+export interface GuildEmojiAsset {
+  id: string;
+  name: string;
+  animated: boolean;
+  /** Formato Discord: <:name:id> o <a:name:id> */
+  mention: string;
+  url: string;
+}
+
+export interface GuildStickerAsset {
+  id: string;
+  name: string;
+  description: string | null;
+  format: string;
+  url: string;
+}
+
+export interface GuildRoleAsset {
+  id: string;
+  name: string;
+  color: number;
+  position: number;
+  managed: boolean;
+}
+
+export interface GuildAssetsResponse {
+  guildId: string;
+  guildName: string;
+  channels: GuildChannelAsset[];
+  emojis: GuildEmojiAsset[];
+  stickers: GuildStickerAsset[];
+  roles: GuildRoleAsset[];
+}

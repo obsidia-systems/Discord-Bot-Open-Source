@@ -8,7 +8,7 @@
 
 Las comunidades de Discord actuales dependen de múltiples bots de terceros para cubrir sus necesidades (moderación, bienvenida, logs, integración con juegos). Esto genera problemas de fragmentación, dependencias de servicios con muros de pago (paywalls), configuraciones dispersas en distintas páginas web y falta de personalización profunda.
 
-**La Solución:** "Adobos Bot" nace como una solución centralizada, de código abierto y auto-hospedada (self-hosted). El objetivo es crear un bot modular y un panel de control web integrados en un mismo ecosistema. Esto permite tener control total de los datos, personalizar la experiencia al 100% (orientado a la temática del servidor "Adobos") y crear una base de código robusta que cualquier otro usuario pueda clonar y adaptar para sus propias comunidades.
+**La Solución:** "Adobos Bot" nace como una solución centralizada, de código abierto y auto-hospedada (self-hosted). El objetivo es crear un bot modular y un panel de control web integrados en un mismo ecosistema. Esto permite tener control total de los datos, personalizar la experiencia al 100% (orientado a la temática del servidor "Adobos" que hace referencia a la cantante Japonesa ADO) y crear una base de código robusta que cualquier otro usuario pueda clonar y adaptar para sus propias comunidades.
 
 ---
 
@@ -79,7 +79,25 @@ El proyecto se construirá como un **Monorepo** utilizando `pnpm workspaces` (o 
 
 ---
 
-### 6. Estructura del Repositorio (Monorepo)
+```text
+adobos-bot/
+├── packages/shared/          # Contratos DTOs (FE ↔ BE)
+├── backend/src/
+│   ├── core/                 # Kernel: Client, Express, ModuleRegistry
+│   ├── modules/              # Bloques Lego (welcome, messages, autoroles, …)
+│   ├── db/                   # SQLite + Drizzle (infra compartida)
+│   └── lib/                  # Utilidades de infra (uploads paths, media)
+└── frontend/src/
+    ├── pages/                # Thin routes Astro
+    ├── features/             # UI por dominio (simétrico a modules/)
+    ├── components/ui/        # Shadcn agnóstico
+    ├── components/shared/    # Piezas reutilizables (HybridImage, ComingSoon)
+    └── lib/api/              # Clientes HTTP por dominio
+```
+
+**Regla Lego:** nuevo feature = carpeta en `backend/src/modules/<id>` + `frontend/src/features/<id>` + entrada en `ENABLED_MODULES` (+ opcional nav). Sin tocar el kernel.
+
+### 6. Estructura del Repositorio (Monorepo) — detalle histórico
 
 ```text
 adobos-bot/
@@ -123,3 +141,56 @@ adobos-bot/
             └── api.ts          # Funciones para hacer fetch a tu backend de Express
 
 ```
+
+### 7. Todas las funciones
+
+Los alcances o funcionalidades (Requerimientos funcionales) que he pensado son:
+
+- Mensajes Embed
+
+- Autoroles (reaccion, menus, etc)
+
+- Bienvenida/Despedida/Ban
+
+- Integracion con servidor de minecraft (colocando credenciales o algo asi)
+	-> Estatus del servidor (Online u Offline / Cantidad de Players)
+	-> Comandos de administrador (Apagar / Prender / Reiniciar / Banear / Unban / Lista de OP / etc. )
+
+- Action logs (Eventos)
+	-> De mensajes: delete, edit, etc.
+	-> De miembros: join, leave, role add, rol remove, ban, unban
+	-> De roles: Creacion, borrado, actualizacion
+	-> Canales: creacion, borrado, actualizacion
+	-> Emojis/Stickers/Sonidos: creacion, borrado, actualizacion
+	-> Opcion de ignorar eventos de ciertos canales de texto o voz y de ciertos roles
+
+- Auto delete de mensajes
+
+- Mensaje sautomaticos (Como programar eventos o que con ciertos comandos se lancen o asi)
+
+- Auto Ban / Auto mod (No se si implementarlo o no realmente)
+
+- auto roles
+	-> Que pueda dar un rol en especifico a los nuevos miembros
+	-> Rangos (Asiganr roles por nivel de interaccion en texto, tiempo en chat de voz, niveles de XP, etc - gamificar los roles)
+
+- Generar comandos custom
+
+- Generar formulacios o encuestas
+
+- Moderacion (funciones)
+
+- Customizacion del perfil del bot: Avatar, nombre, y asi
+
+- Anuncios de encendido de Twitch, Kick, nuevo TikTok, etc, linkeando cuentas que deben trackearse.
+
+- Opciones de OSU!, como trackear sala o un comando para que pueda compartir la sala a jugar, compartir mapas, o compartir una repeticion o skins del juego (consumiento api de OSU? o como lo hacen otros bots?)
+
+- Utilidades de valorant
+	-> Ver tienda, night market, tracker etc.
+
+- Anuncios de juegos gratis en EpicGames o en Steam
+
+- Anuncios de actualizacion de gatchas como NTE, Genshin, WuWa que serian de version, eventos o builds de personajes
+
+- Economia (metodos de ganar economia, casino tipo gambling, ruleta pocker etc, y que se pueda canjear esto por recompensas - roles?)

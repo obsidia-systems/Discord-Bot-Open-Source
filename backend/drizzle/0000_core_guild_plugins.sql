@@ -1,4 +1,4 @@
-CREATE TABLE `guild_settings` (
+CREATE TABLE IF NOT EXISTS `guild_settings` (
 	`guild_id` text PRIMARY KEY NOT NULL,
 	`prefix` text DEFAULT '!' NOT NULL,
 	`log_channel_id` text,
@@ -6,7 +6,7 @@ CREATE TABLE `guild_settings` (
 	`updated_at` integer NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE `plugins_enabled` (
+CREATE TABLE IF NOT EXISTS `plugins_enabled` (
 	`guild_id` text NOT NULL,
 	`plugin_name` text NOT NULL,
 	`enabled` integer DEFAULT false NOT NULL,

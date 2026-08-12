@@ -1,5 +1,5 @@
 /**
- * Loader de slash commands del núcleo.
- * Los comandos concretos se añaden en iteraciones posteriores.
+ * Los slash commands se registran desde cada módulo vía `ctx.command(...)`.
+ * El kernel los despacha en `core/bot/interactionRouter`.
  */
-export const coreCommands: unknown[] = [];
+export {};

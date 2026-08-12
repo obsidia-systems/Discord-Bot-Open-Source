@@ -8,6 +8,48 @@
       "when": 1786332799849,
       "tag": "0000_core_guild_plugins",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1786336592929,
+      "tag": "0001_reaction_roles",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1786339000000,
+      "tag": "0002_welcome_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1786340000000,
+      "tag": "0003_welcome_card_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1786341000000,
+      "tag": "0004_welcome_card_layout",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1786342000000,
+      "tag": "0005_welcome_avatar_size",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1786343000000,
+      "tag": "0006_welcome_font_size",
+      "breakpoints": true
     }
   ]
 }

@@ -2,24 +2,73 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Misma Inter que usa @napi-rs/canvas en WelcomeCardBuilder */
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer base {
   :root {
-    --background: 40 20% 98%;
-    --foreground: 24 10% 10%;
+    /* Light: neutro frío, acento magenta Ado */
+    --background: 250 25% 97%;
+    --foreground: 250 30% 8%;
     --card: 0 0% 100%;
-    --card-foreground: 24 10% 10%;
-    --primary: 16 72% 42%;
-    --primary-foreground: 40 30% 98%;
-    --secondary: 36 18% 92%;
-    --secondary-foreground: 24 10% 18%;
-    --muted: 36 14% 94%;
-    --muted-foreground: 24 6% 42%;
-    --accent: 28 45% 90%;
-    --accent-foreground: 16 50% 28%;
-    --border: 30 12% 88%;
-    --input: 30 12% 88%;
-    --ring: 16 72% 42%;
-    --radius: 0.625rem;
+    --card-foreground: 250 30% 8%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 250 30% 8%;
+    --primary: 320 78% 46%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 250 20% 93%;
+    --secondary-foreground: 250 25% 18%;
+    --muted: 250 16% 93%;
+    --muted-foreground: 250 10% 40%;
+    --accent: 265 45% 94%;
+    --accent-foreground: 265 40% 28%;
+    --destructive: 0 72% 46%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 250 14% 88%;
+    --input: 250 14% 88%;
+    --ring: 320 78% 46%;
+    --radius: 0.75rem;
+    --ado-cyan: 195 100% 45%;
+    --ado-violet: 265 75% 55%;
+  }
+
+  .dark {
+    /* Escenario Ado: negros profundos + magenta eléctrico + cyan */
+    --background: 255 28% 4%;
+    --foreground: 250 20% 96%;
+    --card: 255 22% 7%;
+    --card-foreground: 250 20% 96%;
+    --popover: 255 22% 8%;
+    --popover-foreground: 250 20% 96%;
+    --primary: 320 90% 62%;
+    --primary-foreground: 255 30% 6%;
+    --secondary: 255 18% 14%;
+    --secondary-foreground: 250 15% 92%;
+    --muted: 255 16% 12%;
+    --muted-foreground: 250 10% 62%;
+    --accent: 265 35% 14%;
+    --accent-foreground: 265 80% 88%;
+    --destructive: 0 72% 52%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 255 16% 14%;
+    --input: 255 16% 14%;
+    --ring: 195 100% 55%;
+    --ado-cyan: 195 100% 55%;
+    --ado-violet: 265 80% 62%;
   }
 
   * {
@@ -31,4 +80,77 @@
     @apply min-h-dvh bg-background text-foreground antialiased;
     font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
   }
+}
+
+/* Ambiente del panel: brillos magenta / cyan sin saturar el contenido */
+.ado-shell {
+  position: relative;
+  isolation: isolate;
+}
+
+.ado-shell::before {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(
+      900px 480px at 12% -10%,
+      hsl(var(--primary) / 0.16),
+      transparent 60%
+    ),
+    radial-gradient(
+      700px 420px at 92% 8%,
+      hsl(var(--ado-cyan) / 0.1),
+      transparent 55%
+    ),
+    radial-gradient(
+      640px 360px at 70% 100%,
+      hsl(var(--ado-violet) / 0.1),
+      transparent 50%
+    );
+}
+
+/* Preview Markdown estilo Discord (sin plugin typography) */
+.discord-md p {
+  margin: 0.25rem 0;
+}
+.discord-md strong {
+  font-weight: 700;
+  color: #fff;
+}
+.discord-md em {
+  font-style: italic;
+}
+.discord-md ul {
+  margin: 0.35rem 0;
+  padding-left: 1.1rem;
+  list-style: disc;
+}
+.discord-md ol {
+  margin: 0.35rem 0;
+  padding-left: 1.1rem;
+  list-style: decimal;
+}
+.discord-md a {
+  color: #00a8fc;
+  text-decoration: none;
+}
+.discord-md a:hover {
+  text-decoration: underline;
+}
+.discord-md code {
+  background: rgb(0 0 0 / 0.35);
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.3rem;
+  font-size: 0.85em;
+}
+
+.discord-md img.discord-emoji {
+  display: inline-block;
+  width: 1.25rem;
+  height: 1.25rem;
+  vertical-align: middle;
+  object-fit: contain;
 }

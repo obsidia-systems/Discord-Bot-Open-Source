@@ -1,0 +1,32 @@
+---
+import DashboardLayout from "../../layouts/DashboardLayout.astro";
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const {
+  title,
+  description = "Este módulo está preparado en el menú. La implementación llega en una iteración posterior.",
+} = Astro.props;
+---
+
+<DashboardLayout title={title} description={description}>
+  <section
+    class="relative overflow-hidden rounded-2xl border border-dashed border-primary/25 bg-card/60 p-8 backdrop-blur-sm"
+  >
+    <div
+      class="pointer-events-none absolute -right-10 -top-10 size-40 rounded-full bg-primary/15 blur-3xl"
+      aria-hidden="true"
+    >
+    </div>
+    <p class="font-display text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+      En construcción
+    </p>
+    <p class="mt-2 max-w-xl text-sm text-muted-foreground">
+      La arquitectura del dashboard ya contempla este módulo. Cuando lo
+      implementemos, vivirá aquí sin romper el núcleo ni los plugins.
+    </p>
+  </section>
+</DashboardLayout>
