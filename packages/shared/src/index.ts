@@ -5,4 +5,10 @@ export * from "./modules.js";
 export * from "./messages.js";
 export * from "./autoroles.js";
 export * from "./welcome.js";
+export * from "./canvas-event.js";
 export * from "./uploads.js";
+export * from "./bot-profile.js";
+export * from "./moderation.js";
+export * from "./embed-templates.js";
+export * from "./discord-audit.js";
+

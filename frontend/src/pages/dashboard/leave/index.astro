@@ -1,0 +1,11 @@
+---
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { LeaveBuilder } from "../../../features/canvas-events";
+---
+
+<DashboardLayout
+  title="Despedidas"
+  description="Diseña la tarjeta para cuando alguien abandona el servidor."
+>
+  <LeaveBuilder client:load />
+</DashboardLayout>

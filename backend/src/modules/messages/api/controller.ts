@@ -22,6 +22,7 @@ import {
   EmbedMediaError,
   requireHttpUrl,
   resolveEmbedMedia,
+  resolveMulterEmbedMedia,
 } from "../../../lib/embedMedia.js";
 
 export class MessageSendError extends Error {
@@ -151,6 +152,34 @@ function resolveMediaOrThrow(
     }
     throw error;
   }
+}
+
+type UploadedEmbedFile = {
+  buffer: Buffer;
+  originalname: string;
+  mimetype: string;
+};
+
+export type EmbedUploadedFiles = {
+  image?: UploadedEmbedFile;
+  thumbnail?: UploadedEmbedFile;
+  authorIcon?: UploadedEmbedFile;
+  footerIcon?: UploadedEmbedFile;
+};
+
+function resolveMediaField(
+  urlValue: string | undefined,
+  uploaded: UploadedEmbedFile | undefined,
+  field: string,
+  attachmentName: string,
+  files: AttachmentBuilder[],
+): string | undefined {
+  if (uploaded) {
+    const resolved = resolveMulterEmbedMedia(uploaded, attachmentName);
+    if (resolved.file) files.push(resolved.file);
+    return resolved.url;
+  }
+  return resolveMediaOrThrow(urlValue, field, attachmentName, files);
 }
 
 function buildButton(input: MessageButtonInput, index: number): ButtonBuilder {
@@ -291,6 +320,7 @@ export async function sendTextMessage(
 export async function sendEmbedMessage(
   bot: Client,
   input: SendEmbedRequest,
+  uploaded: EmbedUploadedFiles = {},
 ): Promise<SendEmbedResponse> {
   assertBotReady(bot);
   const channelId = assertChannelId(input.channelId);
@@ -302,26 +332,30 @@ export async function sendEmbedMessage(
   const footerText = input.footerText?.trim() || undefined;
   const files: AttachmentBuilder[] = [];
   const url = optionalHttpUrl(input.url, "url");
-  const authorIconUrl = resolveMediaOrThrow(
+  const authorIconUrl = resolveMediaField(
     input.authorIconUrl,
+    uploaded.authorIcon,
     "authorIconUrl",
     "author-icon",
     files,
   );
-  const thumbnailUrl = resolveMediaOrThrow(
+  const thumbnailUrl = resolveMediaField(
     input.thumbnailUrl,
+    uploaded.thumbnail,
     "thumbnailUrl",
     "thumbnail",
     files,
   );
-  const imageUrl = resolveMediaOrThrow(
+  const imageUrl = resolveMediaField(
     input.imageUrl,
+    uploaded.image,
     "imageUrl",
     "image",
     files,
   );
-  const footerIconUrl = resolveMediaOrThrow(
+  const footerIconUrl = resolveMediaField(
     input.footerIconUrl,
+    uploaded.footerIcon,
     "footerIconUrl",
     "footer-icon",
     files,

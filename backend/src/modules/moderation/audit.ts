@@ -1,0 +1,715 @@
+import {
+  AuditLogEvent,
+  DiscordAPIError,
+  type Client,
+  type Guild,
+  type GuildAuditLogsEntry,
+} from "discord.js";
+import type {
+  DiscordAuditCategory,
+  DiscordAuditChangeItem,
+  DiscordAuditEntry,
+  DiscordAuditLogResponse,
+  DiscordAuditTarget,
+  DiscordAuditTargetKind,
+  DiscordAuditTone,
+} from "@adobos/shared";
+import { ModerationError } from "./service.js";
+import { consolidateAuditLogs } from "./consolidateAuditLogs.js";
+
+type ActionMeta = {
+  label: string;
+  category: Exclude<DiscordAuditCategory, "all">;
+  tone: DiscordAuditTone;
+  targetKind: DiscordAuditTargetKind;
+};
+
+const ACTION_META: Partial<Record<AuditLogEvent, ActionMeta>> = {
+  [AuditLogEvent.GuildUpdate]: {
+    label: "Actualizó el servidor",
+    category: "server",
+    tone: "update",
+    targetKind: "guild",
+  },
+  [AuditLogEvent.ChannelCreate]: {
+    label: "Creó un canal",
+    category: "channels",
+    tone: "create",
+    targetKind: "channel",
+  },
+  [AuditLogEvent.ChannelUpdate]: {
+    label: "Actualizó un canal",
+    category: "channels",
+    tone: "update",
+    targetKind: "channel",
+  },
+  [AuditLogEvent.ChannelDelete]: {
+    label: "Eliminó un canal",
+    category: "channels",
+    tone: "delete",
+    targetKind: "channel",
+  },
+  [AuditLogEvent.ChannelOverwriteCreate]: {
+    label: "Creó un permiso de canal",
+    category: "channels",
+    tone: "create",
+    targetKind: "channel",
+  },
+  [AuditLogEvent.ChannelOverwriteUpdate]: {
+    label: "Actualizó un permiso de canal",
+    category: "channels",
+    tone: "update",
+    targetKind: "channel",
+  },
+  [AuditLogEvent.ChannelOverwriteDelete]: {
+    label: "Eliminó un permiso de canal",
+    category: "channels",
+    tone: "delete",
+    targetKind: "channel",
+  },
+  [AuditLogEvent.MemberKick]: {
+    label: "Expulsó a un miembro",
+    category: "members",
+    tone: "delete",
+    targetKind: "user",
+  },
+  [AuditLogEvent.MemberPrune]: {
+    label: "Purgó miembros inactivos",
+    category: "members",
+    tone: "delete",
+    targetKind: "user",
+  },
+  [AuditLogEvent.MemberBanAdd]: {
+    label: "Baneó a un miembro",
+    category: "members",
+    tone: "delete",
+    targetKind: "user",
+  },
+  [AuditLogEvent.MemberBanRemove]: {
+    label: "Desbaneó a un miembro",
+    category: "members",
+    tone: "create",
+    targetKind: "user",
+  },
+  [AuditLogEvent.MemberUpdate]: {
+    label: "Actualizó a un miembro",
+    category: "members",
+    tone: "update",
+    targetKind: "user",
+  },
+  [AuditLogEvent.MemberRoleUpdate]: {
+    label: "Actualizó roles de un miembro",
+    category: "members",
+    tone: "update",
+    targetKind: "user",
+  },
+  [AuditLogEvent.MemberMove]: {
+    label: "Movió a un miembro de voz",
+    category: "members",
+    tone: "update",
+    targetKind: "user",
+  },
+  [AuditLogEvent.MemberDisconnect]: {
+    label: "Desconectó a un miembro de voz",
+    category: "members",
+    tone: "delete",
+    targetKind: "user",
+  },
+  [AuditLogEvent.BotAdd]: {
+    label: "Añadió un bot",
+    category: "members",
+    tone: "create",
+    targetKind: "user",
+  },
+  [AuditLogEvent.RoleCreate]: {
+    label: "Creó un rol",
+    category: "roles",
+    tone: "create",
+    targetKind: "role",
+  },
+  [AuditLogEvent.RoleUpdate]: {
+    label: "Actualizó un rol",
+    category: "roles",
+    tone: "update",
+    targetKind: "role",
+  },
+  [AuditLogEvent.RoleDelete]: {
+    label: "Eliminó un rol",
+    category: "roles",
+    tone: "delete",
+    targetKind: "role",
+  },
+  [AuditLogEvent.InviteCreate]: {
+    label: "Creó una invitación",
+    category: "server",
+    tone: "create",
+    targetKind: "invite",
+  },
+  [AuditLogEvent.InviteUpdate]: {
+    label: "Actualizó una invitación",
+    category: "server",
+    tone: "update",
+    targetKind: "invite",
+  },
+  [AuditLogEvent.InviteDelete]: {
+    label: "Eliminó una invitación",
+    category: "server",
+    tone: "delete",
+    targetKind: "invite",
+  },
+  [AuditLogEvent.WebhookCreate]: {
+    label: "Creó un webhook",
+    category: "server",
+    tone: "create",
+    targetKind: "webhook",
+  },
+  [AuditLogEvent.WebhookUpdate]: {
+    label: "Actualizó un webhook",
+    category: "server",
+    tone: "update",
+    targetKind: "webhook",
+  },
+  [AuditLogEvent.WebhookDelete]: {
+    label: "Eliminó un webhook",
+    category: "server",
+    tone: "delete",
+    targetKind: "webhook",
+  },
+  [AuditLogEvent.EmojiCreate]: {
+    label: "Creó un emoji",
+    category: "server",
+    tone: "create",
+    targetKind: "emoji",
+  },
+  [AuditLogEvent.EmojiUpdate]: {
+    label: "Actualizó un emoji",
+    category: "server",
+    tone: "update",
+    targetKind: "emoji",
+  },
+  [AuditLogEvent.EmojiDelete]: {
+    label: "Eliminó un emoji",
+    category: "server",
+    tone: "delete",
+    targetKind: "emoji",
+  },
+  [AuditLogEvent.MessageDelete]: {
+    label: "Eliminó un mensaje",
+    category: "server",
+    tone: "delete",
+    targetKind: "message",
+  },
+  [AuditLogEvent.MessageBulkDelete]: {
+    label: "Eliminó mensajes en masa",
+    category: "server",
+    tone: "delete",
+    targetKind: "message",
+  },
+  [AuditLogEvent.MessagePin]: {
+    label: "Fijó un mensaje",
+    category: "server",
+    tone: "update",
+    targetKind: "message",
+  },
+  [AuditLogEvent.MessageUnpin]: {
+    label: "Desfijó un mensaje",
+    category: "server",
+    tone: "update",
+    targetKind: "message",
+  },
+  [AuditLogEvent.IntegrationCreate]: {
+    label: "Creó una integración",
+    category: "server",
+    tone: "create",
+    targetKind: "integration",
+  },
+  [AuditLogEvent.IntegrationUpdate]: {
+    label: "Actualizó una integración",
+    category: "server",
+    tone: "update",
+    targetKind: "integration",
+  },
+  [AuditLogEvent.IntegrationDelete]: {
+    label: "Eliminó una integración",
+    category: "server",
+    tone: "delete",
+    targetKind: "integration",
+  },
+  [AuditLogEvent.StageInstanceCreate]: {
+    label: "Creó un escenario",
+    category: "server",
+    tone: "create",
+    targetKind: "channel",
+  },
+  [AuditLogEvent.StageInstanceUpdate]: {
+    label: "Actualizó un escenario",
+    category: "server",
+    tone: "update",
+    targetKind: "channel",
+  },
+  [AuditLogEvent.StageInstanceDelete]: {
+    label: "Eliminó un escenario",
+    category: "server",
+    tone: "delete",
+    targetKind: "channel",
+  },
+  [AuditLogEvent.StickerCreate]: {
+    label: "Creó un sticker",
+    category: "server",
+    tone: "create",
+    targetKind: "sticker",
+  },
+  [AuditLogEvent.StickerUpdate]: {
+    label: "Actualizó un sticker",
+    category: "server",
+    tone: "update",
+    targetKind: "sticker",
+  },
+  [AuditLogEvent.StickerDelete]: {
+    label: "Eliminó un sticker",
+    category: "server",
+    tone: "delete",
+    targetKind: "sticker",
+  },
+  [AuditLogEvent.GuildScheduledEventCreate]: {
+    label: "Creó un evento",
+    category: "server",
+    tone: "create",
+    targetKind: "unknown",
+  },
+  [AuditLogEvent.GuildScheduledEventUpdate]: {
+    label: "Actualizó un evento",
+    category: "server",
+    tone: "update",
+    targetKind: "unknown",
+  },
+  [AuditLogEvent.GuildScheduledEventDelete]: {
+    label: "Eliminó un evento",
+    category: "server",
+    tone: "delete",
+    targetKind: "unknown",
+  },
+  [AuditLogEvent.ThreadCreate]: {
+    label: "Creó un hilo",
+    category: "channels",
+    tone: "create",
+    targetKind: "channel",
+  },
+  [AuditLogEvent.ThreadUpdate]: {
+    label: "Actualizó un hilo",
+    category: "channels",
+    tone: "update",
+    targetKind: "channel",
+  },
+  [AuditLogEvent.ThreadDelete]: {
+    label: "Eliminó un hilo",
+    category: "channels",
+    tone: "delete",
+    targetKind: "channel",
+  },
+};
+
+const CHANGE_KEY_LABELS: Record<string, string> = {
+  name: "Nombre",
+  topic: "Tema",
+  bitrate: "Bitrate",
+  nsfw: "NSFW",
+  rate_limit_per_user: "Slowmode",
+  position: "Posición",
+  color: "Color",
+  hoist: "Mostrar separado",
+  mentionable: "Mencionable",
+  permissions: "Permisos",
+  allow: "Permitir",
+  deny: "Denegar",
+  code: "Código",
+  channel_id: "Canal",
+  inviter_id: "Invitador",
+  max_uses: "Usos máximos",
+  max_age: "Caducidad",
+  temporary: "Temporal",
+  nick: "Apodo",
+  mute: "Mute",
+  deaf: "Sordo",
+  communication_disabled_until: "Timeout",
+  avatar_hash: "Avatar",
+  icon_hash: "Icono",
+  splash_hash: "Splash",
+  banner_hash: "Banner",
+  vanity_url_code: "URL vanity",
+  description: "Descripción",
+  preferred_locale: "Idioma",
+  afk_channel_id: "Canal AFK",
+  afk_timeout: "Timeout AFK",
+  system_channel_id: "Canal de sistema",
+  rules_channel_id: "Canal de reglas",
+  public_updates_channel_id: "Canal de actualizaciones",
+  mfa_level: "MFA",
+  verification_level: "Verificación",
+  explicit_content_filter: "Filtro de contenido",
+  default_message_notifications: "Notificaciones",
+  owner_id: "Propietario",
+  $add: "Roles añadidos",
+  $remove: "Roles quitados",
+};
+
+function resolveGuild(bot: Client, guildId?: string): Guild {
+  if (!bot.isReady()) {
+    throw new ModerationError(
+      "El bot de Discord no está conectado.",
+      503,
+      "BOT_NOT_READY",
+    );
+  }
+
+  const id = (guildId ?? process.env.DISCORD_GUILD_ID ?? "").trim();
+  if (!id) {
+    throw new ModerationError(
+      "Falta DISCORD_GUILD_ID (o guildId).",
+      400,
+      "MISSING_GUILD_ID",
+    );
+  }
+
+  const guild = bot.guilds.cache.get(id);
+  if (!guild) {
+    throw new ModerationError(
+      "El bot no está en ese servidor.",
+      404,
+      "GUILD_NOT_FOUND",
+    );
+  }
+
+  return guild;
+}
+
+function stringifyValue(value: unknown): string {
+  if (value == null) return "—";
+  if (typeof value === "string") return value || "—";
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (item && typeof item === "object" && "name" in item) {
+          return String((item as { name: unknown }).name);
+        }
+        if (item && typeof item === "object" && "id" in item) {
+          return String((item as { id: unknown }).id);
+        }
+        return stringifyValue(item);
+      })
+      .join(", ");
+  }
+  if (typeof value === "object" && value !== null && "name" in value) {
+    return String((value as { name: unknown }).name);
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function flattenChanges(
+  entry: GuildAuditLogsEntry,
+): DiscordAuditChangeItem[] {
+  const changes = entry.changes ?? [];
+  return changes.map((change) => {
+    const key = String(change.key);
+    const label = CHANGE_KEY_LABELS[key] ?? key;
+    const oldValue = stringifyValue(change.old);
+    const newValue = stringifyValue(change.new);
+
+    let summary: string;
+    if (key === "$add") {
+      summary = `Añadió: ${newValue}`;
+    } else if (key === "$remove") {
+      summary = `Quitó: ${oldValue !== "—" ? oldValue : newValue}`;
+    } else if (oldValue === "—" && newValue !== "—") {
+      summary = `${label}: ${newValue}`;
+    } else if (newValue === "—" && oldValue !== "—") {
+      summary = `${label} eliminado (era ${oldValue})`;
+    } else if (key === "name") {
+      summary = `Nombre cambiado a «${newValue}»`;
+    } else {
+      summary = `${label}: ${oldValue} → ${newValue}`;
+    }
+
+    return {
+      key,
+      summary,
+      oldValue: oldValue === "—" ? undefined : oldValue,
+      newValue: newValue === "—" ? undefined : newValue,
+    };
+  });
+}
+
+function resolveTarget(
+  guild: Guild,
+  entry: GuildAuditLogsEntry,
+  meta: ActionMeta,
+): DiscordAuditTarget {
+  const targetId = entry.targetId ?? null;
+  const target = entry.target as
+    | { id?: string; username?: string; globalName?: string | null; name?: string; type?: number }
+    | null
+    | undefined;
+
+  if (target) {
+    if (typeof target.username === "string") {
+      return {
+        id: target.id ?? targetId,
+        kind: "user",
+        label: `@${target.username}`,
+      };
+    }
+    if (typeof target.name === "string") {
+      if (meta.targetKind === "channel" || typeof target.type === "number") {
+        return {
+          id: target.id ?? targetId,
+          kind: "channel",
+          label: `#${target.name}`,
+        };
+      }
+      if (meta.targetKind === "role") {
+        return {
+          id: target.id ?? targetId,
+          kind: "role",
+          label: `@${target.name}`,
+        };
+      }
+      if (meta.targetKind === "guild") {
+        return {
+          id: target.id ?? targetId,
+          kind: "guild",
+          label: target.name,
+        };
+      }
+      return {
+        id: target.id ?? targetId,
+        kind: meta.targetKind,
+        label: target.name,
+      };
+    }
+  }
+
+  if (targetId) {
+    const member = guild.members.cache.get(targetId);
+    if (member) {
+      return {
+        id: targetId,
+        kind: "user",
+        label: `@${member.user.username}`,
+      };
+    }
+    const channel = guild.channels.cache.get(targetId);
+    if (channel) {
+      return {
+        id: targetId,
+        kind: "channel",
+        label: `#${channel.name}`,
+      };
+    }
+    const role = guild.roles.cache.get(targetId);
+    if (role) {
+      return {
+        id: targetId,
+        kind: "role",
+        label: `@${role.name}`,
+      };
+    }
+    return {
+      id: targetId,
+      kind: meta.targetKind,
+      label: `ID ${targetId}`,
+    };
+  }
+
+  if (meta.targetKind === "guild") {
+    return { id: guild.id, kind: "guild", label: guild.name };
+  }
+
+  return { id: null, kind: "unknown", label: "—" };
+}
+
+function actionKeyName(action: number): string {
+  const found = Object.entries(AuditLogEvent).find(
+    ([, value]) => value === action,
+  );
+  return found?.[0] ?? `Action_${action}`;
+}
+
+function extractRoleNamesFromRaw(entry: GuildAuditLogsEntry): {
+  added: string[];
+  removed: string[];
+} {
+  const added: string[] = [];
+  const removed: string[] = [];
+
+  for (const change of entry.changes ?? []) {
+    const key = String(change.key);
+    if (key === "$add" && Array.isArray(change.new)) {
+      for (const item of change.new) {
+        if (item && typeof item === "object" && "name" in item) {
+          added.push(String((item as { name: unknown }).name));
+        }
+      }
+    }
+    if (key === "$remove") {
+      const list = Array.isArray(change.old)
+        ? change.old
+        : Array.isArray(change.new)
+          ? change.new
+          : [];
+      for (const item of list) {
+        if (item && typeof item === "object" && "name" in item) {
+          removed.push(String((item as { name: unknown }).name));
+        }
+      }
+    }
+  }
+
+  return {
+    added: [...new Set(added.filter(Boolean))],
+    removed: [...new Set(removed.filter(Boolean))],
+  };
+}
+
+function mapEntry(
+  guild: Guild,
+  entry: GuildAuditLogsEntry,
+): DiscordAuditEntry {
+  const meta =
+    ACTION_META[entry.action as AuditLogEvent] ??
+    ({
+      label: actionKeyName(entry.action),
+      category: "server" as const,
+      tone: "neutral" as const,
+      targetKind: "unknown" as const,
+    } satisfies ActionMeta);
+
+  const changes = flattenChanges(entry);
+  const reason = entry.reason?.trim() || null;
+  const changesSummaryParts = [
+    ...changes.map((item) => item.summary),
+    reason ? `Razón: ${reason}` : null,
+  ].filter(Boolean) as string[];
+
+  const executorUser = entry.executor;
+  const mapped: DiscordAuditEntry = {
+    id: entry.id,
+    createdAt: entry.createdAt.toISOString(),
+    action: entry.action,
+    actionKey: actionKeyName(entry.action),
+    actionLabel: meta.label,
+    category: meta.category,
+    tone: meta.tone,
+    executor: executorUser
+      ? {
+          id: executorUser.id,
+          username: executorUser.username ?? "unknown",
+          displayName:
+            executorUser.globalName ||
+            executorUser.username ||
+            "Desconocido",
+          avatarUrl: executorUser.displayAvatarURL({ size: 64 }),
+        }
+      : null,
+    target: resolveTarget(guild, entry, meta),
+    reason,
+    changes,
+    changesSummary:
+      changesSummaryParts.length > 0 ? changesSummaryParts.join(" · ") : "—",
+  };
+
+  if (entry.action === AuditLogEvent.MemberRoleUpdate) {
+    const roles = extractRoleNamesFromRaw(entry);
+    mapped.addedRoles = roles.added;
+    mapped.removedRoles = roles.removed;
+    if (roles.added.length > 0 && roles.removed.length === 0) {
+      mapped.roleKind = "ROLE_ADD";
+      mapped.actionLabel = "Roles añadidos";
+      mapped.tone = "create";
+    } else if (roles.removed.length > 0 && roles.added.length === 0) {
+      mapped.roleKind = "ROLE_REMOVE";
+      mapped.actionLabel = "Roles eliminados";
+      mapped.tone = "delete";
+    } else {
+      mapped.roleKind = "ROLE_UPDATE";
+      mapped.actionLabel = "Actualización de roles";
+      mapped.tone = "update";
+    }
+  }
+
+  return mapped;
+}
+
+export async function fetchDiscordAuditLog(
+  bot: Client,
+  options: {
+    guildId?: string;
+    limit?: number;
+    userId?: string;
+    actionType?: number;
+  } = {},
+): Promise<DiscordAuditLogResponse> {
+  const guild = resolveGuild(bot, options.guildId);
+  const safeLimit = Math.max(
+    1,
+    Math.min(100, Math.round(options.limit ?? 100)),
+  );
+
+  const fetchOptions: {
+    limit: number;
+    user?: string;
+    type?: AuditLogEvent;
+  } = { limit: safeLimit };
+
+  if (options.userId?.trim()) {
+    const userId = options.userId.trim();
+    if (!/^\d{17,20}$/.test(userId)) {
+      throw new ModerationError("userId inválido.", 400, "INVALID_IDS");
+    }
+    fetchOptions.user = userId;
+  }
+
+  if (
+    options.actionType != null &&
+    Number.isFinite(options.actionType) &&
+    options.actionType >= 1
+  ) {
+    fetchOptions.type = options.actionType as AuditLogEvent;
+  }
+
+  try {
+    const logs = await guild.fetchAuditLogs(fetchOptions);
+    const rawEntries = [...logs.entries.values()].map((entry) =>
+      mapEntry(guild, entry),
+    );
+    const entries = consolidateAuditLogs(rawEntries);
+
+    return {
+      entries,
+      fetchedAt: new Date().toISOString(),
+    };
+  } catch (error: unknown) {
+    if (error instanceof DiscordAPIError) {
+      if (error.code === 50013 || error.status === 403) {
+        throw new ModerationError(
+          "Falta el permiso «Ver registro de auditoría». Concede View Audit Log al bot.",
+          403,
+          "MISSING_PERMISSIONS",
+        );
+      }
+    }
+    if (error instanceof ModerationError) throw error;
+    console.error("[adobos] Error al obtener audit log:", error);
+    throw new ModerationError(
+      "No se pudo obtener el registro de auditoría de Discord.",
+      500,
+      "AUDIT_FETCH_FAILED",
+    );
+  }
+}

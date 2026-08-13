@@ -2,17 +2,31 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
-import { CheckCircle2, Loader2, Send, XCircle } from "lucide-react";
+import { CheckCircle2, Loader2, Save, Send, Trash2, XCircle } from "lucide-react";
 import type {
+  EmbedPayload,
+  EmbedTemplateSummary,
   GuildAssetsResponse,
   MessageActionRowInput,
   SendEmbedRequest,
 } from "@adobos/shared";
-import { fetchGuildAssets, sendEmbedMessage } from "@/lib/api";
+import {
+  deleteEmbedTemplate,
+  fetchEmbedTemplate,
+  fetchGuildAssets,
+  listEmbedTemplates,
+  saveEmbedTemplate,
+  sendEmbedMessage,
+} from "@/lib/api";
+import { resolvePublicAssetUrl } from "@/lib/api/client";
+import type { EmbedMediaValue } from "@/lib/api/messages";
 import { parseDiscordEmojis } from "@/lib/parseDiscordEmojis";
 import { ButtonBuilder } from "@/features/messages/ButtonBuilder";
 import { DiscordEmojiPicker } from "@/components/shared/DiscordEmojiPicker";
-import { HybridImageInput } from "@/components/shared/HybridImageInput";
+import {
+  HybridImageInput,
+  type HybridImageValue,
+} from "@/components/shared/HybridImageInput";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -42,12 +56,33 @@ type Feedback =
   | { kind: "ok"; messageId: string }
   | { kind: "error"; message: string };
 
+type TemplateFeedback =
+  | { kind: "idle" }
+  | { kind: "loading" }
+  | { kind: "ok"; message: string }
+  | { kind: "error"; message: string };
+
 type EmbedTab = "general" | "contenido" | "imagenes" | "extra";
+
+type EmbedFormState = Omit<
+  SendEmbedRequest,
+  "imageUrl" | "thumbnailUrl" | "authorIconUrl" | "footerIconUrl"
+> & {
+  imageUrl: HybridImageValue;
+  thumbnailUrl: HybridImageValue;
+  authorIconUrl: HybridImageValue;
+  footerIconUrl: HybridImageValue;
+};
 
 const VARIABLE_HINTS = [
   { token: "{user}", tip: "Mención del usuario" },
   { token: "{username}", tip: "Nombre de usuario" },
+  { token: "{displayname}", tip: "Nombre en el servidor" },
   { token: "{server}", tip: "Nombre del servidor" },
+  { token: "{reason}", tip: "Razón de la sanción (moderación)" },
+  { token: "{moderator}", tip: "Nombre del moderador / bot" },
+  { token: "{action}", tip: "Tipo de sanción (warn, kick…)" },
+  { token: "{invite}", tip: "Invite de reingreso (solo kick)" },
   { token: "{channel}", tip: "Nombre del canal" },
   { token: "{#canal}", tip: "Link a un canal" },
   { token: "{&rol}", tip: "Mención de un rol" },
@@ -61,7 +96,7 @@ const STYLE_PREVIEW = {
   Link: "bg-transparent text-[#00a8fc] underline",
 } as const;
 
-const emptyForm: SendEmbedRequest = {
+const emptyForm: EmbedFormState = {
   channelId: "",
   content: "",
   title: "",
@@ -69,11 +104,11 @@ const emptyForm: SendEmbedRequest = {
   description: "",
   color: "#C45C26",
   authorName: "",
-  authorIconUrl: "",
-  thumbnailUrl: "",
-  imageUrl: "",
+  authorIconUrl: null,
+  thumbnailUrl: null,
+  imageUrl: null,
   footerText: "",
-  footerIconUrl: "",
+  footerIconUrl: null,
   timestamp: true,
   components: [],
 };
@@ -90,8 +125,70 @@ function insertAtCursor(
   };
 }
 
+function useMediaPreview(value: EmbedMediaValue): string | null {
+  const [preview, setPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (value instanceof File) {
+      const url = URL.createObjectURL(value);
+      setPreview(url);
+      return () => URL.revokeObjectURL(url);
+    }
+    const next =
+      typeof value === "string" && value.trim()
+        ? resolvePublicAssetUrl(value)
+        : null;
+    setPreview(next);
+  }, [value]);
+
+  return preview;
+}
+
+function mediaToStoredUrl(value: HybridImageValue): string | undefined {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  return undefined;
+}
+
+function formToEmbedPayload(form: EmbedFormState): EmbedPayload {
+  return {
+    content: form.content?.trim() || undefined,
+    title: form.title?.trim() || undefined,
+    url: form.url?.trim() || undefined,
+    description: form.description?.trim() || undefined,
+    color: form.color?.trim() || undefined,
+    authorName: form.authorName?.trim() || undefined,
+    authorIconUrl: mediaToStoredUrl(form.authorIconUrl),
+    thumbnailUrl: mediaToStoredUrl(form.thumbnailUrl),
+    imageUrl: mediaToStoredUrl(form.imageUrl),
+    footerText: form.footerText?.trim() || undefined,
+    footerIconUrl: mediaToStoredUrl(form.footerIconUrl),
+    timestamp: Boolean(form.timestamp),
+  };
+}
+
+function applyEmbedPayloadToForm(
+  prev: EmbedFormState,
+  payload: EmbedPayload,
+): EmbedFormState {
+  return {
+    ...prev,
+    content: payload.content ?? "",
+    title: payload.title ?? "",
+    url: payload.url ?? "",
+    description: payload.description ?? "",
+    color: payload.color ?? "#C45C26",
+    authorName: payload.authorName ?? "",
+    authorIconUrl: payload.authorIconUrl ?? null,
+    thumbnailUrl: payload.thumbnailUrl ?? null,
+    imageUrl: payload.imageUrl ?? null,
+    footerText: payload.footerText ?? "",
+    footerIconUrl: payload.footerIconUrl ?? null,
+    timestamp: Boolean(payload.timestamp),
+  };
+}
+
 export function EmbedBuilder() {
-  const [form, setForm] = useState<SendEmbedRequest>(emptyForm);
+  const [form, setForm] = useState<EmbedFormState>(emptyForm);
   const [feedback, setFeedback] = useState<Feedback>({ kind: "idle" });
   const [assets, setAssets] = useState<GuildAssetsResponse | null>(null);
   const [assetsError, setAssetsError] = useState<string | null>(null);
@@ -99,6 +196,12 @@ export function EmbedBuilder() {
   const [emojiTarget, setEmojiTarget] = useState<"content" | "description">(
     "content",
   );
+  const [templates, setTemplates] = useState<EmbedTemplateSummary[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [templateName, setTemplateName] = useState("");
+  const [templateFeedback, setTemplateFeedback] = useState<TemplateFeedback>({
+    kind: "idle",
+  });
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
@@ -107,9 +210,20 @@ export function EmbedBuilder() {
     return /^[0-9a-fA-F]{6}$/.test(raw) ? `#${raw}` : "#C45C26";
   }, [form.color]);
 
+  const authorIconPreview = useMediaPreview(form.authorIconUrl);
+  const thumbnailPreview = useMediaPreview(form.thumbnailUrl);
+  const imagePreview = useMediaPreview(form.imageUrl);
+  const footerIconPreview = useMediaPreview(form.footerIconUrl);
+
   const isSubmitting = feedback.kind === "loading";
+  const isTemplateBusy = templateFeedback.kind === "loading";
   const components = form.components ?? [];
   const serverEmojis = assets?.emojis ?? [];
+
+  async function refreshTemplates(): Promise<void> {
+    const data = await listEmbedTemplates();
+    setTemplates(data.templates);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -129,14 +243,21 @@ export function EmbedBuilder() {
           );
         }
       });
+    void listEmbedTemplates()
+      .then((data) => {
+        if (!cancelled) setTemplates(data.templates);
+      })
+      .catch(() => {
+        if (!cancelled) setTemplates([]);
+      });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  function update<K extends keyof SendEmbedRequest>(
+  function update<K extends keyof EmbedFormState>(
     key: K,
-    value: SendEmbedRequest[K],
+    value: EmbedFormState[K],
   ): void {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
@@ -166,11 +287,10 @@ export function EmbedBuilder() {
     setFeedback({ kind: "loading" });
 
     try {
-      const payload: SendEmbedRequest = {
+      const result = await sendEmbedMessage({
         ...form,
         components: components.length > 0 ? components : undefined,
-      };
-      const result = await sendEmbedMessage(payload);
+      });
       setFeedback({ kind: "ok", messageId: result.messageId });
     } catch (error: unknown) {
       setFeedback({
@@ -180,10 +300,108 @@ export function EmbedBuilder() {
     }
   }
 
+  async function onLoadTemplate(idRaw: string): Promise<void> {
+    setSelectedTemplateId(idRaw);
+    if (!idRaw) {
+      setTemplateName("");
+      return;
+    }
+    const id = Number.parseInt(idRaw, 10);
+    if (!Number.isFinite(id)) return;
+
+    setTemplateFeedback({ kind: "loading" });
+    try {
+      const detail = await fetchEmbedTemplate(id);
+      setForm((prev) => applyEmbedPayloadToForm(prev, detail.embedData));
+      setTemplateName(detail.name);
+      setTemplateFeedback({
+        kind: "ok",
+        message: `Plantilla «${detail.name}» cargada.`,
+      });
+    } catch (error: unknown) {
+      setTemplateFeedback({
+        kind: "error",
+        message:
+          error instanceof Error ? error.message : "No se pudo cargar la plantilla",
+      });
+    }
+  }
+
+  async function onSaveTemplate(asNew: boolean): Promise<void> {
+    const name = templateName.trim();
+    if (!name) {
+      setTemplateFeedback({
+        kind: "error",
+        message: "Escribe un nombre para la plantilla.",
+      });
+      return;
+    }
+
+    setTemplateFeedback({ kind: "loading" });
+    try {
+      const result = await saveEmbedTemplate({
+        id: asNew
+          ? undefined
+          : selectedTemplateId
+            ? Number.parseInt(selectedTemplateId, 10)
+            : undefined,
+        name,
+        embedData: formToEmbedPayload(form),
+        imageUrl: form.imageUrl,
+        thumbnailUrl: form.thumbnailUrl,
+        authorIconUrl: form.authorIconUrl,
+        footerIconUrl: form.footerIconUrl,
+      });
+      await refreshTemplates();
+      setSelectedTemplateId(String(result.template.id));
+      setTemplateName(result.template.name);
+      setForm((prev) => applyEmbedPayloadToForm(prev, result.template.embedData));
+      setTemplateFeedback({
+        kind: "ok",
+        message: asNew
+          ? `Plantilla «${result.template.name}» creada.`
+          : `Plantilla «${result.template.name}» actualizada.`,
+      });
+    } catch (error: unknown) {
+      setTemplateFeedback({
+        kind: "error",
+        message:
+          error instanceof Error ? error.message : "No se pudo guardar",
+      });
+    }
+  }
+
+  async function onDeleteTemplate(): Promise<void> {
+    if (!selectedTemplateId) return;
+    const id = Number.parseInt(selectedTemplateId, 10);
+    if (!Number.isFinite(id)) return;
+    if (
+      !window.confirm(
+        "¿Eliminar esta plantilla? Esta acción no se puede deshacer.",
+      )
+    ) {
+      return;
+    }
+
+    setTemplateFeedback({ kind: "loading" });
+    try {
+      await deleteEmbedTemplate(id);
+      await refreshTemplates();
+      setSelectedTemplateId("");
+      setTemplateName("");
+      setTemplateFeedback({ kind: "ok", message: "Plantilla eliminada." });
+    } catch (error: unknown) {
+      setTemplateFeedback({
+        kind: "error",
+        message:
+          error instanceof Error ? error.message : "No se pudo eliminar",
+      });
+    }
+  }
+
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Columna izquierda */}
         <div className="space-y-6 lg:col-span-2">
           <Card>
             <CardHeader>
@@ -390,14 +608,14 @@ export function EmbedBuilder() {
                     <HybridImageInput
                       id="message-imageUrl"
                       label="Imagen principal"
-                      value={form.imageUrl ?? ""}
+                      value={form.imageUrl}
                       onChange={(next) => update("imageUrl", next)}
                       disabled={isSubmitting}
                     />
                     <HybridImageInput
                       id="message-thumbnailUrl"
                       label="Thumbnail"
-                      value={form.thumbnailUrl ?? ""}
+                      value={form.thumbnailUrl}
                       onChange={(next) => update("thumbnailUrl", next)}
                       disabled={isSubmitting}
                     />
@@ -420,7 +638,7 @@ export function EmbedBuilder() {
                     <HybridImageInput
                       id="message-authorIconUrl"
                       label="Icono del autor"
-                      value={form.authorIconUrl ?? ""}
+                      value={form.authorIconUrl}
                       onChange={(next) => update("authorIconUrl", next)}
                       disabled={isSubmitting}
                     />
@@ -439,7 +657,7 @@ export function EmbedBuilder() {
                     <HybridImageInput
                       id="message-footerIconUrl"
                       label="Icono del footer"
-                      value={form.footerIconUrl ?? ""}
+                      value={form.footerIconUrl}
                       onChange={(next) => update("footerIconUrl", next)}
                       disabled={isSubmitting}
                     />
@@ -465,6 +683,115 @@ export function EmbedBuilder() {
             onChange={setComponents}
             disabled={isSubmitting}
           />
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Plantillas de embed</CardTitle>
+              <CardDescription>
+                Guarda el embed actual para reutilizarlo en moderación (DM) u
+                otros envíos. Variables: {"{reason}"}, {"{moderator}"}, {"{user}"}…
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Plantilla guardada</Label>
+                <Select
+                  value={selectedTemplateId || undefined}
+                  disabled={isSubmitting || isTemplateBusy}
+                  onValueChange={(value) => {
+                    void onLoadTemplate(value);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Nueva / seleccionar…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map((template) => (
+                      <SelectItem
+                        key={template.id}
+                        value={String(template.id)}
+                      >
+                        {template.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="template-name">Nombre de la plantilla</Label>
+                <Input
+                  id="template-name"
+                  value={templateName}
+                  disabled={isSubmitting || isTemplateBusy}
+                  placeholder="ej. Warn DM, Kick reingreso…"
+                  onChange={(event) => setTemplateName(event.target.value)}
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isSubmitting || isTemplateBusy}
+                  onClick={() => {
+                    void onSaveTemplate(!selectedTemplateId);
+                  }}
+                >
+                  {isTemplateBusy ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden />
+                  ) : (
+                    <Save className="size-4" aria-hidden />
+                  )}
+                  {selectedTemplateId ? "Actualizar plantilla" : "Guardar como plantilla"}
+                </Button>
+                {selectedTemplateId ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={isSubmitting || isTemplateBusy}
+                      onClick={() => {
+                        void onSaveTemplate(true);
+                      }}
+                    >
+                      Guardar como nueva
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={isSubmitting || isTemplateBusy}
+                      onClick={() => {
+                        void onDeleteTemplate();
+                      }}
+                    >
+                      <Trash2 className="size-4" aria-hidden />
+                      Eliminar
+                    </Button>
+                  </>
+                ) : null}
+              </div>
+
+              {templateFeedback.kind === "ok" ? (
+                <p
+                  className="flex items-start gap-2 text-sm text-emerald-700 dark:text-emerald-400"
+                  role="status"
+                >
+                  <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  {templateFeedback.message}
+                </p>
+              ) : null}
+              {templateFeedback.kind === "error" ? (
+                <p
+                  className="flex items-start gap-2 text-sm text-red-700 dark:text-red-400"
+                  role="alert"
+                >
+                  <XCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  {templateFeedback.message}
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
 
           <div className="flex flex-col gap-3">
             <Button
@@ -501,7 +828,6 @@ export function EmbedBuilder() {
           </div>
         </div>
 
-        {/* Columna derecha sticky */}
         <div className="space-y-4 lg:sticky lg:top-6 lg:self-start">
           <div className="overflow-hidden rounded-lg border border-border bg-[#2b2d31] text-white shadow-sm">
             <div className="border-b border-white/10 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white/60">
@@ -526,9 +852,9 @@ export function EmbedBuilder() {
                 <div className="space-y-2 p-3">
                   {form.authorName?.trim() && (
                     <div className="flex items-center gap-2 text-xs font-semibold">
-                      {form.authorIconUrl?.trim() && (
+                      {authorIconPreview && (
                         <img
-                          src={form.authorIconUrl}
+                          src={authorIconPreview}
                           alt=""
                           className="size-5 rounded-full object-cover"
                         />
@@ -564,26 +890,26 @@ export function EmbedBuilder() {
                         </div>
                       )}
                     </div>
-                    {form.thumbnailUrl?.trim() && (
+                    {thumbnailPreview && (
                       <img
-                        src={form.thumbnailUrl}
+                        src={thumbnailPreview}
                         alt=""
                         className="size-16 rounded object-cover"
                       />
                     )}
                   </div>
-                  {form.imageUrl?.trim() && (
+                  {imagePreview && (
                     <img
-                      src={form.imageUrl}
+                      src={imagePreview}
                       alt=""
                       className="mt-2 max-h-40 w-full rounded object-cover"
                     />
                   )}
                   {(form.footerText?.trim() || form.timestamp) && (
                     <div className="flex items-center gap-2 pt-1 text-[11px] text-white/55">
-                      {form.footerIconUrl?.trim() && (
+                      {footerIconPreview && (
                         <img
-                          src={form.footerIconUrl}
+                          src={footerIconPreview}
                           alt=""
                           className="size-4 rounded-full object-cover"
                         />
@@ -654,7 +980,7 @@ export function EmbedBuilder() {
 
           <VariableListBase
             items={VARIABLE_HINTS}
-            description="Clic para copiar. El envío actual es literal."
+            description="Clic para copiar. En moderación se interpolan al enviar el DM."
           />
         </div>
       </div>

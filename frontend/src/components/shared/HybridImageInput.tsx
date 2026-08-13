@@ -1,171 +1,194 @@
-import { useCallback, useState } from "react";
-import { useDropzone } from "react-dropzone";
-import { ImagePlus, Loader2, Link2, Upload, X } from "lucide-react";
+import { useEffect, useId, useRef, useState, type ChangeEvent } from "react";
+import { Loader2, Paperclip, X } from "lucide-react";
 import { uploadImageFile } from "@/lib/api";
+import { resolvePublicAssetUrl } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
-type ImageMode = "url" | "upload";
+/** URL remota/ruta `/uploads/...`, archivo local pendiente, o vacío. */
+export type HybridImageValue = string | File | null;
 
-interface HybridImageInputProps {
-  id: string;
+export interface HybridImageInputProps {
+  id?: string;
   label: string;
-  value: string;
-  onChange: (value: string) => void;
+  value: HybridImageValue;
+  onChange: (value: HybridImageValue) => void;
   disabled?: boolean;
   placeholder?: string;
+  maxSizeMb?: number;
+  /**
+   * Si es true, sube el archivo de inmediato a `/api/uploads/image`
+   * y emite la ruta pública (útil en formularios que solo guardan strings).
+   */
+  uploadImmediately?: boolean;
+  className?: string;
+}
+
+function useObjectUrl(file: File | null): string | null {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!file) {
+      setUrl(null);
+      return;
+    }
+    const next = URL.createObjectURL(file);
+    setUrl(next);
+    return () => URL.revokeObjectURL(next);
+  }, [file]);
+
+  return url;
 }
 
 /**
- * Input híbrido: pegar URL http(s) o subir archivo a `/api/uploads/image`.
- * El valor resultante es URL externa o ruta pública `/uploads/images/...`.
+ * Input híbrido compacto: URL + clip para archivo + miniatura + limpiar.
  */
 export function HybridImageInput({
-  id,
+  id: idProp,
   label,
   value,
   onChange,
   disabled,
   placeholder = "https://…",
+  maxSizeMb = 5,
+  uploadImmediately = false,
+  className,
 }: HybridImageInputProps) {
-  const [mode, setMode] = useState<ImageMode>(() =>
-    value.startsWith("/uploads/") ? "upload" : "url",
-  );
+  const autoId = useId();
+  const id = idProp ?? autoId;
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const onDrop = useCallback(
-    async (accepted: File[]) => {
-      const file = accepted[0];
-      if (!file) return;
+  const file = value instanceof File ? value : null;
+  const objectUrl = useObjectUrl(file);
+  const urlValue = typeof value === "string" ? value : "";
+  const previewSrc = file
+    ? objectUrl
+    : urlValue.trim()
+      ? resolvePublicAssetUrl(urlValue)
+      : null;
+  const textValue = file ? file.name : urlValue;
+  const busy = Boolean(disabled || uploading);
+  const hasValue = Boolean(file || urlValue.trim());
 
-      setUploading(true);
-      setError(null);
-      try {
-        const result = await uploadImageFile(file);
-        onChange(result.path);
-        setMode("upload");
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Error al subir");
-      } finally {
-        setUploading(false);
-      }
-    },
-    [onChange],
-  );
+  async function applyFile(next: File): Promise<void> {
+    setError(null);
+    if (next.size > maxSizeMb * 1024 * 1024) {
+      setError(`La imagen supera ${maxSizeMb}MB.`);
+      return;
+    }
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    multiple: false,
-    maxSize: 5 * 1024 * 1024,
-    accept: {
-      "image/png": [".png"],
-      "image/jpeg": [".jpg", ".jpeg"],
-      "image/webp": [".webp"],
-    },
-    disabled: disabled || uploading,
-  });
+    if (!uploadImmediately) {
+      onChange(next);
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const result = await uploadImageFile(next);
+      onChange(result.path);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error al subir");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function onFileChange(event: ChangeEvent<HTMLInputElement>): void {
+    const next = event.target.files?.[0];
+    event.target.value = "";
+    if (!next) return;
+    void applyFile(next);
+  }
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Label htmlFor={id}>{label}</Label>
-        <Tabs>
-          <TabsList className="h-8 p-0.5">
-            <TabsTrigger
-              active={mode === "url"}
-              disabled={disabled}
-              className="h-7 px-2.5 text-xs"
-              onClick={() => setMode("url")}
-            >
-              <Link2 className="mr-1 size-3.5" aria-hidden />
-              URL
-            </TabsTrigger>
-            <TabsTrigger
-              active={mode === "upload"}
-              disabled={disabled}
-              className="h-7 px-2.5 text-xs"
-              onClick={() => setMode("upload")}
-            >
-              <Upload className="mr-1 size-3.5" aria-hidden />
-              Subir
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
-
-      {mode === "url" ? (
-        <Input
-          id={id}
-          value={value.startsWith("/uploads/") ? "" : value}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder={placeholder}
-          disabled={disabled}
-        />
-      ) : (
-        <div
-          {...getRootProps()}
-          className={cn(
-            "flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed px-3 py-5 text-center transition-colors",
-            isDragActive
-              ? "border-primary bg-primary/10"
-              : "border-border bg-muted/20 hover:border-primary/50 hover:bg-muted/40",
-            (uploading || disabled) && "pointer-events-none opacity-60",
-          )}
-        >
-          <input {...getInputProps()} id={id} />
-          {uploading ? (
-            <Loader2 className="size-6 animate-spin text-primary" />
-          ) : (
-            <Upload className="size-6 text-muted-foreground" aria-hidden />
-          )}
-          <p className="text-xs font-medium">
-            {isDragActive
-              ? "Suelta la imagen…"
-              : "Arrastra o haz clic (PNG, JPG, WEBP · máx. 5MB)"}
-          </p>
-        </div>
-      )}
-
-      {value.trim() && (
-        <div className="flex items-center gap-3 rounded-md border border-border bg-muted/20 p-2">
+    <div className={cn("space-y-1.5", className)}>
+      <Label htmlFor={id}>{label}</Label>
+      <div className="flex items-center gap-2">
+        {previewSrc ? (
           <img
-            src={value}
+            src={previewSrc}
             alt=""
-            className="size-12 rounded object-cover"
+            className="size-10 shrink-0 rounded object-cover ring-1 ring-border"
             onError={(event) => {
-              (event.target as HTMLImageElement).style.opacity = "0.3";
+              (event.target as HTMLImageElement).style.opacity = "0.35";
             }}
           />
-          <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <ImagePlus className="size-3 shrink-0" aria-hidden />
-              Vista previa
-            </p>
-            <p className="truncate font-mono text-[11px] text-foreground/80">
-              {value}
-            </p>
-          </div>
+        ) : null}
+
+        <Input
+          id={id}
+          value={textValue}
+          readOnly={Boolean(file)}
+          disabled={busy}
+          placeholder={placeholder}
+          className={cn(
+            "min-w-0 flex-1",
+            file && "cursor-default text-muted-foreground",
+          )}
+          onChange={(event) => {
+            if (file) return;
+            const next = event.target.value;
+            onChange(next.trim() ? next : null);
+            setError(null);
+          }}
+        />
+
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="size-10 shrink-0"
+          disabled={busy}
+          aria-label={`Subir archivo — ${label}`}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          {uploading ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden />
+          ) : (
+            <Paperclip className="size-4" aria-hidden />
+          )}
+        </Button>
+
+        {hasValue ? (
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="size-8 shrink-0"
-            disabled={disabled}
-            aria-label="Quitar imagen"
-            onClick={() => onChange("")}
+            className="size-10 shrink-0"
+            disabled={busy}
+            aria-label={`Quitar ${label}`}
+            onClick={() => {
+              onChange(null);
+              setError(null);
+            }}
           >
             <X className="size-4" />
           </Button>
-        </div>
-      )}
+        ) : null}
 
-      {error && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+          className="sr-only"
+          disabled={busy}
+          onChange={onFileChange}
+        />
+      </div>
+      {error ? (
         <p className="text-xs text-red-700 dark:text-red-400">{error}</p>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">
+          Pega una URL o adjunta PNG/JPG/WEBP (máx. {maxSizeMb}MB)
+        </p>
       )}
     </div>
   );
 }
+
+/** Alias pedido en la refactorización UX. */
+export { HybridImageInput as InputHibridoImagen };

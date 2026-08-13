@@ -8,14 +8,13 @@ import {
   type Image,
   type SKRSContext2D,
 } from "@napi-rs/canvas";
+import type { WelcomeTextLayer } from "@adobos/shared";
 import { resolvePublicUploadPath } from "../../../lib/dataPaths.js";
 
 /** Lienzo fijo 1920×1080 (coincide con sliders del panel). */
 export const CARD_WIDTH = 1920;
 export const CARD_HEIGHT = 1080;
-/** Tamaño mínimo del avatar (diámetro en px). */
 export const AVATAR_SIZE_MIN = 280;
-/** Tamaño máximo del avatar (diámetro en px). */
 export const AVATAR_SIZE_MAX = 720;
 
 const FONT_FAMILY = "Inter";
@@ -25,10 +24,8 @@ const DEFAULT_BG =
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/** `backend/assets/fonts` — funciona en tsx (src/) y en dist/ compilado. */
 function resolveFontsDir(): string {
   const candidates = [
-    // src/modules/welcome/card o dist/... → backend/assets/fonts
     path.resolve(__dirname, "../../../../assets/fonts"),
     path.resolve(__dirname, "../../../assets/fonts"),
     path.resolve(process.cwd(), "assets/fonts"),
@@ -74,21 +71,26 @@ export interface WelcomeCardUser {
 
 export interface BuildWelcomeCardOptions {
   user: WelcomeCardUser;
-  /** Ruta pública `/uploads/backgrounds/...` */
   bgFilepath?: string | null;
-  /** URL remota de respaldo (galería). */
   backgroundUrl?: string | null;
   blurAmount?: number;
-  primaryText: string;
-  secondaryText?: string;
   avatarX?: number;
   avatarY?: number;
-  /** Diámetro del avatar; mínimo = AVATAR_SIZE_MIN. */
   avatarSize?: number;
+  avatarBorderWidth?: number;
+  avatarBorderColor?: string;
+  textLayers?: WelcomeTextLayer[];
+  /** @deprecated Usar textLayers. */
+  primaryText?: string;
+  /** @deprecated Usar textLayers. */
+  secondaryText?: string;
+  /** @deprecated Usar textLayers. */
   textX?: number;
+  /** @deprecated Usar textLayers. */
   textY?: number;
-  /** Tamaño exacto del texto principal en px. */
+  /** @deprecated Usar textLayers. */
   fontSize?: number;
+  /** @deprecated Usar textLayers. */
   textColor?: string;
 }
 
@@ -140,11 +142,49 @@ function normalizeHexColor(raw?: string): string {
   return "#ffffff";
 }
 
-/** Estira el fondo exactamente a 1920×1080. */
-function drawBackgroundCover(
-  ctx: SKRSContext2D,
-  image: Image,
-): void {
+function legacyLayersFromOptions(
+  options: BuildWelcomeCardOptions,
+): WelcomeTextLayer[] {
+  const fontSize = clamp(toInt(options.fontSize, 64), 20, 200);
+  const textX = clamp(toInt(options.textX, CARD_WIDTH / 2), 0, CARD_WIDTH);
+  const textY = clamp(toInt(options.textY, 560), 0, CARD_HEIGHT);
+  const color = normalizeHexColor(options.textColor);
+  const primary = (options.primaryText ?? "").trim() || "¡Bienvenido!";
+  const secondary =
+    (options.secondaryText ?? "").trim() || options.user.username;
+
+  return [
+    {
+      id: "legacy-primary",
+      text: primary,
+      x: textX,
+      y: textY,
+      fontSize,
+      color,
+      weight: "bold",
+    },
+    {
+      id: "legacy-secondary",
+      text: secondary,
+      x: textX,
+      y: textY + fontSize + 16,
+      fontSize: Math.max(12, Math.round(fontSize * 0.55)),
+      color,
+      weight: "normal",
+    },
+  ];
+}
+
+function resolveTextLayers(
+  options: BuildWelcomeCardOptions,
+): WelcomeTextLayer[] {
+  if (Array.isArray(options.textLayers) && options.textLayers.length > 0) {
+    return options.textLayers;
+  }
+  return legacyLayersFromOptions(options);
+}
+
+function drawBackgroundCover(ctx: SKRSContext2D, image: Image): void {
   ctx.drawImage(image, 0, 0, CARD_WIDTH, CARD_HEIGHT);
 }
 
@@ -167,7 +207,6 @@ function drawBlurredBackground(
     return;
   }
 
-  // Desenfoque vía downscale + filter, siempre volviendo al lienzo 1920×1080
   const scale = Math.max(0.18, 1 - blurAmount * 0.06);
   const smallW = Math.max(64, Math.round(CARD_WIDTH * scale));
   const smallH = Math.max(36, Math.round(CARD_HEIGHT * scale));
@@ -186,10 +225,12 @@ function drawBlurredBackground(
 
 function drawCircularAvatar(
   ctx: SKRSContext2D,
-  avatar: Image,
+  avatar: Image | null,
   cx: number,
   cy: number,
   size: number,
+  borderWidth: number,
+  borderColor: string,
 ): void {
   const radius = size / 2;
   ctx.save();
@@ -197,14 +238,44 @@ function drawCircularAvatar(
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
   ctx.closePath();
   ctx.clip();
-  ctx.drawImage(avatar, cx - radius, cy - radius, size, size);
+  if (avatar) {
+    ctx.drawImage(avatar, cx - radius, cy - radius, size, size);
+  } else {
+    ctx.fillStyle = "#C45C26";
+    ctx.fillRect(cx - radius, cy - radius, size, size);
+  }
   ctx.restore();
 
-  ctx.beginPath();
-  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-  ctx.strokeStyle = "rgba(255,255,255,0.92)";
-  ctx.lineWidth = 8;
-  ctx.stroke();
+  if (borderWidth > 0) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = borderColor;
+    ctx.lineWidth = borderWidth;
+    ctx.stroke();
+  }
+}
+
+function drawTextLayers(
+  ctx: SKRSContext2D,
+  layers: WelcomeTextLayer[],
+): void {
+  for (const layer of layers) {
+    const text = layer.text.trim();
+    if (!text) continue;
+    const fontSize = clamp(toInt(layer.fontSize, 64), 12, 200);
+    const x = clamp(toInt(layer.x, 0), 0, CARD_WIDTH);
+    const y = clamp(toInt(layer.y, 0), 0, CARD_HEIGHT);
+    const color = normalizeHexColor(layer.color);
+    const weight = layer.weight === "normal" ? "normal" : "bold";
+
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.font = `${weight} ${fontSize}px ${FONT_FAMILY}`;
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
 }
 
 async function resolveBackgroundImage(
@@ -214,7 +285,7 @@ async function resolveBackgroundImage(
     try {
       return await loadLocalUpload(options.bgFilepath.trim());
     } catch {
-      // fallback a URL
+      // fallback
     }
   }
 
@@ -227,8 +298,8 @@ async function resolveBackgroundImage(
 }
 
 /**
- * Genera una tarjeta PNG de bienvenida (lienzo fijo 1920×1080 + Inter).
- * Coordenadas y fontSize son 1:1 con la vista previa del panel.
+ * Genera una tarjeta PNG de bienvenida (1920×1080).
+ * Capas de texto y borde de avatar 1:1 con el panel.
  */
 export async function buildWelcomeCard(
   options: BuildWelcomeCardOptions,
@@ -236,11 +307,6 @@ export async function buildWelcomeCard(
   ensureFontsRegistered();
 
   const blurAmount = clampBlur(toInt(options.blurAmount, 4));
-  const primary = (options.primaryText ?? "").trim() || "¡Bienvenido!";
-  const secondary =
-    (options.secondaryText ?? "").trim() || options.user.username;
-  const textColor = normalizeHexColor(options.textColor);
-
   const avatarX = clamp(toInt(options.avatarX, CARD_WIDTH / 2), 0, CARD_WIDTH);
   const avatarY = clamp(toInt(options.avatarY, 380), 0, CARD_HEIGHT);
   const avatarSize = clamp(
@@ -248,10 +314,9 @@ export async function buildWelcomeCard(
     AVATAR_SIZE_MIN,
     AVATAR_SIZE_MAX,
   );
-  const textX = clamp(toInt(options.textX, CARD_WIDTH / 2), 0, CARD_WIDTH);
-  const textY = clamp(toInt(options.textY, 560), 0, CARD_HEIGHT);
-  const fontSize = clamp(toInt(options.fontSize, 64), 20, 200);
-  const secondarySize = Math.max(12, Math.round(fontSize * 0.55));
+  const borderWidth = clamp(toInt(options.avatarBorderWidth, 8), 0, 40);
+  const borderColor = normalizeHexColor(options.avatarBorderColor);
+  const layers = resolveTextLayers(options);
 
   const canvas = createCanvas(CARD_WIDTH, CARD_HEIGHT);
   const ctx = canvas.getContext("2d");
@@ -270,34 +335,23 @@ export async function buildWelcomeCard(
   ctx.fillStyle = overlay;
   ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
 
-  // Avatar: (avatarX, avatarY) = centro del círculo (igual que left/top CSS con offset -size/2)
+  let avatarImage: Image | null = null;
   try {
-    const avatar = await loadRemoteImage(options.user.avatarUrl);
-    drawCircularAvatar(ctx, avatar, avatarX, avatarY, avatarSize);
+    avatarImage = await loadRemoteImage(options.user.avatarUrl);
   } catch {
-    ctx.beginPath();
-    ctx.arc(avatarX, avatarY, avatarSize / 2, 0, Math.PI * 2);
-    ctx.fillStyle = "#C45C26";
-    ctx.fill();
+    avatarImage = null;
   }
+  drawCircularAvatar(
+    ctx,
+    avatarImage,
+    avatarX,
+    avatarY,
+    avatarSize,
+    borderWidth,
+    borderColor,
+  );
 
-  // Texto: left/top exactos (sin márgenes extra)
-  ctx.save();
-  ctx.fillStyle = textColor || "#ffffff";
-  ctx.textAlign = "left";
-  ctx.textBaseline = "top";
-  ctx.font = `bold ${fontSize}px ${FONT_FAMILY}`;
-  ctx.fillText(primary, textX, textY);
-  ctx.restore();
-
-  ctx.save();
-  ctx.globalAlpha = 0.92;
-  ctx.fillStyle = textColor || "#ffffff";
-  ctx.textAlign = "left";
-  ctx.textBaseline = "top";
-  ctx.font = `normal ${secondarySize}px ${FONT_FAMILY}`;
-  ctx.fillText(secondary, textX, textY + fontSize + 16);
-  ctx.restore();
+  drawTextLayers(ctx, layers);
 
   return canvas.toBuffer("image/png");
 }

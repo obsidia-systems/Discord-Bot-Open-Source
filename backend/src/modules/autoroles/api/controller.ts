@@ -22,7 +22,7 @@ import type {
 } from "@adobos/shared";
 import { eq } from "drizzle-orm";
 import { getDb } from "../../../db/client.js";
-import { guildSettings } from "../../../db/schema.js";
+import { guildSettings, reactionRolesMenus } from "../../../db/schema.js";
 import {
   deleteReactionRolesForMessage,
   emojiKeyToResolvable,
@@ -225,10 +225,21 @@ function buildButtonRows(
         const label = mapping.label.trim() || "Rol";
         const customId =
           mapping.customId.trim() || `autorole_${roleId}`;
-        return new ButtonBuilder()
+        const button = new ButtonBuilder()
           .setCustomId(customId.slice(0, 100))
           .setLabel(label.slice(0, 80))
           .setStyle(BUTTON_STYLE_MAP[mapping.style] ?? ButtonStyle.Primary);
+
+        if (mapping.emojiKey?.trim()) {
+          const key = normalizeEmojiKey(mapping.emojiKey);
+          if (key.startsWith("custom:")) {
+            button.setEmoji({ id: key.slice("custom:".length) });
+          } else if (key.startsWith("unicode:")) {
+            button.setEmoji(key.slice("unicode:".length));
+          }
+        }
+
+        return button;
       }),
     );
     rows.push(row);
@@ -306,6 +317,49 @@ async function placeReactions(
   }
 }
 
+function saveInteractiveMenu(input: {
+  guildId: string;
+  channelId: string;
+  messageId: string;
+  mode: "buttons" | "reactions";
+  rolesMapping: unknown;
+}): void {
+  ensureGuildRow(input.guildId);
+  const db = getDb();
+  const now = new Date();
+  const json = JSON.stringify(input.rolesMapping);
+  const existing = db
+    .select()
+    .from(reactionRolesMenus)
+    .where(eq(reactionRolesMenus.messageId, input.messageId))
+    .get();
+
+  if (existing) {
+    db.update(reactionRolesMenus)
+      .set({
+        channelId: input.channelId,
+        mode: input.mode,
+        rolesMapping: json,
+        updatedAt: now,
+      })
+      .where(eq(reactionRolesMenus.id, existing.id))
+      .run();
+    return;
+  }
+
+  db.insert(reactionRolesMenus)
+    .values({
+      guildId: input.guildId,
+      channelId: input.channelId,
+      messageId: input.messageId,
+      mode: input.mode,
+      rolesMapping: json,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .run();
+}
+
 /** Endpoint todo-en-uno: crea mensaje (opcional) + guarda mappings. */
 export async function createAutoRoleSetup(
   bot: Client,
@@ -320,6 +374,7 @@ export async function createAutoRoleSetup(
   const channel = await resolveSendableChannel(bot, channelId);
 
   let messageId: string;
+  let saved = 0;
 
   if (input.messageSource === "existing") {
     messageId = assertSnowflake(input.messageId ?? "", "messageId");
@@ -341,29 +396,44 @@ export async function createAutoRoleSetup(
         mappings,
       });
       await placeReactions(existing, mappings);
-      return {
-        ok: true,
-        messageId,
+      saved = result.saved;
+      saveInteractiveMenu({
+        guildId,
         channelId,
-        saved: result.saved,
-      };
+        messageId,
+        mode: "reactions",
+        rolesMapping: mappings,
+      });
+    } else {
+      const buttons = input.buttonMappings ?? [];
+      if (buttons.length === 0) {
+        throw new AutoRoleError(
+          "Añade al menos un botón → rol.",
+          400,
+          "EMPTY_BUTTONS",
+        );
+      }
+      const components = buildButtonRows(buttons);
+      await existing.edit({ components }).catch((error: unknown) => {
+        throw new AutoRoleError(
+          error instanceof Error
+            ? `No se pudo editar el mensaje: ${error.message}`
+            : "No se pudo editar el mensaje (¿faltan permisos?).",
+          403,
+          "MESSAGE_EDIT_FAILED",
+        );
+      });
+      saved = buttons.length;
+      saveInteractiveMenu({
+        guildId,
+        channelId,
+        messageId,
+        mode: "buttons",
+        rolesMapping: buttons,
+      });
     }
 
-    // Botones sobre mensaje existente: solo valida customIds (el mensaje ya debería tenerlos)
-    const buttons = input.buttonMappings ?? [];
-    if (buttons.length === 0) {
-      throw new AutoRoleError(
-        "Añade mappings de botones o crea un mensaje nuevo con botones.",
-        400,
-        "EMPTY_BUTTONS",
-      );
-    }
-    return {
-      ok: true,
-      messageId,
-      channelId,
-      saved: buttons.length,
-    };
+    return { ok: true, messageId, channelId, saved };
   }
 
   // messageSource === "create"
@@ -401,6 +471,13 @@ export async function createAutoRoleSetup(
       mappings,
     });
     await placeReactions(message, mappings);
+    saveInteractiveMenu({
+      guildId,
+      channelId,
+      messageId: message.id,
+      mode: "reactions",
+      rolesMapping: mappings,
+    });
 
     return {
       ok: true,
@@ -426,6 +503,14 @@ export async function createAutoRoleSetup(
     embeds: embed ? [embed] : undefined,
     components,
     files: files.length > 0 ? files : undefined,
+  });
+
+  saveInteractiveMenu({
+    guildId,
+    channelId,
+    messageId: message.id,
+    mode: "buttons",
+    rolesMapping: buttonMappings,
   });
 
   return {

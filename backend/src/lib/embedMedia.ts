@@ -88,3 +88,40 @@ export function requireHttpUrl(
   }
   return trimmed;
 }
+
+function extensionFromUpload(
+  originalName: string,
+  mimetype: string,
+): string {
+  const fromName = path.extname(originalName).toLowerCase();
+  if (fromName) return fromName;
+  switch (mimetype) {
+    case "image/jpeg":
+      return ".jpg";
+    case "image/png":
+      return ".png";
+    case "image/webp":
+      return ".webp";
+    case "image/gif":
+      return ".gif";
+    default:
+      return ".png";
+  }
+}
+
+/**
+ * Convierte un archivo multer (memoria) en adjunto Discord + `attachment://`.
+ */
+export function resolveMulterEmbedMedia(
+  file: { buffer: Buffer; originalname: string; mimetype: string },
+  attachmentName: string,
+): ResolvedEmbedMedia {
+  const ext = extensionFromUpload(file.originalname, file.mimetype);
+  const name = attachmentName.includes(".")
+    ? attachmentName
+    : `${attachmentName}${ext}`;
+  return {
+    url: `attachment://${name}`,
+    file: new AttachmentBuilder(file.buffer, { name }),
+  };
+}

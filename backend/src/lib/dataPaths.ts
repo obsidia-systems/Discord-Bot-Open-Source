@@ -25,6 +25,13 @@ export function getImagesDir(): string {
   return dir;
 }
 
+/** Imágenes de plantillas de embed. */
+export function getTemplatesDir(): string {
+  const dir = path.join(getUploadsRoot(), "templates");
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
 /**
  * Convierte `/uploads/backgrounds/x.png` → ruta absoluta segura.
  * Rechaza path traversal.

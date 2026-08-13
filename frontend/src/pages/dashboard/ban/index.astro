@@ -1,0 +1,11 @@
+---
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { BanBuilder } from "../../../features/canvas-events";
+---
+
+<DashboardLayout
+  title="Baneos"
+  description="Diseña la tarjeta para cuando alguien es baneado del servidor."
+>
+  <BanBuilder client:load />
+</DashboardLayout>

@@ -15,6 +15,8 @@ interface EmbedFormTemplateProps {
   disabled?: boolean;
   /** Prefijo de ids para evitar colisiones si hay varios formularios. */
   idPrefix?: string;
+  /** Oculta autor/footer/imágenes bajo «Opciones avanzadas». */
+  compact?: boolean;
 }
 
 function insertAtCursor(
@@ -36,12 +38,14 @@ export function EmbedFormTemplate({
   serverEmojis = [],
   disabled,
   idPrefix = "embed",
+  compact = false,
 }: EmbedFormTemplateProps) {
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const [emojiTarget, setEmojiTarget] = useState<"content" | "description">(
     "description",
   );
+  const [showAdvanced, setShowAdvanced] = useState(!compact);
 
   const previewColor = useMemo(() => {
     const raw = value.color?.trim().replace(/^#/, "") ?? "";
@@ -172,76 +176,107 @@ export function EmbedFormTemplate({
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-authorName`}>Autor</Label>
-          <Input
-            id={`${idPrefix}-authorName`}
-            value={value.authorName ?? ""}
-            onChange={(event) => update("authorName", event.target.value)}
-            disabled={disabled}
-          />
-        </div>
+        {compact ? (
+          <div className="sm:col-span-2">
+            <button
+              type="button"
+              className="text-xs font-medium text-primary hover:underline"
+              onClick={() => setShowAdvanced((prev) => !prev)}
+            >
+              {showAdvanced ? "Ocultar opciones avanzadas" : "Opciones avanzadas"}
+            </button>
+          </div>
+        ) : null}
 
-        <div className="space-y-2 sm:col-span-2">
-          <HybridImageInput
-            id={`${idPrefix}-authorIconUrl`}
-            label="Icono del autor"
-            value={value.authorIconUrl ?? ""}
-            onChange={(next) => update("authorIconUrl", next)}
-            disabled={disabled}
-          />
-        </div>
+        {showAdvanced ? (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-authorName`}>Autor</Label>
+              <Input
+                id={`${idPrefix}-authorName`}
+                value={value.authorName ?? ""}
+                onChange={(event) => update("authorName", event.target.value)}
+                disabled={disabled}
+              />
+            </div>
 
-        <div className="space-y-2 sm:col-span-2">
-          <HybridImageInput
-            id={`${idPrefix}-thumbnailUrl`}
-            label="Thumbnail"
-            value={value.thumbnailUrl ?? ""}
-            onChange={(next) => update("thumbnailUrl", next)}
-            disabled={disabled}
-          />
-        </div>
+            <div className="space-y-2 sm:col-span-2">
+              <HybridImageInput
+                id={`${idPrefix}-authorIconUrl`}
+                label="Icono del autor"
+                value={value.authorIconUrl?.trim() ? value.authorIconUrl : null}
+                onChange={(next) =>
+                  update("authorIconUrl", typeof next === "string" ? next : "")
+                }
+                uploadImmediately
+                disabled={disabled}
+              />
+            </div>
 
-        <div className="space-y-2 sm:col-span-2">
-          <HybridImageInput
-            id={`${idPrefix}-imageUrl`}
-            label="Imagen principal"
-            value={value.imageUrl ?? ""}
-            onChange={(next) => update("imageUrl", next)}
-            disabled={disabled}
-          />
-        </div>
+            <div className="space-y-2 sm:col-span-2">
+              <HybridImageInput
+                id={`${idPrefix}-thumbnailUrl`}
+                label="Thumbnail"
+                value={value.thumbnailUrl?.trim() ? value.thumbnailUrl : null}
+                onChange={(next) =>
+                  update(
+                    "thumbnailUrl",
+                    typeof next === "string" ? next : "",
+                  )
+                }
+                uploadImmediately
+                disabled={disabled}
+              />
+            </div>
 
-        <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-footerText`}>Footer</Label>
-          <Input
-            id={`${idPrefix}-footerText`}
-            value={value.footerText ?? ""}
-            onChange={(event) => update("footerText", event.target.value)}
-            disabled={disabled}
-          />
-        </div>
+            <div className="space-y-2 sm:col-span-2">
+              <HybridImageInput
+                id={`${idPrefix}-imageUrl`}
+                label="Imagen principal"
+                value={value.imageUrl?.trim() ? value.imageUrl : null}
+                onChange={(next) =>
+                  update("imageUrl", typeof next === "string" ? next : "")
+                }
+                uploadImmediately
+                disabled={disabled}
+              />
+            </div>
 
-        <div className="space-y-2 sm:col-span-2">
-          <HybridImageInput
-            id={`${idPrefix}-footerIconUrl`}
-            label="Icono del footer"
-            value={value.footerIconUrl ?? ""}
-            onChange={(next) => update("footerIconUrl", next)}
-            disabled={disabled}
-          />
-        </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-footerText`}>Footer</Label>
+              <Input
+                id={`${idPrefix}-footerText`}
+                value={value.footerText ?? ""}
+                onChange={(event) => update("footerText", event.target.value)}
+                disabled={disabled}
+              />
+            </div>
 
-        <label className="flex items-center gap-2 text-sm sm:col-span-2">
-          <Checkbox
-            checked={Boolean(value.timestamp)}
-            disabled={disabled}
-            onCheckedChange={(checked) =>
-              update("timestamp", checked === true)
-            }
-          />
-          Mostrar timestamp (hora actual) en el embed
-        </label>
+            <div className="space-y-2 sm:col-span-2">
+              <HybridImageInput
+                id={`${idPrefix}-footerIconUrl`}
+                label="Icono del footer"
+                value={value.footerIconUrl?.trim() ? value.footerIconUrl : null}
+                onChange={(next) =>
+                  update("footerIconUrl", typeof next === "string" ? next : "")
+                }
+                uploadImmediately
+                disabled={disabled}
+              />
+            </div>
+
+            <label className="flex items-center gap-2 text-sm sm:col-span-2">
+              <Checkbox
+                checked={Boolean(value.timestamp)}
+                disabled={disabled}
+                onCheckedChange={(checked) =>
+                  update("timestamp", checked === true)
+                }
+              />
+              Mostrar timestamp (hora actual) en el embed
+            </label>
+          </>
+        ) : null}
       </div>
     </div>
   );

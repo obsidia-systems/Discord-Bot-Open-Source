@@ -15,3 +15,21 @@ export async function readApiError(
   }
   return fallback;
 }
+
+/** Resuelve `/uploads/...` al origen del API para miniaturas en el panel. */
+export function resolvePublicAssetUrl(pathOrUrl: string): string {
+  const trimmed = pathOrUrl.trim();
+  if (!trimmed) return trimmed;
+  if (
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("https://") ||
+    trimmed.startsWith("blob:") ||
+    trimmed.startsWith("data:")
+  ) {
+    return trimmed;
+  }
+  if (trimmed.startsWith("/uploads/")) {
+    return `${API_BASE}${trimmed}`;
+  }
+  return trimmed;
+}

@@ -1,0 +1,997 @@
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
+import {
+  CheckCircle2,
+  ChevronDown,
+  Loader2,
+  Plus,
+  Save,
+  Trash2,
+  XCircle,
+} from "lucide-react";
+import type {
+  CanvasEventSettingsResponse,
+  GuildAssetsResponse,
+  SaveCanvasEventSettingsRequest,
+  WelcomeTextLayer,
+  WelcomeTextWeight,
+} from "@adobos/shared";
+import { fetchGuildAssets, uploadBackgroundFile } from "@/lib/api";
+import { BackgroundImageUpload } from "@/components/shared/BackgroundImageUpload";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { VariableListBase } from "@/components/shared/VariableListBase";
+import { cn } from "@/lib/utils";
+
+export interface CanvasEventBuilderConfig {
+  cardTitle: string;
+  cardDescription: string;
+  defaultMessage: string;
+  defaultPrimaryText: string;
+  defaultSecondaryText: string;
+  loadingLabel: string;
+  saveLabel: string;
+  savedActiveMessage: string;
+  savedInactiveMessage: string;
+  fetchSettings: () => Promise<CanvasEventSettingsResponse>;
+  saveSettings: (
+    payload: SaveCanvasEventSettingsRequest,
+  ) => Promise<{ ok: true }>;
+}
+
+type Feedback =
+  | { kind: "idle" }
+  | { kind: "loading" }
+  | { kind: "ok"; message: string }
+  | { kind: "error"; message: string };
+
+type DesignTab = "avatar" | "texto";
+
+const CARD_W = 1920;
+const CARD_H = 1080;
+const AVATAR_SIZE_MIN = 280;
+const AVATAR_SIZE_MAX = 720;
+const FONT_SIZE_MIN = 20;
+const FONT_SIZE_MAX = 200;
+const CARD_FONT = "Inter, sans-serif";
+
+const DEFAULT_BG =
+  "https://images.unsplash.com/photo-1614850715649-1d0106293bd1?auto=format&fit=crop&w=1920&q=80";
+
+const EVENT_VARIABLES = [
+  { token: "{user}", tip: "Mención (@usuario) en el mensaje Discord" },
+  { token: "{username}", tip: "Nombre de usuario" },
+  { token: "{displayname}", tip: "Apodo en el servidor" },
+  { token: "{server}", tip: "Nombre del servidor" },
+  { token: "{membercount}", tip: "Cantidad de miembros" },
+] as const;
+
+function previewReplace(text: string): string {
+  return text
+    .replaceAll("{user}", "@NuevoMiembro")
+    .replaceAll("{username}", "NuevoMiembro")
+    .replaceAll("{displayname}", "NuevoMiembro")
+    .replaceAll("{displayName}", "NuevoMiembro")
+    .replaceAll("{server}", "Adobos")
+    .replaceAll("{membercount}", "128")
+    .replaceAll("{memberCount}", "128");
+}
+
+function clampInt(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.max(min, Math.min(max, Math.round(value)));
+}
+
+function newLayerId(): string {
+  return `layer-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function AxisSlider({
+  id,
+  label,
+  value,
+  max,
+  min = 0,
+  disabled,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: number;
+  max: number;
+  min?: number;
+  disabled?: boolean;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="flex items-center gap-3">
+        <Slider
+          id={id}
+          min={min}
+          max={max}
+          step={1}
+          value={[value]}
+          disabled={disabled}
+          className="min-w-0 flex-1"
+          onValueChange={(next) => onChange(next[0] ?? min)}
+        />
+        <div className="flex shrink-0 items-center gap-1">
+          <Input
+            id={`${id}-number`}
+            type="number"
+            inputMode="numeric"
+            min={min}
+            max={max}
+            step={1}
+            value={value}
+            disabled={disabled}
+            aria-label={`${label} (píxeles)`}
+            className="h-8 w-20 border-border/60 bg-muted/40 px-2 text-right font-mono text-xs tabular-nums shadow-none"
+            onChange={(event) => {
+              const next = Number.parseInt(event.target.value, 10);
+              if (!Number.isFinite(next)) return;
+              onChange(clampInt(next, min, max));
+            }}
+          />
+          <span className="text-[10px] text-muted-foreground">px</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HexColorField({
+  id,
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  disabled?: boolean;
+  onChange: (value: string) => void;
+}) {
+  const safe = /^#[0-9a-fA-F]{6}$/.test(value) ? value : "#FFFFFF";
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="flex gap-2">
+        <Input
+          id={id}
+          value={value}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="#FFFFFF"
+        />
+        <input
+          type="color"
+          aria-label={label}
+          className="h-10 w-12 cursor-pointer rounded-md border border-input bg-background p-1"
+          value={safe}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </div>
+    </div>
+  );
+}
+
+function HeaderEnableSwitch({
+  checked,
+  disabled,
+  onCheckedChange,
+}: {
+  checked: boolean;
+  disabled?: boolean;
+  onCheckedChange: (value: boolean) => void;
+}) {
+  const [desktopHost, setDesktopHost] = useState<HTMLElement | null>(null);
+  const [mobileHost, setMobileHost] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setDesktopHost(document.getElementById("dashboard-header-actions"));
+    setMobileHost(document.getElementById("dashboard-header-actions-mobile"));
+  }, []);
+
+  function renderControl(id: string) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-border/70 bg-background/80 px-3 py-2 shadow-sm">
+        <Label
+          htmlFor={id}
+          className="text-xs font-medium text-muted-foreground"
+        >
+          {checked ? "ON" : "OFF"}
+        </Label>
+        <Switch
+          id={id}
+          checked={checked}
+          disabled={disabled}
+          onCheckedChange={onCheckedChange}
+          className="h-7 w-12 [&>span]:size-6 [&>span]:data-[state=checked]:translate-x-5"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {desktopHost
+        ? createPortal(renderControl("welcome-enabled"), desktopHost)
+        : null}
+      {mobileHost
+        ? createPortal(renderControl("welcome-enabled-mobile"), mobileHost)
+        : null}
+    </>
+  );
+}
+
+function CanvasCardPreview({
+  previewBg,
+  blurAmount,
+  avatarX,
+  avatarY,
+  avatarSize,
+  avatarBorderWidth,
+  avatarBorderColor,
+  textLayers,
+}: {
+  previewBg: string;
+  blurAmount: number;
+  avatarX: number;
+  avatarY: number;
+  avatarSize: number;
+  avatarBorderWidth: number;
+  avatarBorderColor: string;
+  textLayers: WelcomeTextLayer[];
+}) {
+  const previewFrameRef = useRef<HTMLDivElement>(null);
+  const [previewScale, setPreviewScale] = useState(1);
+
+  useEffect(() => {
+    const frame = previewFrameRef.current;
+    if (!frame) return;
+
+    function updateScale(): void {
+      if (!previewFrameRef.current) return;
+      const width = previewFrameRef.current.clientWidth;
+      setPreviewScale(width > 0 ? width / CARD_W : 1);
+    }
+
+    updateScale();
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={previewFrameRef}
+      className="relative w-full overflow-hidden rounded-md border border-border bg-stone-950"
+      style={{ height: CARD_H * previewScale }}
+    >
+      <div
+        className="relative origin-top-left overflow-hidden"
+        style={{
+          width: CARD_W,
+          height: CARD_H,
+          transform: `scale(${previewScale})`,
+          backgroundImage: `url(${previewBg})`,
+          backgroundSize: "100% 100%",
+          backgroundPosition: "center",
+        }}
+      >
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(to bottom, rgba(0,0,0,0.20), rgba(0,0,0,0.30) 55%, rgba(0,0,0,0.50))",
+            backdropFilter:
+              blurAmount > 0 ? `blur(${blurAmount}px)` : undefined,
+            WebkitBackdropFilter:
+              blurAmount > 0 ? `blur(${blurAmount}px)` : undefined,
+          }}
+        />
+
+        <div
+          className="absolute overflow-hidden rounded-full bg-primary"
+          style={{
+            left: avatarX - avatarSize / 2,
+            top: avatarY - avatarSize / 2,
+            width: avatarSize,
+            height: avatarSize,
+            boxShadow:
+              avatarBorderWidth > 0
+                ? `0 0 0 ${avatarBorderWidth}px ${avatarBorderColor}`
+                : undefined,
+          }}
+        >
+          <div className="flex size-full items-center justify-center bg-gradient-to-br from-primary to-amber-700 text-5xl font-semibold text-white">
+            N
+          </div>
+        </div>
+
+        {textLayers.map((layer) => (
+          <p
+            key={layer.id}
+            className="absolute m-0 overflow-visible whitespace-nowrap leading-none"
+            style={{
+              left: layer.x,
+              top: layer.y,
+              color: layer.color,
+              fontFamily: CARD_FONT,
+              fontSize: layer.fontSize,
+              fontWeight: layer.weight === "bold" ? 700 : 400,
+            }}
+          >
+            {previewReplace(layer.text || " ")}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TextLayerEditor({
+  layer,
+  index,
+  open,
+  disabled,
+  onToggle,
+  onChange,
+  onRemove,
+}: {
+  layer: WelcomeTextLayer;
+  index: number;
+  open: boolean;
+  disabled?: boolean;
+  onToggle: () => void;
+  onChange: (next: WelcomeTextLayer) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="overflow-hidden rounded-lg border border-border bg-muted/20">
+      <button
+        type="button"
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-muted/40"
+        onClick={onToggle}
+      >
+        <ChevronDown
+          className={cn(
+            "size-4 shrink-0 text-muted-foreground transition-transform",
+            open && "rotate-180",
+          )}
+          aria-hidden
+        />
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">
+          Capa {index + 1}
+          {layer.text.trim() ? ` · ${layer.text}` : ""}
+        </span>
+        <span
+          className="size-3 shrink-0 rounded-full border border-border"
+          style={{ backgroundColor: layer.color }}
+          aria-hidden
+        />
+      </button>
+
+      {open ? (
+        <div className="space-y-4 border-t border-border px-3 py-4">
+          <div className="space-y-2">
+            <Label htmlFor={`layer-text-${layer.id}`}>Contenido</Label>
+            <Input
+              id={`layer-text-${layer.id}`}
+              value={layer.text}
+              maxLength={200}
+              disabled={disabled}
+              placeholder="¡Bienvenido a {server}!"
+              onChange={(event) =>
+                onChange({ ...layer, text: event.target.value })
+              }
+            />
+          </div>
+
+          <AxisSlider
+            id={`layer-x-${layer.id}`}
+            label="X"
+            value={layer.x}
+            max={CARD_W}
+            disabled={disabled}
+            onChange={(x) => onChange({ ...layer, x })}
+          />
+          <AxisSlider
+            id={`layer-y-${layer.id}`}
+            label="Y"
+            value={layer.y}
+            max={CARD_H}
+            disabled={disabled}
+            onChange={(y) => onChange({ ...layer, y })}
+          />
+          <AxisSlider
+            id={`layer-size-${layer.id}`}
+            label="Tamaño"
+            value={layer.fontSize}
+            min={FONT_SIZE_MIN}
+            max={FONT_SIZE_MAX}
+            disabled={disabled}
+            onChange={(fontSize) => onChange({ ...layer, fontSize })}
+          />
+
+          <HexColorField
+            id={`layer-color-${layer.id}`}
+            label="Color"
+            value={layer.color}
+            disabled={disabled}
+            onChange={(color) => onChange({ ...layer, color })}
+          />
+
+          <div className="space-y-2">
+            <Label>Peso</Label>
+            <Select
+              value={layer.weight}
+              disabled={disabled}
+              onValueChange={(value) =>
+                onChange({
+                  ...layer,
+                  weight: value as WelcomeTextWeight,
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="bold">Negrita</SelectItem>
+                <SelectItem value="normal">Normal</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            disabled={disabled}
+            className="w-full text-red-600 hover:bg-red-500/10 hover:text-red-600"
+            onClick={onRemove}
+          >
+            <Trash2 className="size-4" aria-hidden />
+            Eliminar capa
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function CanvasEventBuilder({ config }: { config: CanvasEventBuilderConfig }) {
+  const defaultLayers: WelcomeTextLayer[] = [
+    {
+      id: "default-primary",
+      text: config.defaultPrimaryText,
+      x: Math.round(CARD_W / 2),
+      y: 560,
+      fontSize: 64,
+      color: "#FFFFFF",
+      weight: "bold",
+    },
+    {
+      id: "default-secondary",
+      text: config.defaultSecondaryText,
+      x: Math.round(CARD_W / 2),
+      y: 640,
+      fontSize: 35,
+      color: "#FFFFFF",
+      weight: "normal",
+    },
+  ];
+
+  const [assets, setAssets] = useState<GuildAssetsResponse | null>(null);
+  const [assetsError, setAssetsError] = useState<string | null>(null);
+  const [guildId, setGuildId] = useState("");
+  const [channelId, setChannelId] = useState("");
+  const [isEnabled, setIsEnabled] = useState(false);
+  const [backgroundUrl, setBackgroundUrl] = useState(DEFAULT_BG);
+  const [bgFilepath, setBgFilepath] = useState<string | null>(null);
+  const [blurAmount, setBlurAmount] = useState(4);
+  const [messageContent, setMessageContent] = useState(config.defaultMessage);
+  const [avatarX, setAvatarX] = useState(Math.round(CARD_W / 2));
+  const [avatarY, setAvatarY] = useState(380);
+  const [avatarSize, setAvatarSize] = useState(AVATAR_SIZE_MIN);
+  const [avatarBorderWidth, setAvatarBorderWidth] = useState(8);
+  const [avatarBorderColor, setAvatarBorderColor] = useState("#FFFFFF");
+  const [textLayers, setTextLayers] = useState<WelcomeTextLayer[]>(() =>
+    defaultLayers.map((layer) => ({ ...layer })),
+  );
+  const [openLayerIds, setOpenLayerIds] = useState<string[]>([
+    defaultLayers[0]!.id,
+  ]);
+  const [uploading, setUploading] = useState(false);
+  const [loadingSettings, setLoadingSettings] = useState(true);
+  const [feedback, setFeedback] = useState<Feedback>({ kind: "idle" });
+  const [designTab, setDesignTab] = useState<DesignTab>("avatar");
+
+  const isSubmitting = feedback.kind === "loading";
+  const previewBg = bgFilepath || backgroundUrl || DEFAULT_BG;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load(): Promise<void> {
+      try {
+        const [guildAssets, settings] = await Promise.all([
+          fetchGuildAssets(),
+          config.fetchSettings(),
+        ]);
+        if (cancelled) return;
+        setAssets(guildAssets);
+        setAssetsError(null);
+        applySettings(settings);
+      } catch (error: unknown) {
+        if (cancelled) return;
+        setAssetsError(
+          error instanceof Error
+            ? error.message
+            : "No se pudo cargar la configuración",
+        );
+      } finally {
+        if (!cancelled) setLoadingSettings(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [config]);
+
+  function applySettings(settings: CanvasEventSettingsResponse): void {
+    setGuildId(settings.guildId);
+    setChannelId(settings.channelId ?? "");
+    setIsEnabled(settings.isEnabled);
+    setBackgroundUrl(settings.backgroundUrl || DEFAULT_BG);
+    setBgFilepath(settings.bgFilepath);
+    setBlurAmount(settings.blurAmount);
+    setMessageContent(settings.messageContent);
+    setAvatarX(settings.avatarX);
+    setAvatarY(settings.avatarY);
+    setAvatarSize(settings.avatarSize ?? AVATAR_SIZE_MIN);
+    setAvatarBorderWidth(settings.avatarBorderWidth ?? 8);
+    setAvatarBorderColor(settings.avatarBorderColor || "#FFFFFF");
+    const layers =
+      Array.isArray(settings.textLayers) && settings.textLayers.length > 0
+        ? settings.textLayers
+        : [
+            {
+              id: "default-primary",
+              text: config.defaultPrimaryText,
+              x: Math.round(CARD_W / 2),
+              y: 560,
+              fontSize: 64,
+              color: "#FFFFFF",
+              weight: "bold" as const,
+            },
+            {
+              id: "default-secondary",
+              text: config.defaultSecondaryText,
+              x: Math.round(CARD_W / 2),
+              y: 640,
+              fontSize: 35,
+              color: "#FFFFFF",
+              weight: "normal" as const,
+            },
+          ];
+    setTextLayers(layers);
+    setOpenLayerIds(layers[0] ? [layers[0].id] : []);
+  }
+
+  function updateLayer(id: string, next: WelcomeTextLayer): void {
+    setTextLayers((prev) => prev.map((layer) => (layer.id === id ? next : layer)));
+  }
+
+  function removeLayer(id: string): void {
+    setTextLayers((prev) => prev.filter((layer) => layer.id !== id));
+    setOpenLayerIds((prev) => prev.filter((openId) => openId !== id));
+  }
+
+  function addLayer(): void {
+    const id = newLayerId();
+    const layer: WelcomeTextLayer = {
+      id,
+      text: "Nuevo texto",
+      x: Math.round(CARD_W / 2),
+      y: 720,
+      fontSize: 48,
+      color: "#FFFFFF",
+      weight: "bold",
+    };
+    setTextLayers((prev) => [...prev, layer]);
+    setOpenLayerIds((prev) => [...prev, id]);
+  }
+
+  async function handleBackgroundFile(file: File): Promise<void> {
+    setUploading(true);
+    setFeedback({ kind: "idle" });
+    try {
+      const result = await uploadBackgroundFile(file);
+      setBgFilepath(result.path);
+      setFeedback({
+        kind: "ok",
+        message: `Fondo subido: ${result.filename}`,
+      });
+    } catch (error: unknown) {
+      setFeedback({
+        kind: "error",
+        message: error instanceof Error ? error.message : "Error al subir",
+      });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!guildId) {
+      setFeedback({
+        kind: "error",
+        message: "No se pudo resolver el servidor.",
+      });
+      return;
+    }
+    if (isEnabled && !channelId) {
+      setFeedback({
+        kind: "error",
+        message: "Selecciona un canal de destino para activar el módulo.",
+      });
+      return;
+    }
+
+    setFeedback({ kind: "loading" });
+    try {
+      await config.saveSettings({
+        guildId,
+        channelId,
+        isEnabled,
+        backgroundUrl,
+        bgFilepath,
+        blurAmount,
+        messageContent,
+        avatarX,
+        avatarY,
+        avatarSize,
+        avatarBorderWidth,
+        avatarBorderColor,
+        textLayers,
+      });
+      setFeedback({
+        kind: "ok",
+        message: isEnabled
+          ? config.savedActiveMessage
+          : config.savedInactiveMessage,
+      });
+    } catch (error: unknown) {
+      setFeedback({
+        kind: "error",
+        message: error instanceof Error ? error.message : "Error desconocido",
+      });
+    }
+  }
+
+  if (loadingSettings) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" aria-hidden />
+        Cargando {config.loadingLabel}…
+      </div>
+    );
+  }
+
+  const canvasPreview = (
+    <CanvasCardPreview
+      previewBg={previewBg}
+      blurAmount={blurAmount}
+      avatarX={avatarX}
+      avatarY={avatarY}
+      avatarSize={avatarSize}
+      avatarBorderWidth={avatarBorderWidth}
+      avatarBorderColor={avatarBorderColor}
+      textLayers={textLayers}
+    />
+  );
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-6">
+      <HeaderEnableSwitch
+        checked={isEnabled}
+        disabled={isSubmitting}
+        onCheckedChange={setIsEnabled}
+      />
+
+      {assetsError && (
+        <p className="text-xs text-amber-700 dark:text-amber-400">
+          {assetsError}
+        </p>
+      )}
+      {assets && (
+        <p className="-mt-3 text-xs text-muted-foreground">
+          Servidor: {assets.guildName} · módulo{" "}
+          {isEnabled ? "habilitado" : "deshabilitado"}
+        </p>
+      )}
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Canal destino</CardTitle>
+              <CardDescription>
+                El bot publicará la tarjeta aquí.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <Label htmlFor="welcome-channel">Canal</Label>
+                {assets && assets.channels.length > 0 ? (
+                  <Select
+                    value={channelId || undefined}
+                    disabled={isSubmitting}
+                    onValueChange={setChannelId}
+                  >
+                    <SelectTrigger id="welcome-channel">
+                      <SelectValue placeholder="Selecciona un canal…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {assets.channels.map((channel) => (
+                        <SelectItem key={channel.id} value={channel.id}>
+                          #{channel.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No hay canales disponibles.
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{config.cardTitle}</CardTitle>
+              <CardDescription>
+                {config.cardDescription}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2">
+                <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 md:h-full">
+                  <Label htmlFor="messageContent">Mensaje Discord</Label>
+                  <Textarea
+                    id="messageContent"
+                    value={messageContent}
+                    maxLength={500}
+                    disabled={isSubmitting}
+                    placeholder="{user} llegó al servidor. Ahora somos {membercount}."
+                    className="h-full min-h-[8.5rem] resize-y md:min-h-0"
+                    onChange={(event) => setMessageContent(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-3">
+                  <BackgroundImageUpload
+                    src={previewBg}
+                    disabled={isSubmitting}
+                    uploading={uploading}
+                    onFile={(file) => {
+                      void handleBackgroundFile(file);
+                    }}
+                  />
+                  <AxisSlider
+                    id="blurAmount"
+                    label="Desenfoque"
+                    value={blurAmount}
+                    min={0}
+                    max={10}
+                    disabled={isSubmitting}
+                    onChange={setBlurAmount}
+                  />
+                </div>
+              </div>
+
+              <Tabs>
+                <TabsList className="grid h-auto w-full grid-cols-2">
+                  <TabsTrigger
+                    active={designTab === "avatar"}
+                    onClick={() => setDesignTab("avatar")}
+                  >
+                    Avatar
+                  </TabsTrigger>
+                  <TabsTrigger
+                    active={designTab === "texto"}
+                    onClick={() => setDesignTab("texto")}
+                  >
+                    Texto
+                  </TabsTrigger>
+                </TabsList>
+
+                {designTab === "avatar" && (
+                  <TabsContent className="space-y-5">
+                    <AxisSlider
+                      id="avatarX"
+                      label="Avatar X"
+                      value={avatarX}
+                      max={CARD_W}
+                      disabled={isSubmitting}
+                      onChange={setAvatarX}
+                    />
+                    <AxisSlider
+                      id="avatarY"
+                      label="Avatar Y"
+                      value={avatarY}
+                      max={CARD_H}
+                      disabled={isSubmitting}
+                      onChange={setAvatarY}
+                    />
+                    <AxisSlider
+                      id="avatarSize"
+                      label="Tamaño del avatar"
+                      value={avatarSize}
+                      max={AVATAR_SIZE_MAX}
+                      min={AVATAR_SIZE_MIN}
+                      disabled={isSubmitting}
+                      onChange={setAvatarSize}
+                    />
+                    <AxisSlider
+                      id="avatarBorderWidth"
+                      label="Grosor del borde"
+                      value={avatarBorderWidth}
+                      min={0}
+                      max={40}
+                      disabled={isSubmitting}
+                      onChange={setAvatarBorderWidth}
+                    />
+                    <HexColorField
+                      id="avatarBorderColor"
+                      label="Color del borde"
+                      value={avatarBorderColor}
+                      disabled={isSubmitting}
+                      onChange={setAvatarBorderColor}
+                    />
+                  </TabsContent>
+                )}
+
+                {designTab === "texto" && (
+                  <TabsContent className="space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm text-muted-foreground">
+                        Capas independientes con posición y estilo propios.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={isSubmitting || textLayers.length >= 12}
+                        onClick={addLayer}
+                      >
+                        <Plus className="size-4" aria-hidden />
+                        Agregar nuevo texto
+                      </Button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {textLayers.map((layer, index) => (
+                        <TextLayerEditor
+                          key={layer.id}
+                          layer={layer}
+                          index={index}
+                          open={openLayerIds.includes(layer.id)}
+                          disabled={isSubmitting}
+                          onToggle={() =>
+                            setOpenLayerIds((prev) =>
+                              prev.includes(layer.id)
+                                ? prev.filter((id) => id !== layer.id)
+                                : [...prev, layer.id],
+                            )
+                          }
+                          onChange={(next) => updateLayer(layer.id, next)}
+                          onRemove={() => removeLayer(layer.id)}
+                        />
+                      ))}
+                      {textLayers.length === 0 && (
+                        <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
+                          No hay capas. Agrega un texto para empezar.
+                        </p>
+                      )}
+                    </div>
+                  </TabsContent>
+                )}
+              </Tabs>
+            </CardContent>
+          </Card>
+
+          <div className="flex flex-col gap-3">
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+              ) : (
+                <Save className="size-4" aria-hidden />
+              )}
+              {config.saveLabel}
+            </Button>
+
+            {feedback.kind === "ok" && (
+              <p
+                className="flex items-start gap-2 text-sm text-emerald-700 dark:text-emerald-400"
+                role="status"
+              >
+                <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden />
+                {feedback.message}
+              </p>
+            )}
+            {feedback.kind === "error" && (
+              <p
+                className="flex items-start gap-2 text-sm text-red-700 dark:text-red-400"
+                role="alert"
+              >
+                <XCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+                {feedback.message}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-6 lg:sticky lg:top-6 lg:self-start">
+          <Card>
+            <CardHeader>
+              <CardTitle>Vista previa</CardTitle>
+              <CardDescription>
+                Lienzo 1920×1080 escalado.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 px-5 pb-5 pt-0">
+              {canvasPreview}
+              {messageContent.trim() ? (
+                <p className="text-sm text-muted-foreground">
+                  Mensaje:{" "}
+                  <span className="text-foreground">
+                    {previewReplace(messageContent)}
+                  </span>
+                </p>
+              ) : null}
+              <p className="text-[11px] text-muted-foreground">
+                Si el texto se corta al borde, baja el tamaño o mueve X a la
+                izquierda: la PNG de Discord se comporta igual.
+              </p>
+            </CardContent>
+          </Card>
+
+          <VariableListBase items={EVENT_VARIABLES} />
+        </div>
+      </div>
+    </form>
+  );
+}

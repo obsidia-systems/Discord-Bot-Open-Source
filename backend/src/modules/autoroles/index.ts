@@ -1,6 +1,8 @@
 import { GatewayIntentBits, type ButtonInteraction } from "discord.js";
 import type { AdobosModule } from "../../core/modules/types.js";
 import { autoroleRoutes } from "./api/routes.js";
+import { rolesRoutes } from "./api/roles.routes.js";
+import { onGuildMemberAddAutoRoles } from "./events/guildMemberAdd.js";
 import { onMessageReactionAdd } from "./events/messageReactionAdd.js";
 import { onMessageReactionRemove } from "./events/messageReactionRemove.js";
 
@@ -54,6 +56,9 @@ export const autorolesModule: AdobosModule = {
     GatewayIntentBits.GuildMessageReactions,
   ],
   register(ctx) {
+    ctx.on("guildMemberAdd", (member) => {
+      void onGuildMemberAddAutoRoles(member);
+    });
     ctx.on("messageReactionAdd", (reaction, user) => {
       void onMessageReactionAdd(reaction, user);
     });
@@ -62,9 +67,9 @@ export const autorolesModule: AdobosModule = {
     });
     ctx.button("autorole_", (interaction) => handleAutoroleButton(interaction));
     ctx.route("/api/autoroles", autoroleRoutes(ctx.client));
+    ctx.route("/api/roles", rolesRoutes(ctx.client));
   },
 };
-
 export {
   AutoRoleError,
   createAutoRoleSetup,

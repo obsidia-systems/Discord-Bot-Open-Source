@@ -5,7 +5,8 @@ export type ModuleId =
   | "autoroles"
   | "guild-assets"
   | "economy"
-  | "moderation";
+  | "moderation"
+  | "bot-profile";
 
 export type PluginId =
   | "minecraft"

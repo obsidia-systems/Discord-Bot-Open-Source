@@ -1,0 +1,11 @@
+---
+import DashboardLayout from "../../layouts/DashboardLayout.astro";
+import { ServerAuditLog } from "../../features/moderation";
+---
+
+<DashboardLayout
+  title="Auditoría General"
+  description="Espejo de solo lectura del registro de auditoría nativo de Discord."
+>
+  <ServerAuditLog client:load />
+</DashboardLayout>

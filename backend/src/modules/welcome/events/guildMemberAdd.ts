@@ -1,8 +1,14 @@
-import { AttachmentBuilder, type GuildMember } from "discord.js";
+import {
+  AttachmentBuilder,
+  type GuildMember,
+} from "discord.js";
 import { eq } from "drizzle-orm";
 import { getDb } from "../../../db/client.js";
 import { welcomeSettings } from "../../../db/schema.js";
-import { disableWelcomeSettings } from "../service.js";
+import {
+  disableWelcomeSettings,
+  parseTextLayersJson,
+} from "../service.js";
 import { buildWelcomeCard } from "../card/WelcomeCardBuilder.js";
 import {
   applyWelcomeVariables,
@@ -11,7 +17,7 @@ import {
 } from "../text/welcomeEmbed.js";
 
 /**
- * Envía la tarjeta PNG de bienvenida.
+ * Envía la tarjeta PNG de bienvenida (canvas).
  * Errores se tragan: un canal borrado no tumba el bot.
  */
 export async function onGuildMemberAdd(member: GuildMember): Promise<void> {
@@ -39,17 +45,21 @@ export async function onGuildMemberAdd(member: GuildMember): Promise<void> {
     }
 
     const ctx = contextFromMember(member);
-    const primaryText = applyWelcomeVariables(
-      row.primaryText || "¡Bienvenido!",
-      ctx,
-    );
-    const secondaryText = applyWelcomeVariables(
-      row.secondaryText || "{username}",
-      ctx,
-    );
     const messageContent = row.messageContent?.trim()
       ? applyWelcomeVariables(row.messageContent, ctx).slice(0, 2000)
       : undefined;
+
+    const layers = parseTextLayersJson(row.textLayers, {
+      primaryText: row.primaryText,
+      secondaryText: row.secondaryText,
+      textX: row.textX,
+      textY: row.textY,
+      fontSize: row.fontSize,
+      textColor: row.textColor,
+    }).map((layer) => ({
+      ...layer,
+      text: applyWelcomeVariables(layer.text, ctx),
+    }));
 
     const png = await buildWelcomeCard({
       user: {
@@ -64,15 +74,12 @@ export async function onGuildMemberAdd(member: GuildMember): Promise<void> {
       bgFilepath: row.bgFilepath,
       backgroundUrl: row.backgroundUrl,
       blurAmount: row.blurAmount,
-      primaryText,
-      secondaryText,
       avatarX: row.avatarX,
       avatarY: row.avatarY,
       avatarSize: row.avatarSize,
-      textX: row.textX,
-      textY: row.textY,
-      fontSize: row.fontSize,
-      textColor: row.textColor,
+      avatarBorderWidth: row.avatarBorderWidth ?? 8,
+      avatarBorderColor: row.avatarBorderColor ?? "#FFFFFF",
+      textLayers: layers,
     });
 
     const attachment = new AttachmentBuilder(png, {

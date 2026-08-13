@@ -1,0 +1,11 @@
+---
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { BoostBuilder } from "../../../features/canvas-events";
+---
+
+<DashboardLayout
+  title="Boosts"
+  description="Diseña la tarjeta para celebrar cuando alguien impulsa el servidor."
+>
+  <BoostBuilder client:load />
+</DashboardLayout>

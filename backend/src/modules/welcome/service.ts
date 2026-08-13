@@ -1,7 +1,10 @@
+import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type {
   SaveWelcomeSettingsRequest,
   SaveWelcomeSettingsResponse,
+  WelcomeTextLayer,
+  WelcomeTextWeight,
   WelcomeSettingsResponse,
 } from "@adobos/shared";
 import { getDb } from "../../db/client.js";
@@ -26,24 +29,45 @@ export class WelcomeSettingsError extends Error {
   }
 }
 
+export const FONT_SIZE_MIN = 20;
+export const FONT_SIZE_MAX = 200;
+
+/** Persistido en DB por compatibilidad; el módulo es siempre canvas. */
+const WELCOME_MODE_CARD = "card";
+
+const DEFAULT_LAYERS: WelcomeTextLayer[] = [
+  {
+    id: "default-primary",
+    text: "¡Bienvenido a {server}!",
+    x: Math.round(CARD_WIDTH / 2),
+    y: 560,
+    fontSize: 64,
+    color: "#FFFFFF",
+    weight: "bold",
+  },
+  {
+    id: "default-secondary",
+    text: "{username}",
+    x: Math.round(CARD_WIDTH / 2),
+    y: 640,
+    fontSize: 35,
+    color: "#FFFFFF",
+    weight: "normal",
+  },
+];
+
 const DEFAULTS = {
   backgroundUrl: WELCOME_CARD_DEFAULT_BACKGROUND,
   bgFilepath: null as string | null,
   blurAmount: 4,
-  primaryText: "¡Bienvenido!",
-  secondaryText: "{username}",
   messageContent: "{user}",
   avatarX: Math.round(CARD_WIDTH / 2),
   avatarY: 380,
   avatarSize: AVATAR_SIZE_MIN,
-  textX: Math.round(CARD_WIDTH / 2),
-  textY: 560,
-  fontSize: 64,
-  textColor: "#FFFFFF",
+  avatarBorderWidth: 8,
+  avatarBorderColor: "#FFFFFF",
+  textLayers: DEFAULT_LAYERS,
 } as const;
-
-export const FONT_SIZE_MIN = 20;
-export const FONT_SIZE_MAX = 200;
 
 function assertSnowflake(value: string, field: string): string {
   const trimmed = value.trim();
@@ -76,14 +100,119 @@ function clampBlur(amount: number): number {
 }
 
 function normalizeHexColor(raw: string | undefined): string {
-  const value = raw?.trim() || DEFAULTS.textColor;
+  const value = raw?.trim() || DEFAULTS.avatarBorderColor;
   if (/^#[0-9a-fA-F]{6}$/.test(value)) return value;
   if (/^[0-9a-fA-F]{6}$/.test(value)) return `#${value}`;
   throw new WelcomeSettingsError(
-    "textColor debe ser un hex #RRGGBB.",
+    "Color debe ser un hex #RRGGBB.",
     400,
-    "INVALID_TEXT_COLOR",
+    "INVALID_COLOR",
   );
+}
+
+function normalizeWeight(raw: unknown): WelcomeTextWeight {
+  return raw === "normal" ? "normal" : "bold";
+}
+
+function layersFromLegacy(row: {
+  primaryText?: string | null;
+  secondaryText?: string | null;
+  textX?: number | null;
+  textY?: number | null;
+  fontSize?: number | null;
+  textColor?: string | null;
+}): WelcomeTextLayer[] {
+  const fontSize = clamp(
+    row.fontSize ?? 64,
+    FONT_SIZE_MIN,
+    FONT_SIZE_MAX,
+    64,
+  );
+  const textX = clamp(row.textX ?? CARD_WIDTH / 2, 0, CARD_WIDTH, CARD_WIDTH / 2);
+  const textY = clamp(row.textY ?? 560, 0, CARD_HEIGHT, 560);
+  const color =
+    row.textColor && /^#?[0-9a-fA-F]{6}$/.test(row.textColor.trim())
+      ? row.textColor.startsWith("#")
+        ? row.textColor
+        : `#${row.textColor}`
+      : "#FFFFFF";
+
+  return [
+    {
+      id: "migrated-primary",
+      text: row.primaryText?.trim() || "¡Bienvenido a {server}!",
+      x: textX,
+      y: textY,
+      fontSize,
+      color,
+      weight: "bold",
+    },
+    {
+      id: "migrated-secondary",
+      text: row.secondaryText?.trim() || "{username}",
+      x: textX,
+      y: textY + fontSize + 16,
+      fontSize: Math.max(12, Math.round(fontSize * 0.55)),
+      color,
+      weight: "normal",
+    },
+  ];
+}
+
+export function parseTextLayersJson(
+  raw: string | null | undefined,
+  legacy?: {
+    primaryText?: string | null;
+    secondaryText?: string | null;
+    textX?: number | null;
+    textY?: number | null;
+    fontSize?: number | null;
+    textColor?: string | null;
+  },
+): WelcomeTextLayer[] {
+  if (raw?.trim()) {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return normalizeTextLayers(parsed);
+      }
+    } catch {
+      // fallback
+    }
+  }
+  if (legacy) return layersFromLegacy(legacy);
+  return DEFAULT_LAYERS.map((layer) => ({ ...layer }));
+}
+
+export function normalizeTextLayers(raw: unknown[]): WelcomeTextLayer[] {
+  const layers: WelcomeTextLayer[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Record<string, unknown>;
+    const text = typeof row.text === "string" ? row.text.trim().slice(0, 200) : "";
+    if (!text) continue;
+    layers.push({
+      id:
+        typeof row.id === "string" && row.id.trim()
+          ? row.id.trim().slice(0, 64)
+          : randomUUID().slice(0, 8),
+      text,
+      x: clamp(Number(row.x), 0, CARD_WIDTH, CARD_WIDTH / 2),
+      y: clamp(Number(row.y), 0, CARD_HEIGHT, 560),
+      fontSize: clamp(Number(row.fontSize), FONT_SIZE_MIN, FONT_SIZE_MAX, 64),
+      color: (() => {
+        try {
+          return normalizeHexColor(
+            typeof row.color === "string" ? row.color : "#FFFFFF",
+          );
+        } catch {
+          return "#FFFFFF";
+        }
+      })(),
+      weight: normalizeWeight(row.weight),
+    });
+  }
+  return layers.length > 0 ? layers.slice(0, 12) : DEFAULT_LAYERS.map((l) => ({ ...l }));
 }
 
 function ensureGuildRow(guildId: string): void {
@@ -106,7 +235,6 @@ function ensureGuildRow(guildId: string): void {
   }
 }
 
-/** Servicio de dominio welcome — sin acoplar Express ↔ Discord events. */
 export function getWelcomeSettings(guildIdRaw?: string): WelcomeSettingsResponse {
   const guildId = assertSnowflake(
     guildIdRaw?.trim() || process.env.DISCORD_GUILD_ID || "",
@@ -125,6 +253,7 @@ export function getWelcomeSettings(guildIdRaw?: string): WelcomeSettingsResponse
       channelId: null,
       isEnabled: false,
       ...DEFAULTS,
+      textLayers: DEFAULT_LAYERS.map((layer) => ({ ...layer })),
     };
   }
 
@@ -135,8 +264,6 @@ export function getWelcomeSettings(guildIdRaw?: string): WelcomeSettingsResponse
     backgroundUrl: row.backgroundUrl?.trim() || DEFAULTS.backgroundUrl,
     bgFilepath: row.bgFilepath?.trim() || null,
     blurAmount: clampBlur(row.blurAmount),
-    primaryText: row.primaryText || DEFAULTS.primaryText,
-    secondaryText: row.secondaryText || DEFAULTS.secondaryText,
     messageContent: row.messageContent || DEFAULTS.messageContent,
     avatarX: clamp(row.avatarX, 0, CARD_WIDTH, DEFAULTS.avatarX),
     avatarY: clamp(row.avatarY, 0, CARD_HEIGHT, DEFAULTS.avatarY),
@@ -146,10 +273,16 @@ export function getWelcomeSettings(guildIdRaw?: string): WelcomeSettingsResponse
       AVATAR_SIZE_MAX,
       DEFAULTS.avatarSize,
     ),
-    textX: clamp(row.textX, 0, CARD_WIDTH, DEFAULTS.textX),
-    textY: clamp(row.textY, 0, CARD_HEIGHT, DEFAULTS.textY),
-    fontSize: clamp(row.fontSize, FONT_SIZE_MIN, FONT_SIZE_MAX, DEFAULTS.fontSize),
-    textColor: row.textColor || DEFAULTS.textColor,
+    avatarBorderWidth: clamp(row.avatarBorderWidth ?? 8, 0, 40, 8),
+    avatarBorderColor: row.avatarBorderColor || DEFAULTS.avatarBorderColor,
+    textLayers: parseTextLayersJson(row.textLayers, {
+      primaryText: row.primaryText,
+      secondaryText: row.secondaryText,
+      textX: row.textX,
+      textY: row.textY,
+      fontSize: row.fontSize,
+      textColor: row.textColor,
+    }),
   };
 }
 
@@ -157,15 +290,21 @@ export function saveWelcomeSettings(
   input: SaveWelcomeSettingsRequest,
 ): SaveWelcomeSettingsResponse {
   const guildId = assertSnowflake(input.guildId, "guildId");
-  const channelId = assertSnowflake(input.channelId, "channelId");
+  const channelIdRaw = input.channelId?.trim() || "";
+  const channelId = channelIdRaw
+    ? assertSnowflake(channelIdRaw, "channelId")
+    : null;
   const isEnabled = Boolean(input.isEnabled);
+
+  if (isEnabled && !channelId) {
+    throw new WelcomeSettingsError(
+      "Selecciona un canal de destino para activar el módulo.",
+      400,
+      "MISSING_CHANNEL",
+    );
+  }
   const blurAmount = clampBlur(input.blurAmount);
-  const primaryText =
-    (input.primaryText ?? "").trim().slice(0, 80) || DEFAULTS.primaryText;
-  const secondaryText =
-    (input.secondaryText ?? "").trim().slice(0, 100) || DEFAULTS.secondaryText;
   const messageContent = (input.messageContent ?? "{user}").trim().slice(0, 500);
-  const textColor = normalizeHexColor(input.textColor);
   const avatarX = clamp(input.avatarX, 0, CARD_WIDTH, DEFAULTS.avatarX);
   const avatarY = clamp(input.avatarY, 0, CARD_HEIGHT, DEFAULTS.avatarY);
   const avatarSize = clamp(
@@ -174,24 +313,19 @@ export function saveWelcomeSettings(
     AVATAR_SIZE_MAX,
     DEFAULTS.avatarSize,
   );
-  const textX = clamp(input.textX, 0, CARD_WIDTH, DEFAULTS.textX);
-  const textY = clamp(input.textY, 0, CARD_HEIGHT, DEFAULTS.textY);
-  const fontSize = clamp(
-    input.fontSize,
-    FONT_SIZE_MIN,
-    FONT_SIZE_MAX,
-    DEFAULTS.fontSize,
+  const avatarBorderWidth = clamp(input.avatarBorderWidth, 0, 40, 8);
+  const avatarBorderColor = normalizeHexColor(input.avatarBorderColor);
+  const textLayers = normalizeTextLayers(
+    Array.isArray(input.textLayers) ? input.textLayers : [],
   );
 
   let bgFilepath = input.bgFilepath?.trim() || null;
-  if (bgFilepath) {
-    if (!resolvePublicUploadPath(bgFilepath)) {
-      throw new WelcomeSettingsError(
-        "bgFilepath inválido. Debe ser /uploads/backgrounds/...",
-        400,
-        "INVALID_BG_FILEPATH",
-      );
-    }
+  if (bgFilepath && !resolvePublicUploadPath(bgFilepath)) {
+    throw new WelcomeSettingsError(
+      "bgFilepath inválido. Debe ser /uploads/backgrounds/...",
+      400,
+      "INVALID_BG_FILEPATH",
+    );
   }
 
   let backgroundUrl =
@@ -209,7 +343,7 @@ export function saveWelcomeSettings(
 
   if (isEnabled && !bgFilepath && !backgroundUrl) {
     throw new WelcomeSettingsError(
-      "Necesitas un fondo (archivo o galería) para activar bienvenidas.",
+      "Necesitas un fondo para activar la tarjeta de bienvenida.",
       400,
       "MISSING_BACKGROUND",
     );
@@ -217,24 +351,32 @@ export function saveWelcomeSettings(
 
   ensureGuildRow(guildId);
 
+  const first = textLayers[0];
+  const second = textLayers[1];
+
   const db = getDb();
   const now = new Date();
   const payload = {
     channelId,
     isEnabled,
+    welcomeMode: WELCOME_MODE_CARD,
     backgroundUrl,
     bgFilepath,
     blurAmount,
-    primaryText,
-    secondaryText,
     messageContent,
     avatarX,
     avatarY,
     avatarSize,
-    textX,
-    textY,
-    fontSize,
-    textColor,
+    avatarBorderWidth,
+    avatarBorderColor,
+    textLayers: JSON.stringify(textLayers),
+    // Legacy mirrors (primera/segunda capa)
+    primaryText: first?.text ?? "¡Bienvenido!",
+    secondaryText: second?.text ?? "{username}",
+    textX: first?.x ?? DEFAULTS.avatarX,
+    textY: first?.y ?? 560,
+    fontSize: first?.fontSize ?? 64,
+    textColor: first?.color ?? "#FFFFFF",
     updatedAt: now,
   };
 
@@ -266,7 +408,6 @@ export function saveWelcomeSettings(
   return { ok: true };
 }
 
-/** Desactiva el módulo (p. ej. canal borrado). */
 export function disableWelcomeSettings(guildId: string): void {
   const db = getDb();
   const now = new Date();

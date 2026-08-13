@@ -1,8 +1,11 @@
 ---
-import ComingSoon from "../../../components/shared/ComingSoon.astro";
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { ModerationTools } from "../../../features/moderation";
 ---
 
-<ComingSoon
+<DashboardLayout
   title="Moderación"
   description="Ban, mute, purge y utilidades de moderación."
-/>
+>
+  <ModerationTools client:load />
+</DashboardLayout>

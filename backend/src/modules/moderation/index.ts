@@ -1,10 +1,17 @@
+import { GatewayIntentBits } from "discord.js";
 import type { AdobosModule } from "../../core/modules/types.js";
+import { moderationRoutes } from "./api/routes.js";
 
-/** Stub Lego — listo para comandos/rutas de moderación. */
 export const moderationModule: AdobosModule = {
   id: "moderation",
   name: "Moderación",
+  intents: [
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildModeration,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
   register(ctx) {
-    void ctx;
+    ctx.route("/api/mod", moderationRoutes(ctx.client));
   },
 };

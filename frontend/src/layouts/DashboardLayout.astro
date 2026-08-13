@@ -28,38 +28,56 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
       <header
         class="hidden border-b border-border/70 bg-card/40 px-8 py-5 backdrop-blur-md lg:block"
       >
-        <p
-          class="font-display text-xs font-semibold uppercase tracking-[0.2em] text-primary"
-        >
-          Adobos Bot
-        </p>
-        <h1
-          class="mt-1 font-display text-2xl font-semibold tracking-tight text-foreground"
-          transition:name="page-title"
-        >
-          {title}
-        </h1>
-        {
-          description && (
-            <p class="mt-1 max-w-2xl text-sm text-muted-foreground">
-              {description}
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <p
+              class="font-display text-xs font-semibold uppercase tracking-[0.2em] text-primary"
+            >
+              Adobos Bot
             </p>
-          )
-        }
+            <h1
+              class="mt-1 font-display text-2xl font-semibold tracking-tight text-foreground"
+              transition:name="page-title"
+            >
+              {title}
+            </h1>
+            {
+              description && (
+                <p class="mt-1 max-w-2xl text-sm text-muted-foreground">
+                  {description}
+                </p>
+              )
+            }
+          </div>
+          <div
+            id="dashboard-header-actions"
+            class="flex shrink-0 items-center gap-3 pt-1"
+          >
+          </div>
+        </div>
       </header>
 
       <div class="border-b border-border/70 px-4 py-4 lg:hidden">
-        <h1
-          class="font-display text-xl font-semibold tracking-tight"
-          transition:name="page-title-mobile"
-        >
-          {title}
-        </h1>
-        {
-          description && (
-            <p class="mt-1 text-sm text-muted-foreground">{description}</p>
-          )
-        }
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <h1
+              class="font-display text-xl font-semibold tracking-tight"
+              transition:name="page-title-mobile"
+            >
+              {title}
+            </h1>
+            {
+              description && (
+                <p class="mt-1 text-sm text-muted-foreground">{description}</p>
+              )
+            }
+          </div>
+          <div
+            id="dashboard-header-actions-mobile"
+            class="flex shrink-0 items-center gap-2 pt-0.5"
+          >
+          </div>
+        </div>
       </div>
 
       <main class="flex-1 px-4 py-6 sm:px-6 lg:px-8">

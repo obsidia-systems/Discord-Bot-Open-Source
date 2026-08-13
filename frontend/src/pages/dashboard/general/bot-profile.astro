@@ -1,8 +1,11 @@
 ---
-import ComingSoon from "../../../components/shared/ComingSoon.astro";
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { BotProfileBuilder } from "../../../features/bot-profile";
 ---
 
-<ComingSoon
+<DashboardLayout
   title="Perfil del bot"
   description="Avatar, nombre y presencia personalizable."
-/>
+>
+  <BotProfileBuilder client:load />
+</DashboardLayout>

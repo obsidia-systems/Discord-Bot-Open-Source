@@ -1,3 +1,16 @@
+export type WelcomeTextWeight = "normal" | "bold";
+
+/** Capa de texto del canvas de bienvenida. */
+export interface WelcomeTextLayer {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  fontSize: number;
+  color: string;
+  weight: WelcomeTextWeight;
+}
+
 export interface WelcomeSettingsResponse {
   guildId: string;
   channelId: string | null;
@@ -5,35 +18,29 @@ export interface WelcomeSettingsResponse {
   backgroundUrl: string;
   bgFilepath: string | null;
   blurAmount: number;
-  primaryText: string;
-  secondaryText: string;
   messageContent: string;
   avatarX: number;
   avatarY: number;
   avatarSize: number;
-  textX: number;
-  textY: number;
-  fontSize: number;
-  textColor: string;
+  avatarBorderWidth: number;
+  avatarBorderColor: string;
+  textLayers: WelcomeTextLayer[];
 }
 
 export interface SaveWelcomeSettingsRequest {
   guildId: string;
-  channelId: string;
+  channelId?: string | null;
   isEnabled: boolean;
   backgroundUrl?: string;
   bgFilepath?: string | null;
   blurAmount: number;
-  primaryText: string;
-  secondaryText: string;
   messageContent?: string;
   avatarX: number;
   avatarY: number;
   avatarSize: number;
-  textX: number;
-  textY: number;
-  fontSize: number;
-  textColor: string;
+  avatarBorderWidth: number;
+  avatarBorderColor: string;
+  textLayers: WelcomeTextLayer[];
 }
 
 export interface SaveWelcomeSettingsResponse {
