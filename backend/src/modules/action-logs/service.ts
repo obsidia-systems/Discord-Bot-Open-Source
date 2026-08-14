@@ -505,8 +505,19 @@ export async function recordActionLog(
       }
 
       let targetAvatarURL: string | null = null;
+      const detailsTargetKind =
+        typeof details.targetKind === "string" ? details.targetKind : null;
+      const isUserTarget =
+        detailsTargetKind === "user" ||
+        (!detailsTargetKind &&
+          (meta.eventType.startsWith("MESSAGE_") ||
+            meta.eventType.startsWith("MEMBER_") ||
+            meta.eventType.startsWith("VOICE_")));
+
       const affectedSnowflake =
-        input.targetId && /^\d{17,20}$/.test(input.targetId)
+        isUserTarget &&
+        input.targetId &&
+        /^\d{17,20}$/.test(input.targetId)
           ? input.targetId
           : null;
       if (affectedSnowflake) {
@@ -537,13 +548,23 @@ export async function recordActionLog(
         entry,
         actionLabel: meta.label,
         tone: input.tone ?? meta.tone,
+        description: input.description ?? null,
         authorTag,
         authorAvatarURL: authorAvatar,
         executorUnknown,
-        affectedUserId: entry.targetId,
+        affectedUserId: isUserTarget ? entry.targetId : null,
         targetAvatarURL,
         systemAvatarURL,
         messageId,
+        targetKind: (detailsTargetKind as
+          | "user"
+          | "channel"
+          | "role"
+          | "emoji"
+          | "sticker"
+          | "invite"
+          | "resource"
+          | null) ?? undefined,
       });
 
       await sendActionLogWebhook(bot, {

@@ -8,11 +8,22 @@ import { ACTION_LOG_EMBED_COLORS } from "@adobos/shared";
 /** Límite duro de Discord para el valor de un Field. */
 const FIELD_VALUE_MAX = 1024;
 
+export type ActionLogTargetKind =
+  | "user"
+  | "channel"
+  | "role"
+  | "emoji"
+  | "sticker"
+  | "invite"
+  | "resource";
+
 export interface BuildActionLogEmbedInput {
   entry: ActionLogEntry;
   /** Nombre técnico del evento (ej. "Mensaje eliminado"). */
   actionLabel: string;
   tone: ActionLogEmbedTone;
+  /** Descripción markdown completa (si se omite → **Acción:** label). */
+  description?: string | null;
   /** Author = ejecutor (o autor original si ejecutor desconocido). */
   authorTag?: string | null;
   authorAvatarURL?: string | null;
@@ -23,18 +34,27 @@ export interface BuildActionLogEmbedInput {
   /** Avatar del bot / sistema (fallback de footer). */
   systemAvatarURL?: string | null;
   messageId?: string | null;
+  /** Qué representa targetId (evita <@canal> falsos). */
+  targetKind?: ActionLogTargetKind;
 }
 
 /**
  * Estilo Technical-Organized:
- * Author (ejecutor + ID) · **Acción:** · fields · footer (afectado + avatar).
+ * Author (ejecutor + ID) · description · fields · footer (afectado/recurso).
  */
 export function buildActionLogEmbed(
   input: BuildActionLogEmbedInput,
 ): EmbedBuilder {
   const { entry, tone, actionLabel } = input;
+  const details = entry.details ?? {};
+  const targetKind = resolveTargetKind(input);
 
-  const lines = [`**Acción:** ${actionLabel}`];
+  const lines: string[] = [];
+  if (input.description?.trim()) {
+    lines.push(input.description.trim());
+  } else {
+    lines.push(`**Acción:** ${actionLabel}`);
+  }
   if (input.executorUnknown) {
     lines.push("**Ejecutor:** Desconocido");
   }
@@ -55,36 +75,69 @@ export function buildActionLogEmbed(
     });
   }
 
-  const footer = buildFooter(input);
-  embed.setFooter(footer);
+  const thumb =
+    typeof details.thumbnailUrl === "string" && details.thumbnailUrl.trim()
+      ? details.thumbnailUrl.trim()
+      : null;
+  if (thumb) {
+    embed.setThumbnail(thumb);
+  }
+
+  embed.setFooter(buildFooter(input, targetKind));
 
   const fields: Array<{ name: string; value: string; inline?: boolean }> = [];
 
-  if (entry.channelId) {
+  const channelField = resolveChannelField(entry, details);
+  if (channelField) fields.push(channelField);
+
+  // Solo menciones de usuario reales en "Afectado"
+  if (targetKind === "user" && isSnowflake(input.affectedUserId ?? entry.targetId)) {
+    const uid = (input.affectedUserId ?? entry.targetId)!;
     fields.push({
-      name: "Canal",
-      value: `<#${entry.channelId}>`,
+      name: "Afectado",
+      value: `<@${uid}>`,
+      inline: true,
+    });
+  } else if (
+    targetKind === "role" &&
+    typeof details.roleName === "string" &&
+    details.roleName.trim()
+  ) {
+    fields.push({
+      name: "Rol",
+      value: `\`${details.roleName.trim()}\``,
       inline: true,
     });
   }
 
-  const affectedId = input.affectedUserId ?? entry.targetId;
-  if (isSnowflake(affectedId)) {
+  if (typeof details.parentName === "string") {
     fields.push({
-      name: "Afectado",
-      value: `<@${affectedId}>`,
+      name: "Categoría Padre",
+      value: details.parentName.trim() || "Ninguna",
+      inline: true,
+    });
+  }
+
+  if (typeof details.roleColor === "string" && details.roleColor.trim()) {
+    fields.push({
+      name: "Color Hex",
+      value: `\`${details.roleColor.trim()}\``,
+      inline: true,
+    });
+  }
+
+  if (typeof details.channelTypeName === "string" && details.channelTypeName.trim()) {
+    fields.push({
+      name: "Tipo",
+      value: details.channelTypeName.trim(),
       inline: true,
     });
   }
 
   const oldContent =
-    typeof entry.details.oldContent === "string"
-      ? entry.details.oldContent
-      : null;
+    typeof details.oldContent === "string" ? details.oldContent : null;
   const newContent =
-    typeof entry.details.newContent === "string"
-      ? entry.details.newContent
-      : null;
+    typeof details.newContent === "string" ? details.newContent : null;
 
   if (oldContent !== null && newContent === null) {
     fields.push({
@@ -118,11 +171,84 @@ export function buildActionLogEmbed(
   return embed;
 }
 
+function resolveTargetKind(input: BuildActionLogEmbedInput): ActionLogTargetKind {
+  if (input.targetKind) return input.targetKind;
+  const raw = input.entry.details?.targetKind;
+  if (
+    raw === "user" ||
+    raw === "channel" ||
+    raw === "role" ||
+    raw === "emoji" ||
+    raw === "sticker" ||
+    raw === "invite" ||
+    raw === "resource"
+  ) {
+    return raw;
+  }
+  return inferTargetKindFromEventType(input.entry.eventType);
+}
+
+function inferTargetKindFromEventType(eventType: string): ActionLogTargetKind {
+  if (
+    eventType.startsWith("MESSAGE_") ||
+    eventType.startsWith("MEMBER_") ||
+    eventType.startsWith("VOICE_")
+  ) {
+    return "user";
+  }
+  if (eventType.startsWith("CHANNEL_")) return "channel";
+  if (eventType.startsWith("ROLE_")) return "role";
+  if (eventType.startsWith("EMOJI_")) return "emoji";
+  if (eventType.startsWith("STICKER_")) return "sticker";
+  if (eventType.startsWith("INVITE_")) return "invite";
+  return "resource";
+}
+
+/**
+ * Canal: mención viva si existe; texto plano `#nombre` en borrados / labels.
+ */
+function resolveChannelField(
+  entry: ActionLogEntry,
+  details: Record<string, unknown>,
+): { name: string; value: string; inline: boolean } | null {
+  const plainLabel =
+    typeof details.channelLabel === "string" && details.channelLabel.trim()
+      ? details.channelLabel.trim()
+      : null;
+  const forcePlain =
+    details.channelDeleted === true ||
+    details.channelPlain === true ||
+    Boolean(plainLabel && entry.eventType === "CHANNEL_DELETE");
+
+  if (forcePlain || plainLabel) {
+    const name =
+      plainLabel ||
+      (typeof details.name === "string" && details.name.trim()
+        ? `#${details.name.trim()}`
+        : "#canal-sin-nombre");
+    const normalized = name.startsWith("#") ? name : `#${name}`;
+    return {
+      name: "Canal",
+      value: `\`${normalized}\``,
+      inline: true,
+    };
+  }
+
+  if (entry.channelId) {
+    return {
+      name: "Canal",
+      value: `<#${entry.channelId}>`,
+      inline: true,
+    };
+  }
+
+  return null;
+}
+
 function isSnowflake(id: string | null | undefined): id is string {
   return Boolean(id && /^\d{17,20}$/.test(id));
 }
 
-/** Author: `tag (ID: snowflake)` — sin duplicar ID en el footer. */
 function buildAuthorName(
   tag: string | null,
   executorId: string | null | undefined,
@@ -139,21 +265,40 @@ function buildAuthorName(
   return tag.slice(0, 256);
 }
 
-function buildFooter(input: BuildActionLogEmbedInput): {
+function resourceFooterLabel(kind: ActionLogTargetKind): string {
+  switch (kind) {
+    case "channel":
+      return "Canal ID";
+    case "role":
+      return "Rol ID";
+    case "emoji":
+      return "Emoji ID";
+    case "sticker":
+      return "Sticker ID";
+    case "invite":
+      return "Invite";
+    default:
+      return "Recurso ID";
+  }
+}
+
+function buildFooter(
+  input: BuildActionLogEmbedInput,
+  targetKind: ActionLogTargetKind,
+): {
   text: string;
   iconURL?: string;
 } {
   const executorId = input.entry.executorId;
-  const affectedId = input.affectedUserId ?? input.entry.targetId;
+  const targetId = input.affectedUserId ?? input.entry.targetId;
   const messageId =
     input.messageId ||
     (typeof input.entry.details.messageId === "string"
       ? input.entry.details.messageId
       : null);
 
-  // Usuario afectado (snowflake) → avatar + ID en footer
-  if (isSnowflake(affectedId)) {
-    const parts = [`Afectado ID: ${affectedId}`];
+  if (targetKind === "user" && isSnowflake(targetId)) {
+    const parts = [`Afectado ID: ${targetId}`];
     if (messageId) parts.push(`Msg ID: ${messageId}`);
     return {
       text: truncate(parts.join(" • "), 2048),
@@ -161,7 +306,15 @@ function buildFooter(input: BuildActionLogEmbedInput): {
     };
   }
 
-  // Sin usuario afectado (canal, rol, invite, etc.)
+  if (isSnowflake(targetId) || (targetId && targetKind === "invite")) {
+    const parts = [`${resourceFooterLabel(targetKind)}: ${targetId}`];
+    if (messageId) parts.push(`Msg ID: ${messageId}`);
+    return {
+      text: truncate(parts.join(" • "), 2048),
+      iconURL: input.systemAvatarURL || undefined,
+    };
+  }
+
   const parts: string[] = [];
   if (isSnowflake(executorId)) {
     parts.push(`Ejecutado por ID: ${executorId}`);

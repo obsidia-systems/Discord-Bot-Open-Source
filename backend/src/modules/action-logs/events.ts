@@ -1,5 +1,6 @@
 import {
   AuditLogEvent,
+  ChannelType,
   type Guild,
   type GuildAuditLogsEntry,
   type GuildBan,
@@ -30,6 +31,32 @@ function userTag(user: {
     return `${user.username}${disc}`;
   }
   return user.id ?? "desconocido";
+}
+
+function channelTypeName(type: number): string {
+  switch (type) {
+    case ChannelType.GuildText:
+      return "Texto";
+    case ChannelType.GuildVoice:
+      return "Voz";
+    case ChannelType.GuildCategory:
+      return "Categoría";
+    case ChannelType.GuildAnnouncement:
+      return "Anuncios";
+    case ChannelType.GuildStageVoice:
+      return "Escenario";
+    case ChannelType.GuildForum:
+      return "Foro";
+    case ChannelType.GuildMedia:
+      return "Media";
+    default:
+      return "Categoría/Otro";
+  }
+}
+
+function safeChannelName(channel: { name?: string | null }): string {
+  const name = typeof channel.name === "string" ? channel.name.trim() : "";
+  return name || "canal-sin-nombre";
 }
 
 async function fetchAuditExecutor(
@@ -93,6 +120,12 @@ export async function onMessageDelete(
   );
   const executorUnknown = !executor;
 
+  const channelName =
+    message.channel && "name" in message.channel && message.channel.name
+      ? String(message.channel.name)
+      : "canal-sin-nombre";
+  const channelPlain = `#${channelName}`;
+
   await recordActionLog(message.client, {
     guildId: message.guild.id,
     eventKey: "messageDelete",
@@ -105,14 +138,17 @@ export async function onMessageDelete(
     targetTag: author ? userTag(author) : null,
     channelId,
     parentId,
-    summary: `Mensaje eliminado en <#${channelId}>`,
-    description: `**Mensaje eliminado** en <#${channelId}>`,
+    summary: `Mensaje eliminado en ${channelPlain}`,
+    description: `🗑️ **Mensaje eliminado** en \`${channelPlain}\``,
     details: {
       oldContent: content,
       newContent: null,
       attachments,
       messageId: message.id,
       cached: !message.partial && Boolean(message.content || attachments.length),
+      channelLabel: channelPlain,
+      channelPlain: true,
+      targetKind: "user",
     },
     actorIsBot: executor?.bot ?? false,
     actorRoleIds: executor?.roleIds,
@@ -130,11 +166,14 @@ export async function onMessageDelete(
       channelId,
       parentId,
       summary: `${attachments.length} adjunto(s) eliminado(s)`,
-      description: `**Imágenes / adjuntos eliminados** en <#${channelId}>`,
+      description: `🗑️ **Imágenes / adjuntos eliminados** en \`${channelPlain}\``,
       details: {
         attachments,
         oldContent: content,
         messageId: message.id,
+        channelLabel: channelPlain,
+        channelPlain: true,
+        targetKind: "user",
       },
       actorIsBot: executor?.bot ?? false,
       actorRoleIds: executor?.roleIds,
@@ -382,16 +421,23 @@ export async function onRoleCreate(role: Role): Promise<void> {
     AuditLogEvent.RoleCreate,
     role.id,
   );
+  const roleName = role.name?.trim() || "rol-sin-nombre";
   await recordActionLog(role.client, {
     guildId: role.guild.id,
     eventKey: "roleCreate",
     executorId: executor?.id ?? null,
     executorTag: executor?.tag ?? null,
     targetId: role.id,
-    targetTag: `@${role.name}`,
+    targetTag: roleName,
     channelId: null,
-    summary: `Rol creado: @${role.name}`,
-    details: { name: role.name, color: role.hexColor },
+    summary: `Rol creado: ${roleName}`,
+    description: `✨ **Rol creado:** \`${roleName}\``,
+    details: {
+      name: roleName,
+      roleName,
+      roleColor: role.hexColor,
+      targetKind: "role",
+    },
     actorIsBot: executor?.bot ?? false,
     actorRoleIds: executor?.roleIds,
   });
@@ -403,16 +449,23 @@ export async function onRoleDelete(role: Role): Promise<void> {
     AuditLogEvent.RoleDelete,
     role.id,
   );
+  const roleName = role.name?.trim() || "rol-sin-nombre";
   await recordActionLog(role.client, {
     guildId: role.guild.id,
     eventKey: "roleDelete",
     executorId: executor?.id ?? null,
     executorTag: executor?.tag ?? null,
     targetId: role.id,
-    targetTag: `@${role.name}`,
+    targetTag: roleName,
     channelId: null,
-    summary: `Rol eliminado: @${role.name}`,
-    details: { name: role.name, color: role.hexColor },
+    summary: `Rol eliminado: ${roleName}`,
+    description: `🗑️ **Rol eliminado:** \`${roleName}\``,
+    details: {
+      name: roleName,
+      roleName,
+      roleColor: role.hexColor,
+      targetKind: "role",
+    },
     actorIsBot: executor?.bot ?? false,
     actorRoleIds: executor?.roleIds,
   });
@@ -434,15 +487,17 @@ export async function onRoleUpdate(oldRole: Role, newRole: Role): Promise<void> 
     AuditLogEvent.RoleUpdate,
     newRole.id,
   );
+  const roleName = newRole.name?.trim() || "rol-sin-nombre";
   await recordActionLog(newRole.client, {
     guildId: newRole.guild.id,
     eventKey: "roleUpdate",
     executorId: executor?.id ?? null,
     executorTag: executor?.tag ?? null,
     targetId: newRole.id,
-    targetTag: `@${newRole.name}`,
+    targetTag: roleName,
     channelId: null,
-    summary: `Rol actualizado: @${newRole.name}`,
+    summary: `Rol actualizado: ${roleName}`,
+    description: `🔧 **Rol actualizado:** \`${roleName}\``,
     details: {
       oldContent: `${oldRole.name} (${oldRole.hexColor})`,
       newContent: `${newRole.name} (${newRole.hexColor})`,
@@ -450,6 +505,9 @@ export async function onRoleUpdate(oldRole: Role, newRole: Role): Promise<void> 
       newName: newRole.name,
       oldColor: oldRole.hexColor,
       newColor: newRole.hexColor,
+      roleName,
+      roleColor: newRole.hexColor,
+      targetKind: "role",
     },
     actorIsBot: executor?.bot ?? false,
     actorRoleIds: executor?.roleIds,
@@ -457,7 +515,7 @@ export async function onRoleUpdate(oldRole: Role, newRole: Role): Promise<void> 
 }
 
 function channelLabel(channel: { name?: string | null; id: string }): string {
-  return channel.name ? `#${channel.name}` : channel.id;
+  return `#${safeChannelName(channel)}`;
 }
 
 export async function onChannelCreate(
@@ -469,16 +527,30 @@ export async function onChannelCreate(
     AuditLogEvent.ChannelCreate,
     channel.id,
   );
+  const name = safeChannelName(channel);
+  const label = `#${name}`;
+  const typeName = channelTypeName(channel.type);
+  const parentName =
+    "parent" in channel && channel.parent?.name
+      ? channel.parent.name
+      : "Ninguna";
   await recordActionLog(channel.client, {
     guildId: channel.guild.id,
     eventKey: "channelCreate",
     executorId: executor?.id ?? null,
     executorTag: executor?.tag ?? null,
     targetId: channel.id,
-    targetTag: channelLabel(channel),
+    targetTag: label,
     channelId: channel.id,
-    summary: `Canal creado: ${channelLabel(channel)}`,
-    details: { name: channel.name, type: channel.type },
+    summary: `Canal creado: ${label}`,
+    description: `📁 **Canal creado:** \`${label}\` (Tipo: ${typeName})`,
+    details: {
+      name,
+      type: channel.type,
+      channelTypeName: typeName,
+      parentName,
+      targetKind: "channel",
+    },
     actorIsBot: executor?.bot ?? false,
     actorRoleIds: executor?.roleIds,
   });
@@ -493,16 +565,35 @@ export async function onChannelDelete(
     AuditLogEvent.ChannelDelete,
     channel.id,
   );
+  const name = "name" in channel ? safeChannelName(channel) : "canal-sin-nombre";
+  const label = `#${name}`;
+  const typeName = channelTypeName(channel.type);
+  const parentName =
+    "parent" in channel && channel.parent?.name
+      ? channel.parent.name
+      : "Ninguna";
   await recordActionLog(channel.client, {
     guildId: channel.guild.id,
     eventKey: "channelDelete",
     executorId: executor?.id ?? null,
     executorTag: executor?.tag ?? null,
     targetId: channel.id,
-    targetTag: channelLabel(channel),
-    channelId: channel.id,
-    summary: `Canal eliminado: ${channelLabel(channel)}`,
-    details: { name: "name" in channel ? channel.name : null, type: channel.type },
+    targetTag: label,
+    // No mención viva: el canal ya no existe.
+    channelId: null,
+    parentId: "parentId" in channel ? channel.parentId : null,
+    summary: `Canal eliminado: ${label}`,
+    description: `🗑️ **Canal eliminado:** \`${label}\` (Tipo: ${typeName})`,
+    details: {
+      name,
+      type: channel.type,
+      channelLabel: label,
+      channelDeleted: true,
+      channelPlain: true,
+      channelTypeName: typeName,
+      parentName,
+      targetKind: "channel",
+    },
     actorIsBot: executor?.bot ?? false,
     actorRoleIds: executor?.roleIds,
   });
@@ -523,18 +614,21 @@ export async function onChannelUpdate(
     AuditLogEvent.ChannelUpdate,
     newChannel.id,
   );
+  const label = channelLabel(newChannel);
   await recordActionLog(newChannel.client, {
     guildId: newChannel.guild.id,
     eventKey: "channelUpdate",
     executorId: executor?.id ?? null,
     executorTag: executor?.tag ?? null,
     targetId: newChannel.id,
-    targetTag: channelLabel(newChannel),
+    targetTag: label,
     channelId: newChannel.id,
-    summary: `Canal actualizado: ${channelLabel(newChannel)}`,
+    summary: `Canal actualizado: ${label}`,
+    description: `🔧 **Canal actualizado:** \`${label}\``,
     details: {
       oldContent: oldChannel.name ?? "",
       newContent: newChannel.name ?? "",
+      targetKind: "channel",
     },
     actorIsBot: executor?.bot ?? false,
     actorRoleIds: executor?.roleIds,
@@ -542,26 +636,42 @@ export async function onChannelUpdate(
 }
 
 export async function onEmojiCreate(emoji: GuildEmoji): Promise<void> {
+  const emojiName = emoji.name?.trim() || "emoji-sin-nombre";
+  const emojiUrl = emoji.imageURL() ?? emoji.url;
   await recordActionLog(emoji.client, {
     guildId: emoji.guild.id,
     eventKey: "emojiCreate",
     executorId: null,
     targetId: emoji.id,
-    targetTag: emoji.name,
-    summary: `Emoji creado: :${emoji.name}:`,
-    details: { name: emoji.name, url: emoji.imageURL() },
+    targetTag: emojiName,
+    summary: `Emoji creado: :${emojiName}:`,
+    description: `✨ **Emoji creado:** \`:${emojiName}:\``,
+    details: {
+      name: emojiName,
+      url: emojiUrl,
+      thumbnailUrl: emojiUrl,
+      targetKind: "emoji",
+    },
     actorIsBot: false,
   });
 }
 
 export async function onEmojiDelete(emoji: GuildEmoji): Promise<void> {
+  const emojiName = emoji.name?.trim() || "emoji-sin-nombre";
+  const emojiUrl = emoji.imageURL() ?? emoji.url;
   await recordActionLog(emoji.client, {
     guildId: emoji.guild.id,
     eventKey: "emojiDelete",
     targetId: emoji.id,
-    targetTag: emoji.name,
-    summary: `Emoji eliminado: :${emoji.name}:`,
-    details: { name: emoji.name },
+    targetTag: emojiName,
+    summary: `Emoji eliminado: :${emojiName}:`,
+    description: `🗑️ **Emoji eliminado:** \`:${emojiName}:\``,
+    details: {
+      name: emojiName,
+      url: emojiUrl,
+      thumbnailUrl: emojiUrl,
+      targetKind: "emoji",
+    },
     actorIsBot: false,
   });
 }
@@ -576,10 +686,13 @@ export async function onEmojiUpdate(
     eventKey: "emojiUpdate",
     targetId: newEmoji.id,
     targetTag: newEmoji.name,
-    summary: `Emoji renombrado: :${oldEmoji.name}: → :${newEmoji.name}:`,
+    summary: `Emoji actualizado: :${newEmoji.name}:`,
+    description: `🔧 **Emoji actualizado:** \`:${newEmoji.name}:\``,
     details: {
       oldContent: oldEmoji.name ?? "",
       newContent: newEmoji.name ?? "",
+      thumbnailUrl: newEmoji.imageURL() ?? newEmoji.url,
+      targetKind: "emoji",
     },
     actorIsBot: false,
   });
@@ -587,26 +700,41 @@ export async function onEmojiUpdate(
 
 export async function onStickerCreate(sticker: Sticker): Promise<void> {
   if (!sticker.guildId || !sticker.guild) return;
+  const name = sticker.name?.trim() || "sticker-sin-nombre";
+  const stickerUrl = sticker.url;
   await recordActionLog(sticker.client, {
     guildId: sticker.guildId,
     eventKey: "stickerCreate",
     targetId: sticker.id,
-    targetTag: sticker.name,
-    summary: `Sticker creado: ${sticker.name}`,
-    details: { name: sticker.name, description: sticker.description },
+    targetTag: name,
+    summary: `Sticker creado: ${name}`,
+    description: `✨ **Sticker creado:** \`${name}\``,
+    details: {
+      name,
+      description: sticker.description,
+      thumbnailUrl: stickerUrl,
+      targetKind: "sticker",
+    },
     actorIsBot: false,
   });
 }
 
 export async function onStickerDelete(sticker: Sticker): Promise<void> {
   if (!sticker.guildId) return;
+  const name = sticker.name?.trim() || "sticker-sin-nombre";
+  const stickerUrl = sticker.url;
   await recordActionLog(sticker.client, {
     guildId: sticker.guildId,
     eventKey: "stickerDelete",
     targetId: sticker.id,
-    targetTag: sticker.name,
-    summary: `Sticker eliminado: ${sticker.name}`,
-    details: { name: sticker.name },
+    targetTag: name,
+    summary: `Sticker eliminado: ${name}`,
+    description: `🗑️ **Sticker eliminado:** \`${name}\``,
+    details: {
+      name,
+      thumbnailUrl: stickerUrl,
+      targetKind: "sticker",
+    },
     actorIsBot: false,
   });
 }
@@ -625,9 +753,12 @@ export async function onStickerUpdate(
     targetId: newSticker.id,
     targetTag: newSticker.name,
     summary: `Sticker actualizado: ${newSticker.name}`,
+    description: `🔧 **Sticker actualizado:** \`${newSticker.name?.trim() || "sticker-sin-nombre"}\``,
     details: {
       oldContent: oldSticker.name,
       newContent: newSticker.name,
+      thumbnailUrl: newSticker.url,
+      targetKind: "sticker",
     },
     actorIsBot: false,
   });
