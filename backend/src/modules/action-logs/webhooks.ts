@@ -10,7 +10,12 @@ import type { ActionLogWebhooksMapping } from "@adobos/shared";
 import { getDb } from "../../db/client.js";
 import { actionLogsConfig } from "../../db/schema.js";
 
-export const ACTION_LOG_WEBHOOK_NAME = "Adobos Audit Log";
+/** Nombre estático del webhook — nunca suplanta al usuario. */
+export const ACTION_LOG_WEBHOOK_NAME = "Adobos Audit";
+const LEGACY_WEBHOOK_NAMES = new Set([
+  ACTION_LOG_WEBHOOK_NAME,
+  "Adobos Audit Log",
+]);
 
 function parseMapping(raw: string | undefined | null): ActionLogWebhooksMapping {
   try {
@@ -73,10 +78,12 @@ async function resolveOrCreateWebhook(
     fetchWebhooks: () => Promise<Map<string, Webhook>>;
     createWebhook: (options: {
       name: string;
+      avatar?: string | Buffer | null;
       reason?: string;
     }) => Promise<Webhook>;
   },
   guildId: string,
+  botAvatarURL?: string | null,
 ): Promise<Webhook> {
   const mapping = readWebhooksMapping(guildId);
   const cachedId = mapping[channel.id];
@@ -89,7 +96,7 @@ async function resolveOrCreateWebhook(
   }
 
   const existing = [...hooks.values()].find(
-    (hook) => hook.name === ACTION_LOG_WEBHOOK_NAME && hook.token,
+    (hook) => LEGACY_WEBHOOK_NAMES.has(hook.name) && hook.token,
   );
   if (existing) {
     rememberWebhook(guildId, channel.id, existing.id);
@@ -98,6 +105,7 @@ async function resolveOrCreateWebhook(
 
   const created = await channel.createWebhook({
     name: ACTION_LOG_WEBHOOK_NAME,
+    avatar: botAvatarURL ?? undefined,
     reason: "Adobos Action Logs — envío vía webhook",
   });
   rememberWebhook(guildId, channel.id, created.id);
@@ -108,12 +116,11 @@ export interface SendActionLogWebhookInput {
   guildId: string;
   channelId: string;
   embeds: EmbedBuilder[];
-  username?: string | null;
-  avatarURL?: string | null;
 }
 
 /**
- * Envía embeds por webhook del canal (crea "Adobos Audit Log" si falta).
+ * Envía embeds por webhook del canal.
+ * Identidad fija: "Adobos Audit" + avatar del bot (sin suplantar usuarios).
  * Si Discord borró el webhook (10015), limpia cache y reintenta una vez.
  */
 export async function sendActionLogWebhook(
@@ -135,18 +142,28 @@ export async function sendActionLogWebhook(
     fetchWebhooks: () => Promise<Map<string, Webhook>>;
     createWebhook: (options: {
       name: string;
+      avatar?: string | Buffer | null;
       reason?: string;
     }) => Promise<Webhook>;
   };
 
+  const botAvatar = bot.user?.displayAvatarURL({ size: 128 }) ?? null;
+  const botName = bot.user?.username
+    ? `Adobos Audit`
+    : ACTION_LOG_WEBHOOK_NAME;
+
   const payload = {
     embeds: input.embeds,
-    username: input.username?.slice(0, 80) || undefined,
-    avatarURL: input.avatarURL || undefined,
+    username: botName,
+    avatarURL: botAvatar ?? undefined,
     allowedMentions: { parse: [] as const },
   };
 
-  let webhook = await resolveOrCreateWebhook(textChannel, input.guildId);
+  let webhook = await resolveOrCreateWebhook(
+    textChannel,
+    input.guildId,
+    botAvatar,
+  );
 
   try {
     const message = await webhook.send(payload);
@@ -155,7 +172,11 @@ export async function sendActionLogWebhook(
     if (!isUnknownWebhook(error)) throw error;
 
     forgetWebhook(input.guildId, input.channelId);
-    webhook = await resolveOrCreateWebhook(textChannel, input.guildId);
+    webhook = await resolveOrCreateWebhook(
+      textChannel,
+      input.guildId,
+      botAvatar,
+    );
     const message = await webhook.send(payload);
     return { messageId: message.id };
   }

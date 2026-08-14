@@ -183,18 +183,20 @@ export function ActionLogsConfigTab({
   const enabledCount = Object.values(config.enabledEvents).filter(Boolean).length;
 
   const destinationLines = useMemo(() => {
-    const nameOf = (id: string | null) =>
+    const nameOf = (id: string | null | undefined) =>
       id
         ? `#${textChannels.find((c) => c.id === id)?.name ?? id}`
         : "—";
-    if (config.routingMode === "GLOBAL") {
-      return [`Global: ${nameOf(config.globalChannelId)}`];
+    if (config.routingMode === "SIMPLE") {
+      return [`Simple: ${nameOf(config.globalChannelId)}`];
     }
     return [
       `Mensajes: ${nameOf(config.channelsMapping.messages)}`,
       `Miembros: ${nameOf(config.channelsMapping.members)}`,
-      `Server: ${nameOf(config.channelsMapping.server)}`,
-      `Assets: ${nameOf(config.channelsMapping.assets)}`,
+      `Roles: ${nameOf(config.channelsMapping.roles)}`,
+      `Canales: ${nameOf(config.channelsMapping.channels)}`,
+      `Voz: ${nameOf(config.channelsMapping.voice)}`,
+      `Recursos: ${nameOf(config.channelsMapping.assets)}`,
       `Reserva: ${nameOf(config.globalChannelId)}`,
     ];
   }, [config, textChannels]);
@@ -235,9 +237,9 @@ export function ActionLogsConfigTab({
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Canales de destino</CardTitle>
+            <CardTitle className="text-base">Enrutamiento de canales</CardTitle>
             <CardDescription>
-              Enruta los embeds (vía webhook) a un canal global o por categoría.
+              Los embeds salen por webhook «Adobos Audit» (identidad fija del bot).
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -245,14 +247,14 @@ export function ActionLogsConfigTab({
               {(
                 [
                   {
-                    mode: "GLOBAL" as const,
-                    title: "Canal único global",
-                    blurb: "Todos los eventos al mismo canal.",
+                    mode: "SIMPLE" as const,
+                    title: "Enrutamiento simple",
+                    blurb: "Un solo canal global para todos los eventos.",
                   },
                   {
-                    mode: "CATEGORY" as const,
-                    title: "Canales por categoría",
-                    blurb: "Mensajes, miembros, server y assets.",
+                    mode: "ADVANCED" as const,
+                    title: "Enrutamiento avanzado",
+                    blurb: "6 canales: mensajes, miembros, roles, canales, voz y recursos.",
                   },
                 ] as const
               ).map((opt) => (
@@ -275,7 +277,7 @@ export function ActionLogsConfigTab({
               ))}
             </div>
 
-            {config.routingMode === "GLOBAL" ? (
+            {config.routingMode === "SIMPLE" ? (
               <ChannelSelect
                 id="global-channel"
                 label="Canal global"
@@ -294,21 +296,35 @@ export function ActionLogsConfigTab({
                 />
                 <ChannelSelect
                   id="map-members"
-                  label="Miembros / Voz"
+                  label="Miembros"
                   value={config.channelsMapping.members}
                   channels={textChannels}
                   onChange={(id) => setMapping("members", id)}
                 />
                 <ChannelSelect
-                  id="map-server"
-                  label="Roles / canales / invites"
-                  value={config.channelsMapping.server}
+                  id="map-roles"
+                  label="Roles"
+                  value={config.channelsMapping.roles}
                   channels={textChannels}
-                  onChange={(id) => setMapping("server", id)}
+                  onChange={(id) => setMapping("roles", id)}
+                />
+                <ChannelSelect
+                  id="map-channels"
+                  label="Canales / invitaciones"
+                  value={config.channelsMapping.channels}
+                  channels={textChannels}
+                  onChange={(id) => setMapping("channels", id)}
+                />
+                <ChannelSelect
+                  id="map-voice"
+                  label="Voz"
+                  value={config.channelsMapping.voice}
+                  channels={textChannels}
+                  onChange={(id) => setMapping("voice", id)}
                 />
                 <ChannelSelect
                   id="map-assets"
-                  label="Recursos (emojis / stickers / sonidos)"
+                  label="Recursos"
                   value={config.channelsMapping.assets}
                   channels={textChannels}
                   onChange={(id) => setMapping("assets", id)}

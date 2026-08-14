@@ -1,6 +1,10 @@
 /** Contratos Action Logs / Registro de Eventos. */
 
-export type ActionLogRoutingMode = "GLOBAL" | "CATEGORY";
+/** SIMPLE = 1 canal global; ADVANCED = mapa por categoría. */
+export type ActionLogRoutingMode = "SIMPLE" | "ADVANCED";
+
+/** Alias legacy (migración GLOBAL→SIMPLE, CATEGORY→ADVANCED). */
+export type ActionLogRoutingModeLegacy = "GLOBAL" | "CATEGORY";
 
 /** 0 = sin límite (no recomendado). */
 export type ActionLogRetentionDays = 0 | 7 | 14 | 30;
@@ -41,6 +45,7 @@ export type ActionLogEventKey =
   | "soundboardUpdate"
   | "voiceJoin"
   | "voiceLeave"
+  | "voiceKick"
   | "voiceMove"
   | "inviteCreate"
   | "inviteDelete";
@@ -72,15 +77,27 @@ export type ActionLogEventType =
   | "SOUNDBOARD_UPDATE"
   | "VOICE_JOIN"
   | "VOICE_LEAVE"
+  | "VOICE_KICK"
   | "VOICE_MOVE"
   | "INVITE_CREATE"
   | "INVITE_DELETE";
 
+/** Tono de color del embed (anatomía Enterprise). */
+export type ActionLogEmbedTone = "red" | "yellow" | "green" | "blue";
+
+/**
+ * Mapa de canales en modo ADVANCED.
+ * keys: messages | members | roles | channels | voice | assets
+ */
 export interface ActionLogChannelsMapping {
   messages: string | null;
   members: string | null;
-  server: string | null;
+  roles: string | null;
+  channels: string | null;
+  voice: string | null;
   assets: string | null;
+  /** @deprecated legacy — se migra a roles/channels */
+  server?: string | null;
 }
 
 export type ActionLogEnabledEvents = Record<ActionLogEventKey, boolean>;
@@ -93,6 +110,7 @@ export interface ActionLogsConfig {
   enabled: boolean;
   routingMode: ActionLogRoutingMode;
   globalChannelId: string | null;
+  /** Alias API: channelsMap */
   channelsMapping: ActionLogChannelsMapping;
   ignoredChannels: string[];
   ignoredRoles: string[];
@@ -109,9 +127,11 @@ export interface ActionLogsConfigResponse {
 
 export interface UpdateActionLogsConfigRequest {
   enabled?: boolean;
-  routingMode?: ActionLogRoutingMode;
+  routingMode?: ActionLogRoutingMode | ActionLogRoutingModeLegacy;
   globalChannelId?: string | null;
   channelsMapping?: Partial<ActionLogChannelsMapping>;
+  /** Alias del spec */
+  channelsMap?: Partial<ActionLogChannelsMapping>;
   ignoredChannels?: string[];
   ignoredRoles?: string[];
   ignoreBots?: boolean;
@@ -185,6 +205,7 @@ export const ACTION_LOG_EVENT_KEYS: readonly ActionLogEventKey[] = [
   "soundboardUpdate",
   "voiceJoin",
   "voiceLeave",
+  "voiceKick",
   "voiceMove",
   "inviteCreate",
   "inviteDelete",
@@ -200,6 +221,13 @@ export const ACTION_LOG_RETENTION_OPTIONS: readonly {
   { value: 0, label: "Sin límite (No recomendado)" },
 ] as const;
 
+export const ACTION_LOG_EMBED_COLORS: Record<ActionLogEmbedTone, number> = {
+  red: 0xed4245,
+  yellow: 0xfee75c,
+  green: 0x57f287,
+  blue: 0x5865f2,
+};
+
 export function defaultActionLogEnabledEvents(): ActionLogEnabledEvents {
   return Object.fromEntries(
     ACTION_LOG_EVENT_KEYS.map((key) => [key, true]),
@@ -210,7 +238,9 @@ export function defaultActionLogChannelsMapping(): ActionLogChannelsMapping {
   return {
     messages: null,
     members: null,
-    server: null,
+    roles: null,
+    channels: null,
+    voice: null,
     assets: null,
   };
 }
@@ -223,4 +253,30 @@ export function normalizeRetentionDays(
     return Number(value) as ActionLogRetentionDays;
   }
   return 14;
+}
+
+export function normalizeRoutingMode(
+  value: unknown,
+): ActionLogRoutingMode {
+  if (value === "SIMPLE" || value === "ADVANCED") return value;
+  if (value === "GLOBAL") return "SIMPLE";
+  if (value === "CATEGORY") return "ADVANCED";
+  return "SIMPLE";
+}
+
+/** Normaliza mapa legacy (`server`) → roles/channels. */
+export function normalizeChannelsMapping(
+  partial?: Partial<ActionLogChannelsMapping> | null,
+): ActionLogChannelsMapping {
+  const base = defaultActionLogChannelsMapping();
+  const raw = partial ?? {};
+  const server = raw.server ?? null;
+  return {
+    messages: raw.messages ?? base.messages,
+    members: raw.members ?? base.members,
+    roles: raw.roles ?? server ?? base.roles,
+    channels: raw.channels ?? server ?? base.channels,
+    voice: raw.voice ?? base.voice,
+    assets: raw.assets ?? base.assets,
+  };
 }

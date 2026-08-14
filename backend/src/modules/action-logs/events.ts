@@ -91,43 +91,54 @@ export async function onMessageDelete(
     AuditLogEvent.MessageDelete,
     author?.id,
   );
+  const executorUnknown = !executor;
 
   await recordActionLog(message.client, {
     guildId: message.guild.id,
     eventKey: "messageDelete",
-    executorId: executor?.id ?? author?.id ?? null,
-    executorTag: executor?.tag ?? (author ? userTag(author) : null),
-    executorAvatarURL: author?.displayAvatarURL?.({ size: 128 }) ?? null,
+    executorId: executor?.id ?? null,
+    executorTag: executor?.tag ?? null,
+    executorAvatarURL: executor
+      ? null
+      : author?.displayAvatarURL?.({ size: 128 }) ?? null,
     targetId: author?.id ?? null,
     targetTag: author ? userTag(author) : null,
     channelId,
     parentId,
     summary: `Mensaje eliminado en <#${channelId}>`,
+    description: `**Mensaje eliminado** en <#${channelId}>`,
     details: {
       oldContent: content,
       newContent: null,
       attachments,
+      messageId: message.id,
       cached: !message.partial && Boolean(message.content || attachments.length),
     },
-    actorIsBot: executor?.bot ?? author?.bot ?? false,
+    actorIsBot: executor?.bot ?? false,
     actorRoleIds: executor?.roleIds,
-    embedColor: 0xef4444,
+    executorUnknown,
   });
 
   if (attachments.length > 0) {
     await recordActionLog(message.client, {
       guildId: message.guild.id,
       eventKey: "messageAttachmentDelete",
-      executorId: executor?.id ?? author?.id ?? null,
-      executorTag: executor?.tag ?? (author ? userTag(author) : null),
+      executorId: executor?.id ?? null,
+      executorTag: executor?.tag ?? null,
       targetId: author?.id ?? null,
       targetTag: author ? userTag(author) : null,
       channelId,
+      parentId,
       summary: `${attachments.length} adjunto(s) eliminado(s)`,
-      details: { attachments, oldContent: content },
-      actorIsBot: executor?.bot ?? author?.bot ?? false,
+      description: `**Imágenes / adjuntos eliminados** en <#${channelId}>`,
+      details: {
+        attachments,
+        oldContent: content,
+        messageId: message.id,
+      },
+      actorIsBot: executor?.bot ?? false,
       actorRoleIds: executor?.roleIds,
-      embedColor: 0xf97316,
+      executorUnknown,
     });
   }
 }
@@ -175,12 +186,13 @@ export async function onMessageUpdate(
       channelId: newMessage.channelId,
       parentId,
       summary: `${removed.length} adjunto(s) eliminado(s) de un mensaje`,
+      description: `**Imágenes / adjuntos eliminados** en <#${newMessage.channelId}>`,
       details: {
         removedAttachmentIds: removed,
         oldContent: oldMessage.content ?? null,
+        messageId: newMessage.id,
       },
       actorIsBot: author?.bot ?? false,
-      embedColor: 0xf97316,
     });
     return;
   }
@@ -213,6 +225,7 @@ export async function onMessageUpdate(
     channelId: newMessage.channelId,
     parentId,
     summary: `Mensaje editado en <#${newMessage.channelId}>`,
+    description: `**Mensaje editado** en <#${newMessage.channelId}>`,
     details: {
       oldContent,
       newContent,
@@ -220,7 +233,6 @@ export async function onMessageUpdate(
       cached: !oldMessage.partial,
     },
     actorIsBot: author?.bot ?? false,
-    embedColor: 0x3b82f6,
   });
 }
 
@@ -228,16 +240,17 @@ export async function onGuildMemberAdd(member: GuildMember): Promise<void> {
   await recordActionLog(member.client, {
     guildId: member.guild.id,
     eventKey: "memberJoin",
-    executorId: null,
-    executorTag: null,
+    executorId: member.id,
+    executorTag: userTag(member.user),
+    executorAvatarURL: member.user.displayAvatarURL({ size: 128 }),
     targetId: member.id,
     targetTag: userTag(member.user),
     channelId: null,
     summary: `${userTag(member.user)} se unió al servidor`,
+    description: `**Miembro se une** al servidor`,
     details: { accountCreatedAt: member.user.createdAt.toISOString() },
     actorIsBot: member.user.bot,
     actorRoleIds: [...member.roles.cache.keys()],
-    embedColor: 0x22c55e,
   });
 }
 
@@ -249,16 +262,17 @@ export async function onGuildMemberRemove(
   await recordActionLog(member.client, {
     guildId: member.guild.id,
     eventKey: "memberLeave",
-    executorId: null,
-    executorTag: null,
+    executorId: member.id,
+    executorTag: userTag(user),
+    executorAvatarURL: user.displayAvatarURL({ size: 128 }),
     targetId: member.id,
     targetTag: userTag(user),
     channelId: null,
     summary: `${userTag(user)} salió del servidor`,
+    description: `**Usuario abandonó** el servidor`,
     details: {},
     actorIsBot: user.bot,
     actorRoleIds: "roles" in member ? [...member.roles.cache.keys()] : [],
-    embedColor: 0xf59e0b,
   });
 }
 
@@ -281,7 +295,6 @@ export async function onGuildMemberUpdate(
       details: { oldContent: oldNick ?? "", newContent: newNick ?? "" },
       actorIsBot: newMember.user.bot,
       actorRoleIds: [...newMember.roles.cache.keys()],
-      embedColor: 0x8b5cf6,
     });
   }
 
@@ -318,7 +331,6 @@ export async function onGuildMemberUpdate(
     },
     actorIsBot: newMember.user.bot,
     actorRoleIds: [...newMember.roles.cache.keys()],
-    embedColor: 0xa855f7,
   });
 }
 
@@ -340,7 +352,6 @@ export async function onGuildBanAdd(ban: GuildBan): Promise<void> {
     details: { reason: ban.reason ?? null },
     actorIsBot: executor?.bot ?? false,
     actorRoleIds: executor?.roleIds,
-    embedColor: 0xdc2626,
   });
 }
 
@@ -362,7 +373,6 @@ export async function onGuildBanRemove(ban: GuildBan): Promise<void> {
     details: {},
     actorIsBot: executor?.bot ?? false,
     actorRoleIds: executor?.roleIds,
-    embedColor: 0x16a34a,
   });
 }
 
@@ -384,7 +394,6 @@ export async function onRoleCreate(role: Role): Promise<void> {
     details: { name: role.name, color: role.hexColor },
     actorIsBot: executor?.bot ?? false,
     actorRoleIds: executor?.roleIds,
-    embedColor: 0x22c55e,
   });
 }
 
@@ -406,7 +415,6 @@ export async function onRoleDelete(role: Role): Promise<void> {
     details: { name: role.name, color: role.hexColor },
     actorIsBot: executor?.bot ?? false,
     actorRoleIds: executor?.roleIds,
-    embedColor: 0xef4444,
   });
 }
 
@@ -445,7 +453,6 @@ export async function onRoleUpdate(oldRole: Role, newRole: Role): Promise<void> 
     },
     actorIsBot: executor?.bot ?? false,
     actorRoleIds: executor?.roleIds,
-    embedColor: 0xf59e0b,
   });
 }
 
@@ -474,7 +481,6 @@ export async function onChannelCreate(
     details: { name: channel.name, type: channel.type },
     actorIsBot: executor?.bot ?? false,
     actorRoleIds: executor?.roleIds,
-    embedColor: 0x22c55e,
   });
 }
 
@@ -499,7 +505,6 @@ export async function onChannelDelete(
     details: { name: "name" in channel ? channel.name : null, type: channel.type },
     actorIsBot: executor?.bot ?? false,
     actorRoleIds: executor?.roleIds,
-    embedColor: 0xef4444,
   });
 }
 
@@ -533,7 +538,6 @@ export async function onChannelUpdate(
     },
     actorIsBot: executor?.bot ?? false,
     actorRoleIds: executor?.roleIds,
-    embedColor: 0xf59e0b,
   });
 }
 
@@ -547,7 +551,6 @@ export async function onEmojiCreate(emoji: GuildEmoji): Promise<void> {
     summary: `Emoji creado: :${emoji.name}:`,
     details: { name: emoji.name, url: emoji.imageURL() },
     actorIsBot: false,
-    embedColor: 0xa855f7,
   });
 }
 
@@ -560,7 +563,6 @@ export async function onEmojiDelete(emoji: GuildEmoji): Promise<void> {
     summary: `Emoji eliminado: :${emoji.name}:`,
     details: { name: emoji.name },
     actorIsBot: false,
-    embedColor: 0xef4444,
   });
 }
 
@@ -580,7 +582,6 @@ export async function onEmojiUpdate(
       newContent: newEmoji.name ?? "",
     },
     actorIsBot: false,
-    embedColor: 0xf59e0b,
   });
 }
 
@@ -594,7 +595,6 @@ export async function onStickerCreate(sticker: Sticker): Promise<void> {
     summary: `Sticker creado: ${sticker.name}`,
     details: { name: sticker.name, description: sticker.description },
     actorIsBot: false,
-    embedColor: 0xa855f7,
   });
 }
 
@@ -608,7 +608,6 @@ export async function onStickerDelete(sticker: Sticker): Promise<void> {
     summary: `Sticker eliminado: ${sticker.name}`,
     details: { name: sticker.name },
     actorIsBot: false,
-    embedColor: 0xef4444,
   });
 }
 
@@ -631,7 +630,6 @@ export async function onStickerUpdate(
       newContent: newSticker.name,
     },
     actorIsBot: false,
-    embedColor: 0xf59e0b,
   });
 }
 
@@ -651,6 +649,7 @@ export async function onVoiceStateUpdate(
 
   const oldParent = oldState.channel?.parentId ?? null;
   const newParent = newState.channel?.parentId ?? null;
+  const roleIds = member ? [...member.roles.cache.keys()] : [];
 
   if (!oldCh && newCh) {
     if (
@@ -658,7 +657,7 @@ export async function onVoiceStateUpdate(
         channelId: newCh,
         parentId: newParent,
         actorIsBot: user.bot,
-        actorRoleIds: member ? [...member.roles.cache.keys()] : [],
+        actorRoleIds: roleIds,
       })
     ) {
       return;
@@ -673,26 +672,83 @@ export async function onVoiceStateUpdate(
       targetTag: userTag(user),
       channelId: newCh,
       parentId: newParent,
-      summary: `${userTag(user)} entró a <#${newCh}>`,
+      summary: `${userTag(user)} entró a voz`,
+      description: `**Usuario conectó** al canal de voz <#${newCh}>`,
       details: { channelId: newCh },
       actorIsBot: user.bot,
-      actorRoleIds: member ? [...member.roles.cache.keys()] : [],
-      embedColor: 0x22c55e,
+      actorRoleIds: roleIds,
+      tone: "green",
     });
     return;
   }
 
   if (oldCh && !newCh) {
-    if (
-      !passesActionLogFilters(guild.id, "voiceLeave", {
+    // Filtros baratos ANTES del delay / audit fetch
+    const leaveOk = passesActionLogFilters(guild.id, "voiceLeave", {
+      channelId: oldCh,
+      parentId: oldParent,
+      actorIsBot: user.bot,
+      actorRoleIds: roleIds,
+    });
+    const kickOk = passesActionLogFilters(guild.id, "voiceKick", {
+      channelId: oldCh,
+      parentId: oldParent,
+      actorIsBot: false,
+      actorRoleIds: roleIds,
+    });
+    if (!leaveOk && !kickOk) return;
+
+    // Esperar a que Discord escriba MemberDisconnect en auditoría
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    let kickedBy: { id: string; tag: string; avatarURL: string } | null = null;
+    try {
+      const logs = await guild.fetchAuditLogs({
+        type: AuditLogEvent.MemberDisconnect,
+        limit: 1,
+      });
+      const entry = logs.entries.first();
+      if (
+        entry?.executor &&
+        entry.targetId === user.id &&
+        Date.now() - entry.createdTimestamp < 3000
+      ) {
+        kickedBy = {
+          id: entry.executor.id,
+          tag: userTag(entry.executor),
+          avatarURL: entry.executor.displayAvatarURL({ size: 128 }),
+        };
+      }
+    } catch {
+      // sin permiso View Audit Log → salida voluntaria
+    }
+
+    if (kickedBy && kickOk) {
+      await recordActionLog(newState.client, {
+        guildId: guild.id,
+        eventKey: "voiceKick",
+        executorId: kickedBy.id,
+        executorTag: kickedBy.tag,
+        executorAvatarURL: kickedBy.avatarURL,
+        targetId: user.id,
+        targetTag: userTag(user),
         channelId: oldCh,
         parentId: oldParent,
-        actorIsBot: user.bot,
-        actorRoleIds: member ? [...member.roles.cache.keys()] : [],
-      })
-    ) {
+        summary: `${userTag(user)} expulsado de voz por ${kickedBy.tag}`,
+        description: `**Usuario desconectado a la fuerza** del canal de voz <#${oldCh}>`,
+        details: {
+          channelId: oldCh,
+          targetId: user.id,
+          forced: true,
+        },
+        actorIsBot: false,
+        actorRoleIds: roleIds,
+        tone: "red",
+      });
       return;
     }
+
+    if (!leaveOk) return;
     await recordActionLog(newState.client, {
       guildId: guild.id,
       eventKey: "voiceLeave",
@@ -703,11 +759,12 @@ export async function onVoiceStateUpdate(
       targetTag: userTag(user),
       channelId: oldCh,
       parentId: oldParent,
-      summary: `${userTag(user)} salió de <#${oldCh}>`,
-      details: { channelId: oldCh },
+      summary: `${userTag(user)} abandonó voz`,
+      description: `**Usuario abandonó** el canal de voz <#${oldCh}>`,
+      details: { channelId: oldCh, forced: false },
       actorIsBot: user.bot,
-      actorRoleIds: member ? [...member.roles.cache.keys()] : [],
-      embedColor: 0xf59e0b,
+      actorRoleIds: roleIds,
+      tone: "blue",
     });
     return;
   }
@@ -718,7 +775,7 @@ export async function onVoiceStateUpdate(
         channelId: newCh,
         parentId: newParent,
         actorIsBot: user.bot,
-        actorRoleIds: member ? [...member.roles.cache.keys()] : [],
+        actorRoleIds: roleIds,
       })
     ) {
       return;
@@ -733,7 +790,8 @@ export async function onVoiceStateUpdate(
       targetTag: userTag(user),
       channelId: newCh,
       parentId: newParent,
-      summary: `${userTag(user)}: <#${oldCh}> → <#${newCh}>`,
+      summary: `${userTag(user)}: voz ${oldCh} → ${newCh}`,
+      description: `**Usuario se movió** de <#${oldCh}> a <#${newCh}>`,
       details: {
         oldContent: `<#${oldCh}>`,
         newContent: `<#${newCh}>`,
@@ -741,8 +799,8 @@ export async function onVoiceStateUpdate(
         toChannelId: newCh,
       },
       actorIsBot: user.bot,
-      actorRoleIds: member ? [...member.roles.cache.keys()] : [],
-      embedColor: 0x06b6d4,
+      actorRoleIds: roleIds,
+      tone: "blue",
     });
   }
 }
@@ -775,7 +833,6 @@ export async function onInviteCreate(invite: Invite): Promise<void> {
       temporary: invite.temporary,
     },
     actorIsBot: inviter?.bot ?? false,
-    embedColor: 0x22c55e,
   });
 }
 
@@ -797,7 +854,6 @@ export async function onInviteDelete(invite: Invite): Promise<void> {
     summary: `Invitación eliminada: discord.gg/${invite.code}`,
     details: { code: invite.code },
     actorIsBot: false,
-    embedColor: 0xef4444,
   });
 }
 
@@ -901,7 +957,6 @@ export function registerActionLogListeners(ctx: {
       summary: `Sonido creado: ${s.name ?? s.id}`,
       details: { name: s.name ?? null },
       actorIsBot: false,
-      embedColor: 0xa855f7,
     });
   });
   onAny("guildSoundboardSoundDelete", (sound) => {
@@ -923,7 +978,6 @@ export function registerActionLogListeners(ctx: {
       summary: `Sonido eliminado: ${s.name ?? s.id}`,
       details: { name: s.name ?? null },
       actorIsBot: false,
-      embedColor: 0xef4444,
     });
   });
   onAny("guildSoundboardSoundUpdate", (_oldSound, sound) => {
@@ -945,7 +999,6 @@ export function registerActionLogListeners(ctx: {
       summary: `Sonido actualizado: ${s.name ?? s.id}`,
       details: { name: s.name ?? null },
       actorIsBot: false,
-      embedColor: 0xf59e0b,
     });
   });
 }

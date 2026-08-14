@@ -27,7 +27,7 @@ function DiffBlock({
         <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-red-600 dark:text-red-400">
           Antes
         </p>
-        <pre className="whitespace-pre-wrap break-words font-mono text-xs text-foreground/90">
+        <pre className="whitespace-pre-wrap break-words font-mono text-xs text-red-700/90 line-through dark:text-red-300/90">
           {oldValue || "*(vacío)*"}
         </pre>
       </div>
@@ -35,7 +35,7 @@ function DiffBlock({
         <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
           Después
         </p>
-        <pre className="whitespace-pre-wrap break-words font-mono text-xs text-foreground/90">
+        <pre className="whitespace-pre-wrap break-words font-mono text-xs text-emerald-800 dark:text-emerald-300">
           {newValue || "*(vacío)*"}
         </pre>
       </div>

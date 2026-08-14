@@ -62,6 +62,7 @@ export const EVENT_TYPE_LABELS: Record<ActionLogEventType, string> = {
   SOUNDBOARD_UPDATE: "Sonido ~",
   VOICE_JOIN: "Voz +",
   VOICE_LEAVE: "Voz −",
+  VOICE_KICK: "Kick voz",
   VOICE_MOVE: "Voz ~",
   INVITE_CREATE: "Invite +",
   INVITE_DELETE: "Invite −",
@@ -115,7 +116,8 @@ export const EVENT_ACCORDION_GROUPS: Array<{
     title: "Voz",
     events: [
       { key: "voiceJoin", label: "Entrada a canal de voz" },
-      { key: "voiceLeave", label: "Salida de canal de voz" },
+      { key: "voiceLeave", label: "Salida voluntaria" },
+      { key: "voiceKick", label: "Kick / desconexión forzada" },
       { key: "voiceMove", label: "Movimiento entre canales" },
     ],
   },

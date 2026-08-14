@@ -26,7 +26,7 @@ function emptyConfig(): ActionLogsConfig {
   return {
     guildId: "",
     enabled: false,
-    routingMode: "GLOBAL",
+    routingMode: "SIMPLE",
     globalChannelId: null,
     channelsMapping: defaultActionLogChannelsMapping(),
     ignoredChannels: [],

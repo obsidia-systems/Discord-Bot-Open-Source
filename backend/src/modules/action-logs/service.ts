@@ -14,7 +14,6 @@ import type {
   ActionLogEventKey,
   ActionLogEventType,
   ActionLogRetentionDays,
-  ActionLogRoutingMode,
   ActionLogsConfig,
   ActionLogsHistoryQuery,
   ActionLogsHistoryResponse,
@@ -24,7 +23,10 @@ import type {
 import {
   defaultActionLogChannelsMapping,
   defaultActionLogEnabledEvents,
+  normalizeChannelsMapping,
   normalizeRetentionDays,
+  normalizeRoutingMode,
+  type ActionLogEmbedTone,
 } from "@adobos/shared";
 import { getDb } from "../../db/client.js";
 import {
@@ -32,6 +34,7 @@ import {
   actionLogsConfig,
   guildSettings,
 } from "../../db/schema.js";
+import { buildActionLogEmbed } from "./embeds.js";
 import { sendActionLogWebhook } from "./webhooks.js";
 
 export class ActionLogsError extends Error {
@@ -51,162 +54,53 @@ const CATEGORY_ROUTE_KEY: Record<
 > = {
   MESSAGES: "messages",
   MEMBERS: "members",
-  ROLES: "server",
-  CHANNELS: "server",
+  ROLES: "roles",
+  CHANNELS: "channels",
   ASSETS: "assets",
-  VOICE: "members",
-  INVITES: "server",
+  VOICE: "voice",
+  INVITES: "channels",
 };
 
 const EVENT_META: Record<
   ActionLogEventKey,
-  { eventType: ActionLogEventType; category: ActionLogCategory; label: string }
+  {
+    eventType: ActionLogEventType;
+    category: ActionLogCategory;
+    label: string;
+    tone: ActionLogEmbedTone;
+    emoji: string;
+  }
 > = {
-  messageDelete: {
-    eventType: "MESSAGE_DELETE",
-    category: "MESSAGES",
-    label: "Mensaje eliminado",
-  },
-  messageUpdate: {
-    eventType: "MESSAGE_UPDATE",
-    category: "MESSAGES",
-    label: "Mensaje editado",
-  },
-  messageAttachmentDelete: {
-    eventType: "MESSAGE_ATTACHMENT_DELETE",
-    category: "MESSAGES",
-    label: "Adjunto eliminado",
-  },
-  memberJoin: {
-    eventType: "MEMBER_JOIN",
-    category: "MEMBERS",
-    label: "Miembro se une",
-  },
-  memberLeave: {
-    eventType: "MEMBER_LEAVE",
-    category: "MEMBERS",
-    label: "Miembro sale",
-  },
-  memberRoleUpdate: {
-    eventType: "MEMBER_ROLE_UPDATE",
-    category: "MEMBERS",
-    label: "Roles actualizados",
-  },
-  memberNicknameUpdate: {
-    eventType: "MEMBER_NICKNAME_UPDATE",
-    category: "MEMBERS",
-    label: "Apodo cambiado",
-  },
-  memberBan: {
-    eventType: "MEMBER_BAN",
-    category: "MEMBERS",
-    label: "Miembro baneado",
-  },
-  memberUnban: {
-    eventType: "MEMBER_UNBAN",
-    category: "MEMBERS",
-    label: "Miembro desbaneado",
-  },
-  roleCreate: {
-    eventType: "ROLE_CREATE",
-    category: "ROLES",
-    label: "Rol creado",
-  },
-  roleDelete: {
-    eventType: "ROLE_DELETE",
-    category: "ROLES",
-    label: "Rol eliminado",
-  },
-  roleUpdate: {
-    eventType: "ROLE_UPDATE",
-    category: "ROLES",
-    label: "Rol actualizado",
-  },
-  channelCreate: {
-    eventType: "CHANNEL_CREATE",
-    category: "CHANNELS",
-    label: "Canal creado",
-  },
-  channelDelete: {
-    eventType: "CHANNEL_DELETE",
-    category: "CHANNELS",
-    label: "Canal eliminado",
-  },
-  channelUpdate: {
-    eventType: "CHANNEL_UPDATE",
-    category: "CHANNELS",
-    label: "Canal actualizado",
-  },
-  emojiCreate: {
-    eventType: "EMOJI_CREATE",
-    category: "ASSETS",
-    label: "Emoji creado",
-  },
-  emojiDelete: {
-    eventType: "EMOJI_DELETE",
-    category: "ASSETS",
-    label: "Emoji eliminado",
-  },
-  emojiUpdate: {
-    eventType: "EMOJI_UPDATE",
-    category: "ASSETS",
-    label: "Emoji actualizado",
-  },
-  stickerCreate: {
-    eventType: "STICKER_CREATE",
-    category: "ASSETS",
-    label: "Sticker creado",
-  },
-  stickerDelete: {
-    eventType: "STICKER_DELETE",
-    category: "ASSETS",
-    label: "Sticker eliminado",
-  },
-  stickerUpdate: {
-    eventType: "STICKER_UPDATE",
-    category: "ASSETS",
-    label: "Sticker actualizado",
-  },
-  soundboardCreate: {
-    eventType: "SOUNDBOARD_CREATE",
-    category: "ASSETS",
-    label: "Sonido creado",
-  },
-  soundboardDelete: {
-    eventType: "SOUNDBOARD_DELETE",
-    category: "ASSETS",
-    label: "Sonido eliminado",
-  },
-  soundboardUpdate: {
-    eventType: "SOUNDBOARD_UPDATE",
-    category: "ASSETS",
-    label: "Sonido actualizado",
-  },
-  voiceJoin: {
-    eventType: "VOICE_JOIN",
-    category: "VOICE",
-    label: "Entrada a voz",
-  },
-  voiceLeave: {
-    eventType: "VOICE_LEAVE",
-    category: "VOICE",
-    label: "Salida de voz",
-  },
-  voiceMove: {
-    eventType: "VOICE_MOVE",
-    category: "VOICE",
-    label: "Movimiento de voz",
-  },
-  inviteCreate: {
-    eventType: "INVITE_CREATE",
-    category: "INVITES",
-    label: "Invitación creada",
-  },
-  inviteDelete: {
-    eventType: "INVITE_DELETE",
-    category: "INVITES",
-    label: "Invitación eliminada",
-  },
+  messageDelete: { eventType: "MESSAGE_DELETE", category: "MESSAGES", label: "Mensaje eliminado", tone: "red", emoji: "🗑️" },
+  messageUpdate: { eventType: "MESSAGE_UPDATE", category: "MESSAGES", label: "Mensaje editado", tone: "yellow", emoji: "✏️" },
+  messageAttachmentDelete: { eventType: "MESSAGE_ATTACHMENT_DELETE", category: "MESSAGES", label: "Adjunto eliminado", tone: "red", emoji: "🖼️" },
+  memberJoin: { eventType: "MEMBER_JOIN", category: "MEMBERS", label: "Miembro se une", tone: "green", emoji: "📥" },
+  memberLeave: { eventType: "MEMBER_LEAVE", category: "MEMBERS", label: "Miembro sale", tone: "yellow", emoji: "🚪" },
+  memberRoleUpdate: { eventType: "MEMBER_ROLE_UPDATE", category: "MEMBERS", label: "Roles actualizados", tone: "blue", emoji: "🎭" },
+  memberNicknameUpdate: { eventType: "MEMBER_NICKNAME_UPDATE", category: "MEMBERS", label: "Apodo cambiado", tone: "yellow", emoji: "🏷️" },
+  memberBan: { eventType: "MEMBER_BAN", category: "MEMBERS", label: "Miembro baneado", tone: "red", emoji: "🔨" },
+  memberUnban: { eventType: "MEMBER_UNBAN", category: "MEMBERS", label: "Miembro desbaneado", tone: "green", emoji: "🔓" },
+  roleCreate: { eventType: "ROLE_CREATE", category: "ROLES", label: "Rol creado", tone: "green", emoji: "✨" },
+  roleDelete: { eventType: "ROLE_DELETE", category: "ROLES", label: "Rol eliminado", tone: "red", emoji: "🗑️" },
+  roleUpdate: { eventType: "ROLE_UPDATE", category: "ROLES", label: "Rol actualizado", tone: "yellow", emoji: "🔧" },
+  channelCreate: { eventType: "CHANNEL_CREATE", category: "CHANNELS", label: "Canal creado", tone: "green", emoji: "📁" },
+  channelDelete: { eventType: "CHANNEL_DELETE", category: "CHANNELS", label: "Canal eliminado", tone: "red", emoji: "📁" },
+  channelUpdate: { eventType: "CHANNEL_UPDATE", category: "CHANNELS", label: "Canal actualizado", tone: "yellow", emoji: "🔧" },
+  emojiCreate: { eventType: "EMOJI_CREATE", category: "ASSETS", label: "Emoji creado", tone: "green", emoji: "😀" },
+  emojiDelete: { eventType: "EMOJI_DELETE", category: "ASSETS", label: "Emoji eliminado", tone: "red", emoji: "😀" },
+  emojiUpdate: { eventType: "EMOJI_UPDATE", category: "ASSETS", label: "Emoji actualizado", tone: "yellow", emoji: "😀" },
+  stickerCreate: { eventType: "STICKER_CREATE", category: "ASSETS", label: "Sticker creado", tone: "green", emoji: "🏷️" },
+  stickerDelete: { eventType: "STICKER_DELETE", category: "ASSETS", label: "Sticker eliminado", tone: "red", emoji: "🏷️" },
+  stickerUpdate: { eventType: "STICKER_UPDATE", category: "ASSETS", label: "Sticker actualizado", tone: "yellow", emoji: "🏷️" },
+  soundboardCreate: { eventType: "SOUNDBOARD_CREATE", category: "ASSETS", label: "Sonido creado", tone: "green", emoji: "🔊" },
+  soundboardDelete: { eventType: "SOUNDBOARD_DELETE", category: "ASSETS", label: "Sonido eliminado", tone: "red", emoji: "🔊" },
+  soundboardUpdate: { eventType: "SOUNDBOARD_UPDATE", category: "ASSETS", label: "Sonido actualizado", tone: "yellow", emoji: "🔊" },
+  voiceJoin: { eventType: "VOICE_JOIN", category: "VOICE", label: "Entrada a voz", tone: "green", emoji: "🔊" },
+  voiceLeave: { eventType: "VOICE_LEAVE", category: "VOICE", label: "Salida de voz", tone: "blue", emoji: "🚪" },
+  voiceKick: { eventType: "VOICE_KICK", category: "VOICE", label: "Kick de voz", tone: "red", emoji: "👢" },
+  voiceMove: { eventType: "VOICE_MOVE", category: "VOICE", label: "Movimiento de voz", tone: "blue", emoji: "🔀" },
+  inviteCreate: { eventType: "INVITE_CREATE", category: "INVITES", label: "Invitación creada", tone: "green", emoji: "🔗" },
+  inviteDelete: { eventType: "INVITE_DELETE", category: "INVITES", label: "Invitación eliminada", tone: "red", emoji: "⛓️" },
 };
 
 export function getEventMeta(eventKey: ActionLogEventKey) {
@@ -284,10 +178,7 @@ function mergeEnabledEvents(
 function mergeChannelsMapping(
   partial?: Partial<ActionLogChannelsMapping> | null,
 ): ActionLogChannelsMapping {
-  return {
-    ...defaultActionLogChannelsMapping(),
-    ...(partial ?? {}),
-  };
+  return normalizeChannelsMapping(partial);
 }
 
 function rowToConfig(
@@ -298,7 +189,7 @@ function rowToConfig(
     return {
       guildId,
       enabled: false,
-      routingMode: "GLOBAL",
+      routingMode: "SIMPLE",
       globalChannelId: null,
       channelsMapping: defaultActionLogChannelsMapping(),
       ignoredChannels: [],
@@ -320,7 +211,7 @@ function rowToConfig(
   return {
     guildId: row.guildId,
     enabled: Boolean(row.enabled),
-    routingMode: (row.routingMode as ActionLogRoutingMode) || "GLOBAL",
+    routingMode: normalizeRoutingMode(row.routingMode),
     globalChannelId: row.globalChannelId,
     channelsMapping: mapping,
     ignoredChannels: parseJson<string[]>(row.ignoredChannels, []),
@@ -350,18 +241,22 @@ export function updateActionLogsConfig(
   ensureGuildRow(id);
 
   const current = getActionLogsConfig(id);
+  const mappingPatch = {
+    ...current.channelsMapping,
+    ...(input.channelsMapping ?? {}),
+    ...(input.channelsMap ?? {}),
+  };
   const next: ActionLogsConfig = {
     ...current,
     enabled: input.enabled ?? current.enabled,
-    routingMode: input.routingMode ?? current.routingMode,
+    routingMode: normalizeRoutingMode(
+      input.routingMode ?? current.routingMode,
+    ),
     globalChannelId:
       input.globalChannelId === undefined
         ? current.globalChannelId
         : input.globalChannelId,
-    channelsMapping: mergeChannelsMapping({
-      ...current.channelsMapping,
-      ...(input.channelsMapping ?? {}),
-    }),
+    channelsMapping: mergeChannelsMapping(mappingPatch),
     ignoredChannels: input.ignoredChannels ?? current.ignoredChannels,
     ignoredRoles: input.ignoredRoles ?? current.ignoredRoles,
     ignoreBots: input.ignoreBots ?? current.ignoreBots,
@@ -375,9 +270,9 @@ export function updateActionLogsConfig(
     updatedAt: new Date().toISOString(),
   };
 
-  if (next.routingMode !== "GLOBAL" && next.routingMode !== "CATEGORY") {
+  if (next.routingMode !== "SIMPLE" && next.routingMode !== "ADVANCED") {
     throw new ActionLogsError(
-      "routingMode inválido (GLOBAL | CATEGORY).",
+      "routingMode inválido (SIMPLE | ADVANCED).",
       400,
       "INVALID_ROUTING_MODE",
     );
@@ -435,10 +330,10 @@ export function resolveLogChannelId(
   config: ActionLogsConfig,
   category: ActionLogCategory,
 ): string | null {
-  if (config.routingMode === "CATEGORY") {
+  if (config.routingMode === "ADVANCED") {
     const key = CATEGORY_ROUTE_KEY[category];
     const mapped = config.channelsMapping[key];
-    if (mapped) return mapped;
+    if (typeof mapped === "string" && mapped) return mapped;
   }
   return config.globalChannelId;
 }
@@ -494,13 +389,17 @@ export interface RecordActionLogInput {
   channelId?: string | null;
   parentId?: string | null;
   summary: string;
+  /** Descripción markdown del embed Discord (negritas + menciones). */
+  description?: string;
   details?: Record<string, unknown>;
   /** Si true, el actor es un bot. */
   actorIsBot?: boolean;
   /** Roles del ejecutor o del miembro involucrado para filtros. */
   actorRoleIds?: string[];
-  /** Color del embed (decimal Discord). */
-  embedColor?: number;
+  /** Override del tono Enterprise (red/yellow/green/blue). */
+  tone?: ActionLogEmbedTone;
+  /** Ejecutor desconocido (Author = autor original / afectado). */
+  executorUnknown?: boolean;
 }
 
 /**
@@ -575,26 +474,61 @@ export async function recordActionLog(
 
   if (destinationId) {
     try {
-      const embed = buildActionLogEmbed(entry, meta.label, input.embedColor);
-      let username = input.executorTag ?? undefined;
-      let avatarURL = input.executorAvatarURL ?? undefined;
+      let authorAvatar = input.executorAvatarURL ?? null;
+      let authorTag = input.executorTag ?? null;
+      const executorUnknown = Boolean(input.executorUnknown);
 
-      if ((!username || !avatarURL) && input.executorId) {
+      // Author = ejecutor; si es desconocido, Author = afectado/autor original
+      const authorUserId = executorUnknown
+        ? (input.targetId ?? null)
+        : (input.executorId ?? input.targetId ?? null);
+
+      if (authorUserId && (!authorAvatar || !authorTag)) {
         try {
-          const user = await bot.users.fetch(input.executorId);
-          username = username ?? user.username;
-          avatarURL = avatarURL ?? user.displayAvatarURL({ size: 128 });
+          const user = await bot.users.fetch(authorUserId);
+          authorTag = authorTag ?? user.tag;
+          authorAvatar = authorAvatar ?? user.displayAvatarURL({ size: 128 });
         } catch {
           // ignore
         }
       }
 
+      // Si el ejecutor es desconocido, preferimos tag/avatar del target
+      if (executorUnknown && input.targetId) {
+        try {
+          const target = await bot.users.fetch(input.targetId);
+          authorTag = input.targetTag ?? target.tag;
+          authorAvatar = target.displayAvatarURL({ size: 128 });
+        } catch {
+          authorTag = input.targetTag ?? authorTag;
+        }
+      }
+
+      const channelPart = entry.channelId ? ` en <#${entry.channelId}>` : "";
+      const description =
+        input.description?.trim() ||
+        `**${meta.label}**${channelPart}`;
+
+      const messageId =
+        typeof details.messageId === "string" ? details.messageId : null;
+
+      const embed = buildActionLogEmbed({
+        entry,
+        description,
+        emoji: meta.emoji,
+        tone: input.tone ?? meta.tone,
+        authorTag,
+        authorAvatarURL: authorAvatar,
+        executorUnknown,
+        affectedUserId: entry.targetId,
+        messageId,
+        footerUserId: entry.executorId ?? entry.targetId,
+      });
+
       await sendActionLogWebhook(bot, {
         guildId: input.guildId,
         channelId: destinationId,
         embeds: [embed],
-        username,
-        avatarURL,
       });
     } catch (error) {
       console.warn(
@@ -605,75 +539,6 @@ export async function recordActionLog(
   }
 
   return entry;
-}
-
-function buildActionLogEmbed(
-  entry: ActionLogEntry,
-  label: string,
-  color = 0xe91e8c,
-): EmbedBuilder {
-  const embed = new EmbedBuilder()
-    .setColor(color)
-    .setTitle(label)
-    .setDescription(entry.summary || "—")
-    .setTimestamp(new Date(entry.createdAt))
-    .setFooter({ text: `Action Logs · ${entry.eventType}` });
-
-  if (entry.executorTag || entry.executorId) {
-    embed.addFields({
-      name: "Ejecutor",
-      value: entry.executorTag
-        ? `${entry.executorTag} (\`${entry.executorId}\`)`
-        : `\`${entry.executorId}\``,
-      inline: true,
-    });
-  }
-  if (entry.targetTag || entry.targetId) {
-    embed.addFields({
-      name: "Objetivo",
-      value: entry.targetTag
-        ? `${entry.targetTag} (\`${entry.targetId}\`)`
-        : `\`${entry.targetId}\``,
-      inline: true,
-    });
-  }
-  if (entry.channelId) {
-    embed.addFields({
-      name: "Canal",
-      value: `<#${entry.channelId}>`,
-      inline: true,
-    });
-  }
-
-  const oldContent =
-    typeof entry.details.oldContent === "string"
-      ? entry.details.oldContent
-      : null;
-  const newContent =
-    typeof entry.details.newContent === "string"
-      ? entry.details.newContent
-      : null;
-  if (oldContent !== null || newContent !== null) {
-    if (oldContent !== null) {
-      embed.addFields({
-        name: "Antes",
-        value: truncate(oldContent || "*(vacío)*", 1000),
-      });
-    }
-    if (newContent !== null) {
-      embed.addFields({
-        name: "Después",
-        value: truncate(newContent || "*(vacío)*", 1000),
-      });
-    }
-  }
-
-  return embed;
-}
-
-function truncate(value: string, max: number): string {
-  if (value.length <= max) return value;
-  return `${value.slice(0, max - 1)}…`;
 }
 
 /** Borra logs SQLite anteriores a la retención del guild. */
@@ -856,8 +721,6 @@ export async function sendActionLogsTestEmbed(
       guildId: guild.id,
       channelId,
       embeds: [embed],
-      username: bot.user?.username ?? "Adobos Bot",
-      avatarURL: bot.user?.displayAvatarURL({ size: 128 }) ?? null,
     });
     return {
       ok: true,
