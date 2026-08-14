@@ -329,6 +329,10 @@ export const actionLogsConfig = sqliteTable("action_logs_config", {
     .default(true),
   /** JSON: Record<eventKey, boolean> */
   enabledEvents: text("enabled_events").notNull().default("{}"),
+  /** Días de retención en SQLite; 0 = sin límite. */
+  dataRetentionDays: integer("data_retention_days").notNull().default(14),
+  /** JSON: { [channelId]: webhookId } */
+  webhooksMapping: text("webhooks_mapping").notNull().default("{}"),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),

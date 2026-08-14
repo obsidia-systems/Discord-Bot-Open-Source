@@ -47,6 +47,8 @@ const CATEGORY_FILTERS: Array<{ value: ActionLogCategory | "all"; label: string 
     { value: "MEMBERS", label: "Miembros" },
     { value: "ROLES", label: "Roles" },
     { value: "CHANNELS", label: "Canales" },
+    { value: "VOICE", label: "Voz" },
+    { value: "INVITES", label: "Invitaciones" },
     { value: "ASSETS", label: "Recursos" },
   ];
 

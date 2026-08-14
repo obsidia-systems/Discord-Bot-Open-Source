@@ -52,14 +52,17 @@ function resolveGuild(bot: Client, guildId?: string): Guild {
   return guild;
 }
 
-/** Canales de texto + anuncios + foros a los que se puede enviar mensajes. */
+/** Canales útiles para selects del panel (texto, voz, categorías). */
 function mapChannels(guild: Guild): GuildChannelAsset[] {
   return [...guild.channels.cache.values()]
     .filter(
       (channel) =>
         channel.type === ChannelType.GuildText ||
         channel.type === ChannelType.GuildAnnouncement ||
-        channel.type === ChannelType.GuildForum,
+        channel.type === ChannelType.GuildForum ||
+        channel.type === ChannelType.GuildVoice ||
+        channel.type === ChannelType.GuildStageVoice ||
+        channel.type === ChannelType.GuildCategory,
     )
     .map((channel) => ({
       id: channel.id,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import type {
   ActionLogsConfig,
@@ -33,14 +33,32 @@ function emptyConfig(): ActionLogsConfig {
     ignoredRoles: [],
     ignoreBots: true,
     enabledEvents: defaultActionLogEnabledEvents(),
+    dataRetentionDays: 14,
     updatedAt: new Date().toISOString(),
   };
+}
+
+function configFingerprint(config: ActionLogsConfig): string {
+  return JSON.stringify({
+    enabled: config.enabled,
+    routingMode: config.routingMode,
+    globalChannelId: config.globalChannelId,
+    channelsMapping: config.channelsMapping,
+    ignoredChannels: [...config.ignoredChannels].sort(),
+    ignoredRoles: [...config.ignoredRoles].sort(),
+    ignoreBots: config.ignoreBots,
+    enabledEvents: config.enabledEvents,
+    dataRetentionDays: config.dataRetentionDays,
+  });
 }
 
 /** Isla principal: Configuración y Filtros + Historial de Registros. */
 export function ActionLogsDashboard() {
   const [tab, setTab] = useState<TabId>("config");
   const [config, setConfig] = useState<ActionLogsConfig>(emptyConfig);
+  const [savedFingerprint, setSavedFingerprint] = useState(() =>
+    configFingerprint(emptyConfig()),
+  );
   const [channels, setChannels] = useState<GuildChannelAsset[]>([]);
   const [roles, setRoles] = useState<GuildRoleAsset[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,6 +66,11 @@ export function ActionLogsDashboard() {
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  const dirty = useMemo(
+    () => configFingerprint(config) !== savedFingerprint,
+    [config, savedFingerprint],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -58,6 +81,7 @@ export function ActionLogsDashboard() {
         fetchGuildAssets(),
       ]);
       setConfig(cfgRes.config);
+      setSavedFingerprint(configFingerprint(cfgRes.config));
       setChannels(assets.channels);
       setRoles(assets.roles);
     } catch (err) {
@@ -87,8 +111,10 @@ export function ActionLogsDashboard() {
         ignoredRoles: config.ignoredRoles,
         ignoreBots: config.ignoreBots,
         enabledEvents: config.enabledEvents,
+        dataRetentionDays: config.dataRetentionDays,
       });
       setConfig(res.config);
+      setSavedFingerprint(configFingerprint(res.config));
       setSuccess("Configuración guardada.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar");
@@ -159,6 +185,7 @@ export function ActionLogsDashboard() {
               config={config}
               channels={channels}
               roles={roles}
+              dirty={dirty}
               saving={saving}
               testing={testing}
               onChange={setConfig}

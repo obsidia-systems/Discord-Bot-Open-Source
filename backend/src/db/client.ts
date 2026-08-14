@@ -184,6 +184,8 @@ function ensureCoreTables(database: Database.Database): void {
       ignored_roles TEXT NOT NULL DEFAULT '[]',
       ignore_bots INTEGER NOT NULL DEFAULT 1,
       enabled_events TEXT NOT NULL DEFAULT '{}',
+      data_retention_days INTEGER NOT NULL DEFAULT 14,
+      webhooks_mapping TEXT NOT NULL DEFAULT '{}',
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
     );
@@ -317,6 +319,24 @@ function ensureCoreTables(database: Database.Database): void {
     .all() as Array<{ name: string }>;
   if (presenceColumns.some((column) => column.name === "details")) {
     database.exec(`ALTER TABLE bot_presence_settings DROP COLUMN details`);
+  }
+
+  // Migración suave: columnas nuevas de action_logs_config
+  const actionLogsConfigCols = database
+    .prepare(`PRAGMA table_info(action_logs_config)`)
+    .all() as Array<{ name: string }>;
+  if (actionLogsConfigCols.length > 0) {
+    const names = new Set(actionLogsConfigCols.map((c) => c.name));
+    if (!names.has("data_retention_days")) {
+      database.exec(
+        `ALTER TABLE action_logs_config ADD COLUMN data_retention_days INTEGER NOT NULL DEFAULT 14`,
+      );
+    }
+    if (!names.has("webhooks_mapping")) {
+      database.exec(
+        `ALTER TABLE action_logs_config ADD COLUMN webhooks_mapping TEXT NOT NULL DEFAULT '{}'`,
+      );
+    }
   }
 }
 

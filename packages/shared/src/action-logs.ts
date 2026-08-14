@@ -2,12 +2,17 @@
 
 export type ActionLogRoutingMode = "GLOBAL" | "CATEGORY";
 
+/** 0 = sin límite (no recomendado). */
+export type ActionLogRetentionDays = 0 | 7 | 14 | 30;
+
 export type ActionLogCategory =
   | "MESSAGES"
   | "MEMBERS"
   | "ROLES"
   | "CHANNELS"
-  | "ASSETS";
+  | "ASSETS"
+  | "VOICE"
+  | "INVITES";
 
 export type ActionLogEventKey =
   | "messageDelete"
@@ -33,7 +38,12 @@ export type ActionLogEventKey =
   | "stickerUpdate"
   | "soundboardCreate"
   | "soundboardDelete"
-  | "soundboardUpdate";
+  | "soundboardUpdate"
+  | "voiceJoin"
+  | "voiceLeave"
+  | "voiceMove"
+  | "inviteCreate"
+  | "inviteDelete";
 
 export type ActionLogEventType =
   | "MESSAGE_DELETE"
@@ -59,7 +69,12 @@ export type ActionLogEventType =
   | "STICKER_UPDATE"
   | "SOUNDBOARD_CREATE"
   | "SOUNDBOARD_DELETE"
-  | "SOUNDBOARD_UPDATE";
+  | "SOUNDBOARD_UPDATE"
+  | "VOICE_JOIN"
+  | "VOICE_LEAVE"
+  | "VOICE_MOVE"
+  | "INVITE_CREATE"
+  | "INVITE_DELETE";
 
 export interface ActionLogChannelsMapping {
   messages: string | null;
@@ -69,6 +84,9 @@ export interface ActionLogChannelsMapping {
 }
 
 export type ActionLogEnabledEvents = Record<ActionLogEventKey, boolean>;
+
+/** channelId → webhookId (cache local para recrear si Discord lo borra). */
+export type ActionLogWebhooksMapping = Record<string, string>;
 
 export interface ActionLogsConfig {
   guildId: string;
@@ -80,6 +98,8 @@ export interface ActionLogsConfig {
   ignoredRoles: string[];
   ignoreBots: boolean;
   enabledEvents: ActionLogEnabledEvents;
+  /** Días a conservar en SQLite; 0 = sin límite. */
+  dataRetentionDays: ActionLogRetentionDays;
   updatedAt: string;
 }
 
@@ -96,6 +116,7 @@ export interface UpdateActionLogsConfigRequest {
   ignoredRoles?: string[];
   ignoreBots?: boolean;
   enabledEvents?: Partial<ActionLogEnabledEvents>;
+  dataRetentionDays?: ActionLogRetentionDays;
 }
 
 export interface ActionLogEntry {
@@ -162,6 +183,21 @@ export const ACTION_LOG_EVENT_KEYS: readonly ActionLogEventKey[] = [
   "soundboardCreate",
   "soundboardDelete",
   "soundboardUpdate",
+  "voiceJoin",
+  "voiceLeave",
+  "voiceMove",
+  "inviteCreate",
+  "inviteDelete",
+] as const;
+
+export const ACTION_LOG_RETENTION_OPTIONS: readonly {
+  value: ActionLogRetentionDays;
+  label: string;
+}[] = [
+  { value: 7, label: "7 días" },
+  { value: 14, label: "14 días" },
+  { value: 30, label: "30 días" },
+  { value: 0, label: "Sin límite (No recomendado)" },
 ] as const;
 
 export function defaultActionLogEnabledEvents(): ActionLogEnabledEvents {
@@ -177,4 +213,14 @@ export function defaultActionLogChannelsMapping(): ActionLogChannelsMapping {
     server: null,
     assets: null,
   };
+}
+
+export function normalizeRetentionDays(
+  value: unknown,
+): ActionLogRetentionDays {
+  if (value === 0 || value === 7 || value === 14 || value === 30) return value;
+  if (value === "0" || value === "7" || value === "14" || value === "30") {
+    return Number(value) as ActionLogRetentionDays;
+  }
+  return 14;
 }

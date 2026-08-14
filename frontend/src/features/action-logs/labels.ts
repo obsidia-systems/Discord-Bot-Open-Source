@@ -3,6 +3,7 @@ import type {
   ActionLogEventKey,
   ActionLogEventType,
 } from "@adobos/shared";
+import { ACTION_LOG_EVENT_KEYS } from "@adobos/shared";
 
 export const CATEGORY_LABELS: Record<ActionLogCategory, string> = {
   MESSAGES: "Mensajes",
@@ -10,6 +11,8 @@ export const CATEGORY_LABELS: Record<ActionLogCategory, string> = {
   ROLES: "Roles",
   CHANNELS: "Canales",
   ASSETS: "Recursos",
+  VOICE: "Voz",
+  INVITES: "Invitaciones",
 };
 
 export function categoryBadgeClass(category: ActionLogCategory): string {
@@ -23,6 +26,10 @@ export function categoryBadgeClass(category: ActionLogCategory): string {
       return "border-orange-500/40 bg-orange-500/10 text-orange-700 dark:text-orange-400";
     case "ASSETS":
       return "border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-400";
+    case "VOICE":
+      return "border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-400";
+    case "INVITES":
+      return "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400";
     default:
       return "border-border bg-secondary text-secondary-foreground";
   }
@@ -53,6 +60,11 @@ export const EVENT_TYPE_LABELS: Record<ActionLogEventType, string> = {
   SOUNDBOARD_CREATE: "Sonido +",
   SOUNDBOARD_DELETE: "Sonido −",
   SOUNDBOARD_UPDATE: "Sonido ~",
+  VOICE_JOIN: "Voz +",
+  VOICE_LEAVE: "Voz −",
+  VOICE_MOVE: "Voz ~",
+  INVITE_CREATE: "Invite +",
+  INVITE_DELETE: "Invite −",
 };
 
 export interface EventSwitchDef {
@@ -99,6 +111,23 @@ export const EVENT_ACCORDION_GROUPS: Array<{
     ],
   },
   {
+    id: "voice",
+    title: "Voz",
+    events: [
+      { key: "voiceJoin", label: "Entrada a canal de voz" },
+      { key: "voiceLeave", label: "Salida de canal de voz" },
+      { key: "voiceMove", label: "Movimiento entre canales" },
+    ],
+  },
+  {
+    id: "invites",
+    title: "Invitaciones",
+    events: [
+      { key: "inviteCreate", label: "Invitación creada" },
+      { key: "inviteDelete", label: "Invitación eliminada" },
+    ],
+  },
+  {
     id: "assets",
     title: "Recursos del servidor",
     events: [
@@ -114,3 +143,5 @@ export const EVENT_ACCORDION_GROUPS: Array<{
     ],
   },
 ];
+
+export const TOTAL_EVENT_COUNT = ACTION_LOG_EVENT_KEYS.length;

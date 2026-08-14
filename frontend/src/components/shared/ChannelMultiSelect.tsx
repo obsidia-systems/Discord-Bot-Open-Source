@@ -1,5 +1,13 @@
 import { useMemo, useRef, useState } from "react";
-import { Check, ChevronsUpDown, Hash, Search, Volume2, X } from "lucide-react";
+import {
+  Check,
+  ChevronsUpDown,
+  Folder,
+  Hash,
+  Search,
+  Volume2,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +17,7 @@ export interface ChannelOption {
   id: string;
   name: string;
   type: number;
+  parentId?: string | null;
 }
 
 interface ChannelMultiSelectProps {
@@ -22,13 +31,19 @@ interface ChannelMultiSelectProps {
   emptyHint?: string;
 }
 
+const CATEGORY_TYPE = 4;
+
 function channelIcon(type: number) {
-  // ChannelType.GuildVoice = 2, GuildStageVoice = 13
+  if (type === CATEGORY_TYPE) return Folder;
   if (type === 2 || type === 13) return Volume2;
   return Hash;
 }
 
-/** Combobox multi-selección para canales (texto / voz). */
+function isCategory(type: number): boolean {
+  return type === CATEGORY_TYPE;
+}
+
+/** Combobox multi-selección para canales, voz y categorías de Discord. */
 export function ChannelMultiSelect({
   id,
   label,
@@ -43,6 +58,16 @@ export function ChannelMultiSelect({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
+  const childCountByCategory = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const ch of channels) {
+      if (ch.parentId && !isCategory(ch.type)) {
+        map.set(ch.parentId, (map.get(ch.parentId) ?? 0) + 1);
+      }
+    }
+    return map;
+  }, [channels]);
+
   const selected = useMemo(
     () => channels.filter((ch) => value.includes(ch.id)),
     [channels, value],
@@ -50,12 +75,19 @@ export function ChannelMultiSelect({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return channels.slice(0, 50);
-    return channels
+    const list = [...channels].sort((a, b) => {
+      // Categorías primero, luego por nombre
+      const ac = isCategory(a.type) ? 0 : 1;
+      const bc = isCategory(b.type) ? 0 : 1;
+      if (ac !== bc) return ac - bc;
+      return a.name.localeCompare(b.name);
+    });
+    if (!q) return list.slice(0, 60);
+    return list
       .filter(
         (ch) => ch.name.toLowerCase().includes(q) || ch.id.includes(q),
       )
-      .slice(0, 50);
+      .slice(0, 60);
   }, [channels, query]);
 
   function toggle(channelId: string): void {
@@ -74,16 +106,33 @@ export function ChannelMultiSelect({
         <div className="flex flex-wrap gap-1.5">
           {selected.map((ch) => {
             const Icon = channelIcon(ch.type);
+            const category = isCategory(ch.type);
+            const kids = childCountByCategory.get(ch.id) ?? 0;
             return (
               <button
                 key={ch.id}
                 type="button"
                 disabled={disabled}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1 text-xs"
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs",
+                  category
+                    ? "border-amber-500/40 bg-amber-500/10"
+                    : "border-border bg-muted/40",
+                )}
                 onClick={() => toggle(ch.id)}
+                title={
+                  category
+                    ? `Categoría · también ignora ${kids} canal(es) hijo(s)`
+                    : undefined
+                }
               >
                 <Icon className="size-3 opacity-70" aria-hidden />
-                #{ch.name}
+                {category ? ch.name : `#${ch.name}`}
+                {category ? (
+                  <span className="text-[10px] text-muted-foreground">
+                    +hijos
+                  </span>
+                ) : null}
                 <X className="size-3 opacity-60" aria-hidden />
               </button>
             );
@@ -127,6 +176,8 @@ export function ChannelMultiSelect({
             {filtered.map((ch) => {
               const checked = value.includes(ch.id);
               const Icon = channelIcon(ch.type);
+              const category = isCategory(ch.type);
+              const kids = childCountByCategory.get(ch.id) ?? 0;
               return (
                 <li key={ch.id}>
                   <button
@@ -138,8 +189,15 @@ export function ChannelMultiSelect({
                     onClick={() => toggle(ch.id)}
                   >
                     <Icon className="size-3.5 shrink-0 opacity-70" aria-hidden />
-                    <span className="min-w-0 flex-1 truncate font-medium">
-                      #{ch.name}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium">
+                        {category ? ch.name : `#${ch.name}`}
+                      </span>
+                      {category ? (
+                        <span className="block text-[11px] text-muted-foreground">
+                          Categoría · ignora también {kids} canal(es) hijo(s)
+                        </span>
+                      ) : null}
                     </span>
                     {checked ? (
                       <Check className="size-4 shrink-0 text-primary" />

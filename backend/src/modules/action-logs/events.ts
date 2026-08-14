@@ -5,11 +5,13 @@ import {
   type GuildBan,
   type GuildEmoji,
   type GuildMember,
+  type Invite,
   type Message,
   type NonThreadGuildBasedChannel,
   type PartialMessage,
   type Role,
   type Sticker,
+  type VoiceState,
 } from "discord.js";
 import { recordActionLog, passesActionLogFilters } from "./service.js";
 
@@ -61,11 +63,16 @@ export async function onMessageDelete(
 ): Promise<void> {
   if (!message.guild) return;
   const channelId = message.channelId;
+  const parentId =
+    message.channel && "parentId" in message.channel
+      ? message.channel.parentId
+      : null;
   const author = message.author;
 
   if (
     !passesActionLogFilters(message.guild.id, "messageDelete", {
       channelId,
+      parentId,
       actorIsBot: author?.bot,
     })
   ) {
@@ -90,9 +97,11 @@ export async function onMessageDelete(
     eventKey: "messageDelete",
     executorId: executor?.id ?? author?.id ?? null,
     executorTag: executor?.tag ?? (author ? userTag(author) : null),
+    executorAvatarURL: author?.displayAvatarURL?.({ size: 128 }) ?? null,
     targetId: author?.id ?? null,
     targetTag: author ? userTag(author) : null,
     channelId,
+    parentId,
     summary: `Mensaje eliminado en <#${channelId}>`,
     details: {
       oldContent: content,
@@ -129,6 +138,10 @@ export async function onMessageUpdate(
 ): Promise<void> {
   if (!newMessage.guild) return;
   const author = newMessage.author ?? oldMessage.author;
+  const parentId =
+    newMessage.channel && "parentId" in newMessage.channel
+      ? newMessage.channel.parentId
+      : null;
 
   if (oldMessage.content === newMessage.content) {
     // Solo adjuntos removidos
@@ -144,6 +157,7 @@ export async function onMessageUpdate(
     if (
       !passesActionLogFilters(newMessage.guild.id, "messageAttachmentDelete", {
         channelId: newMessage.channelId,
+        parentId,
         actorIsBot: author?.bot,
       })
     ) {
@@ -155,9 +169,11 @@ export async function onMessageUpdate(
       eventKey: "messageAttachmentDelete",
       executorId: author?.id ?? null,
       executorTag: author ? userTag(author) : null,
+      executorAvatarURL: author?.displayAvatarURL?.({ size: 128 }) ?? null,
       targetId: author?.id ?? null,
       targetTag: author ? userTag(author) : null,
       channelId: newMessage.channelId,
+      parentId,
       summary: `${removed.length} adjunto(s) eliminado(s) de un mensaje`,
       details: {
         removedAttachmentIds: removed,
@@ -172,6 +188,7 @@ export async function onMessageUpdate(
   if (
     !passesActionLogFilters(newMessage.guild.id, "messageUpdate", {
       channelId: newMessage.channelId,
+      parentId,
       actorIsBot: author?.bot,
     })
   ) {
@@ -190,9 +207,11 @@ export async function onMessageUpdate(
     eventKey: "messageUpdate",
     executorId: author?.id ?? null,
     executorTag: author ? userTag(author) : null,
+    executorAvatarURL: author?.displayAvatarURL?.({ size: 128 }) ?? null,
     targetId: author?.id ?? null,
     targetTag: author ? userTag(author) : null,
     channelId: newMessage.channelId,
+    parentId,
     summary: `Mensaje editado en <#${newMessage.channelId}>`,
     details: {
       oldContent,
@@ -616,6 +635,172 @@ export async function onStickerUpdate(
   });
 }
 
+export async function onVoiceStateUpdate(
+  oldState: VoiceState,
+  newState: VoiceState,
+): Promise<void> {
+  const guild = newState.guild ?? oldState.guild;
+  if (!guild) return;
+  const member = newState.member ?? oldState.member;
+  const user = member?.user ?? newState.client.users.cache.get(newState.id);
+  if (!user) return;
+
+  const oldCh = oldState.channelId;
+  const newCh = newState.channelId;
+  if (oldCh === newCh) return;
+
+  const oldParent = oldState.channel?.parentId ?? null;
+  const newParent = newState.channel?.parentId ?? null;
+
+  if (!oldCh && newCh) {
+    if (
+      !passesActionLogFilters(guild.id, "voiceJoin", {
+        channelId: newCh,
+        parentId: newParent,
+        actorIsBot: user.bot,
+        actorRoleIds: member ? [...member.roles.cache.keys()] : [],
+      })
+    ) {
+      return;
+    }
+    await recordActionLog(newState.client, {
+      guildId: guild.id,
+      eventKey: "voiceJoin",
+      executorId: user.id,
+      executorTag: userTag(user),
+      executorAvatarURL: user.displayAvatarURL({ size: 128 }),
+      targetId: user.id,
+      targetTag: userTag(user),
+      channelId: newCh,
+      parentId: newParent,
+      summary: `${userTag(user)} entró a <#${newCh}>`,
+      details: { channelId: newCh },
+      actorIsBot: user.bot,
+      actorRoleIds: member ? [...member.roles.cache.keys()] : [],
+      embedColor: 0x22c55e,
+    });
+    return;
+  }
+
+  if (oldCh && !newCh) {
+    if (
+      !passesActionLogFilters(guild.id, "voiceLeave", {
+        channelId: oldCh,
+        parentId: oldParent,
+        actorIsBot: user.bot,
+        actorRoleIds: member ? [...member.roles.cache.keys()] : [],
+      })
+    ) {
+      return;
+    }
+    await recordActionLog(newState.client, {
+      guildId: guild.id,
+      eventKey: "voiceLeave",
+      executorId: user.id,
+      executorTag: userTag(user),
+      executorAvatarURL: user.displayAvatarURL({ size: 128 }),
+      targetId: user.id,
+      targetTag: userTag(user),
+      channelId: oldCh,
+      parentId: oldParent,
+      summary: `${userTag(user)} salió de <#${oldCh}>`,
+      details: { channelId: oldCh },
+      actorIsBot: user.bot,
+      actorRoleIds: member ? [...member.roles.cache.keys()] : [],
+      embedColor: 0xf59e0b,
+    });
+    return;
+  }
+
+  if (oldCh && newCh) {
+    if (
+      !passesActionLogFilters(guild.id, "voiceMove", {
+        channelId: newCh,
+        parentId: newParent,
+        actorIsBot: user.bot,
+        actorRoleIds: member ? [...member.roles.cache.keys()] : [],
+      })
+    ) {
+      return;
+    }
+    await recordActionLog(newState.client, {
+      guildId: guild.id,
+      eventKey: "voiceMove",
+      executorId: user.id,
+      executorTag: userTag(user),
+      executorAvatarURL: user.displayAvatarURL({ size: 128 }),
+      targetId: user.id,
+      targetTag: userTag(user),
+      channelId: newCh,
+      parentId: newParent,
+      summary: `${userTag(user)}: <#${oldCh}> → <#${newCh}>`,
+      details: {
+        oldContent: `<#${oldCh}>`,
+        newContent: `<#${newCh}>`,
+        fromChannelId: oldCh,
+        toChannelId: newCh,
+      },
+      actorIsBot: user.bot,
+      actorRoleIds: member ? [...member.roles.cache.keys()] : [],
+      embedColor: 0x06b6d4,
+    });
+  }
+}
+
+export async function onInviteCreate(invite: Invite): Promise<void> {
+  if (!invite.guild) return;
+  const inviter = invite.inviter;
+  if (
+    !passesActionLogFilters(invite.guild.id, "inviteCreate", {
+      channelId: invite.channelId,
+      actorIsBot: inviter?.bot,
+    })
+  ) {
+    return;
+  }
+  await recordActionLog(invite.client, {
+    guildId: invite.guild.id,
+    eventKey: "inviteCreate",
+    executorId: inviter?.id ?? null,
+    executorTag: inviter ? userTag(inviter) : null,
+    executorAvatarURL: inviter?.displayAvatarURL({ size: 128 }) ?? null,
+    targetId: invite.code,
+    targetTag: invite.code,
+    channelId: invite.channelId,
+    summary: `Invitación creada: discord.gg/${invite.code}`,
+    details: {
+      code: invite.code,
+      maxUses: invite.maxUses,
+      maxAge: invite.maxAge,
+      temporary: invite.temporary,
+    },
+    actorIsBot: inviter?.bot ?? false,
+    embedColor: 0x22c55e,
+  });
+}
+
+export async function onInviteDelete(invite: Invite): Promise<void> {
+  if (!invite.guild) return;
+  if (
+    !passesActionLogFilters(invite.guild.id, "inviteDelete", {
+      channelId: invite.channelId,
+    })
+  ) {
+    return;
+  }
+  await recordActionLog(invite.client, {
+    guildId: invite.guild.id,
+    eventKey: "inviteDelete",
+    targetId: invite.code,
+    targetTag: invite.code,
+    channelId: invite.channelId,
+    summary: `Invitación eliminada: discord.gg/${invite.code}`,
+    details: { code: invite.code },
+    actorIsBot: false,
+    embedColor: 0xef4444,
+  });
+}
+
 /** Registra todos los listeners de Action Logs en el ModuleContext. */
 export function registerActionLogListeners(ctx: {
   on: <K extends keyof import("discord.js").ClientEvents>(
@@ -684,6 +869,15 @@ export function registerActionLogListeners(ctx: {
   });
   ctx.on("stickerUpdate", (oldSticker, newSticker) => {
     void onStickerUpdate(oldSticker, newSticker);
+  });
+  ctx.on("voiceStateUpdate", (oldState, newState) => {
+    void onVoiceStateUpdate(oldState, newState);
+  });
+  ctx.on("inviteCreate", (invite) => {
+    void onInviteCreate(invite);
+  });
+  ctx.on("inviteDelete", (invite) => {
+    void onInviteDelete(invite);
   });
 
   // Soundboard: tipado débil — no todos los builds de d.js lo exponen en ClientEvents.

@@ -4,9 +4,8 @@ import {
   EmbedBuilder,
   type Client,
   type Guild,
-  type TextChannel,
 } from "discord.js";
-import { and, desc, eq, gte, lte, or, sql, like } from "drizzle-orm";
+import { and, desc, eq, gte, lt, lte, or, sql, like } from "drizzle-orm";
 import type {
   ActionLogCategory,
   ActionLogChannelsMapping,
@@ -14,6 +13,7 @@ import type {
   ActionLogEntry,
   ActionLogEventKey,
   ActionLogEventType,
+  ActionLogRetentionDays,
   ActionLogRoutingMode,
   ActionLogsConfig,
   ActionLogsHistoryQuery,
@@ -24,6 +24,7 @@ import type {
 import {
   defaultActionLogChannelsMapping,
   defaultActionLogEnabledEvents,
+  normalizeRetentionDays,
 } from "@adobos/shared";
 import { getDb } from "../../db/client.js";
 import {
@@ -31,6 +32,7 @@ import {
   actionLogsConfig,
   guildSettings,
 } from "../../db/schema.js";
+import { sendActionLogWebhook } from "./webhooks.js";
 
 export class ActionLogsError extends Error {
   constructor(
@@ -52,6 +54,8 @@ const CATEGORY_ROUTE_KEY: Record<
   ROLES: "server",
   CHANNELS: "server",
   ASSETS: "assets",
+  VOICE: "members",
+  INVITES: "server",
 };
 
 const EVENT_META: Record<
@@ -178,6 +182,31 @@ const EVENT_META: Record<
     category: "ASSETS",
     label: "Sonido actualizado",
   },
+  voiceJoin: {
+    eventType: "VOICE_JOIN",
+    category: "VOICE",
+    label: "Entrada a voz",
+  },
+  voiceLeave: {
+    eventType: "VOICE_LEAVE",
+    category: "VOICE",
+    label: "Salida de voz",
+  },
+  voiceMove: {
+    eventType: "VOICE_MOVE",
+    category: "VOICE",
+    label: "Movimiento de voz",
+  },
+  inviteCreate: {
+    eventType: "INVITE_CREATE",
+    category: "INVITES",
+    label: "Invitación creada",
+  },
+  inviteDelete: {
+    eventType: "INVITE_DELETE",
+    category: "INVITES",
+    label: "Invitación eliminada",
+  },
 };
 
 export function getEventMeta(eventKey: ActionLogEventKey) {
@@ -276,6 +305,7 @@ function rowToConfig(
       ignoredRoles: [],
       ignoreBots: true,
       enabledEvents: defaultActionLogEnabledEvents(),
+      dataRetentionDays: 14,
       updatedAt: new Date().toISOString(),
     };
   }
@@ -297,6 +327,7 @@ function rowToConfig(
     ignoredRoles: parseJson<string[]>(row.ignoredRoles, []),
     ignoreBots: Boolean(row.ignoreBots),
     enabledEvents,
+    dataRetentionDays: normalizeRetentionDays(row.dataRetentionDays),
     updatedAt: row.updatedAt.toISOString(),
   };
 }
@@ -338,6 +369,9 @@ export function updateActionLogsConfig(
       ...current.enabledEvents,
       ...(input.enabledEvents ?? {}),
     }),
+    dataRetentionDays: normalizeRetentionDays(
+      input.dataRetentionDays ?? current.dataRetentionDays,
+    ),
     updatedAt: new Date().toISOString(),
   };
 
@@ -362,6 +396,7 @@ export function updateActionLogsConfig(
       ignoredRoles: JSON.stringify(next.ignoredRoles),
       ignoreBots: next.ignoreBots,
       enabledEvents: JSON.stringify(next.enabledEvents),
+      dataRetentionDays: next.dataRetentionDays,
       updatedAt: now,
     })
     .onConflictDoUpdate({
@@ -375,6 +410,7 @@ export function updateActionLogsConfig(
         ignoredRoles: JSON.stringify(next.ignoredRoles),
         ignoreBots: next.ignoreBots,
         enabledEvents: JSON.stringify(next.enabledEvents),
+        dataRetentionDays: next.dataRetentionDays,
         updatedAt: now,
       },
     })
@@ -413,6 +449,8 @@ export function passesActionLogFilters(
   eventKey: ActionLogEventKey,
   ctx: {
     channelId?: string | null;
+    /** parentId del canal (categoría) — si está en ignoredChannels, se aborta. */
+    parentId?: string | null;
     actorIsBot?: boolean;
     actorRoleIds?: string[];
   } = {},
@@ -420,7 +458,7 @@ export function passesActionLogFilters(
   const config = getActionLogsConfig(guildId);
   if (!config.enabled) return false;
   if (config.ignoreBots && ctx.actorIsBot) return false;
-  if (ctx.channelId && config.ignoredChannels.includes(ctx.channelId)) {
+  if (isChannelIgnored(config.ignoredChannels, ctx.channelId, ctx.parentId)) {
     return false;
   }
   if (
@@ -433,14 +471,28 @@ export function passesActionLogFilters(
   return true;
 }
 
+function isChannelIgnored(
+  ignored: string[],
+  channelId?: string | null,
+  parentId?: string | null,
+): boolean {
+  if (!ignored.length) return false;
+  if (channelId && ignored.includes(channelId)) return true;
+  if (parentId && ignored.includes(parentId)) return true;
+  return false;
+}
+
 export interface RecordActionLogInput {
   guildId: string;
   eventKey: ActionLogEventKey;
   executorId?: string | null;
   executorTag?: string | null;
+  /** Avatar del ejecutor para el webhook (username + avatarURL). */
+  executorAvatarURL?: string | null;
   targetId?: string | null;
   targetTag?: string | null;
   channelId?: string | null;
+  parentId?: string | null;
   summary: string;
   details?: Record<string, unknown>;
   /** Si true, el actor es un bot. */
@@ -452,7 +504,7 @@ export interface RecordActionLogInput {
 }
 
 /**
- * Pipeline de filtros (temprano) + insert SQLite + embed Discord.
+ * Pipeline de filtros (temprano) + insert SQLite + embed Discord vía webhook.
  * Retorna null si se aborta por filtros.
  */
 export async function recordActionLog(
@@ -461,12 +513,15 @@ export async function recordActionLog(
 ): Promise<ActionLogEntry | null> {
   const config = getActionLogsConfig(input.guildId);
 
-  // Pipeline: enabled → ignore bots → canales/roles → switch evento
+  // Pipeline: enabled → ignore bots → canales/categoría/roles → switch evento
   if (!config.enabled) return null;
   if (config.ignoreBots && input.actorIsBot) return null;
   if (
-    input.channelId &&
-    config.ignoredChannels.includes(input.channelId)
+    isChannelIgnored(
+      config.ignoredChannels,
+      input.channelId,
+      input.parentId,
+    )
   ) {
     return null;
   }
@@ -520,14 +575,30 @@ export async function recordActionLog(
 
   if (destinationId) {
     try {
-      const channel = await bot.channels.fetch(destinationId);
-      if (channel?.isTextBased() && !channel.isDMBased()) {
-        const embed = buildActionLogEmbed(entry, meta.label, input.embedColor);
-        await (channel as TextChannel).send({ embeds: [embed] });
+      const embed = buildActionLogEmbed(entry, meta.label, input.embedColor);
+      let username = input.executorTag ?? undefined;
+      let avatarURL = input.executorAvatarURL ?? undefined;
+
+      if ((!username || !avatarURL) && input.executorId) {
+        try {
+          const user = await bot.users.fetch(input.executorId);
+          username = username ?? user.username;
+          avatarURL = avatarURL ?? user.displayAvatarURL({ size: 128 });
+        } catch {
+          // ignore
+        }
       }
+
+      await sendActionLogWebhook(bot, {
+        guildId: input.guildId,
+        channelId: destinationId,
+        embeds: [embed],
+        username,
+        avatarURL,
+      });
     } catch (error) {
       console.warn(
-        `[adobos] action-logs: no se pudo enviar embed a ${destinationId}:`,
+        `[adobos] action-logs: no se pudo enviar webhook a ${destinationId}:`,
         error,
       );
     }
@@ -605,10 +676,50 @@ function truncate(value: string, max: number): string {
   return `${value.slice(0, max - 1)}…`;
 }
 
+/** Borra logs SQLite anteriores a la retención del guild. */
+export function purgeExpiredActionLogs(guildId?: string): number {
+  const id = resolveGuildId(guildId);
+  const config = getActionLogsConfig(id);
+  const days = config.dataRetentionDays as ActionLogRetentionDays;
+  if (!days || days <= 0) return 0;
+
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const result = getDb()
+    .delete(actionLogs)
+    .where(
+      and(eq(actionLogs.guildId, id), lt(actionLogs.createdAt, cutoff)),
+    )
+    .run();
+  return result.changes ?? 0;
+}
+
+/** Limpia retención de todos los guilds con config (job periódico). */
+export function purgeAllExpiredActionLogs(): number {
+  const rows = getDb().select({ guildId: actionLogsConfig.guildId }).from(actionLogsConfig).all();
+  let total = 0;
+  for (const row of rows) {
+    try {
+      total += purgeExpiredActionLogs(row.guildId);
+    } catch (error) {
+      console.warn(
+        `[adobos] action-logs: purge falló para ${row.guildId}:`,
+        error,
+      );
+    }
+  }
+  return total;
+}
+
 export function listActionLogsHistory(
   query: ActionLogsHistoryQuery = {},
 ): ActionLogsHistoryResponse {
   const guildId = resolveGuildId(query.guildId);
+  // Limpieza oportunista al consultar historial
+  try {
+    purgeExpiredActionLogs(guildId);
+  } catch {
+    // ignore
+  }
   const page = Math.max(1, query.page ?? 1);
   const limit = Math.min(50, Math.max(1, query.limit ?? 50));
   const offset = (page - 1) * limit;
@@ -741,15 +852,21 @@ export async function sendActionLogsTestEmbed(
     .setFooter({ text: "Adobos Bot · Action Logs" });
 
   try {
-    const message = await channel.send({ embeds: [embed] });
+    const result = await sendActionLogWebhook(bot, {
+      guildId: guild.id,
+      channelId,
+      embeds: [embed],
+      username: bot.user?.username ?? "Adobos Bot",
+      avatarURL: bot.user?.displayAvatarURL({ size: 128 }) ?? null,
+    });
     return {
       ok: true,
       channelId,
-      messageId: message.id,
+      messageId: result.messageId,
     };
   } catch {
     throw new ActionLogsError(
-      "No se pudo enviar el embed. Revisa permisos (Ver canal + Enviar mensajes + Embeds).",
+      "No se pudo enviar el embed vía webhook. Revisa permisos (Gestionar webhooks).",
       403,
       "SEND_FAILED",
     );
