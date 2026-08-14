@@ -15,11 +15,21 @@ function Tpl({ children }: { children: string }) {
   );
 }
 
+export interface ActionLogDiscordPreviewProps {
+  /** Nombre visible del webhook (`${apodo|username} Audit`). */
+  webhookDisplayName?: string;
+  /** Avatar del bot en el servidor o global. */
+  webhookAvatarUrl?: string | null;
+}
+
 /**
- * Showcase técnico (SysAdmin) del webhook «Adobos Audit».
- * Usa variables `{…}` — no nombres de prueba hardcodeados.
+ * Showcase técnico del webhook de Action Logs.
+ * Author = ejecutor + ID · Footer = afectado + avatar.
  */
-export function ActionLogDiscordPreview() {
+export function ActionLogDiscordPreview({
+  webhookDisplayName = "Adobos Audit",
+  webhookAvatarUrl = null,
+}: ActionLogDiscordPreviewProps) {
   return (
     <Card className="overflow-hidden">
       <CardHeader className="space-y-1 pb-2 pt-4">
@@ -31,14 +41,22 @@ export function ActionLogDiscordPreview() {
       <CardContent className="pb-3 pt-0">
         <div className="overflow-hidden rounded-md bg-[#313338] p-2.5 text-[11px] leading-snug text-[#dbdee1] shadow-inner">
           <div className="flex gap-2">
-            <div
-              className="mt-0.5 size-8 shrink-0 rounded-full bg-gradient-to-br from-primary to-fuchsia-700"
-              aria-hidden
-            />
+            {webhookAvatarUrl ? (
+              <img
+                src={webhookAvatarUrl}
+                alt=""
+                className="mt-0.5 size-8 shrink-0 rounded-full object-cover"
+              />
+            ) : (
+              <div
+                className="mt-0.5 size-8 shrink-0 rounded-full bg-gradient-to-br from-primary to-fuchsia-700"
+                aria-hidden
+              />
+            )}
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[13px] font-semibold text-white">
-                  Adobos Audit
+                <span className="truncate text-[13px] font-semibold text-white">
+                  {webhookDisplayName}
                 </span>
                 <span className="rounded bg-[#5865f2] px-1 py-px text-[9px] font-bold uppercase tracking-wide text-white">
                   App
@@ -51,34 +69,28 @@ export function ActionLogDiscordPreview() {
                 style={{ borderLeft: "4px solid #ED4245" }}
               >
                 <div className="space-y-2 px-2.5 py-2">
-                  {/* Author */}
-                  <div className="flex items-center gap-1.5">
+                  {/* Author: ejecutor + ID */}
+                  <div className="flex min-w-0 items-center gap-1.5">
                     <div
                       className="size-4 shrink-0 rounded-full bg-[#4e5058]"
                       aria-hidden
                       title="Avatar del ejecutor"
                     />
-                    <span className="text-[11px] font-semibold text-white">
+                    <span className="truncate text-[11px] font-semibold text-white">
                       <Tpl>usuario_ejecutor</Tpl>
+                      <span className="font-normal text-[#b5bac1]">
+                        {" "}
+                        (ID: <Tpl>id_ejecutor</Tpl>)
+                      </span>
                     </span>
                   </div>
 
-                  {/* Descripción técnica */}
                   <p className="text-[12px] text-[#dbdee1]">
                     <strong className="font-semibold text-white">Acción:</strong>{" "}
                     Mensaje Eliminado
                   </p>
 
-                  {/* Grid inline Fields (simula Discord) */}
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold text-[#b5bac1]">
-                        Miembro
-                      </p>
-                      <p className="truncate text-[11px] text-[#00a8fc]">
-                        <Tpl>usuario_afectado</Tpl>
-                      </p>
-                    </div>
                     <div className="min-w-0">
                       <p className="text-[10px] font-semibold text-[#b5bac1]">
                         Canal
@@ -87,9 +99,16 @@ export function ActionLogDiscordPreview() {
                         <Tpl>canal_afectado</Tpl>
                       </p>
                     </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold text-[#b5bac1]">
+                        Afectado
+                      </p>
+                      <p className="truncate text-[11px] text-[#00a8fc]">
+                        <Tpl>usuario_afectado</Tpl>
+                      </p>
+                    </div>
                   </div>
 
-                  {/* Contenido largo */}
                   <div className="space-y-0.5">
                     <p className="text-[10px] font-semibold text-[#b5bac1]">
                       Contenido original
@@ -99,12 +118,17 @@ export function ActionLogDiscordPreview() {
                     </div>
                   </div>
 
-                  {/* Footer técnico */}
-                  <p className="pt-0.5 font-mono text-[9px] text-[#949ba4]">
-                    Ejecutor ID: <Tpl>id_ejecutor</Tpl>
-                    {" • "}
-                    Afectado ID: <Tpl>id_afectado</Tpl>
-                  </p>
+                  {/* Footer: avatar afectado + ID */}
+                  <div className="flex items-center gap-1.5 pt-0.5">
+                    <div
+                      className="size-3.5 shrink-0 rounded-full bg-[#5865f2]/80"
+                      aria-hidden
+                      title="Avatar del afectado"
+                    />
+                    <p className="font-mono text-[9px] text-[#949ba4]">
+                      Afectado ID: <Tpl>id_afectado</Tpl>
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

@@ -10,7 +10,7 @@ import type { ActionLogWebhooksMapping } from "@adobos/shared";
 import { getDb } from "../../db/client.js";
 import { actionLogsConfig } from "../../db/schema.js";
 
-/** Nombre estático del webhook — nunca suplanta al usuario. */
+/** Nombre de creación del webhook en el canal (fallback legacy). */
 export const ACTION_LOG_WEBHOOK_NAME = "Adobos Audit";
 const LEGACY_WEBHOOK_NAMES = new Set([
   ACTION_LOG_WEBHOOK_NAME,
@@ -73,6 +73,40 @@ function isUnknownWebhook(error: unknown): boolean {
   );
 }
 
+/**
+ * Identidad del bot en el servidor: apodo local + avatar de servidor (o global).
+ * `displayAvatarURL()` ya elige avatar de guild si existe.
+ */
+async function resolveBotServerIdentity(
+  bot: Client,
+  guildId: string,
+): Promise<{ username: string; avatarURL: string | null }> {
+  try {
+    const guild =
+      bot.guilds.cache.get(guildId) ?? (await bot.guilds.fetch(guildId));
+    const me = await guild.members.fetchMe();
+    const serverName =
+      me.nickname?.trim() ||
+      me.user.displayName ||
+      me.user.username ||
+      "Adobos";
+    return {
+      username: `${serverName} Audit`,
+      avatarURL: me.displayAvatarURL({ extension: "png", size: 128 }),
+    };
+  } catch (err) {
+    console.warn(
+      "[action-logs] No se pudo resolver identidad del bot en el servidor:",
+      err,
+    );
+    const fallback = bot.user?.username?.trim() || "Adobos";
+    return {
+      username: `${fallback} Audit`,
+      avatarURL: bot.user?.displayAvatarURL({ extension: "png", size: 128 }) ?? null,
+    };
+  }
+}
+
 async function resolveOrCreateWebhook(
   channel: GuildTextBasedChannel & {
     fetchWebhooks: () => Promise<Map<string, Webhook>>;
@@ -120,7 +154,7 @@ export interface SendActionLogWebhookInput {
 
 /**
  * Envía embeds por webhook del canal.
- * Identidad fija: "Adobos Audit" + avatar del bot (sin suplantar usuarios).
+ * Identidad = perfil del bot en el servidor (`nickname` + `displayAvatarURL`).
  * Si Discord borró el webhook (10015), limpia cache y reintenta una vez.
  */
 export async function sendActionLogWebhook(
@@ -147,22 +181,19 @@ export async function sendActionLogWebhook(
     }) => Promise<Webhook>;
   };
 
-  const botAvatar = bot.user?.displayAvatarURL({ size: 128 }) ?? null;
-  const botName = bot.user?.username
-    ? `Adobos Audit`
-    : ACTION_LOG_WEBHOOK_NAME;
+  const identity = await resolveBotServerIdentity(bot, input.guildId);
 
   const payload = {
     embeds: input.embeds,
-    username: botName,
-    avatarURL: botAvatar ?? undefined,
+    username: identity.username,
+    avatarURL: identity.avatarURL ?? undefined,
     allowedMentions: { parse: [] as const },
   };
 
   let webhook = await resolveOrCreateWebhook(
     textChannel,
     input.guildId,
-    botAvatar,
+    identity.avatarURL,
   );
 
   try {
@@ -175,7 +206,7 @@ export async function sendActionLogWebhook(
     webhook = await resolveOrCreateWebhook(
       textChannel,
       input.guildId,
-      botAvatar,
+      identity.avatarURL,
     );
     const message = await webhook.send(payload);
     return { messageId: message.id };

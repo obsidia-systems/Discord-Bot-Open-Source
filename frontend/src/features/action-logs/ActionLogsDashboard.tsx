@@ -11,6 +11,7 @@ import {
 } from "@adobos/shared";
 import {
   fetchActionLogsConfig,
+  fetchBotGuildProfile,
   fetchGuildAssets,
   saveActionLogsConfig,
   sendActionLogsTest,
@@ -61,6 +62,9 @@ export function ActionLogsDashboard() {
   );
   const [channels, setChannels] = useState<GuildChannelAsset[]>([]);
   const [roles, setRoles] = useState<GuildRoleAsset[]>([]);
+  const [webhookDisplayName, setWebhookDisplayName] =
+    useState("Adobos Audit");
+  const [webhookAvatarUrl, setWebhookAvatarUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -76,14 +80,23 @@ export function ActionLogsDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const [cfgRes, assets] = await Promise.all([
+      const [cfgRes, assets, profile] = await Promise.all([
         fetchActionLogsConfig(),
         fetchGuildAssets(),
+        fetchBotGuildProfile().catch(() => null),
       ]);
       setConfig(cfgRes.config);
       setSavedFingerprint(configFingerprint(cfgRes.config));
       setChannels(assets.channels);
       setRoles(assets.roles);
+      if (profile) {
+        const nick = profile.nickname?.trim();
+        const baseName = nick || profile.username || "Adobos";
+        setWebhookDisplayName(`${baseName} Audit`);
+        setWebhookAvatarUrl(
+          profile.serverAvatarURL || profile.globalAvatarURL || null,
+        );
+      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "No se pudo cargar Action Logs",
@@ -188,6 +201,8 @@ export function ActionLogsDashboard() {
               dirty={dirty}
               saving={saving}
               testing={testing}
+              webhookDisplayName={webhookDisplayName}
+              webhookAvatarUrl={webhookAvatarUrl}
               onChange={setConfig}
               onSave={() => void handleSave()}
               onTest={() => void handleTest()}

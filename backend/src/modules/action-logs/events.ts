@@ -637,6 +637,20 @@ export async function onVoiceStateUpdate(
   oldState: VoiceState,
   newState: VoiceState,
 ): Promise<void> {
+  try {
+    await handleVoiceStateUpdate(oldState, newState);
+  } catch (err) {
+    console.warn(
+      "[action-logs] voiceStateUpdate falló (no se detiene el bot):",
+      err,
+    );
+  }
+}
+
+async function handleVoiceStateUpdate(
+  oldState: VoiceState,
+  newState: VoiceState,
+): Promise<void> {
   const guild = newState.guild ?? oldState.guild;
   if (!guild) return;
   const member = newState.member ?? oldState.member;
@@ -647,7 +661,9 @@ export async function onVoiceStateUpdate(
   const newCh = newState.channelId;
   if (oldCh === newCh) return;
 
-  const oldParent = oldState.channel?.parentId ?? null;
+  const channelToAudit = oldState.channel ?? newState.channel ?? null;
+  const oldParent =
+    oldState.channel?.parentId ?? channelToAudit?.parentId ?? null;
   const newParent = newState.channel?.parentId ?? null;
   const roleIds = member ? [...member.roles.cache.keys()] : [];
 
@@ -682,45 +698,63 @@ export async function onVoiceStateUpdate(
     return;
   }
 
-  if (oldCh && !newCh) {
-    // Filtros baratos ANTES del delay / audit fetch
+  const isDisconnect = Boolean(oldCh && !newCh);
+  if (isDisconnect) {
+    const disconnectChannelId = oldCh ?? channelToAudit?.id ?? null;
+    const disconnectParentId = oldParent ?? channelToAudit?.parentId ?? null;
+
     const leaveOk = passesActionLogFilters(guild.id, "voiceLeave", {
-      channelId: oldCh,
-      parentId: oldParent,
+      channelId: disconnectChannelId,
+      parentId: disconnectParentId,
       actorIsBot: user.bot,
       actorRoleIds: roleIds,
     });
     const kickOk = passesActionLogFilters(guild.id, "voiceKick", {
-      channelId: oldCh,
-      parentId: oldParent,
+      channelId: disconnectChannelId,
+      parentId: disconnectParentId,
       actorIsBot: false,
       actorRoleIds: roleIds,
     });
     if (!leaveOk && !kickOk) return;
 
-    // Esperar a que Discord escriba MemberDisconnect en auditoría
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
     let kickedBy: { id: string; tag: string; avatarURL: string } | null = null;
+
     try {
+      // Esperar a que Discord registre MemberDisconnect
+      await new Promise((resolve) => setTimeout(resolve, 800));
+
       const logs = await guild.fetchAuditLogs({
         type: AuditLogEvent.MemberDisconnect,
-        limit: 1,
+        limit: 5,
       });
-      const entry = logs.entries.first();
-      if (
-        entry?.executor &&
-        entry.targetId === user.id &&
-        Date.now() - entry.createdTimestamp < 3000
-      ) {
+
+      for (const entry of logs.entries.values()) {
+        if (!entry.executor) continue;
+        if (Date.now() - entry.createdTimestamp >= 4000) continue;
+
+        // Discord suele omitir targetId en MemberDisconnect; si viene, debe coincidir.
+        const targetId =
+          entry.targetId ??
+          (entry.target &&
+          typeof entry.target === "object" &&
+          "id" in entry.target
+            ? String((entry.target as { id: string }).id)
+            : null);
+        if (targetId && targetId !== user.id) continue;
+
         kickedBy = {
           id: entry.executor.id,
           tag: userTag(entry.executor),
           avatarURL: entry.executor.displayAvatarURL({ size: 128 }),
         };
+        break;
       }
-    } catch {
-      // sin permiso View Audit Log → salida voluntaria
+    } catch (err) {
+      console.warn(
+        "No se pudo consultar el AuditLog de desconexión de voz:",
+        err,
+      );
+      // No abortar: continuar como desconexión estándar si leave está activo
     }
 
     if (kickedBy && kickOk) {
@@ -732,12 +766,14 @@ export async function onVoiceStateUpdate(
         executorAvatarURL: kickedBy.avatarURL,
         targetId: user.id,
         targetTag: userTag(user),
-        channelId: oldCh,
-        parentId: oldParent,
+        channelId: disconnectChannelId,
+        parentId: disconnectParentId,
         summary: `${userTag(user)} expulsado de voz por ${kickedBy.tag}`,
-        description: `**Usuario desconectado a la fuerza** del canal de voz <#${oldCh}>`,
+        description: disconnectChannelId
+          ? `**Usuario desconectado a la fuerza** del canal de voz <#${disconnectChannelId}>`
+          : `**Usuario desconectado a la fuerza** de un canal de voz`,
         details: {
-          channelId: oldCh,
+          channelId: disconnectChannelId,
           targetId: user.id,
           forced: true,
         },
@@ -757,11 +793,13 @@ export async function onVoiceStateUpdate(
       executorAvatarURL: user.displayAvatarURL({ size: 128 }),
       targetId: user.id,
       targetTag: userTag(user),
-      channelId: oldCh,
-      parentId: oldParent,
+      channelId: disconnectChannelId,
+      parentId: disconnectParentId,
       summary: `${userTag(user)} abandonó voz`,
-      description: `**Usuario abandonó** el canal de voz <#${oldCh}>`,
-      details: { channelId: oldCh, forced: false },
+      description: disconnectChannelId
+        ? `**Usuario abandonó** el canal de voz <#${disconnectChannelId}>`
+        : `**Usuario abandonó** un canal de voz`,
+      details: { channelId: disconnectChannelId, forced: false },
       actorIsBot: user.bot,
       actorRoleIds: roleIds,
       tone: "blue",
@@ -927,7 +965,9 @@ export function registerActionLogListeners(ctx: {
     void onStickerUpdate(oldSticker, newSticker);
   });
   ctx.on("voiceStateUpdate", (oldState, newState) => {
-    void onVoiceStateUpdate(oldState, newState);
+    void onVoiceStateUpdate(oldState, newState).catch((err) => {
+      console.warn("[action-logs] voiceStateUpdate listener:", err);
+    });
   });
   ctx.on("inviteCreate", (invite) => {
     void onInviteCreate(invite);

@@ -504,6 +504,32 @@ export async function recordActionLog(
         }
       }
 
+      let targetAvatarURL: string | null = null;
+      const affectedSnowflake =
+        input.targetId && /^\d{17,20}$/.test(input.targetId)
+          ? input.targetId
+          : null;
+      if (affectedSnowflake) {
+        try {
+          const targetUser = await bot.users.fetch(affectedSnowflake);
+          targetAvatarURL = targetUser.displayAvatarURL({ size: 64 });
+        } catch {
+          // Footer sin icono si el usuario no se puede resolver
+        }
+      }
+
+      let systemAvatarURL: string | null = null;
+      try {
+        const guild =
+          bot.guilds.cache.get(input.guildId) ??
+          (await bot.guilds.fetch(input.guildId));
+        const me = await guild.members.fetchMe();
+        systemAvatarURL = me.displayAvatarURL({ extension: "png", size: 64 });
+      } catch {
+        systemAvatarURL =
+          bot.user?.displayAvatarURL({ extension: "png", size: 64 }) ?? null;
+      }
+
       const messageId =
         typeof details.messageId === "string" ? details.messageId : null;
 
@@ -515,6 +541,8 @@ export async function recordActionLog(
         authorAvatarURL: authorAvatar,
         executorUnknown,
         affectedUserId: entry.targetId,
+        targetAvatarURL,
+        systemAvatarURL,
         messageId,
       });
 

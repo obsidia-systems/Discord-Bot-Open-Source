@@ -137,13 +137,8 @@ function mergeRoleGroup(group: DiscordAuditEntry[]): DiscordAuditEntry {
     if (entry.reason?.trim()) reasons.push(entry.reason.trim());
   }
 
-  // Cancelaciones netas (añadido y quitado en la misma ráfaga).
-  for (const id of [...addedMap.keys()]) {
-    if (removedMap.has(id)) {
-      addedMap.delete(id);
-      removedMap.delete(id);
-    }
-  }
+  // Conservar añadidos y eliminados aunque sea el mismo rol (p. ej. toggle
+  // Azul): Discord y Action Logs muestran ambos; no vaciar el Sheet.
 
   const added = uniqueById([...addedMap.values()]);
   const removed = uniqueById([...removedMap.values()]);

@@ -56,6 +56,10 @@ interface ActionLogsConfigTabProps {
   dirty: boolean;
   saving: boolean;
   testing: boolean;
+  /** Nombre webhook preview: `${apodo|username} Audit`. */
+  webhookDisplayName?: string;
+  /** Avatar del bot (servidor o global) para la preview. */
+  webhookAvatarUrl?: string | null;
   onChange: (next: ActionLogsConfig) => void;
   onSave: () => void;
   onTest: () => void;
@@ -114,6 +118,8 @@ export function ActionLogsConfigTab({
   dirty,
   saving,
   testing,
+  webhookDisplayName = "Adobos Audit",
+  webhookAvatarUrl = null,
   onChange,
   onSave,
   onTest,
@@ -240,7 +246,7 @@ export function ActionLogsConfigTab({
           <CardHeader>
             <CardTitle className="text-base">Enrutamiento de canales</CardTitle>
             <CardDescription>
-              Los embeds salen por webhook «Adobos Audit» (identidad fija del bot).
+              Los embeds salen por webhook con el apodo y avatar del bot en este servidor.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -514,7 +520,10 @@ export function ActionLogsConfigTab({
       </div>
 
       <div className="sticky top-6 flex flex-col gap-4 self-start">
-        <ActionLogDiscordPreview />
+        <ActionLogDiscordPreview
+          webhookDisplayName={webhookDisplayName}
+          webhookAvatarUrl={webhookAvatarUrl}
+        />
 
         <Card>
           <CardHeader className="pb-3">
@@ -623,8 +632,9 @@ export function ActionLogsConfigTab({
           <CardContent className="flex gap-3 pt-6 text-sm text-muted-foreground">
             <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
             <p>
-              Los logs se envían por webhook («Adobos Audit Log») con el avatar
-              del ejecutor. Los mensajes fuera de caché de discord.js pueden no
+              Los logs se envían por webhook con el nombre «
+              {webhookDisplayName}» y el avatar del perfil del bot en este
+              servidor. Los mensajes fuera de caché de discord.js pueden no
               incluir el texto «Antes».
             </p>
           </CardContent>

@@ -18,12 +18,16 @@ export interface BuildActionLogEmbedInput {
   authorAvatarURL?: string | null;
   executorUnknown?: boolean;
   affectedUserId?: string | null;
+  /** Avatar del usuario afectado (footer.iconURL). */
+  targetAvatarURL?: string | null;
+  /** Avatar del bot / sistema (fallback de footer). */
+  systemAvatarURL?: string | null;
   messageId?: string | null;
 }
 
 /**
- * Estilo Technical-Organized (SysAdmin Log):
- * Author · **Acción:** · fields inline (Miembro/Canal) · contenido · footer con IDs.
+ * Estilo Technical-Organized:
+ * Author (ejecutor + ID) · **Acción:** · fields · footer (afectado + avatar).
  */
 export function buildActionLogEmbed(
   input: BuildActionLogEmbedInput,
@@ -38,32 +42,37 @@ export function buildActionLogEmbed(
   const embed = new EmbedBuilder()
     .setColor(ACTION_LOG_EMBED_COLORS[tone])
     .setDescription(truncate(lines.join("\n"), 4096))
-    .setTimestamp(new Date(entry.createdAt))
-    .setFooter({ text: buildFooterText(input) });
+    .setTimestamp(new Date(entry.createdAt));
 
-  const authorName = input.authorTag?.trim() || entry.executorTag?.trim();
+  const authorName = buildAuthorName(
+    input.authorTag?.trim() || entry.executorTag?.trim() || null,
+    input.executorUnknown ? null : entry.executorId,
+  );
   if (authorName) {
     embed.setAuthor({
-      name: authorName.slice(0, 256),
+      name: authorName,
       iconURL: input.authorAvatarURL || undefined,
     });
   }
 
-  const fields: Array<{ name: string; value: string; inline?: boolean }> = [];
+  const footer = buildFooter(input);
+  embed.setFooter(footer);
 
-  const affectedId = input.affectedUserId ?? entry.targetId;
-  if (affectedId) {
-    fields.push({
-      name: "Miembro",
-      value: `<@${affectedId}>`,
-      inline: true,
-    });
-  }
+  const fields: Array<{ name: string; value: string; inline?: boolean }> = [];
 
   if (entry.channelId) {
     fields.push({
       name: "Canal",
       value: `<#${entry.channelId}>`,
+      inline: true,
+    });
+  }
+
+  const affectedId = input.affectedUserId ?? entry.targetId;
+  if (isSnowflake(affectedId)) {
+    fields.push({
+      name: "Afectado",
+      value: `<@${affectedId}>`,
       inline: true,
     });
   }
@@ -100,7 +109,6 @@ export function buildActionLogEmbed(
     }
   }
 
-  // Compacto: metadatos inline + hasta 2 campos de contenido
   const metaFields = fields.filter((f) => f.inline);
   const contentFields = fields.filter((f) => !f.inline).slice(0, 2);
   for (const field of [...metaFields, ...contentFields]) {
@@ -110,33 +118,64 @@ export function buildActionLogEmbed(
   return embed;
 }
 
-function buildFooterText(input: BuildActionLogEmbedInput): string {
+function isSnowflake(id: string | null | undefined): id is string {
+  return Boolean(id && /^\d{17,20}$/.test(id));
+}
+
+/** Author: `tag (ID: snowflake)` — sin duplicar ID en el footer. */
+function buildAuthorName(
+  tag: string | null,
+  executorId: string | null | undefined,
+): string | null {
+  if (!tag) {
+    if (isSnowflake(executorId)) {
+      return `Desconocido (ID: ${executorId})`.slice(0, 256);
+    }
+    return null;
+  }
+  if (isSnowflake(executorId)) {
+    return `${tag} (ID: ${executorId})`.slice(0, 256);
+  }
+  return tag.slice(0, 256);
+}
+
+function buildFooter(input: BuildActionLogEmbedInput): {
+  text: string;
+  iconURL?: string;
+} {
   const executorId = input.entry.executorId;
   const affectedId = input.affectedUserId ?? input.entry.targetId;
-
-  const parts: string[] = [];
-  if (executorId) {
-    parts.push(`Ejecutor ID: ${executorId}`);
-  } else if (input.executorUnknown) {
-    parts.push("Ejecutor ID: desconocido");
-  }
-
-  if (affectedId && affectedId !== executorId) {
-    parts.push(`Afectado ID: ${affectedId}`);
-  } else if (affectedId && !executorId) {
-    parts.push(`Afectado ID: ${affectedId}`);
-  }
-
   const messageId =
     input.messageId ||
     (typeof input.entry.details.messageId === "string"
       ? input.entry.details.messageId
       : null);
-  if (messageId) {
-    parts.push(`Msg ID: ${messageId}`);
+
+  // Usuario afectado (snowflake) → avatar + ID en footer
+  if (isSnowflake(affectedId)) {
+    const parts = [`Afectado ID: ${affectedId}`];
+    if (messageId) parts.push(`Msg ID: ${messageId}`);
+    return {
+      text: truncate(parts.join(" • "), 2048),
+      iconURL: input.targetAvatarURL || undefined,
+    };
   }
 
-  return truncate(parts.length > 0 ? parts.join(" • ") : "Adobos Bot", 2048);
+  // Sin usuario afectado (canal, rol, invite, etc.)
+  const parts: string[] = [];
+  if (isSnowflake(executorId)) {
+    parts.push(`Ejecutado por ID: ${executorId}`);
+  } else if (input.executorUnknown) {
+    parts.push("Ejecutor: desconocido");
+  } else {
+    parts.push("Adobos Bot");
+  }
+  if (messageId) parts.push(`Msg ID: ${messageId}`);
+
+  return {
+    text: truncate(parts.join(" • "), 2048),
+    iconURL: input.systemAvatarURL || undefined,
+  };
 }
 
 function formatContentField(raw: string): string {

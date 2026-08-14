@@ -547,7 +547,13 @@ function resolveAuditRoleRef(
 ): { id: string; name: string; color: string } | null {
   if (!item || typeof item !== "object") return null;
   const raw = item as { id?: unknown; name?: unknown };
-  const id = typeof raw.id === "string" ? raw.id : null;
+  const idRaw = raw.id;
+  const id =
+    typeof idRaw === "string"
+      ? idRaw
+      : typeof idRaw === "number" || typeof idRaw === "bigint"
+        ? String(idRaw)
+        : null;
   const fallbackName =
     typeof raw.name === "string" && raw.name.trim() ? raw.name.trim() : null;
 
@@ -560,9 +566,10 @@ function resolveAuditRoleRef(
         color: cached.hexColor,
       };
     }
+    // Rol ya no está en el servidor (o caché fría).
     return {
       id,
-      name: fallbackName ?? `Rol ${id.slice(-4)}`,
+      name: fallbackName ?? "Rol Eliminado",
       color: "#000000",
     };
   }
@@ -582,6 +589,16 @@ function resolveAuditRoleRef(
   return null;
 }
 
+/** Discord API: `$add`/`$remove` llevan el array de roles parciales en `new` (a veces en `old`). */
+function rolePartialListFromChange(change: {
+  new?: unknown;
+  old?: unknown;
+}): unknown[] {
+  if (Array.isArray(change.new)) return change.new;
+  if (Array.isArray(change.old)) return change.old;
+  return [];
+}
+
 function extractRoleRefsFromRaw(
   guild: Guild,
   entry: GuildAuditLogsEntry,
@@ -596,8 +613,8 @@ function extractRoleRefsFromRaw(
 
   for (const change of entry.changes ?? []) {
     const key = String(change.key);
-    if (key === "$add" && Array.isArray(change.new)) {
-      for (const item of change.new) {
+    if (key === "$add") {
+      for (const item of rolePartialListFromChange(change)) {
         const ref = resolveAuditRoleRef(guild, item);
         if (!ref || seenAdd.has(ref.id)) continue;
         seenAdd.add(ref.id);
@@ -605,12 +622,7 @@ function extractRoleRefsFromRaw(
       }
     }
     if (key === "$remove") {
-      const list = Array.isArray(change.old)
-        ? change.old
-        : Array.isArray(change.new)
-          ? change.new
-          : [];
-      for (const item of list) {
+      for (const item of rolePartialListFromChange(change)) {
         const ref = resolveAuditRoleRef(guild, item);
         if (!ref || seenRem.has(ref.id)) continue;
         seenRem.add(ref.id);
