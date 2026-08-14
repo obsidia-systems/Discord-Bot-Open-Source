@@ -1,6 +1,7 @@
 import {
   AuditLogEvent,
   ChannelType,
+  OverwriteType,
   type Guild,
   type GuildAuditLogsEntry,
   type GuildBan,
@@ -10,6 +11,7 @@ import {
   type Message,
   type NonThreadGuildBasedChannel,
   type PartialMessage,
+  type PermissionOverwrites,
   type Role,
   type Sticker,
   type VoiceState,
@@ -514,10 +516,6 @@ export async function onRoleUpdate(oldRole: Role, newRole: Role): Promise<void> 
   });
 }
 
-function channelLabel(channel: { name?: string | null; id: string }): string {
-  return `#${safeChannelName(channel)}`;
-}
-
 export async function onChannelCreate(
   channel: NonThreadGuildBasedChannel,
 ): Promise<void> {
@@ -604,17 +602,20 @@ export async function onChannelUpdate(
   newChannel: NonThreadGuildBasedChannel | import("discord.js").DMChannel,
 ): Promise<void> {
   if (!("guild" in newChannel) || !newChannel.guild) return;
+  if (!("guild" in oldChannel) || !oldChannel.guild) return;
   if (!("name" in oldChannel) || !("name" in newChannel)) return;
-  if (oldChannel.name === newChannel.name && oldChannel.type === newChannel.type) {
-    return;
-  }
+
+  const diffFields = buildChannelUpdateDiffFields(oldChannel, newChannel);
+  if (diffFields.length === 0) return;
 
   const executor = await fetchAuditExecutor(
     newChannel.guild,
     AuditLogEvent.ChannelUpdate,
     newChannel.id,
   );
-  const label = channelLabel(newChannel);
+  const name = safeChannelName(newChannel);
+  const label = `#${name}`;
+
   await recordActionLog(newChannel.client, {
     guildId: newChannel.guild.id,
     eventKey: "channelUpdate",
@@ -622,17 +623,201 @@ export async function onChannelUpdate(
     executorTag: executor?.tag ?? null,
     targetId: newChannel.id,
     targetTag: label,
-    channelId: newChannel.id,
-    summary: `Canal actualizado: ${label}`,
-    description: `🔧 **Canal actualizado:** \`${label}\``,
+    // Texto plano en embed; el ID va al footer (Canal ID).
+    channelId: null,
+    parentId: newChannel.parentId ?? null,
+    summary: `Canal actualizado: ${label} (${diffFields.length} cambio${diffFields.length === 1 ? "" : "s"})`,
+    description: `✏️ **Canal actualizado:** \`${label}\``,
     details: {
-      oldContent: oldChannel.name ?? "",
-      newContent: newChannel.name ?? "",
+      name,
+      channelLabel: label,
+      channelPlain: true,
       targetKind: "channel",
+      diffFields,
     },
     actorIsBot: executor?.bot ?? false,
     actorRoleIds: executor?.roleIds,
+    tone: "yellow",
   });
+}
+
+interface ChannelDiffField {
+  name: string;
+  value: string;
+  inline?: boolean;
+}
+
+function readOptionalString(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value === "string") return value;
+  return String(value);
+}
+
+function formatOverwriteTarget(
+  channel: NonThreadGuildBasedChannel,
+  overwrite: PermissionOverwrites,
+): string {
+  if (overwrite.type === OverwriteType.Role) {
+    const role = channel.guild.roles.cache.get(overwrite.id);
+    return role ? `@${role.name}` : `Rol ${overwrite.id}`;
+  }
+  const member = channel.guild.members.cache.get(overwrite.id);
+  if (member) return `@${member.user.username}`;
+  const user = channel.client.users.cache.get(overwrite.id);
+  return user ? `@${user.username}` : `Usuario ${overwrite.id}`;
+}
+
+function serializeOverwrite(ow: PermissionOverwrites): string {
+  return `${ow.allow.bitfield.toString()}:${ow.deny.bitfield.toString()}`;
+}
+
+function diffPermissionOverwrites(
+  oldChannel: NonThreadGuildBasedChannel,
+  newChannel: NonThreadGuildBasedChannel,
+): ChannelDiffField | null {
+  if (
+    !("permissionOverwrites" in oldChannel) ||
+    !("permissionOverwrites" in newChannel)
+  ) {
+    return null;
+  }
+
+  const oldCache = oldChannel.permissionOverwrites.cache;
+  const newCache = newChannel.permissionOverwrites.cache;
+  const affected: string[] = [];
+  const ids = new Set([...oldCache.keys(), ...newCache.keys()]);
+
+  for (const id of ids) {
+    const oldOw = oldCache.get(id);
+    const newOw = newCache.get(id);
+    if (!oldOw && newOw) {
+      affected.push(`${formatOverwriteTarget(newChannel, newOw)} (añadido)`);
+    } else if (oldOw && !newOw) {
+      affected.push(`${formatOverwriteTarget(oldChannel, oldOw)} (eliminado)`);
+    } else if (
+      oldOw &&
+      newOw &&
+      serializeOverwrite(oldOw) !== serializeOverwrite(newOw)
+    ) {
+      affected.push(`${formatOverwriteTarget(newChannel, newOw)} (modificado)`);
+    }
+  }
+
+  if (affected.length === 0) return null;
+
+  const preview = affected.slice(0, 8).join(", ");
+  const extra =
+    affected.length > 8 ? ` (+${affected.length - 8} más)` : "";
+  return {
+    name: "🔒 Permisos Actualizados",
+    value: `${preview}${extra}`,
+    inline: false,
+  };
+}
+
+/**
+ * Diff inteligente Texto / Voz / Categoría.
+ * Si no hay cambios relevantes → [] (el caller aborta el log).
+ */
+function buildChannelUpdateDiffFields(
+  oldChannel: NonThreadGuildBasedChannel,
+  newChannel: NonThreadGuildBasedChannel,
+): ChannelDiffField[] {
+  const diffs: ChannelDiffField[] = [];
+
+  if (oldChannel.name !== newChannel.name) {
+    diffs.push({
+      name: "Nombre",
+      value: `\`#${safeChannelName(oldChannel)}\` ➔ \`#${safeChannelName(newChannel)}\``,
+      inline: false,
+    });
+  }
+
+  const oldTopic =
+    "topic" in oldChannel
+      ? readOptionalString(
+          (oldChannel as { topic?: string | null }).topic,
+        )
+      : undefined;
+  const newTopic =
+    "topic" in newChannel
+      ? readOptionalString(
+          (newChannel as { topic?: string | null }).topic,
+        )
+      : undefined;
+  if (oldTopic !== undefined && newTopic !== undefined && oldTopic !== newTopic) {
+    diffs.push({
+      name: "Tópico",
+      value: `Anterior: ${oldTopic || "Ninguno"} ➔ Nuevo: ${newTopic || "Ninguno"}`,
+      inline: false,
+    });
+  }
+
+  const isVoiceLike =
+    newChannel.type === ChannelType.GuildVoice ||
+    newChannel.type === ChannelType.GuildStageVoice ||
+    "userLimit" in newChannel;
+
+  if (isVoiceLike) {
+    const oldStatus = readOptionalString(
+      (oldChannel as { status?: string | null }).status,
+    );
+    const newStatus = readOptionalString(
+      (newChannel as { status?: string | null }).status,
+    );
+    if (oldStatus !== newStatus) {
+      diffs.push({
+        name: "Estado de Voz",
+        value: `Anterior: ${oldStatus || "Ninguno"} ➔ Nuevo: ${newStatus || "Ninguno"}`,
+        inline: false,
+      });
+    }
+  }
+
+  if (
+    "rateLimitPerUser" in oldChannel &&
+    "rateLimitPerUser" in newChannel
+  ) {
+    const oldSlow =
+      (oldChannel as { rateLimitPerUser?: number | null }).rateLimitPerUser ?? 0;
+    const newSlow =
+      (newChannel as { rateLimitPerUser?: number | null }).rateLimitPerUser ?? 0;
+    if (oldSlow !== newSlow) {
+      diffs.push({
+        name: "Modo Lento",
+        value: `${oldSlow}s ➔ ${newSlow}s`,
+        inline: true,
+      });
+    }
+  }
+
+  if ("userLimit" in oldChannel && "userLimit" in newChannel) {
+    const formatLimit = (n: number) => (n === 0 ? "Ilimitado" : String(n));
+    const oldLimit = (oldChannel as { userLimit: number }).userLimit;
+    const newLimit = (newChannel as { userLimit: number }).userLimit;
+    if (oldLimit !== newLimit) {
+      diffs.push({
+        name: "Límite de Usuarios",
+        value: `${formatLimit(oldLimit)} ➔ ${formatLimit(newLimit)}`,
+        inline: true,
+      });
+    }
+  }
+
+  const oldParentId = oldChannel.parentId ?? null;
+  const newParentId = newChannel.parentId ?? null;
+  if (oldParentId !== newParentId) {
+    diffs.push({
+      name: "Categoría",
+      value: `${oldChannel.parent?.name ?? "Ninguna"} ➔ ${newChannel.parent?.name ?? "Ninguna"}`,
+      inline: true,
+    });
+  }
+
+  const permDiff = diffPermissionOverwrites(oldChannel, newChannel);
+  if (permDiff) diffs.push(permDiff);
+
+  return diffs;
 }
 
 export async function onEmojiCreate(emoji: GuildEmoji): Promise<void> {

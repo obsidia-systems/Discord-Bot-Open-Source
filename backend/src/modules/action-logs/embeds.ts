@@ -134,37 +134,59 @@ export function buildActionLogEmbed(
     });
   }
 
+  // Diffs estructurados (p. ej. channelUpdate): Nombre, Tópico, Permisos, etc.
+  const hasDiffFields = Array.isArray(details.diffFields);
+  if (hasDiffFields) {
+    for (const raw of details.diffFields as unknown[]) {
+      if (!raw || typeof raw !== "object") continue;
+      const item = raw as { name?: unknown; value?: unknown; inline?: unknown };
+      const name = typeof item.name === "string" ? item.name.trim() : "";
+      const value = typeof item.value === "string" ? item.value : "";
+      if (!name || !value) continue;
+      fields.push({
+        name: name.slice(0, 256),
+        value: truncate(value, FIELD_VALUE_MAX),
+        inline: Boolean(item.inline),
+      });
+    }
+  }
+
   const oldContent =
     typeof details.oldContent === "string" ? details.oldContent : null;
   const newContent =
     typeof details.newContent === "string" ? details.newContent : null;
 
-  if (oldContent !== null && newContent === null) {
-    fields.push({
-      name: "Contenido original",
-      value: formatContentField(oldContent || "(vacío)"),
-      inline: false,
-    });
-  } else if (oldContent !== null || newContent !== null) {
-    if (oldContent !== null) {
+  // Evitar Antes/Después genéricos cuando ya hay diffFields
+  if (!hasDiffFields) {
+    if (oldContent !== null && newContent === null) {
       fields.push({
-        name: "Antes",
+        name: "Contenido original",
         value: formatContentField(oldContent || "(vacío)"),
         inline: false,
       });
-    }
-    if (newContent !== null) {
-      fields.push({
-        name: "Después",
-        value: formatContentField(newContent || "(vacío)"),
-        inline: false,
-      });
+    } else if (oldContent !== null || newContent !== null) {
+      if (oldContent !== null) {
+        fields.push({
+          name: "Antes",
+          value: formatContentField(oldContent || "(vacío)"),
+          inline: false,
+        });
+      }
+      if (newContent !== null) {
+        fields.push({
+          name: "Después",
+          value: formatContentField(newContent || "(vacío)"),
+          inline: false,
+        });
+      }
     }
   }
 
   const metaFields = fields.filter((f) => f.inline);
-  const contentFields = fields.filter((f) => !f.inline).slice(0, 2);
-  for (const field of [...metaFields, ...contentFields]) {
+  const contentFields = fields.filter((f) => !f.inline);
+  // Diffs de canal: hasta 20; mensajes: 2 (Antes/Después)
+  const contentLimit = hasDiffFields ? 20 : 2;
+  for (const field of [...metaFields, ...contentFields.slice(0, contentLimit)]) {
     embed.addFields(field);
   }
 
