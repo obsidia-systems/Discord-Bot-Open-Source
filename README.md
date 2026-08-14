@@ -206,3 +206,8 @@ Los alcances o funcionalidades (Requerimientos funcionales) que he pensado son:
 - Posible integracion de webhoks para creacion de salas temporales como lo hace el bot voicemaster.
 
 - Integracion de reproduccion de musica. (checar si el bot puede reproducir en multiples canales a la vez con diferente musica o asi)
+
+
+
+### Posible migracion a SaaS
+Ver la forma de portar esto a un SaaS y darlo como servicio a multiples usuarios linkeando discor dy generar la verificacion de la app general, branding etc.
