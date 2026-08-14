@@ -24,11 +24,7 @@ export class AutoModError extends Error {
   }
 }
 
-const configCache = new Map<
-  string,
-  { config: AutoModConfig; expiresAt: number }
->();
-const CACHE_TTL_MS = 3_000;
+const configCache = new Map<string, AutoModConfig>();
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   if (!raw) return fallback;
@@ -70,7 +66,7 @@ function ensureGuildRow(guildId: string): void {
   }
 }
 
-function normalizeBannedWords(value: unknown): string[] {
+function normalizeStringList(value: unknown): string[] {
   const raw: string[] = Array.isArray(value)
     ? value.map((w) => String(w))
     : typeof value === "string"
@@ -98,11 +94,10 @@ function mergeFilters(
   const merged: AutoModFilters = {
     ...base,
     ...partial,
-    bannedWords: normalizeBannedWords(partial.bannedWords ?? base.bannedWords),
-    allowedLinks:
-      typeof partial.allowedLinks === "string"
-        ? partial.allowedLinks
-        : base.allowedLinks,
+    bannedWords: normalizeStringList(partial.bannedWords ?? base.bannedWords),
+    allowedLinks: normalizeStringList(
+      partial.allowedLinks ?? base.allowedLinks,
+    ),
   };
 
   // Migración suave: si hay palabras guardadas sin toggle, activar el filtro.
@@ -163,15 +158,14 @@ export function invalidateAutoModConfigCache(guildId?: string): void {
   configCache.clear();
 }
 
-/** Lectura con caché corta para messageCreate. */
+/** Lectura con caché en memoria; se invalida al guardar desde el Dashboard. */
 export function getAutoModConfigCached(guildId?: string): AutoModConfig {
   const id = resolveGuildId(guildId);
-  const hit = configCache.get(id);
-  const now = Date.now();
-  if (hit && hit.expiresAt > now) return hit.config;
+  const cached = configCache.get(id);
+  if (cached) return cached;
 
   const config = getAutoModConfig(id);
-  configCache.set(id, { config, expiresAt: now + CACHE_TTL_MS });
+  configCache.set(id, config);
   return config;
 }
 
@@ -241,7 +235,10 @@ export function updateAutoModConfig(
     .run();
 
   invalidateAutoModConfigCache(id);
-  return getAutoModConfig(id);
+  // Recalentar caché con la config ya mergeada (evita race en messageCreate).
+  const saved = getAutoModConfig(id);
+  configCache.set(id, saved);
+  return saved;
 }
 
 /** Cascada: Auto Mod log → Action Logs global → null. */

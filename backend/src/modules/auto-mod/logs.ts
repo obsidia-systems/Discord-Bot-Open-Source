@@ -19,8 +19,14 @@ export async function dispatchAutoModAlert(
   if (!channelId) return;
 
   const author = input.message.author;
-  const content =
-    input.content.trim().slice(0, 900) || "(sin texto / solo adjuntos)";
+  const raw =
+    input.content.trim().slice(0, 1000) || "(sin texto / solo adjuntos)";
+  const quoted =
+    raw
+      .split("\n")
+      .map((line) => `> ${line || "\u200b"}`)
+      .join("\n")
+      .slice(0, 1024) || "> —";
 
   const embed = new EmbedBuilder()
     .setColor(0xed4245)
@@ -28,13 +34,8 @@ export async function dispatchAutoModAlert(
       name: `${author.tag} (ID: ${author.id})`,
       iconURL: author.displayAvatarURL({ size: 128 }),
     })
-    .setDescription(`🚨 **Auto Mod — infracción detectada**`)
+    .setDescription("🗑️ **Mensaje eliminado automáticamente** por Auto Mod.")
     .addFields(
-      {
-        name: "Filtro",
-        value: input.filterLabel,
-        inline: true,
-      },
       {
         name: "Canal",
         value: input.message.channelId
@@ -43,18 +44,13 @@ export async function dispatchAutoModAlert(
         inline: true,
       },
       {
-        name: "Afectado",
-        value: `<@${author.id}>`,
+        name: "Filtro detonado",
+        value: input.filterLabel,
         inline: true,
       },
       {
         name: "Contenido original",
-        value:
-          content
-            .split("\n")
-            .map((line) => `> ${line || "\u200b"}`)
-            .join("\n")
-            .slice(0, 1024) || "> —",
+        value: quoted,
         inline: false,
       },
     )

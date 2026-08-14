@@ -15,8 +15,8 @@ export interface AutoModFilters {
   bannedWords: string[];
   /** Bloquear enlaces fuera de la lista blanca. */
   antiLinks: boolean;
-  /** Dominios/URLs permitidos (uno por línea). */
-  allowedLinks: string;
+  /** Dominios/URLs permitidos (tags). */
+  allowedLinks: string[];
   /** Bloquear invitaciones discord.gg / discord.com/invite. */
   antiInvites: boolean;
   /** Ráfaga de mensajes. */
@@ -88,7 +88,7 @@ export function defaultAutoModFilters(): AutoModFilters {
     bannedWordsEnabled: false,
     bannedWords: [],
     antiLinks: false,
-    allowedLinks: "",
+    allowedLinks: [],
     antiInvites: false,
     messageSpam: false,
     repeatedText: false,

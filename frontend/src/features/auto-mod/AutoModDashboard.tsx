@@ -39,7 +39,6 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import { ToastBanner } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { Construction, Info, Loader2, Save, ShieldAlert, X } from "lucide-react";
@@ -86,6 +85,7 @@ function FilterToggle({
   description,
   checked,
   onCheckedChange,
+  headerExtra,
   children,
 }: {
   id: string;
@@ -93,6 +93,8 @@ function FilterToggle({
   description?: string;
   checked: boolean;
   onCheckedChange: (next: boolean) => void;
+  /** Control compacto junto al switch (p. ej. umbral inline). */
+  headerExtra?: ReactNode;
   children?: ReactNode;
 }) {
   return (
@@ -106,61 +108,76 @@ function FilterToggle({
             <p className="text-xs text-muted-foreground">{description}</p>
           ) : null}
         </div>
-        <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
+        <div className="flex shrink-0 items-center gap-3">
+          {checked && headerExtra ? headerExtra : null}
+          <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
+        </div>
       </div>
       {checked && children ? <NestedSettings>{children}</NestedSettings> : null}
     </div>
   );
 }
 
-function BannedWordsTagInput({
-  words,
+function TagListInput({
+  id,
+  label,
+  values,
   onChange,
+  placeholder,
+  emptyHint,
 }: {
-  words: string[];
+  id: string;
+  label: string;
+  values: string[];
   onChange: (next: string[]) => void;
+  placeholder: string;
+  emptyHint: string;
 }) {
   const [draft, setDraft] = useState("");
 
-  const addWord = () => {
-    const word = draft.trim();
-    if (!word) return;
-    const exists = words.some((w) => w.toLowerCase() === word.toLowerCase());
-    if (!exists) onChange([...words, word]);
+  const addValue = () => {
+    const next = draft.trim();
+    if (!next) return;
+    const exists = values.some((v) => v.toLowerCase() === next.toLowerCase());
+    if (!exists) onChange([...values, next]);
     setDraft("");
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== "Enter") return;
     e.preventDefault();
-    addWord();
+    addValue();
   };
 
   return (
     <div className="space-y-1.5">
-      <Label htmlFor="bannedWordsInput">Lista</Label>
+      <Label htmlFor={id}>{label}</Label>
       <Input
-        id="bannedWordsInput"
+        id={id}
         type="text"
-        placeholder="Escribe una palabra y presiona Enter..."
+        placeholder={placeholder}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={onKeyDown}
       />
-      {words.length > 0 ? (
+      {values.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-2">
-          {words.map((word) => (
+          {values.map((value) => (
             <Badge
-              key={word.toLowerCase()}
+              key={value.toLowerCase()}
               className="gap-1 normal-case tracking-normal py-1 pl-2 pr-1 text-xs font-medium"
             >
-              {word}
+              {value}
               <button
                 type="button"
-                aria-label={`Quitar ${word}`}
+                aria-label={`Quitar ${value}`}
                 className="rounded-sm p-0.5 text-muted-foreground transition-colors hover:bg-background/60 hover:text-foreground"
                 onClick={() =>
-                  onChange(words.filter((w) => w.toLowerCase() !== word.toLowerCase()))
+                  onChange(
+                    values.filter(
+                      (v) => v.toLowerCase() !== value.toLowerCase(),
+                    ),
+                  )
                 }
               >
                 <X className="size-3" />
@@ -169,9 +186,7 @@ function BannedWordsTagInput({
           ))}
         </div>
       ) : (
-        <p className="text-[11px] text-muted-foreground">
-          Añade palabras con Enter. Se guardan como etiquetas.
-        </p>
+        <p className="text-[11px] text-muted-foreground">{emptyHint}</p>
       )}
     </div>
   );
@@ -420,11 +435,15 @@ export function AutoModDashboard() {
                           patchFilters({ bannedWordsEnabled })
                         }
                       >
-                        <BannedWordsTagInput
-                          words={config.filters.bannedWords}
+                        <TagListInput
+                          id="bannedWordsInput"
+                          label="Lista"
+                          values={config.filters.bannedWords}
                           onChange={(bannedWords) =>
                             patchFilters({ bannedWords })
                           }
+                          placeholder="Escribe una palabra y presiona Enter..."
+                          emptyHint="Añade palabras con Enter. Se guardan como etiquetas."
                         />
                       </FilterToggle>
                     </CardContent>
@@ -456,18 +475,16 @@ export function AutoModDashboard() {
                           patchFilters({ antiLinks })
                         }
                       >
-                        <div className="space-y-1.5">
-                          <Label htmlFor="allowedLinks">Enlaces permitidos</Label>
-                          <Textarea
-                            id="allowedLinks"
-                            rows={3}
-                            placeholder={"discord.com\nyoutube.com\ngithub.com"}
-                            value={config.filters.allowedLinks}
-                            onChange={(e) =>
-                              patchFilters({ allowedLinks: e.target.value })
-                            }
-                          />
-                        </div>
+                        <TagListInput
+                          id="allowedLinksInput"
+                          label="Enlaces permitidos"
+                          values={config.filters.allowedLinks}
+                          onChange={(allowedLinks) =>
+                            patchFilters({ allowedLinks })
+                          }
+                          placeholder="dominio.com y Enter..."
+                          emptyHint="Añade dominios con Enter (ej. youtube.com)."
+                        />
                       </FilterToggle>
                     </CardContent>
                   </Card>
@@ -501,31 +518,36 @@ export function AutoModDashboard() {
                       <FilterToggle
                         id="mentionSpam"
                         label="Spam de menciones"
-                        description="Supera el umbral de menciones por mensaje."
+                        description="Bloquea si el mensaje supera el máximo de menciones."
                         checked={config.filters.mentionSpam}
                         onCheckedChange={(mentionSpam) =>
                           patchFilters({ mentionSpam })
                         }
-                      >
-                        <div className="space-y-1.5">
-                          <Label htmlFor="mentionLimit">
-                            Umbral de menciones
-                          </Label>
-                          <Input
-                            id="mentionLimit"
-                            type="number"
-                            min={1}
-                            max={50}
-                            value={config.filters.mentionSpamLimit}
-                            onChange={(e) =>
-                              patchFilters({
-                                mentionSpamLimit: Number(e.target.value) || 5,
-                              })
-                            }
-                            className="max-w-[140px]"
-                          />
-                        </div>
-                      </FilterToggle>
+                        headerExtra={
+                          <div className="flex items-center gap-2 rounded-md border border-border/60 bg-background/40 px-2 py-1">
+                            <Label
+                              htmlFor="mentionLimit"
+                              className="whitespace-nowrap text-[11px] font-normal text-muted-foreground"
+                            >
+                              Máx.
+                            </Label>
+                            <Input
+                              id="mentionLimit"
+                              type="number"
+                              min={1}
+                              max={50}
+                              value={config.filters.mentionSpamLimit}
+                              onChange={(e) =>
+                                patchFilters({
+                                  mentionSpamLimit:
+                                    Number(e.target.value) || 5,
+                                })
+                              }
+                              className="h-7 w-14 border-0 bg-transparent px-1 text-center shadow-none focus-visible:ring-0"
+                            />
+                          </div>
+                        }
+                      />
                       <FilterToggle
                         id="textFlood"
                         label="Muros de texto (Text Flood)"

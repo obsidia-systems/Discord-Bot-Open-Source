@@ -13,6 +13,10 @@ const ZALGO_RE =
 const URL_RE =
   /https?:\/\/[^\s<>\]]+|discord\.gg\/[^\s<>\]]+|www\.[^\s<>\]]+/gi;
 
+/** CDN / media de adjuntos nativos de Discord (no deben detonar Anti-Links). */
+const DISCORD_ATTACHMENT_HOST_RE =
+  /^(?:cdn\.discordapp\.com|media\.discordapp\.net|images-ext-\d+\.discordapp\.net|cdn\.discord\.com)$/i;
+
 const spamBuckets = new Map<string, number[]>();
 const repeatBuckets = new Map<
   string,
@@ -24,19 +28,44 @@ const SPAM_THRESHOLD = 5;
 const REPEAT_WINDOW_MS = 12_000;
 const REPEAT_THRESHOLD = 3;
 
-function normalizeLines(raw: string): string[] {
-  return raw
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
-
 function hit(key: AutoModFilterKey): AutoModHit {
   return { key, label: AUTO_MOD_FILTER_LABELS[key] };
 }
 
 function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeUrlCandidate(raw: string): { host: string; full: string } {
+  const full = raw
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/$/, "");
+  const host = full.split("/")[0] ?? full;
+  return { host, full };
+}
+
+function isDiscordAttachmentUrl(
+  host: string,
+  full: string,
+  excludeUrls: Set<string>,
+): boolean {
+  if (DISCORD_ATTACHMENT_HOST_RE.test(host)) return true;
+  if (excludeUrls.has(full) || excludeUrls.has(`https://${full}`)) return true;
+  for (const excluded of excludeUrls) {
+    const n = excluded
+      .toLowerCase()
+      .replace(/^https?:\/\//, "")
+      .replace(/\/$/, "");
+    if (full === n || full.startsWith(`${n}?`) || full.startsWith(`${n}/`)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function detectZalgo(content: string): boolean {
@@ -80,32 +109,34 @@ export function detectBannedWords(
   });
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 export function detectAntiLinks(
   content: string,
-  allowedLinksRaw: string,
+  allowedLinks: string[],
+  excludeUrls: string[] = [],
 ): boolean {
   const matches = content.match(URL_RE);
   if (!matches || matches.length === 0) return false;
 
-  const allow = normalizeLines(allowedLinksRaw).map((line) =>
-    line.toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, ""),
+  const excludeSet = new Set(
+    excludeUrls.map((u) => u.trim().toLowerCase()).filter(Boolean),
   );
 
+  const allow = allowedLinks
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) =>
+      line.toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, ""),
+    );
+
   for (const raw of matches) {
-    const normalized = raw
-      .toLowerCase()
-      .replace(/^https?:\/\//, "")
-      .replace(/\/$/, "");
-    const host = normalized.split("/")[0] ?? normalized;
+    const { host, full } = normalizeUrlCandidate(raw);
+    if (isDiscordAttachmentUrl(host, full, excludeSet)) continue;
+
     const ok = allow.some(
       (entry) =>
         host === entry ||
         host.endsWith(`.${entry}`) ||
-        normalized.startsWith(entry),
+        full.startsWith(entry),
     );
     if (!ok) return true;
   }
@@ -124,10 +155,11 @@ export function detectTextFlood(
   maxLines = 6,
 ): boolean {
   const chars = clamp(Math.round(maxChars), 50, 4000);
-  const lines = clamp(Math.round(maxLines), 1, 100);
+  const maxNewlines = clamp(Math.round(maxLines), 1, 100);
   if (content.length > chars) return true;
-  const lineCount = content.split(/\r?\n/).length;
-  return lineCount > lines;
+  // Saltos de línea = partes - 1 (alineado al umbral del dashboard).
+  const newlineCount = content.split(/\r?\n/).length - 1;
+  return newlineCount > maxNewlines;
 }
 
 export function detectMentionSpam(
@@ -174,7 +206,8 @@ export function trackRepeatedText(
 }
 
 /**
- * Evalúa filtros activos en orden. Retorna el primer hit o null.
+ * Evalúa filtros activos. Un solo hit por mensaje.
+ * Prioridad: Links → Palabras → Mayúsculas/Zalgo → Spam.
  */
 export function evaluateAutoModFilters(input: {
   filters: AutoModFilters;
@@ -182,29 +215,48 @@ export function evaluateAutoModFilters(input: {
   mentionCount: number;
   guildId: string;
   userId: string;
+  /** URLs de message.attachments a ignorar en Anti-Links. */
+  attachmentUrls?: string[];
 }): AutoModHit | null {
-  const { filters, content, mentionCount, guildId, userId } = input;
+  const {
+    filters,
+    content,
+    mentionCount,
+    guildId,
+    userId,
+    attachmentUrls = [],
+  } = input;
   if (!content && mentionCount === 0) return null;
 
-  if (filters.zalgo && detectZalgo(content)) return hit("zalgo");
-  if (
-    filters.excessCaps &&
-    detectExcessCaps(content, filters.capsPercentage, filters.capsMinLength)
-  ) {
-    return hit("excessCaps");
+  // 1) Links
+  if (filters.antiInvites && detectAntiInvites(content)) {
+    return hit("antiInvites");
   }
+  if (
+    filters.antiLinks &&
+    detectAntiLinks(content, filters.allowedLinks, attachmentUrls)
+  ) {
+    return hit("antiLinks");
+  }
+
+  // 2) Palabras
   if (
     filters.bannedWordsEnabled &&
     detectBannedWords(content, filters.bannedWords)
   ) {
     return hit("bannedWords");
   }
-  if (filters.antiInvites && detectAntiInvites(content)) {
-    return hit("antiInvites");
+
+  // 3) Mayúsculas / Zalgo
+  if (
+    filters.excessCaps &&
+    detectExcessCaps(content, filters.capsPercentage, filters.capsMinLength)
+  ) {
+    return hit("excessCaps");
   }
-  if (filters.antiLinks && detectAntiLinks(content, filters.allowedLinks)) {
-    return hit("antiLinks");
-  }
+  if (filters.zalgo && detectZalgo(content)) return hit("zalgo");
+
+  // 4) Spam
   if (
     filters.textFlood &&
     detectTextFlood(content, filters.floodMaxChars, filters.floodMaxLines)

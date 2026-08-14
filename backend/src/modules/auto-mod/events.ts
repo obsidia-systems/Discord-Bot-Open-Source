@@ -29,6 +29,7 @@ export async function onAutoModMessageCreate(
 async function handleAutoModMessage(
   message: Message | GuildMessage,
 ): Promise<void> {
+  // 1) Exclusiones
   if (!message.guild || message.author.bot) return;
   if (!message.channel.isTextBased()) return;
 
@@ -63,11 +64,10 @@ async function handleAutoModMessage(
     return;
   }
 
+  // 2) Heurística (un solo filtro por mensaje)
   const content = message.content ?? "";
-  const mentionCount =
-    message.mentions.users.size +
-    message.mentions.roles.size +
-    (message.mentions.everyone ? 1 : 0);
+  const mentionCount = message.mentions.users.size;
+  const attachmentUrls = message.attachments.map((a) => a.url);
 
   const violation = evaluateAutoModFilters({
     filters: config.filters,
@@ -75,15 +75,16 @@ async function handleAutoModMessage(
     mentionCount,
     guildId,
     userId: message.author.id,
+    attachmentUrls,
   });
   if (!violation) return;
 
-  // 1) Mitigación: borrar mensaje
+  // 3) Mitigación — sanciones deshabilitadas: solo delete + warn + DM + log
   await message.delete().catch(() => {});
 
-  const reason = `[AutoMod] Infracción de filtro: ${violation.label}`;
+  const reason = `[AutoMod] Filtro detonado: ${violation.label}`;
+  const guildName = message.guild.name;
 
-  // 2) Warn en expediente histórico (tabla warnings)
   try {
     await executeModAction(message.client as Client, {
       action: "warn",
@@ -91,20 +92,12 @@ async function handleAutoModMessage(
       userId: message.author.id,
       reason,
       dmMode: "text",
-      dmText: [
-        `Has recibido un **Warn automático** en {server} por el sistema Auto Mod.`,
-        ``,
-        `Filtro: ${violation.label}`,
-        `Razón: {reason}`,
-        ``,
-        `Si crees que es un error, contacta al staff del servidor.`,
-      ].join("\n"),
+      dmText: `Tu mensaje en el servidor **${guildName}** fue eliminado por el filtro de Auto Mod (Razón: ${violation.label}).`,
     });
   } catch (error) {
     console.warn("[adobos] auto-mod: no se pudo registrar warn:", error);
   }
 
-  // 3) Alerta de seguridad (cascada de canales)
   await dispatchAutoModAlert(message.client as Client, {
     guildId,
     message: message as Message,
