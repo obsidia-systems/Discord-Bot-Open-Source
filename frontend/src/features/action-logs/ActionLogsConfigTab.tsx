@@ -44,6 +44,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { EVENT_ACCORDION_GROUPS, TOTAL_EVENT_COUNT } from "./labels";
+import { ActionLogDiscordPreview } from "./ActionLogDiscordPreview";
 
 const TEXT_CHANNEL_TYPES = new Set([0, 5, 15]);
 const IGNORE_CHANNEL_TYPES = new Set([0, 2, 4, 5, 13, 15]); // + category + voice
@@ -513,9 +514,11 @@ export function ActionLogsConfigTab({
       </div>
 
       <div className="sticky top-6 flex flex-col gap-4 self-start">
+        <ActionLogDiscordPreview />
+
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Monitor de estado</CardTitle>
+            <CardTitle className="text-base">Resumen de configuración</CardTitle>
             <CardDescription>
               Vista en vivo del formulario (antes de guardar).
             </CardDescription>

@@ -504,25 +504,18 @@ export async function recordActionLog(
         }
       }
 
-      const channelPart = entry.channelId ? ` en <#${entry.channelId}>` : "";
-      const description =
-        input.description?.trim() ||
-        `**${meta.label}**${channelPart}`;
-
       const messageId =
         typeof details.messageId === "string" ? details.messageId : null;
 
       const embed = buildActionLogEmbed({
         entry,
-        description,
-        emoji: meta.emoji,
+        actionLabel: meta.label,
         tone: input.tone ?? meta.tone,
         authorTag,
         authorAvatarURL: authorAvatar,
         executorUnknown,
         affectedUserId: entry.targetId,
         messageId,
-        footerUserId: entry.executorId ?? entry.targetId,
       });
 
       await sendActionLogWebhook(bot, {

@@ -10,45 +10,34 @@ const FIELD_VALUE_MAX = 1024;
 
 export interface BuildActionLogEmbedInput {
   entry: ActionLogEntry;
-  /** Descripción principal (puede ir sin emoji; se antepone `emoji` si falta). */
-  description: string;
-  emoji: string;
+  /** Nombre técnico del evento (ej. "Mensaje eliminado"). */
+  actionLabel: string;
   tone: ActionLogEmbedTone;
-  /** Author del embed = quien ejecutó (o autor original si ejecutor desconocido). */
+  /** Author = ejecutor (o autor original si ejecutor desconocido). */
   authorTag?: string | null;
   authorAvatarURL?: string | null;
-  /** Ejecutor real desconocido (p. ej. delete sin audit). */
   executorUnknown?: boolean;
-  /** Mostrar field "Usuario afectado" si difiere del ejecutor. */
   affectedUserId?: string | null;
   messageId?: string | null;
-  /** ID prioritario para el footer (ejecutor o afectado). */
-  footerUserId?: string | null;
 }
 
 /**
- * Diseño Fusion de Action Logs:
- * Author (ejecutor) · Description con emoji · Fields limpios (≤3) ·
- * IDs técnicos solo en Footer · colores semánticos.
+ * Estilo Technical-Organized (SysAdmin Log):
+ * Author · **Acción:** · fields inline (Miembro/Canal) · contenido · footer con IDs.
  */
 export function buildActionLogEmbed(
   input: BuildActionLogEmbedInput,
 ): EmbedBuilder {
-  const { entry, tone, emoji } = input;
+  const { entry, tone, actionLabel } = input;
 
-  let description = (input.description || entry.summary || "—").trim();
+  const lines = [`**Acción:** ${actionLabel}`];
   if (input.executorUnknown) {
-    if (!/desconocido/i.test(description)) {
-      description = `${description} · Ejecutor: **Desconocido**`;
-    }
-  }
-  if (emoji && !description.startsWith(emoji)) {
-    description = `${emoji} ${description}`;
+    lines.push("**Ejecutor:** Desconocido");
   }
 
   const embed = new EmbedBuilder()
     .setColor(ACTION_LOG_EMBED_COLORS[tone])
-    .setDescription(truncate(description, 4096))
+    .setDescription(truncate(lines.join("\n"), 4096))
     .setTimestamp(new Date(entry.createdAt))
     .setFooter({ text: buildFooterText(input) });
 
@@ -63,17 +52,18 @@ export function buildActionLogEmbed(
   const fields: Array<{ name: string; value: string; inline?: boolean }> = [];
 
   const affectedId = input.affectedUserId ?? entry.targetId;
-  const executorId = entry.executorId;
-  const showAffected =
-    Boolean(affectedId) &&
-    affectedId !== executorId &&
-    // En deletes con ejecutor desconocido, el author ya es el autor original
-    !(input.executorUnknown && affectedId === input.footerUserId);
-
-  if (showAffected && affectedId) {
+  if (affectedId) {
     fields.push({
-      name: "Usuario afectado",
+      name: "Miembro",
       value: `<@${affectedId}>`,
+      inline: true,
+    });
+  }
+
+  if (entry.channelId) {
+    fields.push({
+      name: "Canal",
+      value: `<#${entry.channelId}>`,
       inline: true,
     });
   }
@@ -87,29 +77,33 @@ export function buildActionLogEmbed(
       ? entry.details.newContent
       : null;
 
-  // Contenido: blockquote; code block solo si hay muchos saltos de línea complejos
   if (oldContent !== null && newContent === null) {
     fields.push({
-      name: "Contenido",
+      name: "Contenido original",
       value: formatContentField(oldContent || "(vacío)"),
+      inline: false,
     });
   } else if (oldContent !== null || newContent !== null) {
     if (oldContent !== null) {
       fields.push({
         name: "Antes",
         value: formatContentField(oldContent || "(vacío)"),
+        inline: false,
       });
     }
-    if (newContent !== null && fields.length < 3) {
+    if (newContent !== null) {
       fields.push({
         name: "Después",
         value: formatContentField(newContent || "(vacío)"),
+        inline: false,
       });
     }
   }
 
-  // Máximo 3 fields para mantener el embed escaneable
-  for (const field of fields.slice(0, 3)) {
+  // Compacto: metadatos inline + hasta 2 campos de contenido
+  const metaFields = fields.filter((f) => f.inline);
+  const contentFields = fields.filter((f) => !f.inline).slice(0, 2);
+  for (const field of [...metaFields, ...contentFields]) {
     embed.addFields(field);
   }
 
@@ -117,30 +111,37 @@ export function buildActionLogEmbed(
 }
 
 function buildFooterText(input: BuildActionLogEmbedInput): string {
+  const executorId = input.entry.executorId;
+  const affectedId = input.affectedUserId ?? input.entry.targetId;
+
   const parts: string[] = [];
-  const userId =
-    input.footerUserId ||
-    input.entry.executorId ||
-    input.entry.targetId ||
-    null;
-  if (userId) parts.push(`User ID: ${userId}`);
+  if (executorId) {
+    parts.push(`Ejecutor ID: ${executorId}`);
+  } else if (input.executorUnknown) {
+    parts.push("Ejecutor ID: desconocido");
+  }
+
+  if (affectedId && affectedId !== executorId) {
+    parts.push(`Afectado ID: ${affectedId}`);
+  } else if (affectedId && !executorId) {
+    parts.push(`Afectado ID: ${affectedId}`);
+  }
 
   const messageId =
     input.messageId ||
     (typeof input.entry.details.messageId === "string"
       ? input.entry.details.messageId
       : null);
-  if (messageId) parts.push(`Msg ID: ${messageId}`);
+  if (messageId) {
+    parts.push(`Msg ID: ${messageId}`);
+  }
 
-  const left = parts.length > 0 ? parts.join(" • ") : null;
-  const footer = left ? `${left} | Adobos Bot` : "Adobos Bot";
-  return truncate(footer, 2048);
+  return truncate(parts.length > 0 ? parts.join(" • ") : "Adobos Bot", 2048);
 }
 
 function formatContentField(raw: string): string {
   const text = raw.trim() || "(vacío)";
   const lineCount = text.split("\n").length;
-  // Textos muy fragmentados: code block; el resto blockquote (más legible)
   if (lineCount > 8) {
     return codeBlock(text);
   }
