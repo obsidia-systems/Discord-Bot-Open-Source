@@ -131,3 +131,50 @@ export interface ModActiveTimeoutItem {
 export interface ModActiveTimeoutsResponse {
   timeouts: ModActiveTimeoutItem[];
 }
+
+/** Embed serializado para vista previa (mensaje existente). */
+export interface ModFetchedMessageEmbed {
+  title?: string;
+  description?: string;
+  url?: string;
+  color?: string;
+  authorName?: string;
+  authorIconUrl?: string;
+  thumbnailUrl?: string;
+  imageUrl?: string;
+  footerText?: string;
+  footerIconUrl?: string;
+  timestamp?: boolean;
+}
+
+export interface ModFetchedMessageAuthor {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string;
+}
+
+/** Reacción presente en el mensaje (para autocompletar Paso 2). */
+export interface ModFetchedMessageReaction {
+  /** `unicode:❤️` o `custom:<snowflake>` */
+  emojiKey: string;
+  name: string | null;
+  id: string | null;
+  animated: boolean;
+  imageUrl: string | null;
+  count: number;
+}
+
+/** Respuesta de GET /api/mod/fetch-message */
+export interface ModFetchedMessageResponse {
+  id: string;
+  channelId: string;
+  content: string;
+  embeds: ModFetchedMessageEmbed[];
+  author: ModFetchedMessageAuthor;
+  /** true si el autor es el bot conectado. */
+  isBotAuthor: boolean;
+  /** true si `messageId` ya está en `autoroles_registry`. */
+  alreadyConfigured: boolean;
+  reactions: ModFetchedMessageReaction[];
+}

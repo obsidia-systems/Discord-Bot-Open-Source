@@ -1,4 +1,5 @@
-import type { DiscordAuditEntry, DiscordAuditRoleKind } from "@adobos/shared";
+import type { DiscordAuditEntry } from "@adobos/shared";
+import { RoleColorBadge } from "@/components/shared/RoleColorDot";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -8,14 +9,6 @@ import {
   type SheetLayoutMode,
 } from "@/features/moderation/auditChangeFormat";
 import { cn } from "@/lib/utils";
-
-function roleBadgeClass(
-  kind: Extract<DiscordAuditRoleKind, "ROLE_ADD" | "ROLE_REMOVE">,
-): string {
-  return kind === "ROLE_ADD"
-    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-    : "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-400";
-}
 
 function ValueCell({
   value,
@@ -70,16 +63,13 @@ function RoleChangesBlock({ entry }: { entry: DiscordAuditEntry }) {
           </p>
           <div className="flex flex-wrap gap-2">
             {added.map((role) => (
-              <Badge
-                key={`add-${role}`}
-                className={cn(
-                  "gap-1 normal-case tracking-normal",
-                  roleBadgeClass("ROLE_ADD"),
-                )}
-              >
-                <span aria-hidden>+</span>
-                {role}
-              </Badge>
+              <RoleColorBadge
+                key={`add-${role.id}`}
+                name={role.name}
+                color={role.color}
+                sign="+"
+                signTone="add"
+              />
             ))}
           </div>
         </div>
@@ -94,16 +84,13 @@ function RoleChangesBlock({ entry }: { entry: DiscordAuditEntry }) {
           </p>
           <div className="flex flex-wrap gap-2">
             {removed.map((role) => (
-              <Badge
-                key={`rem-${role}`}
-                className={cn(
-                  "gap-1 normal-case tracking-normal",
-                  roleBadgeClass("ROLE_REMOVE"),
-                )}
-              >
-                <span aria-hidden>−</span>
-                {role}
-              </Badge>
+              <RoleColorBadge
+                key={`rem-${role.id}`}
+                name={role.name}
+                color={role.color}
+                sign="−"
+                signTone="remove"
+              />
             ))}
           </div>
         </div>

@@ -1,0 +1,177 @@
+import { useCallback, useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
+import type {
+  ActionLogsConfig,
+  GuildChannelAsset,
+  GuildRoleAsset,
+} from "@adobos/shared";
+import {
+  defaultActionLogChannelsMapping,
+  defaultActionLogEnabledEvents,
+} from "@adobos/shared";
+import {
+  fetchActionLogsConfig,
+  fetchGuildAssets,
+  saveActionLogsConfig,
+  sendActionLogsTest,
+} from "@/lib/api";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToastBanner } from "@/components/ui/toast";
+import { ActionLogsConfigTab } from "./ActionLogsConfigTab";
+import { ActionLogsHistoryTab } from "./ActionLogsHistoryTab";
+
+type TabId = "config" | "history";
+
+function emptyConfig(): ActionLogsConfig {
+  return {
+    guildId: "",
+    enabled: false,
+    routingMode: "GLOBAL",
+    globalChannelId: null,
+    channelsMapping: defaultActionLogChannelsMapping(),
+    ignoredChannels: [],
+    ignoredRoles: [],
+    ignoreBots: true,
+    enabledEvents: defaultActionLogEnabledEvents(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/** Isla principal: Configuración y Filtros + Historial de Registros. */
+export function ActionLogsDashboard() {
+  const [tab, setTab] = useState<TabId>("config");
+  const [config, setConfig] = useState<ActionLogsConfig>(emptyConfig);
+  const [channels, setChannels] = useState<GuildChannelAsset[]>([]);
+  const [roles, setRoles] = useState<GuildRoleAsset[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [cfgRes, assets] = await Promise.all([
+        fetchActionLogsConfig(),
+        fetchGuildAssets(),
+      ]);
+      setConfig(cfgRes.config);
+      setChannels(assets.channels);
+      setRoles(assets.roles);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "No se pudo cargar Action Logs",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function handleSave(): Promise<void> {
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await saveActionLogsConfig({
+        enabled: config.enabled,
+        routingMode: config.routingMode,
+        globalChannelId: config.globalChannelId,
+        channelsMapping: config.channelsMapping,
+        ignoredChannels: config.ignoredChannels,
+        ignoredRoles: config.ignoredRoles,
+        ignoreBots: config.ignoreBots,
+        enabledEvents: config.enabledEvents,
+      });
+      setConfig(res.config);
+      setSuccess("Configuración guardada.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al guardar");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleTest(): Promise<void> {
+    setTesting(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await sendActionLogsTest();
+      setSuccess(
+        `Embed de prueba enviado a <#${res.channelId}> (mensaje ${res.messageId}).`,
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "No se pudo enviar la prueba",
+      );
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-24 text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" />
+        Cargando Action Logs…
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <ToastBanner
+        variant="error"
+        message={error}
+        onDismiss={() => setError(null)}
+      />
+      <ToastBanner
+        variant="success"
+        message={success}
+        onDismiss={() => setSuccess(null)}
+      />
+
+      <Tabs>
+        <TabsList>
+          <TabsTrigger
+            active={tab === "config"}
+            onClick={() => setTab("config")}
+          >
+            Configuración y Filtros
+          </TabsTrigger>
+          <TabsTrigger
+            active={tab === "history"}
+            onClick={() => setTab("history")}
+          >
+            Historial de Registros
+          </TabsTrigger>
+        </TabsList>
+
+        {tab === "config" ? (
+          <TabsContent>
+            <ActionLogsConfigTab
+              config={config}
+              channels={channels}
+              roles={roles}
+              saving={saving}
+              testing={testing}
+              onChange={setConfig}
+              onSave={() => void handleSave()}
+              onTest={() => void handleTest()}
+            />
+          </TabsContent>
+        ) : (
+          <TabsContent>
+            <ActionLogsHistoryTab />
+          </TabsContent>
+        )}
+      </Tabs>
+    </div>
+  );
+}

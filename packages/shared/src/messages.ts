@@ -46,7 +46,10 @@ export interface SendEmbedRequest {
   components?: MessageActionRowInput[];
 }
 
-export type SendEmbedResponse = SendMessageResponse;
+export type SendEmbedResponse = SendMessageResponse & {
+  /** ID del registro en `sent_embeds` (si se persistió). */
+  sentId?: string;
+};
 
 /** Campos de embed reutilizables (sin channelId). */
 export interface EmbedPayload {

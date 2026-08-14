@@ -7,6 +7,7 @@ import { guildAssetsModule } from "./guild-assets/index.js";
 import { economyModule } from "./economy/index.js";
 import { moderationModule } from "./moderation/index.js";
 import { botProfileModule } from "./bot-profile/index.js";
+import { actionLogsModule } from "./action-logs/index.js";
 
 /**
  * Catálogo explícito de módulos habilitados.
@@ -21,6 +22,7 @@ export const ENABLED_MODULES: readonly AdobosModule[] = [
   autorolesModule,
   economyModule,
   moderationModule,
+  actionLogsModule,
 ];
 
 export {
@@ -32,4 +34,5 @@ export {
   economyModule,
   moderationModule,
   botProfileModule,
+  actionLogsModule,
 };

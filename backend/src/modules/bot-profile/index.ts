@@ -4,9 +4,12 @@ import { restorePersistedPresence } from "./service.js";
 
 export const botProfileModule: AdobosModule = {
   id: "bot-profile",
-  name: "Perfil del bot",
+  name: "Perfil del bot en el servidor",
   register(ctx) {
-    ctx.route("/api/bot/profile", botProfileRoutes(ctx.client));
+    const routes = botProfileRoutes(ctx.client);
+    ctx.route("/api/bot/guild-profile", routes);
+    // Alias de compatibilidad con el path anterior.
+    ctx.route("/api/bot/profile", routes);
 
     ctx.once("ready", () => {
       restorePersistedPresence(ctx.client);
@@ -16,10 +19,10 @@ export const botProfileModule: AdobosModule = {
 
 export {
   BotProfileError,
-  applyPresenceToClient,
   getBotProfile,
+  getGuildBotProfile,
   readPersistedPresence,
   restorePersistedPresence,
-  savePersistedPresence,
   updateBotProfile,
+  updateGuildBotProfile,
 } from "./service.js";

@@ -194,3 +194,15 @@ Los alcances o funcionalidades (Requerimientos funcionales) que he pensado son:
 - Anuncios de actualizacion de gatchas como NTE, Genshin, WuWa que serian de version, eventos o builds de personajes
 
 - Economia (metodos de ganar economia, casino tipo gambling, ruleta pocker etc, y que se pueda canjear esto por recompensas - roles?)
+
+- Pokemon: Formacion de equipos competitivos, objetos, formas, debilidades, coberturas, movesets, stats, donde conseguir cierto pokemon, etc.
+
+- League of Legends: ...
+
+- Esports transmiciones: Valorant, rocket, LoL, etc.
+
+- TTS bot con voz custom (basado en TTS Bot - repo anexo despues)
+
+- Posible integracion de webhoks para creacion de salas temporales como lo hace el bot voicemaster.
+
+- Integracion de reproduccion de musica. (checar si el bot puede reproducir en multiples canales a la vez con diferente musica o asi)

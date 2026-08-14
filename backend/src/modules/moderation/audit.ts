@@ -541,20 +541,67 @@ function actionKeyName(action: number): string {
   return found?.[0] ?? `Action_${action}`;
 }
 
-function extractRoleNamesFromRaw(entry: GuildAuditLogsEntry): {
-  added: string[];
-  removed: string[];
+function resolveAuditRoleRef(
+  guild: Guild,
+  item: unknown,
+): { id: string; name: string; color: string } | null {
+  if (!item || typeof item !== "object") return null;
+  const raw = item as { id?: unknown; name?: unknown };
+  const id = typeof raw.id === "string" ? raw.id : null;
+  const fallbackName =
+    typeof raw.name === "string" && raw.name.trim() ? raw.name.trim() : null;
+
+  if (id) {
+    const cached = guild.roles.cache.get(id);
+    if (cached) {
+      return {
+        id: cached.id,
+        name: cached.name,
+        color: cached.hexColor,
+      };
+    }
+    return {
+      id,
+      name: fallbackName ?? `Rol ${id.slice(-4)}`,
+      color: "#000000",
+    };
+  }
+
+  if (fallbackName) {
+    const byName = guild.roles.cache.find((role) => role.name === fallbackName);
+    if (byName) {
+      return {
+        id: byName.id,
+        name: byName.name,
+        color: byName.hexColor,
+      };
+    }
+    return { id: fallbackName, name: fallbackName, color: "#000000" };
+  }
+
+  return null;
+}
+
+function extractRoleRefsFromRaw(
+  guild: Guild,
+  entry: GuildAuditLogsEntry,
+): {
+  added: Array<{ id: string; name: string; color: string }>;
+  removed: Array<{ id: string; name: string; color: string }>;
 } {
-  const added: string[] = [];
-  const removed: string[] = [];
+  const added: Array<{ id: string; name: string; color: string }> = [];
+  const removed: Array<{ id: string; name: string; color: string }> = [];
+  const seenAdd = new Set<string>();
+  const seenRem = new Set<string>();
 
   for (const change of entry.changes ?? []) {
     const key = String(change.key);
     if (key === "$add" && Array.isArray(change.new)) {
       for (const item of change.new) {
-        if (item && typeof item === "object" && "name" in item) {
-          added.push(String((item as { name: unknown }).name));
-        }
+        const ref = resolveAuditRoleRef(guild, item);
+        if (!ref || seenAdd.has(ref.id)) continue;
+        seenAdd.add(ref.id);
+        added.push(ref);
       }
     }
     if (key === "$remove") {
@@ -564,17 +611,15 @@ function extractRoleNamesFromRaw(entry: GuildAuditLogsEntry): {
           ? change.new
           : [];
       for (const item of list) {
-        if (item && typeof item === "object" && "name" in item) {
-          removed.push(String((item as { name: unknown }).name));
-        }
+        const ref = resolveAuditRoleRef(guild, item);
+        if (!ref || seenRem.has(ref.id)) continue;
+        seenRem.add(ref.id);
+        removed.push(ref);
       }
     }
   }
 
-  return {
-    added: [...new Set(added.filter(Boolean))],
-    removed: [...new Set(removed.filter(Boolean))],
-  };
+  return { added, removed };
 }
 
 function mapEntry(
@@ -625,7 +670,7 @@ function mapEntry(
   };
 
   if (entry.action === AuditLogEvent.MemberRoleUpdate) {
-    const roles = extractRoleNamesFromRaw(entry);
+    const roles = extractRoleRefsFromRaw(guild, entry);
     mapped.addedRoles = roles.added;
     mapped.removedRoles = roles.removed;
     if (roles.added.length > 0 && roles.removed.length === 0) {

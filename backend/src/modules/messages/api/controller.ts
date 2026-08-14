@@ -3,12 +3,15 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ChannelType,
+  DiscordAPIError,
   EmbedBuilder,
   type AttachmentBuilder,
   type Client,
   type ColorResolvable,
   type SendableChannels,
 } from "discord.js";
+import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 import type {
   MessageActionRowInput,
   MessageButtonInput,
@@ -18,6 +21,8 @@ import type {
   SendMessageRequest,
   SendMessageResponse,
 } from "@adobos/shared";
+import { getDb } from "../../../db/client.js";
+import { guildSettings, sentEmbeds } from "../../../db/schema.js";
 import {
   EmbedMediaError,
   requireHttpUrl,
@@ -432,14 +437,206 @@ export async function sendEmbedMessage(
       components,
       files: files.length > 0 ? files : undefined,
     });
+
+    const guildId =
+      ("guildId" in channel && typeof channel.guildId === "string"
+        ? channel.guildId
+        : null) ||
+      process.env.DISCORD_GUILD_ID ||
+      "";
+
+    let sentId: string | undefined;
+    if (/^\d{17,20}$/.test(guildId)) {
+      const existingGuild = getDb()
+        .select()
+        .from(guildSettings)
+        .where(eq(guildSettings.guildId, guildId))
+        .get();
+      if (!existingGuild) {
+        getDb()
+          .insert(guildSettings)
+          .values({
+            guildId,
+            prefix: "!",
+            welcomeEnabled: false,
+            updatedAt: new Date(),
+          })
+          .run();
+      }
+
+      sentId = randomUUID();
+      const snapshot = {
+        content,
+        title,
+        url,
+        description,
+        color: input.color?.trim() || undefined,
+        authorName,
+        authorIconUrl,
+        thumbnailUrl,
+        imageUrl,
+        footerText,
+        footerIconUrl,
+        timestamp: includeTimestamp,
+        components: input.components,
+      };
+      const now = new Date();
+      getDb()
+        .insert(sentEmbeds)
+        .values({
+          id: sentId,
+          guildId,
+          channelId: message.channelId,
+          messageId: message.id,
+          title: title ?? content?.slice(0, 80) ?? null,
+          embedData: JSON.stringify(snapshot),
+          createdAt: now,
+          updatedAt: now,
+        })
+        .run();
+    }
+
     return {
       ok: true,
       messageId: message.id,
       channelId: message.channelId,
+      sentId,
     };
   } catch (error: unknown) {
     const detail =
       error instanceof Error ? error.message : "Error desconocido al enviar.";
     throw new MessageSendError(detail, 502, "SEND_FAILED");
+  }
+}
+
+function isUnknownMessage(error: unknown): boolean {
+  return error instanceof DiscordAPIError && error.code === 10008;
+}
+
+/** Edita un mensaje embed existente en Discord. */
+export async function editEmbedMessage(
+  bot: Client,
+  channelIdRaw: string,
+  messageIdRaw: string,
+  input: SendEmbedRequest,
+  uploaded: EmbedUploadedFiles = {},
+): Promise<{ orphaned: boolean }> {
+  assertBotReady(bot);
+  const channelId = assertChannelId(channelIdRaw);
+  if (!/^\d{17,20}$/.test(messageIdRaw.trim())) {
+    throw new MessageSendError("messageId inválido.", 400, "INVALID_MESSAGE_ID");
+  }
+  const messageId = messageIdRaw.trim();
+
+  const title = input.title?.trim() || undefined;
+  const description = input.description?.trim() || undefined;
+  const content = input.content?.trim() || undefined;
+  const authorName = input.authorName?.trim() || undefined;
+  const footerText = input.footerText?.trim() || undefined;
+  const files: AttachmentBuilder[] = [];
+  const url = optionalHttpUrl(input.url, "url");
+  const authorIconUrl = resolveMediaField(
+    input.authorIconUrl,
+    uploaded.authorIcon,
+    "authorIconUrl",
+    "author-icon",
+    files,
+  );
+  const thumbnailUrl = resolveMediaField(
+    input.thumbnailUrl,
+    uploaded.thumbnail,
+    "thumbnailUrl",
+    "thumbnail",
+    files,
+  );
+  const imageUrl = resolveMediaField(
+    input.imageUrl,
+    uploaded.image,
+    "imageUrl",
+    "image",
+    files,
+  );
+  const footerIconUrl = resolveMediaField(
+    input.footerIconUrl,
+    uploaded.footerIcon,
+    "footerIconUrl",
+    "footer-icon",
+    files,
+  );
+  const color = parseHexColor(input.color);
+  const includeTimestamp = Boolean(input.timestamp);
+  const components = buildActionRows(input.components);
+
+  const hasEmbedBody = Boolean(
+    title ||
+      description ||
+      authorName ||
+      thumbnailUrl ||
+      imageUrl ||
+      footerText ||
+      url,
+  );
+
+  const embed = new EmbedBuilder();
+  if (title) embed.setTitle(title);
+  if (url) embed.setURL(url);
+  if (description) embed.setDescription(description);
+  if (color !== undefined) embed.setColor(color);
+  if (authorName) {
+    embed.setAuthor({ name: authorName, iconURL: authorIconUrl });
+  }
+  if (thumbnailUrl) embed.setThumbnail(thumbnailUrl);
+  if (imageUrl) embed.setImage(imageUrl);
+  if (footerText) {
+    embed.setFooter({ text: footerText, iconURL: footerIconUrl });
+  }
+  if (includeTimestamp) embed.setTimestamp(new Date());
+
+  const channel = await resolveSendableChannel(bot, channelId);
+
+  try {
+    const message = await channel.messages.fetch(messageId);
+    await message.edit({
+      content: content ?? null,
+      embeds: hasEmbedBody ? [embed] : [],
+      components: components ?? [],
+      files: files.length > 0 ? files : undefined,
+    });
+    return { orphaned: false };
+  } catch (error: unknown) {
+    if (isUnknownMessage(error)) {
+      return { orphaned: true };
+    }
+    throw new MessageSendError(
+      error instanceof Error ? error.message : "No se pudo editar el mensaje.",
+      502,
+      "EDIT_FAILED",
+    );
+  }
+}
+
+/** Borra un mensaje en Discord; `orphaned` si ya no existía (10008). */
+export async function deleteDiscordMessage(
+  bot: Client,
+  channelIdRaw: string,
+  messageIdRaw: string,
+): Promise<{ orphaned: boolean }> {
+  assertBotReady(bot);
+  const channelId = assertChannelId(channelIdRaw);
+  const messageId = messageIdRaw.trim();
+  const channel = await resolveSendableChannel(bot, channelId);
+  try {
+    const message = await channel.messages.fetch(messageId);
+    await message.delete();
+    return { orphaned: false };
+  } catch (error: unknown) {
+    if (isUnknownMessage(error)) {
+      return { orphaned: true };
+    }
+    throw new MessageSendError(
+      error instanceof Error ? error.message : "No se pudo borrar el mensaje.",
+      502,
+      "DELETE_FAILED",
+    );
   }
 }

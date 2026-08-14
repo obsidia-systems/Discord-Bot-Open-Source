@@ -17,6 +17,8 @@ interface EmbedFormTemplateProps {
   idPrefix?: string;
   /** Oculta autor/footer/imágenes bajo «Opciones avanzadas». */
   compact?: boolean;
+  /** Oculta el textarea de contenido fuera del embed. */
+  hideOuterContent?: boolean;
 }
 
 function insertAtCursor(
@@ -39,6 +41,7 @@ export function EmbedFormTemplate({
   disabled,
   idPrefix = "embed",
   compact = false,
+  hideOuterContent = false,
 }: EmbedFormTemplateProps) {
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
@@ -74,35 +77,40 @@ export function EmbedFormTemplate({
 
   return (
     <div className="space-y-5">
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <Label htmlFor={`${idPrefix}-content`}>Mensaje (fuera del embed)</Label>
-          <div
-            onFocusCapture={() => setEmojiTarget("content")}
-            onClick={() => setEmojiTarget("content")}
-          >
-            <DiscordEmojiPicker
-              serverEmojis={serverEmojis}
+      {!hideOuterContent ? (
+        <>
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label htmlFor={`${idPrefix}-content`}>
+                Mensaje (fuera del embed)
+              </Label>
+              <div
+                onFocusCapture={() => setEmojiTarget("content")}
+                onClick={() => setEmojiTarget("content")}
+              >
+                <DiscordEmojiPicker
+                  serverEmojis={serverEmojis}
+                  disabled={disabled}
+                  onSelect={(selection) =>
+                    insertEmoji(selection.mention ?? selection.display)
+                  }
+                />
+              </div>
+            </div>
+            <Textarea
+              id={`${idPrefix}-content`}
+              ref={contentRef}
+              value={value.content ?? ""}
+              onFocus={() => setEmojiTarget("content")}
+              onChange={(event) => update("content", event.target.value)}
+              maxLength={2000}
               disabled={disabled}
-              onSelect={(selection) =>
-                insertEmoji(selection.mention ?? selection.display)
-              }
+              placeholder="Texto opcional encima del embed…"
             />
           </div>
-        </div>
-        <Textarea
-          id={`${idPrefix}-content`}
-          ref={contentRef}
-          value={value.content ?? ""}
-          onFocus={() => setEmojiTarget("content")}
-          onChange={(event) => update("content", event.target.value)}
-          maxLength={2000}
-          disabled={disabled}
-          placeholder="Texto opcional encima del embed…"
-        />
-      </div>
-
-      <Separator />
+          <Separator />
+        </>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2 sm:col-span-2">

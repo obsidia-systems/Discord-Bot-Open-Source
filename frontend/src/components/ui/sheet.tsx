@@ -9,6 +9,8 @@ export interface SheetProps {
   title: ReactNode;
   description?: ReactNode;
   children: ReactNode;
+  /** Pie fijo (botones) fuera del área con scroll. */
+  footer?: ReactNode;
   side?: "right" | "left";
   className?: string;
 }
@@ -20,6 +22,7 @@ export function Sheet({
   title,
   description,
   children,
+  footer,
   side = "right",
   className,
 }: SheetProps) {
@@ -68,7 +71,7 @@ export function Sheet({
           className,
         )}
       >
-        <header className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
+        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4">
           <div className="min-w-0 space-y-1">
             <h2 className="font-display text-base font-semibold leading-tight">
               {title}
@@ -89,6 +92,11 @@ export function Sheet({
           </Button>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        {footer ? (
+          <footer className="shrink-0 border-t border-border bg-card px-5 py-4">
+            {footer}
+          </footer>
+        ) : null}
       </aside>
     </div>
   );

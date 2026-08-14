@@ -1,7 +1,10 @@
 import type { EmbedPayload, MessageButtonStyle } from "./messages.js";
 
 export type AutoRoleMode = "buttons" | "reactions";
-export type MessageSourceMode = "existing" | "create" | "template";
+export type MessageSourceMode = "existing" | "create" | "template" | "plain";
+
+export type AutoroleRegistryType = "BUTTONS" | "SELECT" | "REACTIONS";
+export type AutoroleCreateSource = "template" | "existing" | "plain";
 
 export interface ReactionRoleMappingInput {
   /** `custom:<emojiId>` o `unicode:<char>` */
@@ -18,13 +21,17 @@ export interface ButtonRoleMappingInput {
   emojiKey?: string;
 }
 
-/** Fila unificada UI: rol + etiqueta + emoji opcional. */
-export interface InteractiveRoleMappingInput {
+/** Fila unificada UI / registry JSON. */
+export interface AutoroleMappingItem {
+  id?: string;
   roleId: string;
   label: string;
   emojiKey?: string;
   style?: Exclude<MessageButtonStyle, "Link">;
 }
+
+/** @deprecated alias */
+export type InteractiveRoleMappingInput = AutoroleMappingItem;
 
 export interface SaveReactionRolesRequest {
   guildId: string;
@@ -47,6 +54,8 @@ export interface CreateAutoRoleRequest {
   embed?: EmbedPayload;
   reactionMappings?: ReactionRoleMappingInput[];
   buttonMappings?: ButtonRoleMappingInput[];
+  /** Nombre en el registro del dashboard. */
+  title?: string;
 }
 
 export interface CreateAutoRoleResponse {
@@ -54,6 +63,75 @@ export interface CreateAutoRoleResponse {
   messageId: string;
   channelId: string;
   saved: number;
+  registryId?: number;
+}
+
+/** Payload compacto del asistente (plantilla / existente / texto plano). */
+export interface CreateAutoroleCompactRequest {
+  guildId: string;
+  channelId: string;
+  type: AutoroleRegistryType;
+  source: AutoroleCreateSource;
+  title?: string;
+  /** Plantilla de embed. */
+  templateId?: number;
+  /** Mensaje existente. */
+  messageId?: string;
+  /** Texto plano (sin embed). */
+  plainContent?: string;
+  mappings: AutoroleMappingItem[];
+}
+
+export interface AutoroleRegistryEntry {
+  id: number;
+  guildId: string;
+  channelId: string;
+  messageId: string;
+  title: string;
+  type: AutoroleRegistryType;
+  rolesMapping: AutoroleMappingItem[];
+  createdAt: string;
+  /** Canal resuelto para UI (opcional). */
+  channelName?: string | null;
+  orphaned?: boolean;
+  /**
+   * true si el mensaje en Discord fue enviado por el bot.
+   * null si no se pudo verificar (mensaje borrado / sin acceso).
+   */
+  isBotAuthor?: boolean | null;
+}
+
+export interface ListActiveAutorolesResponse {
+  entries: AutoroleRegistryEntry[];
+}
+
+export interface UpdateAutoroleMappingRequest {
+  mappings: AutoroleMappingItem[];
+}
+
+export interface UpdateAutoroleMappingResponse {
+  ok: true;
+  entry: AutoroleRegistryEntry;
+  orphaned?: boolean;
+}
+
+export interface UpdateAutoroleContentRequest {
+  content?: string;
+  embed?: EmbedPayload;
+  title?: string;
+}
+
+export interface UpdateAutoroleContentResponse {
+  ok: true;
+  entry: AutoroleRegistryEntry;
+  orphaned?: boolean;
+}
+
+export interface DeleteAutoroleResponse {
+  ok: true;
+  deletedId: number;
+  /** true si el mensaje ya no existía en Discord (10008). */
+  orphaned?: boolean;
 }
 
 /** Roles asignados al unirse al servidor. */

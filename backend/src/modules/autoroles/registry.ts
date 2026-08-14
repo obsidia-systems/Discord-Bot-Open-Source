@@ -1,0 +1,792 @@
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ChannelType,
+  DiscordAPIError,
+  StringSelectMenuBuilder,
+  type AttachmentBuilder,
+  type Client,
+  type EmbedBuilder,
+  type Message,
+  type SendableChannels,
+  type TextChannel,
+} from "discord.js";
+import { and, desc, eq } from "drizzle-orm";
+import type {
+  AutoroleMappingItem,
+  AutoroleRegistryEntry,
+  AutoroleRegistryType,
+  CreateAutoroleCompactRequest,
+  CreateAutoRoleResponse,
+  DeleteAutoroleResponse,
+  EmbedPayload,
+  ListActiveAutorolesResponse,
+  UpdateAutoroleContentRequest,
+  UpdateAutoroleContentResponse,
+  UpdateAutoroleMappingRequest,
+  UpdateAutoroleMappingResponse,
+} from "@adobos/shared";
+import { getDb } from "../../db/client.js";
+import { autorolesRegistry, guildSettings } from "../../db/schema.js";
+import {
+  deleteReactionRolesForMessage,
+  emojiKeyToResolvable,
+  upsertReactionRoles,
+} from "../../db/reaction-roles.js";
+import { getEmbedTemplate } from "../messages/templates/service.js";
+import { buildEmbedFromPayload } from "../moderation/dm.js";
+import {
+  AutoRoleError,
+  createAutoRoleSetup,
+  normalizeEmojiKey,
+} from "./api/controller.js";
+
+const BUTTON_STYLE_MAP: Record<
+  NonNullable<AutoroleMappingItem["style"]>,
+  ButtonStyle
+> = {
+  Primary: ButtonStyle.Primary,
+  Secondary: ButtonStyle.Secondary,
+  Success: ButtonStyle.Success,
+  Danger: ButtonStyle.Danger,
+};
+
+function assertSnowflake(value: string, field: string): string {
+  const trimmed = value.trim();
+  if (!/^\d{17,20}$/.test(trimmed)) {
+    throw new AutoRoleError(
+      `${field} debe ser un snowflake válido.`,
+      400,
+      "INVALID_IDS",
+    );
+  }
+  return trimmed;
+}
+
+function resolveGuildId(raw?: string): string {
+  return assertSnowflake(
+    raw?.trim() || process.env.DISCORD_GUILD_ID || "",
+    "guildId",
+  );
+}
+
+function ensureGuildRow(guildId: string): void {
+  const existing = getDb()
+    .select()
+    .from(guildSettings)
+    .where(eq(guildSettings.guildId, guildId))
+    .get();
+  if (!existing) {
+    getDb()
+      .insert(guildSettings)
+      .values({
+        guildId,
+        prefix: "!",
+        welcomeEnabled: false,
+        updatedAt: new Date(),
+      })
+      .run();
+  }
+}
+
+function isUnknownMessage(error: unknown): boolean {
+  return error instanceof DiscordAPIError && error.code === 10008;
+}
+
+function parseMappings(raw: string): AutoroleMappingItem[] {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    const items: AutoroleMappingItem[] = [];
+    for (const [index, rawItem] of parsed.entries()) {
+      if (!rawItem || typeof rawItem !== "object") continue;
+      const item = rawItem as Record<string, unknown>;
+      const roleId = typeof item.roleId === "string" ? item.roleId : "";
+      if (!/^\d{17,20}$/.test(roleId)) continue;
+      let style: AutoroleMappingItem["style"] = "Primary";
+      if (
+        item.style === "Primary" ||
+        item.style === "Secondary" ||
+        item.style === "Success" ||
+        item.style === "Danger"
+      ) {
+        style = item.style;
+      }
+      items.push({
+        id:
+          typeof item.id === "string"
+            ? item.id
+            : `map_${index}_${roleId}`,
+        roleId,
+        label: typeof item.label === "string" ? item.label : "Rol",
+        emojiKey:
+          typeof item.emojiKey === "string"
+            ? item.emojiKey
+            : typeof item.emoji === "string"
+              ? item.emoji
+              : undefined,
+        style,
+      });
+    }
+    return items;
+  } catch {
+    return [];
+  }
+}
+
+function normalizeMappings(
+  mappings: AutoroleMappingItem[],
+): AutoroleMappingItem[] {
+  if (!Array.isArray(mappings) || mappings.length === 0) {
+    throw new AutoRoleError(
+      "Añade al menos una asignación de rol.",
+      400,
+      "EMPTY_MAPPINGS",
+    );
+  }
+  return mappings.map((item, index) => {
+    const roleId = assertSnowflake(item.roleId, "roleId");
+    return {
+      id: item.id?.trim() || `map_${index}_${roleId}`,
+      roleId,
+      label: (item.label?.trim() || "Rol").slice(0, 80),
+      emojiKey: item.emojiKey?.trim()
+        ? normalizeEmojiKey(item.emojiKey)
+        : undefined,
+      style: item.style ?? "Primary",
+    };
+  });
+}
+
+function toEntry(row: {
+  id: number;
+  guildId: string;
+  channelId: string;
+  messageId: string;
+  title: string;
+  type: string;
+  rolesMapping: string;
+  createdAt: Date | number;
+  channelName?: string | null;
+  orphaned?: boolean;
+  isBotAuthor?: boolean | null;
+}): AutoroleRegistryEntry {
+  const type = (["BUTTONS", "SELECT", "REACTIONS"].includes(row.type)
+    ? row.type
+    : "BUTTONS") as AutoroleRegistryType;
+  return {
+    id: row.id,
+    guildId: row.guildId,
+    channelId: row.channelId,
+    messageId: row.messageId,
+    title: row.title,
+    type,
+    rolesMapping: parseMappings(row.rolesMapping),
+    createdAt:
+      row.createdAt instanceof Date
+        ? row.createdAt.toISOString()
+        : new Date(row.createdAt).toISOString(),
+    channelName: row.channelName ?? null,
+    orphaned: row.orphaned,
+    isBotAuthor: row.isBotAuthor ?? null,
+  };
+}
+
+function upsertRegistry(input: {
+  guildId: string;
+  channelId: string;
+  messageId: string;
+  title: string;
+  type: AutoroleRegistryType;
+  mappings: AutoroleMappingItem[];
+}): number {
+  ensureGuildRow(input.guildId);
+  const db = getDb();
+  const now = new Date();
+  const json = JSON.stringify(input.mappings);
+  const existing = db
+    .select()
+    .from(autorolesRegistry)
+    .where(eq(autorolesRegistry.messageId, input.messageId))
+    .get();
+
+  if (existing) {
+    db.update(autorolesRegistry)
+      .set({
+        channelId: input.channelId,
+        title: input.title,
+        type: input.type,
+        rolesMapping: json,
+        updatedAt: now,
+      })
+      .where(eq(autorolesRegistry.id, existing.id))
+      .run();
+    return existing.id;
+  }
+
+  const result = db
+    .insert(autorolesRegistry)
+    .values({
+      guildId: input.guildId,
+      channelId: input.channelId,
+      messageId: input.messageId,
+      title: input.title,
+      type: input.type,
+      rolesMapping: json,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .run();
+
+  return Number(result.lastInsertRowid);
+}
+
+async function resolveChannel(
+  bot: Client,
+  channelId: string,
+): Promise<SendableChannels & TextChannel> {
+  const channel = await bot.channels.fetch(channelId).catch(() => null);
+  if (!channel) {
+    throw new AutoRoleError("Canal no encontrado.", 404, "CHANNEL_NOT_FOUND");
+  }
+  if (
+    channel.type === ChannelType.GuildCategory ||
+    channel.type === ChannelType.GuildVoice ||
+    !channel.isTextBased() ||
+    !("send" in channel)
+  ) {
+    throw new AutoRoleError(
+      "El canal no admite mensajes de texto.",
+      400,
+      "CHANNEL_NOT_TEXT",
+    );
+  }
+  return channel as SendableChannels & TextChannel;
+}
+
+function buildButtonComponents(mappings: AutoroleMappingItem[]) {
+  if (mappings.length > 25) {
+    throw new AutoRoleError("Máximo 25 botones (5×5).", 400, "TOO_MANY_BUTTONS");
+  }
+  const rows: ActionRowBuilder<ButtonBuilder>[] = [];
+  for (let i = 0; i < mappings.length; i += 5) {
+    const chunk = mappings.slice(i, i + 5);
+    const row = new ActionRowBuilder<ButtonBuilder>();
+    row.addComponents(
+      chunk.map((mapping) => {
+        const button = new ButtonBuilder()
+          .setCustomId(`autorole_${mapping.roleId}`.slice(0, 100))
+          .setLabel(mapping.label.slice(0, 80))
+          .setStyle(BUTTON_STYLE_MAP[mapping.style ?? "Primary"] ?? ButtonStyle.Primary);
+        if (mapping.emojiKey) {
+          const key = normalizeEmojiKey(mapping.emojiKey);
+          if (key.startsWith("custom:")) {
+            button.setEmoji({ id: key.slice("custom:".length) });
+          } else if (key.startsWith("unicode:")) {
+            button.setEmoji(key.slice("unicode:".length));
+          }
+        }
+        return button;
+      }),
+    );
+    rows.push(row);
+  }
+  return rows;
+}
+
+function buildSelectComponents(mappings: AutoroleMappingItem[]) {
+  if (mappings.length > 25) {
+    throw new AutoRoleError("Máximo 25 opciones en el menú.", 400, "TOO_MANY_OPTIONS");
+  }
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId("autorole_select")
+    .setPlaceholder("Elige un rol…")
+    .addOptions(
+      mappings.map((mapping) => {
+        const base = {
+          label: mapping.label.slice(0, 100),
+          value: mapping.roleId,
+        };
+        if (!mapping.emojiKey) return base;
+        const key = normalizeEmojiKey(mapping.emojiKey);
+        if (key.startsWith("custom:")) {
+          return { ...base, emoji: { id: key.slice("custom:".length) } };
+        }
+        if (key.startsWith("unicode:")) {
+          return { ...base, emoji: key.slice("unicode:".length) };
+        }
+        return base;
+      }),
+    );
+  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)];
+}
+
+async function applyComponentsOrReactions(
+  message: Message,
+  type: AutoroleRegistryType,
+  mappings: AutoroleMappingItem[],
+  guildId: string,
+  channelId: string,
+): Promise<void> {
+  if (type === "REACTIONS") {
+    const reactionMappings = mappings
+      .filter((m) => m.emojiKey)
+      .map((m) => ({
+        emojiKey: m.emojiKey!,
+        roleId: m.roleId,
+      }));
+    if (reactionMappings.length === 0) {
+      throw new AutoRoleError(
+        "Las reacciones requieren un emoji por rol.",
+        400,
+        "EMPTY_EMOJI",
+      );
+    }
+    deleteReactionRolesForMessage(message.id);
+    upsertReactionRoles(
+      reactionMappings.map((m) => ({
+        guildId,
+        channelId,
+        messageId: message.id,
+        emojiKey: normalizeEmojiKey(m.emojiKey),
+        roleId: m.roleId,
+      })),
+    );
+    for (const mapping of reactionMappings) {
+      const emoji = emojiKeyToResolvable(normalizeEmojiKey(mapping.emojiKey));
+      if (!emoji) continue;
+      await message.react(emoji).catch(() => undefined);
+    }
+    await message.edit({ components: [] }).catch(() => undefined);
+    return;
+  }
+
+  const components =
+    type === "SELECT"
+      ? buildSelectComponents(mappings)
+      : buildButtonComponents(mappings);
+  await message.edit({ components });
+}
+
+export async function listActiveAutoroles(
+  bot: Client,
+  guildIdRaw?: string,
+): Promise<ListActiveAutorolesResponse> {
+  const guildId = resolveGuildId(guildIdRaw);
+  const rows = getDb()
+    .select()
+    .from(autorolesRegistry)
+    .where(eq(autorolesRegistry.guildId, guildId))
+    .orderBy(desc(autorolesRegistry.createdAt))
+    .all();
+
+  const guild = bot.guilds.cache.get(guildId);
+  const botUserId = bot.user?.id ?? null;
+
+  const entries = await Promise.all(
+    rows.map(async (row) => {
+      const channel = guild?.channels.cache.get(row.channelId);
+      const channelName =
+        channel && "name" in channel ? String(channel.name) : null;
+
+      let isBotAuthor: boolean | null = null;
+      let orphaned = false;
+
+      try {
+        const textChannel = await resolveChannel(bot, row.channelId);
+        const message = await textChannel.messages.fetch(row.messageId);
+        isBotAuthor = Boolean(botUserId && message.author.id === botUserId);
+      } catch (error: unknown) {
+        if (isUnknownMessage(error)) {
+          orphaned = true;
+          isBotAuthor = null;
+        } else {
+          isBotAuthor = null;
+        }
+      }
+
+      return toEntry({
+        ...row,
+        channelName,
+        orphaned,
+        isBotAuthor,
+      });
+    }),
+  );
+
+  return { entries };
+}
+
+export async function createAutoroleCompact(
+  bot: Client,
+  input: CreateAutoroleCompactRequest,
+): Promise<CreateAutoRoleResponse> {
+  if (!bot.isReady()) {
+    throw new AutoRoleError("El bot no está conectado.", 503, "BOT_NOT_READY");
+  }
+
+  const guildId = assertSnowflake(input.guildId, "guildId");
+  const channelId = assertSnowflake(input.channelId, "channelId");
+  const mappings = normalizeMappings(input.mappings);
+  const type = input.type;
+  const title =
+    input.title?.trim() ||
+    (input.source === "template"
+      ? "Autoroles (plantilla)"
+      : input.source === "existing"
+        ? "Autoroles (mensaje existente)"
+        : "Autoroles");
+
+  const mode = type === "REACTIONS" ? "reactions" : "buttons";
+
+  let embed: EmbedPayload | undefined;
+  let messageSource: "existing" | "create" = "create";
+  let messageId = input.messageId;
+
+  if (input.source === "existing") {
+    messageSource = "existing";
+    messageId = assertSnowflake(input.messageId ?? "", "messageId");
+    const duplicate = getDb()
+      .select({ id: autorolesRegistry.id })
+      .from(autorolesRegistry)
+      .where(
+        and(
+          eq(autorolesRegistry.guildId, guildId),
+          eq(autorolesRegistry.messageId, messageId),
+        ),
+      )
+      .get();
+    if (duplicate) {
+      throw new AutoRoleError(
+        "Este mensaje ya cuenta con un autorol activo. Visita «Mensajes Activos» para gestionarlo.",
+        409,
+        "ALREADY_CONFIGURED",
+      );
+    }
+  } else if (input.source === "template") {
+    if (typeof input.templateId !== "number" || !Number.isFinite(input.templateId)) {
+      throw new AutoRoleError(
+        "Selecciona una plantilla de embed.",
+        400,
+        "MISSING_TEMPLATE",
+      );
+    }
+    const template = getEmbedTemplate(input.templateId, guildId);
+    embed = template.embedData;
+  } else {
+    const plain = input.plainContent?.trim();
+    if (!plain) {
+      throw new AutoRoleError(
+        "Escribe el texto del mensaje.",
+        400,
+        "EMPTY_CONTENT",
+      );
+    }
+    embed = { content: plain };
+  }
+
+  // SELECT usa filas de botones en createAutoRoleSetup vía buttonMappings;
+  // luego reescribimos components a select en registry apply.
+  const result = await createAutoRoleSetup(bot, {
+    mode: type === "REACTIONS" ? "reactions" : "buttons",
+    guildId,
+    channelId,
+    messageSource,
+    messageId,
+    embed: messageSource === "create" ? embed : undefined,
+    title,
+    reactionMappings:
+      mode === "reactions"
+        ? mappings
+            .filter((m) => m.emojiKey)
+            .map((m) => ({ emojiKey: m.emojiKey!, roleId: m.roleId }))
+        : undefined,
+    buttonMappings:
+      mode === "buttons"
+        ? mappings.map((m) => ({
+            roleId: m.roleId,
+            label: m.label,
+            style: m.style ?? "Primary",
+            customId: `autorole_${m.roleId}`,
+            emojiKey: m.emojiKey,
+          }))
+        : undefined,
+  });
+
+  if (type === "SELECT") {
+    const channel = await resolveChannel(bot, channelId);
+    const message = await channel.messages.fetch(result.messageId);
+    await message.edit({ components: buildSelectComponents(mappings) });
+  }
+
+  const registryId = upsertRegistry({
+    guildId,
+    channelId,
+    messageId: result.messageId,
+    title,
+    type,
+    mappings,
+  });
+
+  return { ...result, registryId };
+}
+
+export async function updateAutoroleMapping(
+  bot: Client,
+  idRaw: number,
+  input: UpdateAutoroleMappingRequest,
+  guildIdRaw?: string,
+): Promise<UpdateAutoroleMappingResponse> {
+  const guildId = resolveGuildId(guildIdRaw);
+  const id = Number(idRaw);
+  if (!Number.isFinite(id)) {
+    throw new AutoRoleError("ID inválido.", 400, "INVALID_ID");
+  }
+
+  const row = getDb()
+    .select()
+    .from(autorolesRegistry)
+    .where(eq(autorolesRegistry.id, id))
+    .get();
+
+  if (!row || row.guildId !== guildId) {
+    throw new AutoRoleError("Registro no encontrado.", 404, "NOT_FOUND");
+  }
+
+  const mappings = normalizeMappings(input.mappings);
+  const type = row.type as AutoroleRegistryType;
+  const channel = await resolveChannel(bot, row.channelId);
+
+  let orphaned = false;
+  try {
+    const message = await channel.messages.fetch(row.messageId);
+    await applyComponentsOrReactions(
+      message,
+      type,
+      mappings,
+      guildId,
+      row.channelId,
+    );
+  } catch (error: unknown) {
+    if (isUnknownMessage(error)) {
+      orphaned = true;
+    } else {
+      throw new AutoRoleError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo actualizar el mensaje en Discord.",
+        502,
+        "DISCORD_EDIT_FAILED",
+      );
+    }
+  }
+
+  const now = new Date();
+  getDb()
+    .update(autorolesRegistry)
+    .set({
+      rolesMapping: JSON.stringify(mappings),
+      updatedAt: now,
+    })
+    .where(eq(autorolesRegistry.id, id))
+    .run();
+
+  const updated = getDb()
+    .select()
+    .from(autorolesRegistry)
+    .where(eq(autorolesRegistry.id, id))
+    .get()!;
+
+  return {
+    ok: true,
+    orphaned,
+    entry: toEntry({
+      ...updated,
+      orphaned,
+      channelName: null,
+    }),
+  };
+}
+
+export async function updateAutoroleContent(
+  bot: Client,
+  idRaw: number,
+  input: UpdateAutoroleContentRequest,
+  guildIdRaw?: string,
+): Promise<UpdateAutoroleContentResponse> {
+  const guildId = resolveGuildId(guildIdRaw);
+  const id = Number(idRaw);
+  const row = getDb()
+    .select()
+    .from(autorolesRegistry)
+    .where(eq(autorolesRegistry.id, id))
+    .get();
+
+  if (!row || row.guildId !== guildId) {
+    throw new AutoRoleError("Registro no encontrado.", 404, "NOT_FOUND");
+  }
+
+  const channel = await resolveChannel(bot, row.channelId);
+  let orphaned = false;
+  let isBotAuthor: boolean | null = null;
+
+  try {
+    const message = await channel.messages.fetch(row.messageId);
+    isBotAuthor = Boolean(bot.user && message.author.id === bot.user.id);
+
+    if (!isBotAuthor) {
+      throw new AutoRoleError(
+        "Discord no permite a los bots editar el texto o embed de mensajes enviados por usuarios humanos.",
+        403,
+        "NOT_BOT_AUTHOR",
+      );
+    }
+
+    const patch: {
+      content?: string;
+      embeds?: EmbedBuilder[];
+      files?: AttachmentBuilder[];
+    } = {};
+
+    // Partimos del embed existente para no perder campos no enviados.
+    const existing = message.embeds[0];
+    const baseEmbed: EmbedPayload = existing
+      ? {
+          title: existing.title ?? undefined,
+          description: existing.description ?? undefined,
+          url: existing.url ?? undefined,
+          color: existing.hexColor ?? undefined,
+          authorName: existing.author?.name ?? undefined,
+          authorIconUrl: existing.author?.iconURL ?? undefined,
+          thumbnailUrl: existing.thumbnail?.url ?? undefined,
+          imageUrl: existing.image?.url ?? undefined,
+          footerText: existing.footer?.text ?? undefined,
+          footerIconUrl: existing.footer?.iconURL ?? undefined,
+          timestamp: Boolean(existing.timestamp),
+          content: message.content ?? undefined,
+        }
+      : { content: message.content ?? undefined };
+
+    const nextEmbed: EmbedPayload = {
+      ...baseEmbed,
+      ...(input.embed ?? {}),
+    };
+
+    if (typeof input.content === "string") {
+      nextEmbed.content = input.content;
+    }
+
+    const hasEmbedPatch = input.embed != null || typeof input.content === "string";
+    if (hasEmbedPatch) {
+      const built = buildEmbedFromPayload(nextEmbed);
+      patch.content = built.content ?? nextEmbed.content ?? "";
+      if (built.builder) {
+        patch.embeds = [built.builder];
+      } else if (message.embeds.length > 0 && input.embed) {
+        // El formulario vació el cuerpo del embed → quitar embeds.
+        const onlyContent =
+          !nextEmbed.title?.trim() &&
+          !nextEmbed.description?.trim() &&
+          !nextEmbed.authorName?.trim() &&
+          !nextEmbed.footerText?.trim() &&
+          !nextEmbed.thumbnailUrl?.trim() &&
+          !nextEmbed.imageUrl?.trim() &&
+          !nextEmbed.url?.trim();
+        if (onlyContent) {
+          patch.embeds = [];
+        }
+      }
+      if (built.files.length > 0) {
+        patch.files = built.files;
+      }
+      await message.edit(patch);
+    }
+  } catch (error: unknown) {
+    if (error instanceof AutoRoleError) throw error;
+    if (isUnknownMessage(error)) {
+      orphaned = true;
+      isBotAuthor = null;
+    } else {
+      throw new AutoRoleError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo editar el contenido.",
+        502,
+        "DISCORD_EDIT_FAILED",
+      );
+    }
+  }
+
+  const title = input.title?.trim();
+  if (title) {
+    getDb()
+      .update(autorolesRegistry)
+      .set({ title, updatedAt: new Date() })
+      .where(eq(autorolesRegistry.id, id))
+      .run();
+  }
+
+  const updated = getDb()
+    .select()
+    .from(autorolesRegistry)
+    .where(eq(autorolesRegistry.id, id))
+    .get()!;
+
+  return {
+    ok: true,
+    orphaned,
+    entry: toEntry({
+      ...updated,
+      orphaned,
+      channelName: null,
+      isBotAuthor,
+    }),
+  };
+}
+
+export async function deleteAutorole(
+  bot: Client,
+  idRaw: number,
+  guildIdRaw?: string,
+): Promise<DeleteAutoroleResponse> {
+  const guildId = resolveGuildId(guildIdRaw);
+  const id = Number(idRaw);
+  const row = getDb()
+    .select()
+    .from(autorolesRegistry)
+    .where(eq(autorolesRegistry.id, id))
+    .get();
+
+  if (!row || row.guildId !== guildId) {
+    throw new AutoRoleError("Registro no encontrado.", 404, "NOT_FOUND");
+  }
+
+  let orphaned = false;
+  try {
+    const channel = await resolveChannel(bot, row.channelId);
+    const message = await channel.messages.fetch(row.messageId);
+    if (row.type === "REACTIONS") {
+      deleteReactionRolesForMessage(row.messageId);
+      await message.reactions.removeAll().catch(() => undefined);
+    } else {
+      await message.edit({ components: [] });
+    }
+  } catch (error: unknown) {
+    if (isUnknownMessage(error)) {
+      orphaned = true;
+      deleteReactionRolesForMessage(row.messageId);
+    } else {
+      // Aun así limpiamos el registro local si el usuario confirma.
+      console.warn("[adobos] deleteAutorole Discord:", error);
+      orphaned = true;
+    }
+  }
+
+  getDb()
+    .delete(autorolesRegistry)
+    .where(eq(autorolesRegistry.id, id))
+    .run();
+
+  return { ok: true, deletedId: id, orphaned };
+}

@@ -1,26 +1,22 @@
+import fs from "node:fs";
 import {
-  ActivityType,
   DiscordAPIError,
   PresenceUpdateStatus,
   type ActivitiesOptions,
+  type ActivityType,
   type Client,
+  type Guild,
   type PresenceStatusData,
 } from "discord.js";
 import { eq } from "drizzle-orm";
 import type {
-  BotActivityTypeName,
-  BotPresenceStatus,
-  BotProfileActivity,
-  BotProfileResponse,
-  UpdateBotProfileRequest,
-  UpdateBotProfileResponse,
-} from "@adobos/shared";
-import {
-  BOT_ACTIVITY_TYPES,
-  BOT_PRESENCE_STATUSES,
+  BotGuildProfileResponse,
+  UpdateBotGuildProfileRequest,
+  UpdateBotGuildProfileResponse,
 } from "@adobos/shared";
 import { getDb } from "../../db/client.js";
 import { botPresenceSettings } from "../../db/schema.js";
+import { resolvePublicUploadPath } from "../../lib/dataPaths.js";
 
 export class BotProfileError extends Error {
   constructor(
@@ -35,32 +31,38 @@ export class BotProfileError extends Error {
 
 const PRESENCE_ROW_ID = "default";
 
-const STATUS_TO_DJS: Record<BotPresenceStatus, PresenceStatusData> = {
+type PresenceStatus = "online" | "idle" | "dnd" | "invisible";
+type ActivityTypeName =
+  | "Playing"
+  | "Streaming"
+  | "Listening"
+  | "Watching"
+  | "Competing"
+  | "Custom";
+
+interface PersistedPresence {
+  status: PresenceStatus;
+  activityType: ActivityTypeName;
+  activityName: string;
+  streamUrl: string | null;
+  state: string;
+}
+
+const STATUS_TO_DJS: Record<PresenceStatus, PresenceStatusData> = {
   online: PresenceUpdateStatus.Online,
   idle: PresenceUpdateStatus.Idle,
   dnd: PresenceUpdateStatus.DoNotDisturb,
   invisible: PresenceUpdateStatus.Invisible,
 };
 
-const ACTIVITY_TO_DJS: Record<BotActivityTypeName, ActivityType> = {
-  Playing: ActivityType.Playing,
-  Streaming: ActivityType.Streaming,
-  Listening: ActivityType.Listening,
-  Watching: ActivityType.Watching,
-  Competing: ActivityType.Competing,
-  Custom: ActivityType.Custom,
+const ACTIVITY_TYPE_MAP: Record<ActivityTypeName, number> = {
+  Playing: 0,
+  Streaming: 1,
+  Listening: 2,
+  Watching: 3,
+  Custom: 4,
+  Competing: 5,
 };
-
-const STREAM_URL_RE =
-  /^https?:\/\/(www\.)?(twitch\.tv\/|youtube\.com\/|youtu\.be\/)/i;
-
-export interface PersistedPresence {
-  status: BotPresenceStatus;
-  activityType: BotActivityTypeName;
-  activityName: string;
-  streamUrl: string | null;
-  state: string;
-}
 
 function assertBotReady(bot: Client): void {
   if (!bot.isReady() || !bot.user) {
@@ -72,34 +74,46 @@ function assertBotReady(bot: Client): void {
   }
 }
 
-function parseStatus(raw: string): BotPresenceStatus {
-  if (!BOT_PRESENCE_STATUSES.includes(raw as BotPresenceStatus)) {
-    return "online";
-  }
-  return raw as BotPresenceStatus;
-}
-
-function parseActivityType(raw: string): BotActivityTypeName {
-  if (!BOT_ACTIVITY_TYPES.includes(raw as BotActivityTypeName)) {
-    return "Playing";
-  }
-  return raw as BotActivityTypeName;
-}
-
-function trimOrEmpty(value: string | undefined | null, max = 128): string {
-  return (value ?? "").trim().slice(0, max);
-}
-
-function validateStreamUrl(url: string): string {
-  const trimmed = url.trim();
-  if (!STREAM_URL_RE.test(trimmed)) {
+function resolveGuild(bot: Client, guildId?: string): Guild {
+  assertBotReady(bot);
+  const id = (guildId ?? process.env.DISCORD_GUILD_ID ?? "").trim();
+  if (!id) {
     throw new BotProfileError(
-      "streamUrl debe ser un enlace válido de Twitch o YouTube.",
+      "Falta DISCORD_GUILD_ID (o guildId).",
       400,
-      "INVALID_STREAM_URL",
+      "MISSING_GUILD_ID",
     );
   }
-  return trimmed;
+  const guild = bot.guilds.cache.get(id);
+  if (!guild) {
+    throw new BotProfileError(
+      "El bot no está en ese servidor.",
+      404,
+      "GUILD_NOT_FOUND",
+    );
+  }
+  return guild;
+}
+
+function parseStatus(raw: string): PresenceStatus {
+  if (raw === "idle" || raw === "dnd" || raw === "invisible" || raw === "online") {
+    return raw;
+  }
+  return "online";
+}
+
+function parseActivityType(raw: string): ActivityTypeName {
+  if (
+    raw === "Playing" ||
+    raw === "Streaming" ||
+    raw === "Listening" ||
+    raw === "Watching" ||
+    raw === "Competing" ||
+    raw === "Custom"
+  ) {
+    return raw;
+  }
+  return "Playing";
 }
 
 export function readPersistedPresence(): PersistedPresence | null {
@@ -121,46 +135,19 @@ export function readPersistedPresence(): PersistedPresence | null {
   };
 }
 
-export function savePersistedPresence(data: PersistedPresence): void {
-  const db = getDb();
-  const now = new Date();
-  db.insert(botPresenceSettings)
-    .values({
-      id: PRESENCE_ROW_ID,
-      status: data.status,
-      activityType: data.activityType,
-      activityName: data.activityName,
-      streamUrl: data.streamUrl,
-      state: data.state,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: botPresenceSettings.id,
-      set: {
-        status: data.status,
-        activityType: data.activityType,
-        activityName: data.activityName,
-        streamUrl: data.streamUrl,
-        state: data.state,
-        updatedAt: now,
-      },
-    })
-    .run();
-}
-
 function buildActivities(data: PersistedPresence): ActivitiesOptions[] {
   const activityName = data.activityName.trim();
   if (!activityName) return [];
 
   const type = data.activityType;
-  const state = trimOrEmpty(data.state) || undefined;
+  const state = data.state.trim() || undefined;
 
-  if (type === "Streaming") {
+  if (type === "Streaming" && data.streamUrl) {
     return [
       {
         name: activityName.slice(0, 128),
-        type: ActivityType.Streaming,
-        url: validateStreamUrl(data.streamUrl ?? ""),
+        type: ACTIVITY_TYPE_MAP.Streaming as ActivityType,
+        url: data.streamUrl,
         state,
       },
     ];
@@ -170,7 +157,7 @@ function buildActivities(data: PersistedPresence): ActivitiesOptions[] {
     return [
       {
         name: "Custom Status",
-        type: ActivityType.Custom,
+        type: ACTIVITY_TYPE_MAP.Custom as ActivityType,
         state: activityName.slice(0, 128),
       },
     ];
@@ -179,33 +166,25 @@ function buildActivities(data: PersistedPresence): ActivitiesOptions[] {
   return [
     {
       name: activityName.slice(0, 128),
-      type: ACTIVITY_TO_DJS[type],
+      type: ACTIVITY_TYPE_MAP[type] as ActivityType,
       state,
     },
   ];
 }
 
-/** Aplica presencia a Discord vía setPresence. */
-export function applyPresenceToClient(
-  bot: Client,
-  data: PersistedPresence,
-): void {
-  assertBotReady(bot);
-  bot.user!.setPresence({
-    status: STATUS_TO_DJS[data.status],
-    activities: buildActivities(data),
-  });
-}
-
-/** Reaplica presencia guardada tras `ready` / reinicio. */
+/** Reaplica presencia guardada tras `ready` / reinicio (sin UI global). */
 export function restorePersistedPresence(bot: Client): void {
   try {
+    if (!bot.isReady() || !bot.user) return;
     const saved = readPersistedPresence();
     if (!saved) {
       console.log("[adobos] Sin presencia persistida; se omite restore.");
       return;
     }
-    applyPresenceToClient(bot, saved);
+    bot.user.setPresence({
+      status: STATUS_TO_DJS[saved.status],
+      activities: buildActivities(saved),
+    });
     console.log(
       `[adobos] Presencia restaurada: ${saved.status} / ${saved.activityType} "${saved.activityName}"`,
     );
@@ -214,99 +193,46 @@ export function restorePersistedPresence(bot: Client): void {
   }
 }
 
-function activityFromPersisted(
-  data: PersistedPresence,
-): BotProfileActivity | null {
-  const name = data.activityName.trim();
-  if (!name) return null;
+function mapMemberToProfile(
+  guild: Guild,
+  me: NonNullable<Guild["members"]["me"]>,
+): BotGuildProfileResponse {
+  const serverAvatarURL =
+    me.avatarURL({ size: 256, extension: "png", forceStatic: false }) ?? null;
+  const globalAvatarURL = me.user.displayAvatarURL({
+    size: 256,
+    extension: "png",
+    forceStatic: false,
+  });
 
   return {
-    name,
-    type: data.activityType,
-    url: data.streamUrl,
-    state: data.state.trim() || null,
+    guildId: guild.id,
+    guildName: guild.name,
+    nickname: me.nickname ?? "",
+    displayName: me.displayName,
+    username: me.user.username,
+    tag: me.user.tag,
+    serverAvatarURL,
+    globalAvatarURL,
+    hasServerAvatar: Boolean(me.avatar),
   };
 }
 
-export async function getBotProfile(bot: Client): Promise<BotProfileResponse> {
-  assertBotReady(bot);
-
-  const user = await bot.user!.fetch(true);
-  const persisted = readPersistedPresence();
-
-  return {
-    id: user.id,
-    username: user.username,
-    tag: user.tag,
-    avatarUrl: user.displayAvatarURL({
-      size: 256,
-      extension: "png",
-      forceStatic: false,
-    }),
-    bannerUrl: user.bannerURL({ size: 512 }) ?? null,
-    accentColor: user.accentColor ?? null,
-    status: persisted?.status ?? "online",
-    activity: persisted ? activityFromPersisted(persisted) : null,
-    applicationId: bot.application?.id ?? null,
-  };
+export async function getGuildBotProfile(
+  bot: Client,
+  guildId?: string,
+): Promise<BotGuildProfileResponse> {
+  const guild = resolveGuild(bot, guildId);
+  const me = await guild.members.fetchMe({ force: true });
+  return mapMemberToProfile(guild, me);
 }
 
-function fieldsToPersisted(
-  fields: UpdateBotProfileRequest,
-  previous: PersistedPresence | null,
-): PersistedPresence {
-  const clear = fields.clearActivity === true;
-  const activityName = clear
-    ? ""
-    : trimOrEmpty(fields.activityName ?? previous?.activityName ?? "");
-
-  let activityType = parseActivityType(
-    fields.activityType ?? previous?.activityType ?? "Playing",
-  );
-  if (fields.activityType) {
-    if (!BOT_ACTIVITY_TYPES.includes(fields.activityType)) {
-      throw new BotProfileError(
-        "activityType no reconocido.",
-        400,
-        "INVALID_ACTIVITY_TYPE",
-      );
-    }
-    activityType = fields.activityType;
-  }
-
-  let status = previous?.status ?? "online";
-  if (fields.status !== undefined) {
-    if (!BOT_PRESENCE_STATUSES.includes(fields.status)) {
-      throw new BotProfileError(
-        "status debe ser online, idle, dnd o invisible.",
-        400,
-        "INVALID_STATUS",
-      );
-    }
-    status = fields.status;
-  }
-
-  const state = clear
-    ? ""
-    : trimOrEmpty(fields.state ?? previous?.state ?? "");
-
-  let streamUrl: string | null = previous?.streamUrl ?? null;
-  if (fields.streamUrl !== undefined) {
-    streamUrl = fields.streamUrl.trim() || null;
-  }
-  if (activityType === "Streaming" && activityName) {
-    streamUrl = validateStreamUrl(streamUrl ?? fields.streamUrl ?? "");
-  } else if (activityType !== "Streaming") {
-    streamUrl = null;
-  }
-
-  return {
-    status,
-    activityType,
-    activityName,
-    streamUrl,
-    state,
-  };
+/** @deprecated alias */
+export async function getBotProfile(
+  bot: Client,
+  guildId?: string,
+): Promise<BotGuildProfileResponse> {
+  return getGuildBotProfile(bot, guildId);
 }
 
 function mapDiscordError(error: unknown): never {
@@ -314,30 +240,28 @@ function mapDiscordError(error: unknown): never {
 
   if (error instanceof DiscordAPIError) {
     const msg = String(error.message ?? "");
-    const isRate =
-      error.status === 429 ||
-      error.code === 429 ||
-      /rate.?limit/i.test(msg) ||
-      /too many/i.test(msg);
-
-    if (isRate || /username.*(change|limit|hour)/i.test(msg)) {
+    if (
+      error.code === 50013 ||
+      error.status === 403 ||
+      /missing.?access|missing.?permissions|privilege/i.test(msg)
+    ) {
       throw new BotProfileError(
-        "Discord limitó el cambio de nombre de usuario (suele ser ~2 veces por hora). Espera un rato e inténtalo de nuevo.",
-        429,
-        "USERNAME_RATE_LIMIT",
+        "El bot no tiene permisos suficientes en este servidor para cambiar su apodo o avatar.",
+        403,
+        "MISSING_PERMISSIONS",
       );
     }
 
     if (error.status === 400 || error.code === 50035) {
       throw new BotProfileError(
-        msg || "Discord rechazó los datos del perfil.",
+        msg || "Discord rechazó los datos del perfil del servidor.",
         400,
         "DISCORD_INVALID",
       );
     }
 
     throw new BotProfileError(
-      msg || "Discord rechazó la actualización del perfil.",
+      msg || "Discord rechazó la actualización del perfil del servidor.",
       typeof error.status === "number" && error.status >= 400
         ? error.status
         : 502,
@@ -348,57 +272,121 @@ function mapDiscordError(error: unknown): never {
   throw error;
 }
 
-export interface UpdateBotProfileOptions {
-  fields: UpdateBotProfileRequest;
-  avatarBuffer?: Buffer;
-  avatarMime?: string;
+/**
+ * Resuelve avatar a Buffer / URL / null (limpiar) / undefined (sin cambio).
+ */
+async function resolveServerAvatarInput(options: {
+  clear?: boolean;
+  fileBuffer?: Buffer;
+  urlOrPath?: string | null;
+}): Promise<Buffer | string | null | undefined> {
+  if (options.clear) return null;
+  if (options.fileBuffer && options.fileBuffer.length > 0) {
+    return options.fileBuffer;
+  }
+
+  const raw = options.urlOrPath?.trim();
+  if (!raw) return undefined;
+
+  if (raw.startsWith("/uploads/")) {
+    const absolute = resolvePublicUploadPath(raw);
+    if (!absolute || !fs.existsSync(absolute)) {
+      throw new BotProfileError(
+        "No se encontró la imagen subida del avatar.",
+        400,
+        "AVATAR_FILE_MISSING",
+      );
+    }
+    return fs.readFileSync(absolute);
+  }
+
+  if (/^https?:\/\//i.test(raw)) {
+    return raw;
+  }
+
+  throw new BotProfileError(
+    "serverAvatarUrl debe ser http(s) o una ruta /uploads/…",
+    400,
+    "INVALID_AVATAR_URL",
+  );
 }
 
-export async function updateBotProfile(
+export interface UpdateGuildBotProfileOptions {
+  fields: UpdateBotGuildProfileRequest;
+  avatarBuffer?: Buffer;
+  guildId?: string;
+}
+
+export async function updateGuildBotProfile(
   bot: Client,
-  options: UpdateBotProfileOptions,
-): Promise<UpdateBotProfileResponse> {
-  assertBotReady(bot);
-  const user = bot.user!;
+  options: UpdateGuildBotProfileOptions,
+): Promise<UpdateBotGuildProfileResponse> {
+  const guild = resolveGuild(bot, options.guildId);
+  const me = await guild.members.fetchMe();
   const { fields, avatarBuffer } = options;
 
-  const changed = {
-    username: false,
-    avatar: false,
-    presence: false,
+  const changedFlags = {
+    nickname: false,
+    serverAvatar: false,
   };
 
   try {
-    if (avatarBuffer && avatarBuffer.length > 0) {
-      await user.setAvatar(avatarBuffer);
-      changed.avatar = true;
-    }
+    const clearNickname = fields.clearNickname === true;
+    const nicknameRaw = fields.nickname;
+    const shouldUpdateNickname =
+      clearNickname || nicknameRaw !== undefined;
 
-    const nextUsername = fields.username?.trim();
-    if (nextUsername && nextUsername !== user.username) {
-      if (nextUsername.length < 2 || nextUsername.length > 32) {
+      if (shouldUpdateNickname) {
+      const nextNick = clearNickname
+        ? null
+        : typeof nicknameRaw === "string"
+          ? nicknameRaw.trim() || null
+          : null;
+
+      if (nextNick && nextNick.length > 32) {
         throw new BotProfileError(
-          "El nombre de usuario debe tener entre 2 y 32 caracteres.",
+          "El apodo debe tener como máximo 32 caracteres.",
           400,
-          "INVALID_USERNAME",
+          "INVALID_NICKNAME",
         );
       }
-      await user.setUsername(nextUsername);
-      changed.username = true;
+
+      const current = me.nickname ?? null;
+      if (current !== nextNick) {
+        await me.setNickname(nextNick);
+        changedFlags.nickname = true;
+      }
     }
 
-    const previous = readPersistedPresence();
-    const persisted = fieldsToPersisted(fields, previous);
-    savePersistedPresence(persisted);
-    applyPresenceToClient(bot, persisted);
-    changed.presence = true;
+    const avatarInput = await resolveServerAvatarInput({
+      clear: fields.clearServerAvatar === true,
+      fileBuffer: avatarBuffer,
+      urlOrPath: fields.serverAvatarUrl,
+    });
+
+    if (avatarInput !== undefined) {
+      // Avatar de miembro (@me): GuildMemberManager.editMe
+      await guild.members.editMe({ avatar: avatarInput });
+      changedFlags.serverAvatar = true;
+    }
   } catch (error: unknown) {
     mapDiscordError(error);
   }
 
+  const profile = await getGuildBotProfile(bot, guild.id);
+
   return {
     ok: true,
-    profile: await getBotProfile(bot),
-    changed,
+    message: "Perfil del bot actualizado para este servidor",
+    profile,
+    changed: changedFlags,
   };
+}
+
+/** @deprecated alias */
+export async function updateBotProfile(
+  bot: Client,
+  options: UpdateGuildBotProfileOptions,
+): Promise<UpdateBotGuildProfileResponse> {
+  return updateGuildBotProfile(bot, options);
 }

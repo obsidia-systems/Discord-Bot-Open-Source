@@ -10,5 +10,7 @@ export * from "./uploads.js";
 export * from "./bot-profile.js";
 export * from "./moderation.js";
 export * from "./embed-templates.js";
+export * from "./sent-embeds.js";
 export * from "./discord-audit.js";
+export * from "./action-logs.js";
 

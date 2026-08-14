@@ -2,8 +2,10 @@ import {
   ChannelType,
   DiscordAPIError,
   type Client,
+  type Embed,
   type Guild,
   type GuildMember,
+  type Message,
   type TextChannel,
 } from "discord.js";
 import { and, desc, eq } from "drizzle-orm";
@@ -15,12 +17,20 @@ import type {
   ModActiveTimeoutsResponse,
   ModChannelInfoResponse,
   ModChannelSearchResponse,
+  ModFetchedMessageEmbed,
+  ModFetchedMessageReaction,
+  ModFetchedMessageResponse,
   ModMemberInfoResponse,
   ModMemberSearchResponse,
 } from "@adobos/shared";
 import { MOD_ACTION_TYPES } from "@adobos/shared";
 import { getDb } from "../../db/client.js";
-import { guildSettings, modLogs, warnings } from "../../db/schema.js";
+import {
+  autorolesRegistry,
+  guildSettings,
+  modLogs,
+  warnings,
+} from "../../db/schema.js";
 import { getEmbedTemplate } from "../messages/templates/service.js";
 import {
   applySanctionTextVars,
@@ -783,6 +793,186 @@ export async function executeModAction(
       dmFailed: dmResult.dmFailed,
     };
   } catch (error: unknown) {
+    mapDiscordError(error);
+  }
+}
+
+function serializeMessageEmbed(embed: Embed): ModFetchedMessageEmbed {
+  return {
+    title: embed.title ?? undefined,
+    description: embed.description ?? undefined,
+    url: embed.url ?? undefined,
+    color: embed.hexColor ?? undefined,
+    authorName: embed.author?.name ?? undefined,
+    authorIconUrl: embed.author?.iconURL ?? undefined,
+    thumbnailUrl: embed.thumbnail?.url ?? undefined,
+    imageUrl: embed.image?.url ?? undefined,
+    footerText: embed.footer?.text ?? undefined,
+    footerIconUrl: embed.footer?.iconURL ?? undefined,
+    timestamp: Boolean(embed.timestamp),
+  };
+}
+
+function serializeMessageReactions(
+  message: Message,
+): ModFetchedMessageReaction[] {
+  return [...message.reactions.cache.values()].map((reaction) => {
+    const emoji = reaction.emoji;
+    const id = emoji.id;
+    const name = emoji.name;
+    if (id) {
+      return {
+        emojiKey: `custom:${id}`,
+        name,
+        id,
+        animated: Boolean(emoji.animated),
+        imageUrl:
+          typeof emoji.imageURL === "function"
+            ? emoji.imageURL({ size: 64 })
+            : null,
+        count: reaction.count,
+      };
+    }
+    return {
+      emojiKey: `unicode:${name ?? "?"}`,
+      name,
+      id: null,
+      animated: false,
+      imageUrl: null,
+      count: reaction.count,
+    };
+  });
+}
+
+/**
+ * Obtiene un mensaje de un canal de texto del guild (vista previa / validación).
+ */
+export async function fetchDiscordMessage(
+  bot: Client,
+  channelIdRaw: string,
+  messageIdRaw: string,
+  guildId?: string,
+): Promise<ModFetchedMessageResponse> {
+  const guild = resolveGuild(bot, guildId);
+  const channelId = assertSnowflake(channelIdRaw, "channelId");
+  const messageId = assertSnowflake(messageIdRaw, "messageId");
+
+  let channel;
+  try {
+    channel = await guild.channels.fetch(channelId);
+  } catch (error: unknown) {
+    if (error instanceof DiscordAPIError) {
+      if (error.code === 10003) {
+        throw new ModerationError(
+          "El canal no existe en este servidor.",
+          404,
+          "CHANNEL_NOT_FOUND",
+        );
+      }
+      if (error.code === 50001 || error.code === 50013) {
+        throw new ModerationError(
+          "Missing Access: el bot no puede ver ese canal.",
+          403,
+          "MISSING_ACCESS",
+        );
+      }
+    }
+    mapDiscordError(error);
+  }
+
+  if (!channel) {
+    throw new ModerationError(
+      "El canal no existe en este servidor.",
+      404,
+      "CHANNEL_NOT_FOUND",
+    );
+  }
+
+  if (
+    channel.type !== ChannelType.GuildText &&
+    channel.type !== ChannelType.GuildAnnouncement
+  ) {
+    throw new ModerationError(
+      "El canal debe ser de texto o anuncios.",
+      400,
+      "INVALID_CHANNEL_TYPE",
+    );
+  }
+
+  if (!channel.isTextBased() || channel.isDMBased()) {
+    throw new ModerationError(
+      "El canal no admite lectura de mensajes.",
+      400,
+      "INVALID_CHANNEL_TYPE",
+    );
+  }
+
+  try {
+    const message = await channel.messages.fetch(messageId);
+    if (message.channelId !== channel.id) {
+      throw new ModerationError(
+        "El mensaje no existe en el canal seleccionado.",
+        404,
+        "MESSAGE_NOT_IN_CHANNEL",
+      );
+    }
+
+    const alreadyConfigured = Boolean(
+      getDb()
+        .select({ id: autorolesRegistry.id })
+        .from(autorolesRegistry)
+        .where(
+          and(
+            eq(autorolesRegistry.guildId, guild.id),
+            eq(autorolesRegistry.messageId, message.id),
+          ),
+        )
+        .get(),
+    );
+
+    return {
+      id: message.id,
+      channelId: channel.id,
+      content: message.content ?? "",
+      embeds: message.embeds.map(serializeMessageEmbed),
+      author: {
+        id: message.author.id,
+        username: message.author.username,
+        displayName:
+          message.member?.displayName ||
+          message.author.globalName ||
+          message.author.username,
+        avatarUrl: message.author.displayAvatarURL({ size: 64 }),
+      },
+      isBotAuthor: Boolean(bot.user && message.author.id === bot.user.id),
+      alreadyConfigured,
+      reactions: serializeMessageReactions(message),
+    };
+  } catch (error: unknown) {
+    if (error instanceof ModerationError) throw error;
+    if (error instanceof DiscordAPIError) {
+      if (error.code === 10008) {
+        throw new ModerationError(
+          "El mensaje no existe en el canal seleccionado.",
+          404,
+          "MESSAGE_NOT_FOUND",
+        );
+      }
+      if (error.code === 10003) {
+        throw new ModerationError(
+          "El canal no existe en este servidor.",
+          404,
+          "CHANNEL_NOT_FOUND",
+        );
+      }
+      if (error.code === 50001 || error.code === 50013) {
+        throw new ModerationError(
+          "Missing Access: el bot no puede leer el historial de ese canal.",
+          403,
+          "MISSING_ACCESS",
+        );
+      }
+    }
     mapDiscordError(error);
   }
 }

@@ -6,6 +6,7 @@ import type {
   ModActiveTimeoutsResponse,
   ModChannelInfoResponse,
   ModChannelSearchResponse,
+  ModFetchedMessageResponse,
   ModMemberInfoResponse,
   ModMemberSearchResponse,
 } from "@adobos/shared";
@@ -65,6 +66,30 @@ export async function fetchModChannelInfo(
     );
   }
   return response.json() as Promise<ModChannelInfoResponse>;
+}
+
+export async function fetchModMessage(
+  channelId: string,
+  messageId: string,
+  signal?: AbortSignal,
+): Promise<ModFetchedMessageResponse> {
+  const params = new URLSearchParams({
+    channelId,
+    messageId,
+  });
+  const response = await fetch(
+    `${API_BASE}/api/mod/fetch-message?${params.toString()}`,
+    { headers: { Accept: "application/json" }, signal },
+  );
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(
+        response,
+        "El mensaje no existe en el canal seleccionado",
+      ),
+    );
+  }
+  return response.json() as Promise<ModFetchedMessageResponse>;
 }
 
 export async function executeModAction(

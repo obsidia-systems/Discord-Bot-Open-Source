@@ -1,17 +1,12 @@
 import multer from "multer";
 import { Router } from "express";
 import type { Client } from "discord.js";
-import type {
-  ApiErrorBody,
-  BotActivityTypeName,
-  BotPresenceStatus,
-  UpdateBotProfileRequest,
-} from "@adobos/shared";
+import type { ApiErrorBody, UpdateBotGuildProfileRequest } from "@adobos/shared";
 import {
-  BOT_ACTIVITY_TYPES,
-  BOT_PRESENCE_STATUSES,
-} from "@adobos/shared";
-import { BotProfileError, getBotProfile, updateBotProfile } from "../service.js";
+  BotProfileError,
+  getGuildBotProfile,
+  updateGuildBotProfile,
+} from "../service.js";
 
 const ALLOWED_MIME = new Set([
   "image/png",
@@ -68,9 +63,9 @@ function handleError(error: unknown, res: import("express").Response): void {
     return;
   }
 
-  console.error("[adobos] Error en /api/bot/profile:", error);
+  console.error("[adobos] Error en /api/bot/guild-profile:", error);
   const body: ApiErrorBody = {
-    error: "Error interno al actualizar el perfil del bot.",
+    error: "Error interno al actualizar el perfil del servidor.",
     code: "INTERNAL_ERROR",
   };
   res.status(500).json(body);
@@ -88,47 +83,24 @@ function optionalBool(value: unknown): boolean | undefined {
   return undefined;
 }
 
-function parseFields(body: Record<string, unknown>): UpdateBotProfileRequest {
-  const fields: UpdateBotProfileRequest = {};
+function parseFields(
+  body: Record<string, unknown>,
+): UpdateBotGuildProfileRequest {
+  const fields: UpdateBotGuildProfileRequest = {};
 
-  const username = optionalString(body.username);
-  if (username !== undefined) fields.username = username;
+  const nickname = optionalString(body.nickname);
+  if (nickname !== undefined) fields.nickname = nickname;
 
-  const status = optionalString(body.status);
-  if (status !== undefined) {
-    if (!BOT_PRESENCE_STATUSES.includes(status as BotPresenceStatus)) {
-      throw new BotProfileError(
-        "status debe ser online, idle, dnd o invisible.",
-        400,
-        "INVALID_STATUS",
-      );
-    }
-    fields.status = status as BotPresenceStatus;
+  const clearNickname = optionalBool(body.clearNickname);
+  if (clearNickname !== undefined) fields.clearNickname = clearNickname;
+
+  const serverAvatarUrl = optionalString(body.serverAvatarUrl);
+  if (serverAvatarUrl !== undefined) fields.serverAvatarUrl = serverAvatarUrl;
+
+  const clearServerAvatar = optionalBool(body.clearServerAvatar);
+  if (clearServerAvatar !== undefined) {
+    fields.clearServerAvatar = clearServerAvatar;
   }
-
-  const activityType = optionalString(body.activityType);
-  if (activityType !== undefined) {
-    if (!BOT_ACTIVITY_TYPES.includes(activityType as BotActivityTypeName)) {
-      throw new BotProfileError(
-        "activityType no reconocido.",
-        400,
-        "INVALID_ACTIVITY_TYPE",
-      );
-    }
-    fields.activityType = activityType as BotActivityTypeName;
-  }
-
-  const activityName = optionalString(body.activityName);
-  if (activityName !== undefined) fields.activityName = activityName;
-
-  const streamUrl = optionalString(body.streamUrl);
-  if (streamUrl !== undefined) fields.streamUrl = streamUrl;
-
-  const state = optionalString(body.state);
-  if (state !== undefined) fields.state = state;
-
-  const clearActivity = optionalBool(body.clearActivity);
-  if (clearActivity !== undefined) fields.clearActivity = clearActivity;
 
   return fields;
 }
@@ -136,16 +108,18 @@ function parseFields(body: Record<string, unknown>): UpdateBotProfileRequest {
 export function botProfileRoutes(bot: Client): Router {
   const router = Router();
 
-  router.get("/", async (_req, res) => {
+  router.get("/", async (req, res) => {
+    const guildId =
+      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
     try {
-      res.json(await getBotProfile(bot));
+      res.json(await getGuildBotProfile(bot, guildId));
     } catch (error: unknown) {
       handleError(error, res);
     }
   });
 
   router.post("/", (req, res) => {
-    avatarUpload.single("avatar")(req, res, async (err: unknown) => {
+    avatarUpload.single("serverAvatar")(req, res, async (err: unknown) => {
       if (err) {
         handleError(err, res);
         return;
@@ -157,12 +131,14 @@ export function botProfileRoutes(bot: Client): Router {
             ? (req.body as Record<string, unknown>)
             : {};
         const fields = parseFields(rawBody);
+        const guildId =
+          typeof rawBody.guildId === "string" ? rawBody.guildId : undefined;
         const file = req.file;
 
-        const result = await updateBotProfile(bot, {
+        const result = await updateGuildBotProfile(bot, {
           fields,
           avatarBuffer: file?.buffer,
-          avatarMime: file?.mimetype,
+          guildId,
         });
         res.json(result);
       } catch (error: unknown) {

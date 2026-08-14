@@ -1,51 +1,50 @@
 import type {
-  BotActivityTypeName,
-  BotPresenceStatus,
-  BotProfileResponse,
-  UpdateBotProfileResponse,
+  BotGuildProfileResponse,
+  UpdateBotGuildProfileResponse,
 } from "@adobos/shared";
 import { API_BASE, readApiError } from "./client";
 
-export async function fetchBotProfile(): Promise<BotProfileResponse> {
-  const response = await fetch(`${API_BASE}/api/bot/profile`);
+export async function fetchBotGuildProfile(): Promise<BotGuildProfileResponse> {
+  const response = await fetch(`${API_BASE}/api/bot/guild-profile`);
   if (!response.ok) {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar el perfil (${response.status})`,
+        `No se pudo cargar el perfil del servidor (${response.status})`,
       ),
     );
   }
-  return response.json() as Promise<BotProfileResponse>;
+  return response.json() as Promise<BotGuildProfileResponse>;
 }
 
-export interface SaveBotProfileInput {
-  username: string;
-  status: BotPresenceStatus;
-  activityType: BotActivityTypeName;
-  activityName: string;
-  streamUrl: string;
-  state: string;
-  clearActivity: boolean;
-  avatarFile: File | null;
+/** @deprecated Preferir fetchBotGuildProfile. */
+export const fetchBotProfile = fetchBotGuildProfile;
+
+export interface SaveBotGuildProfileInput {
+  nickname: string;
+  clearNickname?: boolean;
+  /** URL http(s) o `/uploads/...` (si se subió con HybridImageInput). */
+  serverAvatarUrl?: string | null;
+  clearServerAvatar?: boolean;
+  /** Archivo multipart (alternativa a URL). */
+  serverAvatarFile?: File | null;
 }
 
-export async function saveBotProfile(
-  input: SaveBotProfileInput,
-): Promise<UpdateBotProfileResponse> {
+export async function saveBotGuildProfile(
+  input: SaveBotGuildProfileInput,
+): Promise<UpdateBotGuildProfileResponse> {
   const body = new FormData();
-  body.set("username", input.username);
-  body.set("status", input.status);
-  body.set("activityType", input.activityType);
-  body.set("activityName", input.activityName);
-  body.set("streamUrl", input.streamUrl);
-  body.set("state", input.state);
-  body.set("clearActivity", input.clearActivity ? "true" : "false");
-  if (input.avatarFile) {
-    body.set("avatar", input.avatarFile);
+  body.set("nickname", input.nickname);
+  if (input.clearNickname) body.set("clearNickname", "true");
+  if (input.clearServerAvatar) body.set("clearServerAvatar", "true");
+  if (input.serverAvatarUrl?.trim()) {
+    body.set("serverAvatarUrl", input.serverAvatarUrl.trim());
+  }
+  if (input.serverAvatarFile) {
+    body.set("serverAvatar", input.serverAvatarFile);
   }
 
-  const response = await fetch(`${API_BASE}/api/bot/profile`, {
+  const response = await fetch(`${API_BASE}/api/bot/guild-profile`, {
     method: "POST",
     body,
     headers: { Accept: "application/json" },
@@ -55,10 +54,15 @@ export async function saveBotProfile(
     throw new Error(
       await readApiError(
         response,
-        `Error al guardar perfil (${response.status})`,
+        `Error al guardar perfil del servidor (${response.status})`,
       ),
     );
   }
 
-  return response.json() as Promise<UpdateBotProfileResponse>;
+  return response.json() as Promise<UpdateBotGuildProfileResponse>;
 }
+
+/** @deprecated Preferir saveBotGuildProfile. */
+export type SaveBotProfileInput = SaveBotGuildProfileInput;
+/** @deprecated Preferir saveBotGuildProfile. */
+export const saveBotProfile = saveBotGuildProfile;

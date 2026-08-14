@@ -45,7 +45,10 @@ export interface GuildStickerAsset {
 export interface GuildRoleAsset {
   id: string;
   name: string;
+  /** Color entero de Discord (0 = sin color / default). */
   color: number;
+  /** hexColor de discord.js (p. ej. `#99aab5`). */
+  hexColor: string;
   position: number;
   managed: boolean;
 }

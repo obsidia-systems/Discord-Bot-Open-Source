@@ -84,6 +84,7 @@ export const autoRoles = sqliteTable("auto_roles", {
 
 /**
  * Menú interactivo de autoroles (metadatos + mapping JSON).
+ * @deprecated Preferir `autoroles_registry`.
  */
 export const reactionRolesMenus = sqliteTable("reaction_roles_menus", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -94,6 +95,29 @@ export const reactionRolesMenus = sqliteTable("reaction_roles_menus", {
   messageId: text("message_id").notNull(),
   mode: text("mode").notNull().default("reactions"),
   /** JSON: mappings (emoji/button → role) */
+  rolesMapping: text("roles_mapping").notNull().default("[]"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+/**
+ * Registro persistente de menús de autoroles publicados.
+ */
+export const autorolesRegistry = sqliteTable("autoroles_registry", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  guildId: text("guild_id")
+    .notNull()
+    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+  channelId: text("channel_id").notNull(),
+  messageId: text("message_id").notNull(),
+  title: text("title").notNull().default("Autoroles"),
+  /** BUTTONS | SELECT | REACTIONS */
+  type: text("type").notNull().default("BUTTONS"),
+  /** JSON: [{ id, roleId, label, emojiKey, style }] */
   rolesMapping: text("roles_mapping").notNull().default("[]"),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
@@ -244,6 +268,27 @@ export const embedTemplates = sqliteTable("embed_templates", {
 });
 
 /**
+ * Mensajes embed enviados desde el panel (edición/borrado en vivo).
+ */
+export const sentEmbeds = sqliteTable("sent_embeds", {
+  id: text("id").primaryKey(),
+  guildId: text("guild_id")
+    .notNull()
+    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+  channelId: text("channel_id").notNull(),
+  messageId: text("message_id").notNull(),
+  title: text("title"),
+  /** JSON: EmbedPayload + components */
+  embedData: text("embed_data").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+/**
  * Registro de acciones de moderación del panel.
  */
 export const modLogs = sqliteTable("mod_logs", {
@@ -257,6 +302,56 @@ export const modLogs = sqliteTable("mod_logs", {
   moderatorId: text("moderator_id").notNull(),
   reason: text("reason").notNull().default(""),
   meta: text("meta"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+/**
+ * Configuración de Action Logs por guild (canales, filtros, eventos).
+ */
+export const actionLogsConfig = sqliteTable("action_logs_config", {
+  guildId: text("guild_id")
+    .primaryKey()
+    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
+  /** GLOBAL | CATEGORY */
+  routingMode: text("routing_mode").notNull().default("GLOBAL"),
+  globalChannelId: text("global_channel_id"),
+  /** JSON: { messages, members, server, assets } */
+  channelsMapping: text("channels_mapping").notNull().default("{}"),
+  /** JSON: string[] */
+  ignoredChannels: text("ignored_channels").notNull().default("[]"),
+  /** JSON: string[] */
+  ignoredRoles: text("ignored_roles").notNull().default("[]"),
+  ignoreBots: integer("ignore_bots", { mode: "boolean" })
+    .notNull()
+    .default(true),
+  /** JSON: Record<eventKey, boolean> */
+  enabledEvents: text("enabled_events").notNull().default("{}"),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+/**
+ * Historial de Action Logs capturados por discord.js.
+ */
+export const actionLogs = sqliteTable("action_logs", {
+  id: text("id").primaryKey(),
+  guildId: text("guild_id")
+    .notNull()
+    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+  category: text("category").notNull(),
+  eventType: text("event_type").notNull(),
+  executorId: text("executor_id"),
+  executorTag: text("executor_tag"),
+  targetId: text("target_id"),
+  targetTag: text("target_tag"),
+  channelId: text("channel_id"),
+  summary: text("summary").notNull().default(""),
+  /** JSON con detalles / diff */
+  details: text("details").notNull().default("{}"),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),
@@ -282,8 +377,14 @@ export type Warning = typeof warnings.$inferSelect;
 export type NewWarning = typeof warnings.$inferInsert;
 export type EmbedTemplate = typeof embedTemplates.$inferSelect;
 export type NewEmbedTemplate = typeof embedTemplates.$inferInsert;
+export type SentEmbed = typeof sentEmbeds.$inferSelect;
+export type NewSentEmbed = typeof sentEmbeds.$inferInsert;
 export type ModLog = typeof modLogs.$inferSelect;
 export type NewModLog = typeof modLogs.$inferInsert;
+export type ActionLogsConfigRow = typeof actionLogsConfig.$inferSelect;
+export type NewActionLogsConfigRow = typeof actionLogsConfig.$inferInsert;
+export type ActionLogRow = typeof actionLogs.$inferSelect;
+export type NewActionLogRow = typeof actionLogs.$inferInsert;
 
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [

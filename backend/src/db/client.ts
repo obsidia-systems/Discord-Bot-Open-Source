@@ -65,6 +65,19 @@ function ensureCoreTables(database: Database.Database): void {
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS autoroles_registry (
+      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+      guild_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      message_id TEXT NOT NULL,
+      title TEXT NOT NULL DEFAULT 'Autoroles',
+      type TEXT NOT NULL DEFAULT 'BUTTONS',
+      roles_mapping TEXT NOT NULL DEFAULT '[]',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS welcome_settings (
       guild_id TEXT PRIMARY KEY NOT NULL,
       channel_id TEXT,
@@ -136,6 +149,18 @@ function ensureCoreTables(database: Database.Database): void {
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS sent_embeds (
+      id TEXT PRIMARY KEY NOT NULL,
+      guild_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      message_id TEXT NOT NULL,
+      title TEXT,
+      embed_data TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS mod_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
       guild_id TEXT NOT NULL,
@@ -145,6 +170,36 @@ function ensureCoreTables(database: Database.Database): void {
       moderator_id TEXT NOT NULL,
       reason TEXT NOT NULL DEFAULT '',
       meta TEXT,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS action_logs_config (
+      guild_id TEXT PRIMARY KEY NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      routing_mode TEXT NOT NULL DEFAULT 'GLOBAL',
+      global_channel_id TEXT,
+      channels_mapping TEXT NOT NULL DEFAULT '{}',
+      ignored_channels TEXT NOT NULL DEFAULT '[]',
+      ignored_roles TEXT NOT NULL DEFAULT '[]',
+      ignore_bots INTEGER NOT NULL DEFAULT 1,
+      enabled_events TEXT NOT NULL DEFAULT '{}',
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS action_logs (
+      id TEXT PRIMARY KEY NOT NULL,
+      guild_id TEXT NOT NULL,
+      category TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      executor_id TEXT,
+      executor_tag TEXT,
+      target_id TEXT,
+      target_tag TEXT,
+      channel_id TEXT,
+      summary TEXT NOT NULL DEFAULT '',
+      details TEXT NOT NULL DEFAULT '{}',
       created_at INTEGER NOT NULL,
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
     );

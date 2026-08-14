@@ -1,4 +1,8 @@
-import { GatewayIntentBits, type ButtonInteraction } from "discord.js";
+import {
+  GatewayIntentBits,
+  type ButtonInteraction,
+  type StringSelectMenuInteraction,
+} from "discord.js";
 import type { AdobosModule } from "../../core/modules/types.js";
 import { autoroleRoutes } from "./api/routes.js";
 import { rolesRoutes } from "./api/roles.routes.js";
@@ -6,15 +10,13 @@ import { onGuildMemberAddAutoRoles } from "./events/guildMemberAdd.js";
 import { onMessageReactionAdd } from "./events/messageReactionAdd.js";
 import { onMessageReactionRemove } from "./events/messageReactionRemove.js";
 
-async function handleAutoroleButton(
-  interaction: ButtonInteraction,
+async function toggleRole(
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  roleId: string,
 ): Promise<void> {
-  const customId = interaction.customId;
-  const roleId = customId.slice("autorole_".length);
-
   if (!/^\d{17,20}$/.test(roleId)) {
     await interaction.reply({
-      content: "customId de autorol inválido.",
+      content: "Rol inválido.",
       ephemeral: true,
     });
     return;
@@ -22,7 +24,7 @@ async function handleAutoroleButton(
 
   if (!interaction.inGuild() || !interaction.guild) {
     await interaction.reply({
-      content: "Este botón solo funciona dentro de un servidor.",
+      content: "Este control solo funciona dentro de un servidor.",
       ephemeral: true,
     });
     return;
@@ -33,7 +35,7 @@ async function handleAutoroleButton(
 
   const hasRole = member.roles.cache.has(roleId);
   if (hasRole) {
-    await member.roles.remove(roleId, "Adobos autorole button");
+    await member.roles.remove(roleId, "Adobos autorole");
     await interaction.reply({
       content: "Rol eliminado.",
       ephemeral: true,
@@ -41,11 +43,18 @@ async function handleAutoroleButton(
     return;
   }
 
-  await member.roles.add(roleId, "Adobos autorole button");
+  await member.roles.add(roleId, "Adobos autorole");
   await interaction.reply({
     content: "¡Rol asignado!",
     ephemeral: true,
   });
+}
+
+async function handleAutoroleButton(
+  interaction: ButtonInteraction,
+): Promise<void> {
+  const roleId = interaction.customId.slice("autorole_".length);
+  await toggleRole(interaction, roleId);
 }
 
 export const autorolesModule: AdobosModule = {
@@ -65,11 +74,18 @@ export const autorolesModule: AdobosModule = {
     ctx.on("messageReactionRemove", (reaction, user) => {
       void onMessageReactionRemove(reaction, user);
     });
+    ctx.on("interactionCreate", (interaction) => {
+      if (!interaction.isStringSelectMenu()) return;
+      if (interaction.customId !== "autorole_select") return;
+      const roleId = interaction.values[0] ?? "";
+      void toggleRole(interaction, roleId);
+    });
     ctx.button("autorole_", (interaction) => handleAutoroleButton(interaction));
     ctx.route("/api/autoroles", autoroleRoutes(ctx.client));
     ctx.route("/api/roles", rolesRoutes(ctx.client));
   },
 };
+
 export {
   AutoRoleError,
   createAutoRoleSetup,

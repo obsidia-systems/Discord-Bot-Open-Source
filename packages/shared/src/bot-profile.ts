@@ -1,76 +1,45 @@
-/** Contratos GET/POST /api/bot/profile */
+/** Contratos GET/POST /api/bot/guild-profile — perfil del bot en el servidor. */
 
-export type BotPresenceStatus = "online" | "idle" | "dnd" | "invisible";
-
-export type BotActivityTypeName =
-  | "Playing"
-  | "Streaming"
-  | "Listening"
-  | "Watching"
-  | "Competing"
-  | "Custom";
-
-export interface BotProfileActivity {
-  name: string;
-  type: BotActivityTypeName;
-  /** Solo aplica a Streaming (Twitch / YouTube). */
-  url: string | null;
-  /** Línea extra bajo el nombre de actividad (opcional). */
-  state: string | null;
-}
-
-export interface BotProfileResponse {
-  id: string;
+export interface BotGuildProfileResponse {
+  guildId: string;
+  guildName: string;
+  /** Apodo local (vacío si no hay). */
+  nickname: string;
+  /** Nombre visible (apodo o username). */
+  displayName: string;
+  /** Username global (solo lectura / fallback). */
   username: string;
   tag: string;
-  avatarUrl: string;
-  /** Banner real del bot (solo lectura); null si no tiene. */
-  bannerUrl: string | null;
-  /** Color de acento Discord (decimal) si existe. */
-  accentColor: number | null;
-  status: BotPresenceStatus;
-  activity: BotProfileActivity | null;
-  /** Para enlace al Developer Portal. */
-  applicationId: string | null;
+  /** Avatar específico del servidor; null = usa el global. */
+  serverAvatarURL: string | null;
+  /** Avatar de la cuenta del bot. */
+  globalAvatarURL: string;
+  hasServerAvatar: boolean;
 }
 
-/**
- * Campos del formulario (JSON o multipart fields).
- * El avatar opcional va como archivo `avatar` en multipart.
- */
-export interface UpdateBotProfileRequest {
-  username?: string;
-  status?: BotPresenceStatus;
-  activityType?: BotActivityTypeName;
-  activityName?: string;
-  streamUrl?: string;
-  state?: string;
-  /** Si true, limpia actividades (solo status). */
-  clearActivity?: boolean;
+export interface UpdateBotGuildProfileRequest {
+  /** Nuevo apodo; string vacío o null + clearNickname lo quita. */
+  nickname?: string | null;
+  clearNickname?: boolean;
+  /**
+   * URL http(s) o ruta pública `/uploads/...`.
+   * Ignorado si llega archivo multipart `serverAvatar`.
+   */
+  serverAvatarUrl?: string | null;
+  clearServerAvatar?: boolean;
 }
 
-export interface UpdateBotProfileResponse {
+export interface UpdateBotGuildProfileResponse {
   ok: true;
-  profile: BotProfileResponse;
+  message: string;
+  profile: BotGuildProfileResponse;
   changed: {
-    username: boolean;
-    avatar: boolean;
-    presence: boolean;
+    nickname: boolean;
+    serverAvatar: boolean;
   };
 }
 
-export const BOT_PRESENCE_STATUSES: readonly BotPresenceStatus[] = [
-  "online",
-  "idle",
-  "dnd",
-  "invisible",
-] as const;
-
-export const BOT_ACTIVITY_TYPES: readonly BotActivityTypeName[] = [
-  "Playing",
-  "Watching",
-  "Listening",
-  "Competing",
-  "Streaming",
-  "Custom",
-] as const;
+/** @deprecated Preferir BotGuildProfileResponse (perfil por servidor). */
+export type BotProfileResponse = BotGuildProfileResponse;
+/** @deprecated Preferir UpdateBotGuildProfileResponse. */
+export type UpdateBotProfileResponse = UpdateBotGuildProfileResponse;

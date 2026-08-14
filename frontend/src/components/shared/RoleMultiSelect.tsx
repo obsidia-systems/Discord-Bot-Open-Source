@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { Check, ChevronsUpDown, Search, X } from "lucide-react";
+import { resolveRoleDotColor } from "@/components/shared/RoleColorDot";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +10,7 @@ export interface RoleOption {
   id: string;
   name: string;
   color?: number | null;
+  hexColor?: string | null;
 }
 
 interface RoleMultiSelectProps {
@@ -22,9 +24,8 @@ interface RoleMultiSelectProps {
   emptyHint?: string;
 }
 
-function roleSwatch(color?: number | null): string {
-  if (!color || color === 0) return "#99aab5";
-  return `#${color.toString(16).padStart(6, "0")}`;
+function roleSwatch(role: Pick<RoleOption, "color" | "hexColor">): string {
+  return resolveRoleDotColor(role.hexColor ?? role.color);
 }
 
 /** Combobox multi-selección con búsqueda local (roles del servidor). */
@@ -82,7 +83,7 @@ export function RoleMultiSelect({
             >
               <span
                 className="size-2.5 shrink-0 rounded-full"
-                style={{ backgroundColor: roleSwatch(role.color) }}
+                style={{ backgroundColor: roleSwatch(role) }}
                 aria-hidden
               />
               @{role.name}
@@ -139,7 +140,7 @@ export function RoleMultiSelect({
                   >
                     <span
                       className="size-2.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: roleSwatch(role.color) }}
+                      style={{ backgroundColor: roleSwatch(role) }}
                       aria-hidden
                     />
                     <span className="min-w-0 flex-1 truncate font-medium">

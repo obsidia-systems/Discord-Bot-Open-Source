@@ -2,31 +2,32 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
-import { CheckCircle2, Loader2, Save, Send, Trash2, XCircle } from "lucide-react";
+import { CheckCircle2, Loader2, Save, Send, XCircle } from "lucide-react";
 import type {
   EmbedPayload,
-  EmbedTemplateSummary,
   GuildAssetsResponse,
   MessageActionRowInput,
   SendEmbedRequest,
+  SentEmbedRecord,
 } from "@adobos/shared";
 import {
-  deleteEmbedTemplate,
+  editSentEmbed,
   fetchEmbedTemplate,
   fetchGuildAssets,
-  listEmbedTemplates,
   saveEmbedTemplate,
-  sendEmbedMessage,
+  sendEmbedToLibrary,
 } from "@/lib/api";
 import { resolvePublicAssetUrl } from "@/lib/api/client";
 import type { EmbedMediaValue } from "@/lib/api/messages";
 import { parseDiscordEmojis } from "@/lib/parseDiscordEmojis";
 import { ButtonBuilder } from "@/features/messages/ButtonBuilder";
+import { EmbedLibraryPanel } from "@/features/messages/EmbedLibraryPanel";
 import { DiscordEmojiPicker } from "@/components/shared/DiscordEmojiPicker";
 import {
   HybridImageInput,
   type HybridImageValue,
 } from "@/components/shared/HybridImageInput";
+import { AlertDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -53,16 +54,11 @@ import { cn } from "@/lib/utils";
 type Feedback =
   | { kind: "idle" }
   | { kind: "loading" }
-  | { kind: "ok"; messageId: string }
-  | { kind: "error"; message: string };
-
-type TemplateFeedback =
-  | { kind: "idle" }
-  | { kind: "loading" }
   | { kind: "ok"; message: string }
   | { kind: "error"; message: string };
 
 type EmbedTab = "general" | "contenido" | "imagenes" | "extra";
+type TopTab = "creator" | "library";
 
 type EmbedFormState = Omit<
   SendEmbedRequest,
@@ -168,10 +164,12 @@ function formToEmbedPayload(form: EmbedFormState): EmbedPayload {
 
 function applyEmbedPayloadToForm(
   prev: EmbedFormState,
-  payload: EmbedPayload,
+  payload: EmbedPayload & { components?: MessageActionRowInput[] },
+  channelId?: string,
 ): EmbedFormState {
   return {
     ...prev,
+    channelId: channelId ?? prev.channelId,
     content: payload.content ?? "",
     title: payload.title ?? "",
     url: payload.url ?? "",
@@ -184,10 +182,12 @@ function applyEmbedPayloadToForm(
     footerText: payload.footerText ?? "",
     footerIconUrl: payload.footerIconUrl ?? null,
     timestamp: Boolean(payload.timestamp),
+    components: payload.components ?? prev.components ?? [],
   };
 }
 
 export function EmbedBuilder() {
+  const [topTab, setTopTab] = useState<TopTab>("creator");
   const [form, setForm] = useState<EmbedFormState>(emptyForm);
   const [feedback, setFeedback] = useState<Feedback>({ kind: "idle" });
   const [assets, setAssets] = useState<GuildAssetsResponse | null>(null);
@@ -196,12 +196,10 @@ export function EmbedBuilder() {
   const [emojiTarget, setEmojiTarget] = useState<"content" | "description">(
     "content",
   );
-  const [templates, setTemplates] = useState<EmbedTemplateSummary[]>([]);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [templateName, setTemplateName] = useState("");
-  const [templateFeedback, setTemplateFeedback] = useState<TemplateFeedback>({
-    kind: "idle",
-  });
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [editingSentId, setEditingSentId] = useState<string | null>(null);
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
@@ -216,14 +214,9 @@ export function EmbedBuilder() {
   const footerIconPreview = useMediaPreview(form.footerIconUrl);
 
   const isSubmitting = feedback.kind === "loading";
-  const isTemplateBusy = templateFeedback.kind === "loading";
   const components = form.components ?? [];
   const serverEmojis = assets?.emojis ?? [];
-
-  async function refreshTemplates(): Promise<void> {
-    const data = await listEmbedTemplates();
-    setTemplates(data.templates);
-  }
+  const isEditing = editingSentId != null;
 
   useEffect(() => {
     let cancelled = false;
@@ -242,13 +235,6 @@ export function EmbedBuilder() {
               : "No se pudieron cargar assets",
           );
         }
-      });
-    void listEmbedTemplates()
-      .then((data) => {
-        if (!cancelled) setTemplates(data.templates);
-      })
-      .catch(() => {
-        if (!cancelled) setTemplates([]);
       });
     return () => {
       cancelled = true;
@@ -287,11 +273,33 @@ export function EmbedBuilder() {
     setFeedback({ kind: "loading" });
 
     try {
-      const result = await sendEmbedMessage({
+      const payload = {
         ...form,
         components: components.length > 0 ? components : undefined,
-      });
-      setFeedback({ kind: "ok", messageId: result.messageId });
+      };
+
+      if (editingSentId) {
+        const result = await editSentEmbed(editingSentId, payload);
+        if (result.orphaned) {
+          setEditingSentId(null);
+          setFeedback({
+            kind: "ok",
+            message:
+              "El mensaje ya no existía en Discord; se limpió el registro huérfano.",
+          });
+        } else {
+          setFeedback({
+            kind: "ok",
+            message: `Mensaje actualizado en Discord (ID: ${result.entry.messageId}).`,
+          });
+        }
+      } else {
+        const result = await sendEmbedToLibrary(payload);
+        setFeedback({
+          kind: "ok",
+          message: `Mensaje enviado (ID: ${result.messageId}).`,
+        });
+      }
     } catch (error: unknown) {
       setFeedback({
         kind: "error",
@@ -300,51 +308,18 @@ export function EmbedBuilder() {
     }
   }
 
-  async function onLoadTemplate(idRaw: string): Promise<void> {
-    setSelectedTemplateId(idRaw);
-    if (!idRaw) {
-      setTemplateName("");
-      return;
-    }
-    const id = Number.parseInt(idRaw, 10);
-    if (!Number.isFinite(id)) return;
-
-    setTemplateFeedback({ kind: "loading" });
-    try {
-      const detail = await fetchEmbedTemplate(id);
-      setForm((prev) => applyEmbedPayloadToForm(prev, detail.embedData));
-      setTemplateName(detail.name);
-      setTemplateFeedback({
-        kind: "ok",
-        message: `Plantilla «${detail.name}» cargada.`,
-      });
-    } catch (error: unknown) {
-      setTemplateFeedback({
-        kind: "error",
-        message:
-          error instanceof Error ? error.message : "No se pudo cargar la plantilla",
-      });
-    }
-  }
-
-  async function onSaveTemplate(asNew: boolean): Promise<void> {
+  async function onConfirmSaveTemplate(): Promise<void> {
     const name = templateName.trim();
     if (!name) {
-      setTemplateFeedback({
+      setFeedback({
         kind: "error",
         message: "Escribe un nombre para la plantilla.",
       });
       return;
     }
-
-    setTemplateFeedback({ kind: "loading" });
+    setSavingTemplate(true);
     try {
       const result = await saveEmbedTemplate({
-        id: asNew
-          ? undefined
-          : selectedTemplateId
-            ? Number.parseInt(selectedTemplateId, 10)
-            : undefined,
         name,
         embedData: formToEmbedPayload(form),
         imageUrl: form.imageUrl,
@@ -352,55 +327,104 @@ export function EmbedBuilder() {
         authorIconUrl: form.authorIconUrl,
         footerIconUrl: form.footerIconUrl,
       });
-      await refreshTemplates();
-      setSelectedTemplateId(String(result.template.id));
-      setTemplateName(result.template.name);
-      setForm((prev) => applyEmbedPayloadToForm(prev, result.template.embedData));
-      setTemplateFeedback({
+      setSaveModalOpen(false);
+      setTemplateName("");
+      setFeedback({
         kind: "ok",
-        message: asNew
-          ? `Plantilla «${result.template.name}» creada.`
-          : `Plantilla «${result.template.name}» actualizada.`,
+        message: `Plantilla «${result.template.name}» guardada.`,
       });
     } catch (error: unknown) {
-      setTemplateFeedback({
+      setFeedback({
         kind: "error",
         message:
           error instanceof Error ? error.message : "No se pudo guardar",
       });
+    } finally {
+      setSavingTemplate(false);
     }
   }
 
-  async function onDeleteTemplate(): Promise<void> {
-    if (!selectedTemplateId) return;
-    const id = Number.parseInt(selectedTemplateId, 10);
-    if (!Number.isFinite(id)) return;
-    if (
-      !window.confirm(
-        "¿Eliminar esta plantilla? Esta acción no se puede deshacer.",
-      )
-    ) {
-      return;
-    }
+  function onEditSent(entry: SentEmbedRecord): void {
+    setForm((prev) =>
+      applyEmbedPayloadToForm(prev, entry.embedData, entry.channelId),
+    );
+    setEditingSentId(entry.id);
+    setTopTab("creator");
+    setFeedback({
+      kind: "ok",
+      message: "Modo edición: al guardar se actualizará el mensaje en Discord.",
+    });
+  }
 
-    setTemplateFeedback({ kind: "loading" });
+  async function onLoadTemplateFromLibrary(templateId: number): Promise<void> {
     try {
-      await deleteEmbedTemplate(id);
-      await refreshTemplates();
-      setSelectedTemplateId("");
-      setTemplateName("");
-      setTemplateFeedback({ kind: "ok", message: "Plantilla eliminada." });
+      const detail = await fetchEmbedTemplate(templateId);
+      setForm((prev) => applyEmbedPayloadToForm(prev, detail.embedData));
+      setEditingSentId(null);
+      setTopTab("creator");
+      setFeedback({
+        kind: "ok",
+        message: `Plantilla «${detail.name}» cargada en el editor.`,
+      });
     } catch (error: unknown) {
-      setTemplateFeedback({
+      setFeedback({
         kind: "error",
         message:
-          error instanceof Error ? error.message : "No se pudo eliminar",
+          error instanceof Error ? error.message : "No se pudo cargar",
       });
     }
   }
 
   return (
+    <div className="space-y-4">
+      <Tabs>
+        <TabsList className="grid h-auto w-full grid-cols-1 gap-1 sm:grid-cols-2">
+          <TabsTrigger
+            active={topTab === "creator"}
+            onClick={() => setTopTab("creator")}
+          >
+            Creador de Embeds
+          </TabsTrigger>
+          <TabsTrigger
+            active={topTab === "library"}
+            onClick={() => setTopTab("library")}
+          >
+            Biblioteca (Mensajes y Plantillas)
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {topTab === "library" ? (
+        <EmbedLibraryPanel
+          onEditSent={onEditSent}
+          onLoadTemplate={(id) => {
+            void onLoadTemplateFromLibrary(id);
+          }}
+          onToast={(message, kind) =>
+            setFeedback({ kind, message })
+          }
+        />
+      ) : (
     <form onSubmit={onSubmit} className="space-y-6">
+      {isEditing ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/40 bg-primary/10 px-4 py-3 text-sm">
+          <span>
+            Editando mensaje enviado en Discord. Los cambios se aplicarán con{" "}
+            <code className="text-xs">message.edit()</code>.
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setEditingSentId(null);
+              setFeedback({ kind: "idle" });
+            }}
+          >
+            Cancelar edición
+          </Button>
+        </div>
+      ) : null}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <Card>
@@ -684,127 +708,39 @@ export function EmbedBuilder() {
             disabled={isSubmitting}
           />
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Plantillas de embed</CardTitle>
-              <CardDescription>
-                Guarda el embed actual para reutilizarlo en moderación (DM) u
-                otros envíos. Variables: {"{reason}"}, {"{moderator}"}, {"{user}"}…
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Plantilla guardada</Label>
-                <Select
-                  value={selectedTemplateId || undefined}
-                  disabled={isSubmitting || isTemplateBusy}
-                  onValueChange={(value) => {
-                    void onLoadTemplate(value);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Nueva / seleccionar…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {templates.map((template) => (
-                      <SelectItem
-                        key={template.id}
-                        value={String(template.id)}
-                      >
-                        {template.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="template-name">Nombre de la plantilla</Label>
-                <Input
-                  id="template-name"
-                  value={templateName}
-                  disabled={isSubmitting || isTemplateBusy}
-                  placeholder="ej. Warn DM, Kick reingreso…"
-                  onChange={(event) => setTemplateName(event.target.value)}
-                />
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={isSubmitting || isTemplateBusy}
-                  onClick={() => {
-                    void onSaveTemplate(!selectedTemplateId);
-                  }}
-                >
-                  {isTemplateBusy ? (
-                    <Loader2 className="size-4 animate-spin" aria-hidden />
-                  ) : (
-                    <Save className="size-4" aria-hidden />
-                  )}
-                  {selectedTemplateId ? "Actualizar plantilla" : "Guardar como plantilla"}
-                </Button>
-                {selectedTemplateId ? (
-                  <>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={isSubmitting || isTemplateBusy}
-                      onClick={() => {
-                        void onSaveTemplate(true);
-                      }}
-                    >
-                      Guardar como nueva
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={isSubmitting || isTemplateBusy}
-                      onClick={() => {
-                        void onDeleteTemplate();
-                      }}
-                    >
-                      <Trash2 className="size-4" aria-hidden />
-                      Eliminar
-                    </Button>
-                  </>
-                ) : null}
-              </div>
-
-              {templateFeedback.kind === "ok" ? (
-                <p
-                  className="flex items-start gap-2 text-sm text-emerald-700 dark:text-emerald-400"
-                  role="status"
-                >
-                  <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden />
-                  {templateFeedback.message}
-                </p>
-              ) : null}
-              {templateFeedback.kind === "error" ? (
-                <p
-                  className="flex items-start gap-2 text-sm text-red-700 dark:text-red-400"
-                  role="alert"
-                >
-                  <XCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
-                  {templateFeedback.message}
-                </p>
-              ) : null}
-            </CardContent>
-          </Card>
-
           <div className="flex flex-col gap-3">
-            <Button
-              type="submit"
-              disabled={isSubmitting || !form.channelId.trim()}
-            >
-              {isSubmitting ? (
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-              ) : (
-                <Send className="size-4" aria-hidden />
-              )}
-              {isSubmitting ? "Enviando…" : "Enviar mensaje"}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="submit"
+                disabled={isSubmitting || !form.channelId.trim()}
+                className="flex-1"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                ) : (
+                  <Send className="size-4" aria-hidden />
+                )}
+                {isSubmitting
+                  ? isEditing
+                    ? "Actualizando…"
+                    : "Enviando…"
+                  : isEditing
+                    ? "Actualizar Mensaje en Discord"
+                    : "Enviar mensaje"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isSubmitting || savingTemplate}
+                onClick={() => {
+                  setTemplateName("");
+                  setSaveModalOpen(true);
+                }}
+              >
+                <Save className="size-4" aria-hidden />
+                Guardar como Plantilla
+              </Button>
+            </div>
 
             {feedback.kind === "ok" && (
               <p
@@ -812,7 +748,7 @@ export function EmbedBuilder() {
                 role="status"
               >
                 <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden />
-                Mensaje enviado (ID: {feedback.messageId})
+                {feedback.message}
               </p>
             )}
 
@@ -985,5 +921,33 @@ export function EmbedBuilder() {
         </div>
       </div>
     </form>
+      )}
+
+      <AlertDialog
+        open={saveModalOpen}
+        title="Guardar como Plantilla"
+        description={
+          <div className="space-y-3">
+            <p>Guarda el embed actual sin enviarlo a Discord.</p>
+            <div className="space-y-2">
+              <Label htmlFor="save-template-name">Nombre descriptivo</Label>
+              <Input
+                id="save-template-name"
+                value={templateName}
+                onChange={(event) => setTemplateName(event.target.value)}
+                placeholder="ej. Warn DM, Anuncio…"
+                disabled={savingTemplate}
+                autoFocus
+              />
+            </div>
+          </div>
+        }
+        confirmLabel="Guardar plantilla"
+        cancelLabel="Cancelar"
+        confirming={savingTemplate}
+        onCancel={() => setSaveModalOpen(false)}
+        onConfirm={() => void onConfirmSaveTemplate()}
+      />
+    </div>
   );
 }

@@ -73,7 +73,7 @@ export const dashboardNav: NavCategoryConfig[] = [
         label: "Perfil del bot",
         href: "/dashboard/general/bot-profile",
         icon: Bot,
-        blurb: "Avatar, nombre y presencia del bot.",
+        blurb: "Apodo y avatar del bot en este servidor.",
       },
     ],
   },
@@ -148,7 +148,6 @@ export const dashboardNav: NavCategoryConfig[] = [
         label: "Action Logs",
         href: "/dashboard/moderation/action-logs",
         icon: ScrollText,
-        soon: true,
         blurb: "Auditoría de mensajes, miembros y roles.",
       },
       {

@@ -1,8 +1,11 @@
 ---
-import ComingSoon from "../../../components/shared/ComingSoon.astro";
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { ActionLogsDashboard } from "../../../features/action-logs";
 ---
 
-<ComingSoon
+<DashboardLayout
   title="Action Logs"
   description="Auditoría de mensajes, miembros, roles y canales."
-/>
+>
+  <ActionLogsDashboard client:load />
+</DashboardLayout>

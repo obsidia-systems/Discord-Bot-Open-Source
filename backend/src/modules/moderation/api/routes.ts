@@ -4,6 +4,7 @@ import type { ApiErrorBody, ModActionRequest } from "@adobos/shared";
 import {
   ModerationError,
   executeModAction,
+  fetchDiscordMessage,
   getChannelInfo,
   getMemberInfo,
   listActiveBans,
@@ -77,6 +78,20 @@ export function moderationRoutes(bot: Client): Router {
       res.json(await getChannelInfo(bot, req.params.id ?? "", guildId));
     } catch (error: unknown) {
       handleError(error, res, "channel-info");
+    }
+  });
+
+  router.get("/fetch-message", async (req, res) => {
+    const channelId =
+      typeof req.query.channelId === "string" ? req.query.channelId : "";
+    const messageId =
+      typeof req.query.messageId === "string" ? req.query.messageId : "";
+    const guildId =
+      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+    try {
+      res.json(await fetchDiscordMessage(bot, channelId, messageId, guildId));
+    } catch (error: unknown) {
+      handleError(error, res, "fetch-message");
     }
   });
 

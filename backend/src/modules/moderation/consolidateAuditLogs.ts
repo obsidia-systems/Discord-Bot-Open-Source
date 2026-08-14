@@ -2,6 +2,7 @@ import type {
   DiscordAuditChangeItem,
   DiscordAuditEntry,
   DiscordAuditRoleKind,
+  DiscordAuditRoleRef,
   DiscordAuditTone,
 } from "@adobos/shared";
 
@@ -16,13 +17,17 @@ function isMemberRoleUpdate(entry: DiscordAuditEntry): boolean {
   );
 }
 
-function unique(values: string[]): string[] {
-  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+function parseLegacyRoleList(raw: string): DiscordAuditRoleRef[] {
+  return raw
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((name) => ({ id: name, name, color: "#000000" }));
 }
 
 function rolesFromEntry(entry: DiscordAuditEntry): {
-  added: string[];
-  removed: string[];
+  added: DiscordAuditRoleRef[];
+  removed: DiscordAuditRoleRef[];
 } {
   const added = [...(entry.addedRoles ?? [])];
   const removed = [...(entry.removedRoles ?? [])];
@@ -30,25 +35,31 @@ function rolesFromEntry(entry: DiscordAuditEntry): {
   if (added.length === 0 && removed.length === 0) {
     for (const change of entry.changes) {
       if (change.key === "$add" && change.newValue) {
-        added.push(
-          ...change.newValue.split(",").map((part) => part.trim()),
-        );
+        added.push(...parseLegacyRoleList(change.newValue));
       }
       if (change.key === "$remove") {
         const raw = change.oldValue || change.newValue;
         if (raw) {
-          removed.push(...raw.split(",").map((part) => part.trim()));
+          removed.push(...parseLegacyRoleList(raw));
         }
       }
     }
   }
 
-  return { added: unique(added), removed: unique(removed) };
+  return { added, removed };
+}
+
+function uniqueById(roles: DiscordAuditRoleRef[]): DiscordAuditRoleRef[] {
+  const map = new Map<string, DiscordAuditRoleRef>();
+  for (const role of roles) {
+    if (!map.has(role.id)) map.set(role.id, role);
+  }
+  return [...map.values()];
 }
 
 function classifyRoles(
-  added: string[],
-  removed: string[],
+  added: DiscordAuditRoleRef[],
+  removed: DiscordAuditRoleRef[],
 ): {
   roleKind: DiscordAuditRoleKind;
   actionLabel: string;
@@ -76,22 +87,24 @@ function classifyRoles(
 }
 
 function buildRoleChanges(
-  added: string[],
-  removed: string[],
+  added: DiscordAuditRoleRef[],
+  removed: DiscordAuditRoleRef[],
 ): DiscordAuditChangeItem[] {
   const changes: DiscordAuditChangeItem[] = [];
   if (added.length > 0) {
+    const names = added.map((role) => role.name);
     changes.push({
       key: "$add",
-      summary: `Añadió: ${added.join(", ")}`,
-      newValue: added.join(", "),
+      summary: `Añadió: ${names.join(", ")}`,
+      newValue: names.join(", "),
     });
   }
   if (removed.length > 0) {
+    const names = removed.map((role) => role.name);
     changes.push({
       key: "$remove",
-      summary: `Quitó: ${removed.join(", ")}`,
-      oldValue: removed.join(", "),
+      summary: `Quitó: ${names.join(", ")}`,
+      oldValue: names.join(", "),
     });
   }
   return changes;
@@ -113,27 +126,27 @@ function canMergeRolePair(
 }
 
 function mergeRoleGroup(group: DiscordAuditEntry[]): DiscordAuditEntry {
-  const addedSet = new Set<string>();
-  const removedSet = new Set<string>();
+  const addedMap = new Map<string, DiscordAuditRoleRef>();
+  const removedMap = new Map<string, DiscordAuditRoleRef>();
   const reasons: string[] = [];
 
   for (const entry of group) {
     const roles = rolesFromEntry(entry);
-    for (const role of roles.added) addedSet.add(role);
-    for (const role of roles.removed) removedSet.add(role);
+    for (const role of roles.added) addedMap.set(role.id, role);
+    for (const role of roles.removed) removedMap.set(role.id, role);
     if (entry.reason?.trim()) reasons.push(entry.reason.trim());
   }
 
   // Cancelaciones netas (añadido y quitado en la misma ráfaga).
-  for (const role of [...addedSet]) {
-    if (removedSet.has(role)) {
-      addedSet.delete(role);
-      removedSet.delete(role);
+  for (const id of [...addedMap.keys()]) {
+    if (removedMap.has(id)) {
+      addedMap.delete(id);
+      removedMap.delete(id);
     }
   }
 
-  const added = [...addedSet];
-  const removed = [...removedSet];
+  const added = uniqueById([...addedMap.values()]);
+  const removed = uniqueById([...removedMap.values()]);
   const classified = classifyRoles(added, removed);
   const anchor = group[0]!;
   const sourceIds = group.flatMap((entry) => entry.sourceIds ?? [entry.id]);

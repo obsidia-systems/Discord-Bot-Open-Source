@@ -61,6 +61,14 @@ export type DiscordAuditRoleKind =
   | "ROLE_REMOVE"
   | "ROLE_UPDATE";
 
+/** Rol resuelto desde caché de Discord (audit $add / $remove). */
+export interface DiscordAuditRoleRef {
+  id: string;
+  name: string;
+  /** hexColor de discord.js (p. ej. `#ff0000`); `#000000` si no tiene color. */
+  color: string;
+}
+
 export interface DiscordAuditEntry {
   id: string;
   createdAt: string;
@@ -77,8 +85,8 @@ export interface DiscordAuditEntry {
   changesSummary: string;
   /** Presente en eventos de roles (individuales o consolidados). */
   roleKind?: DiscordAuditRoleKind;
-  addedRoles?: string[];
-  removedRoles?: string[];
+  addedRoles?: DiscordAuditRoleRef[];
+  removedRoles?: DiscordAuditRoleRef[];
   /** IDs de entradas crudas fusionadas. */
   sourceIds?: string[];
   consolidatedCount?: number;

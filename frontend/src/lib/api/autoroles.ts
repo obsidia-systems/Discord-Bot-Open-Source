@@ -1,11 +1,18 @@
 import type {
+  CreateAutoroleCompactRequest,
   CreateAutoRoleRequest,
   CreateAutoRoleResponse,
+  DeleteAutoroleResponse,
   GetAutoJoinRolesResponse,
+  ListActiveAutorolesResponse,
   SaveAutoJoinRolesRequest,
   SaveAutoJoinRolesResponse,
   SaveReactionRolesRequest,
   SaveReactionRolesResponse,
+  UpdateAutoroleContentRequest,
+  UpdateAutoroleContentResponse,
+  UpdateAutoroleMappingRequest,
+  UpdateAutoroleMappingResponse,
 } from "@adobos/shared";
 import { API_BASE, readApiError } from "./client";
 
@@ -30,7 +37,41 @@ export async function saveReactionRoles(
   return response.json() as Promise<SaveReactionRolesResponse>;
 }
 
-/** @deprecated Prefer `saveInteractiveRoles` → `/api/roles/interactive`. */
+export async function fetchActiveAutoroles(): Promise<ListActiveAutorolesResponse> {
+  const response = await fetch(`${API_BASE}/api/autoroles/active`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(
+        response,
+        `Error al listar autoroles (${response.status})`,
+      ),
+    );
+  }
+  return response.json() as Promise<ListActiveAutorolesResponse>;
+}
+
+export async function createAutoroleCompact(
+  payload: CreateAutoroleCompactRequest,
+): Promise<CreateAutoRoleResponse> {
+  const response = await fetch(`${API_BASE}/api/autoroles/create`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(
+        response,
+        `Error al crear autorol (${response.status})`,
+      ),
+    );
+  }
+  return response.json() as Promise<CreateAutoRoleResponse>;
+}
+
+/** @deprecated Prefer `createAutoroleCompact`. */
 export async function createAutoRole(
   payload: CreateAutoRoleRequest,
 ): Promise<CreateAutoRoleResponse> {
@@ -56,6 +97,76 @@ export async function saveInteractiveRoles(
   }
 
   return response.json() as Promise<CreateAutoRoleResponse>;
+}
+
+export async function updateAutoroleMapping(
+  id: number,
+  payload: UpdateAutoroleMappingRequest,
+): Promise<UpdateAutoroleMappingResponse> {
+  const response = await fetch(
+    `${API_BASE}/api/autoroles/update-mapping/${id}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(
+        response,
+        `Error al actualizar mappings (${response.status})`,
+      ),
+    );
+  }
+  return response.json() as Promise<UpdateAutoroleMappingResponse>;
+}
+
+export async function updateAutoroleContent(
+  id: number,
+  payload: UpdateAutoroleContentRequest,
+): Promise<UpdateAutoroleContentResponse> {
+  const response = await fetch(
+    `${API_BASE}/api/autoroles/edit-content/${id}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(
+        response,
+        `Error al editar contenido (${response.status})`,
+      ),
+    );
+  }
+  return response.json() as Promise<UpdateAutoroleContentResponse>;
+}
+
+export async function deleteAutorole(
+  id: number,
+): Promise<DeleteAutoroleResponse> {
+  const response = await fetch(`${API_BASE}/api/autoroles/delete/${id}`, {
+    method: "DELETE",
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(
+        response,
+        `Error al eliminar autorol (${response.status})`,
+      ),
+    );
+  }
+  return response.json() as Promise<DeleteAutoroleResponse>;
 }
 
 export async function fetchAutoJoinRoles(

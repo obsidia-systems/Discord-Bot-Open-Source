@@ -109,6 +109,7 @@ function mapRoles(guild: Guild): GuildRoleAsset[] {
       id: role.id,
       name: role.name,
       color: role.color,
+      hexColor: role.hexColor,
       position: role.position,
       managed: role.managed,
     }))

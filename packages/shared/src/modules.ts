@@ -6,7 +6,8 @@ export type ModuleId =
   | "guild-assets"
   | "economy"
   | "moderation"
-  | "bot-profile";
+  | "bot-profile"
+  | "action-logs";
 
 export type PluginId =
   | "minecraft"

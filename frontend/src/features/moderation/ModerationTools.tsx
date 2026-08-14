@@ -31,6 +31,7 @@ import {
   type AsyncSelectOption,
 } from "@/components/shared/AsyncSearchSelect";
 import { ActiveSanctionsPanel } from "@/features/moderation/ActiveSanctionsPanel";
+import { RoleColorBadge } from "@/components/shared/RoleColorDot";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -181,17 +182,11 @@ function MemberDossier({
           </p>
           <div className="flex flex-wrap gap-1.5">
             {info.roles.map((role) => (
-              <span
+              <RoleColorBadge
                 key={role.id}
-                className="rounded-md border border-border px-2 py-0.5 text-xs"
-                style={
-                  role.color
-                    ? { borderColor: `${role.color}66`, color: role.color }
-                    : undefined
-                }
-              >
-                {role.name}
-              </span>
+                name={role.name}
+                color={role.color}
+              />
             ))}
           </div>
         </div>
