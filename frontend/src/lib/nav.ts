@@ -154,7 +154,6 @@ export const dashboardNav: NavCategoryConfig[] = [
         label: "Auto-Mod",
         href: "/dashboard/moderation/auto-mod",
         icon: ShieldAlert,
-        soon: true,
         blurb: "Filtros anti-spam y palabras bloqueadas.",
       },
       {

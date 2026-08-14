@@ -56,3 +56,4 @@ export {
   fetchActionLogsHistory,
   sendActionLogsTest,
 } from "./api/action-logs";
+export { fetchAutoModConfig, saveAutoModConfig } from "./api/auto-mod";

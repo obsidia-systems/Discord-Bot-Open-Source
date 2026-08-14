@@ -7,7 +7,8 @@ export type ModuleId =
   | "economy"
   | "moderation"
   | "bot-profile"
-  | "action-logs";
+  | "action-logs"
+  | "auto-mod";
 
 export type PluginId =
   | "minecraft"

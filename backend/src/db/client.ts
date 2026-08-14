@@ -206,6 +206,17 @@ function ensureCoreTables(database: Database.Database): void {
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS auto_mod_config (
+      guild_id TEXT PRIMARY KEY NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      filters TEXT NOT NULL DEFAULT '{}',
+      ignored_roles TEXT NOT NULL DEFAULT '[]',
+      ignored_channels TEXT NOT NULL DEFAULT '[]',
+      log_channel_id TEXT,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS bot_presence_settings (
       id TEXT PRIMARY KEY NOT NULL DEFAULT 'default',
       status TEXT NOT NULL DEFAULT 'online',

@@ -361,6 +361,27 @@ export const actionLogs = sqliteTable("action_logs", {
     .$defaultFn(() => new Date()),
 });
 
+/**
+ * Configuración de Auto Mod por guild (filtros, exclusiones, canal de alertas).
+ * Las infracciones se registran en `warnings` (sin tabla de strikes propia).
+ */
+export const autoModConfig = sqliteTable("auto_mod_config", {
+  guildId: text("guild_id")
+    .primaryKey()
+    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
+  /** JSON: AutoModFilters */
+  filters: text("filters").notNull().default("{}"),
+  /** JSON: string[] */
+  ignoredRoles: text("ignored_roles").notNull().default("[]"),
+  /** JSON: string[] */
+  ignoredChannels: text("ignored_channels").notNull().default("[]"),
+  logChannelId: text("log_channel_id"),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
 export type GuildSettings = typeof guildSettings.$inferSelect;
 export type NewGuildSettings = typeof guildSettings.$inferInsert;
 export type PluginEnabled = typeof pluginsEnabled.$inferSelect;
@@ -389,6 +410,8 @@ export type ActionLogsConfigRow = typeof actionLogsConfig.$inferSelect;
 export type NewActionLogsConfigRow = typeof actionLogsConfig.$inferInsert;
 export type ActionLogRow = typeof actionLogs.$inferSelect;
 export type NewActionLogRow = typeof actionLogs.$inferInsert;
+export type AutoModConfigRow = typeof autoModConfig.$inferSelect;
+export type NewAutoModConfigRow = typeof autoModConfig.$inferInsert;
 
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [

@@ -1,8 +1,11 @@
 ---
-import ComingSoon from "../../../components/shared/ComingSoon.astro";
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { AutoModDashboard } from "../../../features/auto-mod";
 ---
 
-<ComingSoon
-  title="Auto-Mod"
-  description="Filtros anti-spam y palabras bloqueadas."
-/>
+<DashboardLayout
+  title="Auto Mod"
+  description="Filtros anti-spam, palabras bloqueadas e integración con Warns."
+>
+  <AutoModDashboard client:load />
+</DashboardLayout>

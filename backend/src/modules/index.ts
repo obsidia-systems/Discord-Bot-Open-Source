@@ -8,6 +8,7 @@ import { economyModule } from "./economy/index.js";
 import { moderationModule } from "./moderation/index.js";
 import { botProfileModule } from "./bot-profile/index.js";
 import { actionLogsModule } from "./action-logs/index.js";
+import { autoModModule } from "./auto-mod/index.js";
 
 /**
  * Catálogo explícito de módulos habilitados.
@@ -23,6 +24,7 @@ export const ENABLED_MODULES: readonly AdobosModule[] = [
   economyModule,
   moderationModule,
   actionLogsModule,
+  autoModModule,
 ];
 
 export {
@@ -35,4 +37,5 @@ export {
   moderationModule,
   botProfileModule,
   actionLogsModule,
+  autoModModule,
 };
