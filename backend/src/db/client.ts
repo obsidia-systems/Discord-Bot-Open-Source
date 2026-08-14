@@ -213,6 +213,7 @@ function ensureCoreTables(database: Database.Database): void {
       ignored_roles TEXT NOT NULL DEFAULT '[]',
       ignored_channels TEXT NOT NULL DEFAULT '[]',
       log_channel_id TEXT,
+      warn_decay_days INTEGER NOT NULL DEFAULT 30,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
     );
@@ -348,6 +349,19 @@ function ensureCoreTables(database: Database.Database): void {
         `ALTER TABLE action_logs_config ADD COLUMN webhooks_mapping TEXT NOT NULL DEFAULT '{}'`,
       );
     }
+  }
+
+  // Migración suave: warn_decay_days en auto_mod_config
+  const autoModCols = database
+    .prepare(`PRAGMA table_info(auto_mod_config)`)
+    .all() as Array<{ name: string }>;
+  if (
+    autoModCols.length > 0 &&
+    !autoModCols.some((column) => column.name === "warn_decay_days")
+  ) {
+    database.exec(
+      `ALTER TABLE auto_mod_config ADD COLUMN warn_decay_days INTEGER NOT NULL DEFAULT 30`,
+    );
   }
 }
 

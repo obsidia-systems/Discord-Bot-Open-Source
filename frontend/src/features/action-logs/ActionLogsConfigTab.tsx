@@ -220,29 +220,6 @@ export function ActionLogsConfigTab({
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]">
       <div className="space-y-4">
         <Card>
-          <CardHeader className="pb-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <CardTitle className="text-base">Estado del módulo</CardTitle>
-                <CardDescription>
-                  Activa Action Logs para capturar eventos de Discord.
-                </CardDescription>
-              </div>
-              <div className="flex items-center gap-2">
-                <Label htmlFor="logs-enabled" className="text-sm">
-                  {config.enabled ? "Habilitado" : "Deshabilitado"}
-                </Label>
-                <Switch
-                  id="logs-enabled"
-                  checked={config.enabled}
-                  onCheckedChange={(enabled) => patch({ enabled })}
-                />
-              </div>
-            </div>
-          </CardHeader>
-        </Card>
-
-        <Card>
           <CardHeader>
             <CardTitle className="text-base">Enrutamiento de canales</CardTitle>
             <CardDescription>

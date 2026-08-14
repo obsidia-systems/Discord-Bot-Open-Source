@@ -16,6 +16,7 @@ import {
   saveActionLogsConfig,
   sendActionLogsTest,
 } from "@/lib/api";
+import { HeaderEnableSwitch } from "@/components/shared/HeaderEnableSwitch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToastBanner } from "@/components/ui/toast";
 import { ActionLogsConfigTab } from "./ActionLogsConfigTab";
@@ -165,6 +166,15 @@ export function ActionLogsDashboard() {
 
   return (
     <div className="space-y-6">
+      <HeaderEnableSwitch
+        idPrefix="action-logs"
+        checked={config.enabled}
+        disabled={saving}
+        onCheckedChange={(enabled) =>
+          setConfig((prev) => ({ ...prev, enabled }))
+        }
+      />
+
       <ToastBanner
         variant="error"
         message={error}

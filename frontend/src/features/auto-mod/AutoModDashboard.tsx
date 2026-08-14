@@ -1,18 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Construction, Info, Loader2, Save, ShieldAlert } from "lucide-react";
 import type {
   AutoModConfig,
   AutoModFilters,
+  AutoModWarnDecayDays,
   GuildChannelAsset,
   GuildRoleAsset,
 } from "@adobos/shared";
-import { defaultAutoModConfig } from "@adobos/shared";
+import {
+  AUTO_MOD_TOGGLE_FILTER_COUNT,
+  AUTO_MOD_WARN_DECAY_OPTIONS,
+  countActiveAutoModFilters,
+  defaultAutoModConfig,
+} from "@adobos/shared";
 import {
   fetchAutoModConfig,
   fetchGuildAssets,
   saveAutoModConfig,
 } from "@/lib/api";
 import { ChannelMultiSelect } from "@/components/shared/ChannelMultiSelect";
+import { HeaderEnableSwitch } from "@/components/shared/HeaderEnableSwitch";
 import { RoleMultiSelect } from "@/components/shared/RoleMultiSelect";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +42,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ToastBanner } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { Construction, Info, Loader2, Save, ShieldAlert, X } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 
 type TabId = "filters" | "sanctions" | "exclusions";
 
@@ -50,7 +64,20 @@ function configFingerprint(config: AutoModConfig): string {
     ignoredChannels: [...config.ignoredChannels].sort(),
     ignoredRoles: [...config.ignoredRoles].sort(),
     logChannelId: config.logChannelId,
+    warnDecayDays: config.warnDecayDays,
   });
+}
+
+function warnDecayLabel(days: AutoModWarnDecayDays): string {
+  return (
+    AUTO_MOD_WARN_DECAY_OPTIONS.find((o) => o.value === days)?.label ??
+    `${days} días`
+  );
+}
+
+/** Ajustes hijos del switch padre (divulgación progresiva). */
+function NestedSettings({ children }: { children: ReactNode }) {
+  return <div className="flex flex-col gap-4 pt-1">{children}</div>;
 }
 
 function FilterToggle({
@@ -59,24 +86,93 @@ function FilterToggle({
   description,
   checked,
   onCheckedChange,
+  children,
 }: {
   id: string;
   label: string;
   description?: string;
   checked: boolean;
   onCheckedChange: (next: boolean) => void;
+  children?: ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 rounded-lg border border-border/70 bg-muted/10 px-3 py-2.5">
-      <div className="min-w-0 space-y-0.5">
-        <Label htmlFor={id} className="text-sm font-medium">
-          {label}
-        </Label>
-        {description ? (
-          <p className="text-xs text-muted-foreground">{description}</p>
-        ) : null}
+    <div className="space-y-2 rounded-lg border border-border/70 bg-muted/10 px-3 py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 space-y-0.5">
+          <Label htmlFor={id} className="text-sm font-medium">
+            {label}
+          </Label>
+          {description ? (
+            <p className="text-xs text-muted-foreground">{description}</p>
+          ) : null}
+        </div>
+        <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
       </div>
-      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
+      {checked && children ? <NestedSettings>{children}</NestedSettings> : null}
+    </div>
+  );
+}
+
+function BannedWordsTagInput({
+  words,
+  onChange,
+}: {
+  words: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [draft, setDraft] = useState("");
+
+  const addWord = () => {
+    const word = draft.trim();
+    if (!word) return;
+    const exists = words.some((w) => w.toLowerCase() === word.toLowerCase());
+    if (!exists) onChange([...words, word]);
+    setDraft("");
+  };
+
+  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    addWord();
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor="bannedWordsInput">Lista</Label>
+      <Input
+        id="bannedWordsInput"
+        type="text"
+        placeholder="Escribe una palabra y presiona Enter..."
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={onKeyDown}
+      />
+      {words.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {words.map((word) => (
+            <Badge
+              key={word.toLowerCase()}
+              className="gap-1 normal-case tracking-normal py-1 pl-2 pr-1 text-xs font-medium"
+            >
+              {word}
+              <button
+                type="button"
+                aria-label={`Quitar ${word}`}
+                className="rounded-sm p-0.5 text-muted-foreground transition-colors hover:bg-background/60 hover:text-foreground"
+                onClick={() =>
+                  onChange(words.filter((w) => w.toLowerCase() !== word.toLowerCase()))
+                }
+              >
+                <X className="size-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">
+          Añade palabras con Enter. Se guardan como etiquetas.
+        </p>
+      )}
     </div>
   );
 }
@@ -131,18 +227,10 @@ export function AutoModDashboard() {
     [roles],
   );
 
-  const activeFilterCount = useMemo(() => {
-    const f = config.filters;
-    let n = 0;
-    if (f.zalgo) n += 1;
-    if (f.excessCaps) n += 1;
-    if (f.bannedWords.trim()) n += 1;
-    if (f.antiLinks) n += 1;
-    if (f.messageSpam) n += 1;
-    if (f.repeatedText) n += 1;
-    if (f.mentionSpam) n += 1;
-    return n;
-  }, [config.filters]);
+  const activeFilterCount = useMemo(
+    () => countActiveAutoModFilters(config.filters),
+    [config.filters],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -191,6 +279,7 @@ export function AutoModDashboard() {
         ignoredRoles: config.ignoredRoles,
         ignoredChannels: config.ignoredChannels,
         logChannelId: config.logChannelId,
+        warnDecayDays: config.warnDecayDays,
       });
       setConfig(res.config);
       setSavedFingerprint(configFingerprint(res.config));
@@ -215,6 +304,13 @@ export function AutoModDashboard() {
 
   return (
     <div className="space-y-6">
+      <HeaderEnableSwitch
+        idPrefix="auto-mod"
+        checked={config.enabled}
+        disabled={saving}
+        onCheckedChange={(enabled) => patch({ enabled })}
+      />
+
       <ToastBanner
         variant="error"
         message={error}
@@ -271,27 +367,66 @@ export function AutoModDashboard() {
                       <FilterToggle
                         id="excessCaps"
                         label="Exceso de mayúsculas"
-                        description="Activa si ≥70% del texto es mayúsculas (mín. 8 letras)."
+                        description="Umbral configurable de mayúsculas en el mensaje."
                         checked={config.filters.excessCaps}
                         onCheckedChange={(excessCaps) =>
                           patchFilters({ excessCaps })
                         }
-                      />
-                      <div className="space-y-1.5">
-                        <Label htmlFor="bannedWords">Palabras prohibidas</Label>
-                        <Textarea
-                          id="bannedWords"
-                          rows={4}
-                          placeholder={"una palabra por línea\nejemplo\nspam"}
-                          value={config.filters.bannedWords}
-                          onChange={(e) =>
-                            patchFilters({ bannedWords: e.target.value })
+                      >
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="space-y-1.5">
+                            <Label htmlFor="capsPercentage">
+                              Porcentaje máximo (%)
+                            </Label>
+                            <Input
+                              id="capsPercentage"
+                              type="number"
+                              min={1}
+                              max={100}
+                              value={config.filters.capsPercentage}
+                              onChange={(e) =>
+                                patchFilters({
+                                  capsPercentage:
+                                    Number(e.target.value) || 70,
+                                })
+                              }
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="capsMinLength">
+                              Longitud mínima (caracteres)
+                            </Label>
+                            <Input
+                              id="capsMinLength"
+                              type="number"
+                              min={1}
+                              max={500}
+                              value={config.filters.capsMinLength}
+                              onChange={(e) =>
+                                patchFilters({
+                                  capsMinLength: Number(e.target.value) || 8,
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                      </FilterToggle>
+                      <FilterToggle
+                        id="bannedWords"
+                        label="Palabras prohibidas"
+                        description="Bloquea mensajes que contengan palabras de la lista."
+                        checked={config.filters.bannedWordsEnabled}
+                        onCheckedChange={(bannedWordsEnabled) =>
+                          patchFilters({ bannedWordsEnabled })
+                        }
+                      >
+                        <BannedWordsTagInput
+                          words={config.filters.bannedWords}
+                          onChange={(bannedWords) =>
+                            patchFilters({ bannedWords })
                           }
                         />
-                        <p className="text-[11px] text-muted-foreground">
-                          Una entrada por línea. Vacío = filtro inactivo.
-                        </p>
-                      </div>
+                      </FilterToggle>
                     </CardContent>
                   </Card>
 
@@ -299,10 +434,19 @@ export function AutoModDashboard() {
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">Filtros de enlaces</CardTitle>
                       <CardDescription>
-                        Bloquea URLs fuera de la lista blanca.
+                        Invitaciones de Discord y URLs fuera de lista blanca.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
+                      <FilterToggle
+                        id="antiInvites"
+                        label="Anti-Invitaciones de Discord"
+                        description="Bloquea discord.gg y discord.com/invite."
+                        checked={config.filters.antiInvites}
+                        onCheckedChange={(antiInvites) =>
+                          patchFilters({ antiInvites })
+                        }
+                      />
                       <FilterToggle
                         id="antiLinks"
                         label="Anti-Links (lista blanca)"
@@ -311,20 +455,20 @@ export function AutoModDashboard() {
                         onCheckedChange={(antiLinks) =>
                           patchFilters({ antiLinks })
                         }
-                      />
-                      <div className="space-y-1.5">
-                        <Label htmlFor="allowedLinks">Enlaces permitidos</Label>
-                        <Textarea
-                          id="allowedLinks"
-                          rows={3}
-                          placeholder={"discord.com\nyoutube.com\ngithub.com"}
-                          value={config.filters.allowedLinks}
-                          onChange={(e) =>
-                            patchFilters({ allowedLinks: e.target.value })
-                          }
-                          disabled={!config.filters.antiLinks}
-                        />
-                      </div>
+                      >
+                        <div className="space-y-1.5">
+                          <Label htmlFor="allowedLinks">Enlaces permitidos</Label>
+                          <Textarea
+                            id="allowedLinks"
+                            rows={3}
+                            placeholder={"discord.com\nyoutube.com\ngithub.com"}
+                            value={config.filters.allowedLinks}
+                            onChange={(e) =>
+                              patchFilters({ allowedLinks: e.target.value })
+                            }
+                          />
+                        </div>
+                      </FilterToggle>
                     </CardContent>
                   </Card>
 
@@ -332,7 +476,7 @@ export function AutoModDashboard() {
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">Filtros de spam</CardTitle>
                       <CardDescription>
-                        Ráfagas, repetición y menciones excesivas.
+                        Ráfagas, repetición, menciones y muros de texto.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
@@ -362,26 +506,73 @@ export function AutoModDashboard() {
                         onCheckedChange={(mentionSpam) =>
                           patchFilters({ mentionSpam })
                         }
-                      />
-                      <div className="space-y-1.5">
-                        <Label htmlFor="mentionLimit">
-                          Umbral de menciones
-                        </Label>
-                        <Input
-                          id="mentionLimit"
-                          type="number"
-                          min={1}
-                          max={50}
-                          value={config.filters.mentionSpamLimit}
-                          disabled={!config.filters.mentionSpam}
-                          onChange={(e) =>
-                            patchFilters({
-                              mentionSpamLimit: Number(e.target.value) || 5,
-                            })
-                          }
-                          className="max-w-[140px]"
-                        />
-                      </div>
+                      >
+                        <div className="space-y-1.5">
+                          <Label htmlFor="mentionLimit">
+                            Umbral de menciones
+                          </Label>
+                          <Input
+                            id="mentionLimit"
+                            type="number"
+                            min={1}
+                            max={50}
+                            value={config.filters.mentionSpamLimit}
+                            onChange={(e) =>
+                              patchFilters({
+                                mentionSpamLimit: Number(e.target.value) || 5,
+                              })
+                            }
+                            className="max-w-[140px]"
+                          />
+                        </div>
+                      </FilterToggle>
+                      <FilterToggle
+                        id="textFlood"
+                        label="Muros de texto (Text Flood)"
+                        description="Mensajes demasiado largos o con demasiados saltos de línea."
+                        checked={config.filters.textFlood}
+                        onCheckedChange={(textFlood) =>
+                          patchFilters({ textFlood })
+                        }
+                      >
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="space-y-1.5">
+                            <Label htmlFor="floodMaxChars">
+                              Límite de caracteres
+                            </Label>
+                            <Input
+                              id="floodMaxChars"
+                              type="number"
+                              min={50}
+                              max={4000}
+                              value={config.filters.floodMaxChars}
+                              onChange={(e) =>
+                                patchFilters({
+                                  floodMaxChars:
+                                    Number(e.target.value) || 800,
+                                })
+                              }
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="floodMaxLines">
+                              Límite de saltos de línea
+                            </Label>
+                            <Input
+                              id="floodMaxLines"
+                              type="number"
+                              min={1}
+                              max={100}
+                              value={config.filters.floodMaxLines}
+                              onChange={(e) =>
+                                patchFilters({
+                                  floodMaxLines: Number(e.target.value) || 6,
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                      </FilterToggle>
                     </CardContent>
                   </Card>
                 </div>
@@ -391,44 +582,92 @@ export function AutoModDashboard() {
             {tab === "sanctions" ? (
               <TabsContent>
                 <div className="space-y-4">
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">
+                        Caducidad de Warns
+                      </CardTitle>
+                      <CardDescription>
+                        Define cuánto tiempo un Warn cuenta como activo para
+                        futuros castigos automáticos.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="warn-decay">Periodo de caducidad</Label>
+                        <Select
+                          value={String(config.warnDecayDays)}
+                          onValueChange={(value) =>
+                            patch({
+                              warnDecayDays: Number(
+                                value,
+                              ) as AutoModWarnDecayDays,
+                            })
+                          }
+                        >
+                          <SelectTrigger id="warn-decay" className="max-w-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {AUTO_MOD_WARN_DECAY_OPTIONS.map((opt) => (
+                              <SelectItem
+                                key={opt.value}
+                                value={String(opt.value)}
+                              >
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Los Warns más antiguos a este periodo no sumarán para
+                          castigos automáticos, pero seguirán en el expediente
+                          histórico.
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
                   <div className="flex gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
                     <Construction
                       className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400"
                       aria-hidden
                     />
                     <p>
-                      <strong className="font-semibold">En desarrollo:</strong>{" "}
-                      El Auto Mod actualmente inserta Warns en el expediente del
-                      usuario. Los castigos automáticos basados en la
-                      acumulación de Warns activos se habilitarán próximamente.
+                      Constructor Dinámico de Sanciones en desarrollo.
+                      Próximamente podrás encadenar Warns con Timeouts, Kicks y
+                      Bans directamente.
                     </p>
                   </div>
 
-                  <Card className="opacity-90">
+                  <Card className="opacity-80">
                     <CardHeader>
                       <CardTitle className="text-base">
                         Escalado de sanciones (vista previa)
                       </CardTitle>
                       <CardDescription>
-                        Esqueleto visual. No se aplica todavía — el histórico de
-                        Warns se conserva completo.
+                        Mockup estático — no se guarda ni se ejecuta en esta
+                        fase.
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-3">
+                    <CardContent className="pointer-events-none space-y-3 select-none">
                       {[
-                        { warns: 3, action: "Timeout 10 minutos" },
+                        { warns: 3, action: "Timeout 10 mins" },
                         { warns: 5, action: "Timeout 1 hora" },
                         { warns: 7, action: "Kick del servidor" },
-                        { warns: 10, action: "Ban temporal / revisión staff" },
                       ].map((row) => (
                         <div
                           key={row.warns}
-                          className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-border bg-muted/20 px-3 py-2.5 text-sm"
+                          className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-border bg-muted/15 px-3 py-2.5 text-sm text-muted-foreground"
+                          aria-disabled
                         >
-                          <span className="text-muted-foreground">A los</span>
-                          <Badge className="font-mono">{row.warns} Warns</Badge>
-                          <span className="text-muted-foreground">→</span>
-                          <span className="font-medium">{row.action}</span>
+                          <Badge className="border-border bg-background font-mono text-muted-foreground">
+                            A los {row.warns} Warns
+                          </Badge>
+                          <span aria-hidden>🡒</span>
+                          <span className="font-medium text-muted-foreground/90">
+                            {row.action}
+                          </span>
                           <Badge className="ml-auto border-border bg-background text-muted-foreground">
                             Próximamente
                           </Badge>
@@ -539,7 +778,9 @@ export function AutoModDashboard() {
 
               <div className="flex items-center justify-between gap-2">
                 <span className="text-muted-foreground">Filtros activos</span>
-                <span className="font-mono text-xs">{activeFilterCount} / 7</span>
+                <span className="font-mono text-xs">
+                  {activeFilterCount} / {AUTO_MOD_TOGGLE_FILTER_COUNT}
+                </span>
               </div>
 
               <div className="flex items-center justify-between gap-2">
@@ -559,15 +800,11 @@ export function AutoModDashboard() {
                 </span>
               </div>
 
-              <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
-                <Label htmlFor="master-enabled" className="text-sm">
-                  Habilitar Auto Mod
-                </Label>
-                <Switch
-                  id="master-enabled"
-                  checked={config.enabled}
-                  onCheckedChange={(enabled) => patch({ enabled })}
-                />
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">Caducidad</span>
+                <span className="text-xs">
+                  {warnDecayLabel(config.warnDecayDays)}
+                </span>
               </div>
 
               <Button

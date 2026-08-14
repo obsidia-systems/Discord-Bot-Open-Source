@@ -7,6 +7,7 @@ import type {
 import {
   defaultAutoModConfig,
   defaultAutoModFilters,
+  normalizeWarnDecayDays,
 } from "@adobos/shared";
 import { getDb } from "../../db/client.js";
 import { autoModConfig, guildSettings } from "../../db/schema.js";
@@ -69,32 +70,71 @@ function ensureGuildRow(guildId: string): void {
   }
 }
 
+function normalizeBannedWords(value: unknown): string[] {
+  const raw: string[] = Array.isArray(value)
+    ? value.map((w) => String(w))
+    : typeof value === "string"
+      ? value.split(/\r?\n/)
+      : [];
+
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const entry of raw) {
+    const word = entry.trim();
+    if (!word) continue;
+    const key = word.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(word);
+  }
+  return out;
+}
+
 function mergeFilters(
   partial?: Partial<AutoModFilters> | null,
 ): AutoModFilters {
   const base = defaultAutoModFilters();
   if (!partial) return base;
-  return {
+  const merged: AutoModFilters = {
     ...base,
     ...partial,
-    bannedWords:
-      typeof partial.bannedWords === "string"
-        ? partial.bannedWords
-        : base.bannedWords,
+    bannedWords: normalizeBannedWords(partial.bannedWords ?? base.bannedWords),
     allowedLinks:
       typeof partial.allowedLinks === "string"
         ? partial.allowedLinks
         : base.allowedLinks,
-    mentionSpamLimit: Math.max(
-      1,
-      Math.min(
-        50,
-        Math.round(
-          Number(partial.mentionSpamLimit ?? base.mentionSpamLimit) || 5,
-        ),
-      ),
-    ),
   };
+
+  // Migración suave: si hay palabras guardadas sin toggle, activar el filtro.
+  if (
+    partial.bannedWordsEnabled === undefined &&
+    merged.bannedWords.length > 0
+  ) {
+    merged.bannedWordsEnabled = true;
+  }
+
+  merged.capsPercentage = Math.max(
+    1,
+    Math.min(100, Math.round(Number(merged.capsPercentage) || 70)),
+  );
+  merged.capsMinLength = Math.max(
+    1,
+    Math.min(500, Math.round(Number(merged.capsMinLength) || 8)),
+  );
+  merged.mentionSpamLimit = Math.max(
+    1,
+    Math.min(50, Math.round(Number(merged.mentionSpamLimit) || 5)),
+  );
+  merged.floodMaxChars = Math.max(
+    50,
+    Math.min(4000, Math.round(Number(merged.floodMaxChars) || 800)),
+  );
+  merged.floodMaxLines = Math.max(
+    1,
+    Math.min(100, Math.round(Number(merged.floodMaxLines) || 6)),
+  );
+
+  return merged;
 }
 
 function rowToConfig(
@@ -110,6 +150,7 @@ function rowToConfig(
     ignoredRoles: parseJson<string[]>(row.ignoredRoles, []),
     ignoredChannels: parseJson<string[]>(row.ignoredChannels, []),
     logChannelId: row.logChannelId ?? null,
+    warnDecayDays: normalizeWarnDecayDays(row.warnDecayDays),
     updatedAt: new Date(row.updatedAt).toISOString(),
   };
 }
@@ -165,6 +206,11 @@ export function updateAutoModConfig(
       input.logChannelId !== undefined
         ? input.logChannelId
         : current.logChannelId,
+    warnDecayDays: normalizeWarnDecayDays(
+      input.warnDecayDays !== undefined
+        ? input.warnDecayDays
+        : current.warnDecayDays,
+    ),
     updatedAt: new Date().toISOString(),
   };
 
@@ -177,6 +223,7 @@ export function updateAutoModConfig(
       ignoredRoles: JSON.stringify(next.ignoredRoles),
       ignoredChannels: JSON.stringify(next.ignoredChannels),
       logChannelId: next.logChannelId,
+      warnDecayDays: next.warnDecayDays,
       updatedAt: new Date(),
     })
     .onConflictDoUpdate({
@@ -187,6 +234,7 @@ export function updateAutoModConfig(
         ignoredRoles: JSON.stringify(next.ignoredRoles),
         ignoredChannels: JSON.stringify(next.ignoredChannels),
         logChannelId: next.logChannelId,
+        warnDecayDays: next.warnDecayDays,
         updatedAt: new Date(),
       },
     })

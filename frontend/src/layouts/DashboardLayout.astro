@@ -28,7 +28,7 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
       <header
         class="hidden border-b border-border/70 bg-card/40 px-8 py-5 backdrop-blur-md lg:block"
       >
-        <div class="flex items-start justify-between gap-4">
+        <div class="flex items-center justify-between gap-4">
           <div class="min-w-0">
             <p
               class="font-display text-xs font-semibold uppercase tracking-[0.2em] text-primary"
@@ -51,14 +51,14 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
           </div>
           <div
             id="dashboard-header-actions"
-            class="flex shrink-0 items-center gap-3 pt-1"
+            class="flex shrink-0 items-center gap-3 self-center"
           >
           </div>
         </div>
       </header>
 
       <div class="border-b border-border/70 px-4 py-4 lg:hidden">
-        <div class="flex items-start justify-between gap-3">
+        <div class="flex items-center justify-between gap-3">
           <div class="min-w-0">
             <h1
               class="font-display text-xl font-semibold tracking-tight"
@@ -74,7 +74,7 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
           </div>
           <div
             id="dashboard-header-actions-mobile"
-            class="flex shrink-0 items-center gap-2 pt-0.5"
+            class="flex shrink-0 items-center gap-2"
           >
           </div>
         </div>

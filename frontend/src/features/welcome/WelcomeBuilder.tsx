@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { createPortal } from "react-dom";
 import {
   CheckCircle2,
   ChevronDown,
@@ -22,6 +21,7 @@ import {
   uploadBackgroundFile,
 } from "@/lib/api";
 import { BackgroundImageUpload } from "@/components/shared/BackgroundImageUpload";
+import { HeaderEnableSwitch } from "@/components/shared/HeaderEnableSwitch";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -40,7 +40,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { VariableListBase } from "@/components/shared/VariableListBase";
@@ -205,55 +204,6 @@ function HexColorField({
         />
       </div>
     </div>
-  );
-}
-
-function HeaderEnableSwitch({
-  checked,
-  disabled,
-  onCheckedChange,
-}: {
-  checked: boolean;
-  disabled?: boolean;
-  onCheckedChange: (value: boolean) => void;
-}) {
-  const [desktopHost, setDesktopHost] = useState<HTMLElement | null>(null);
-  const [mobileHost, setMobileHost] = useState<HTMLElement | null>(null);
-
-  useEffect(() => {
-    setDesktopHost(document.getElementById("dashboard-header-actions"));
-    setMobileHost(document.getElementById("dashboard-header-actions-mobile"));
-  }, []);
-
-  function renderControl(id: string) {
-    return (
-      <div className="flex items-center gap-2 rounded-lg border border-border/70 bg-background/80 px-3 py-2 shadow-sm">
-        <Label
-          htmlFor={id}
-          className="text-xs font-medium text-muted-foreground"
-        >
-          {checked ? "ON" : "OFF"}
-        </Label>
-        <Switch
-          id={id}
-          checked={checked}
-          disabled={disabled}
-          onCheckedChange={onCheckedChange}
-          className="h-7 w-12 [&>span]:size-6 [&>span]:data-[state=checked]:translate-x-5"
-        />
-      </div>
-    );
-  }
-
-  return (
-    <>
-      {desktopHost
-        ? createPortal(renderControl("welcome-enabled"), desktopHost)
-        : null}
-      {mobileHost
-        ? createPortal(renderControl("welcome-enabled-mobile"), mobileHost)
-        : null}
-    </>
   );
 }
 
@@ -691,6 +641,7 @@ export function WelcomeBuilder() {
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       <HeaderEnableSwitch
+        idPrefix="welcome"
         checked={isEnabled}
         disabled={isSubmitting}
         onCheckedChange={setIsEnabled}

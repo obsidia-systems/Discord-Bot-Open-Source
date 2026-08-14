@@ -377,6 +377,8 @@ export const autoModConfig = sqliteTable("auto_mod_config", {
   /** JSON: string[] */
   ignoredChannels: text("ignored_channels").notNull().default("[]"),
   logChannelId: text("log_channel_id"),
+  /** Días para caducidad de Warns activos; 0 = nunca. */
+  warnDecayDays: integer("warn_decay_days").notNull().default(30),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),
