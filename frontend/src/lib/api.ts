@@ -57,3 +57,8 @@ export {
   sendActionLogsTest,
 } from "./api/action-logs";
 export { fetchAutoModConfig, saveAutoModConfig } from "./api/auto-mod";
+export {
+  fetchLevelsConfig,
+  saveLevelsConfig,
+  fetchLevelsLeaderboard,
+} from "./api/levels";

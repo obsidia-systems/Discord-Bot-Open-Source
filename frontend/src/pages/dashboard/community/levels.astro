@@ -1,8 +1,11 @@
 ---
-import ComingSoon from "../../../components/shared/ComingSoon.astro";
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { LevelsDashboard } from "../../../features/levels";
 ---
 
-<ComingSoon
+<DashboardLayout
   title="Rangos y XP"
   description="Niveles por texto, voz y roles por rango."
-/>
+>
+  <LevelsDashboard client:load />
+</DashboardLayout>

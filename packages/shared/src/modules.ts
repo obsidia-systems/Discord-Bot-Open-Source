@@ -8,7 +8,8 @@ export type ModuleId =
   | "moderation"
   | "bot-profile"
   | "action-logs"
-  | "auto-mod";
+  | "auto-mod"
+  | "levels";
 
 export type PluginId =
   | "minecraft"

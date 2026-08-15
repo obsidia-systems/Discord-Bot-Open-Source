@@ -415,6 +415,67 @@ export type NewActionLogRow = typeof actionLogs.$inferInsert;
 export type AutoModConfigRow = typeof autoModConfig.$inferSelect;
 export type NewAutoModConfigRow = typeof autoModConfig.$inferInsert;
 
+/**
+ * Configuración de Rangos y XP por guild.
+ */
+export const xpConfig = sqliteTable("xp_config", {
+  guildId: text("guild_id")
+    .primaryKey()
+    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
+  textXpMin: integer("text_xp_min").notNull().default(15),
+  textXpMax: integer("text_xp_max").notNull().default(25),
+  cooldownSeconds: integer("cooldown_seconds").notNull().default(60),
+  voiceEnabled: integer("voice_enabled", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  voiceXpPerMinute: integer("voice_xp_per_minute").notNull().default(10),
+  xpMultiplier: integer("xp_multiplier").notNull().default(1),
+  /** JSON: string[] */
+  ignoredRoles: text("ignored_roles").notNull().default("[]"),
+  /** JSON: string[] */
+  ignoredChannels: text("ignored_channels").notNull().default("[]"),
+  levelUpChannelId: text("level_up_channel_id"),
+  liveLeaderboardChannelId: text("live_leaderboard_channel_id"),
+  liveLeaderboardMessageId: text("live_leaderboard_message_id"),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+/** Recompensas de rol por nivel. */
+export const xpRewards = sqliteTable("xp_rewards", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  guildId: text("guild_id")
+    .notNull()
+    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+  level: integer("level").notNull(),
+  roleId: text("role_id").notNull(),
+});
+
+/** Progreso de XP por usuario en un guild. */
+export const userXp = sqliteTable(
+  "user_xp",
+  {
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    xp: integer("xp").notNull().default(0),
+    level: integer("level").notNull().default(0),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.guildId, table.userId] }),
+  }),
+);
+
+export type XpConfigRow = typeof xpConfig.$inferSelect;
+export type NewXpConfigRow = typeof xpConfig.$inferInsert;
+export type XpRewardRow = typeof xpRewards.$inferSelect;
+export type NewXpRewardRow = typeof xpRewards.$inferInsert;
+export type UserXpRow = typeof userXp.$inferSelect;
+export type NewUserXpRow = typeof userXp.$inferInsert;
+
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [
   "minecraft",

@@ -148,6 +148,20 @@
       "when": 1786420000000,
       "tag": "0020_auto_mod_warn_decay",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1786430000000,
+      "tag": "0021_levels_xp",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1786440000000,
+      "tag": "0022_levels_live_leaderboard",
+      "breakpoints": true
     }
   ]
 }

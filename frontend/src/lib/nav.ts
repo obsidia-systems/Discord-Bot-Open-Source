@@ -181,7 +181,6 @@ export const dashboardNav: NavCategoryConfig[] = [
         label: "Rangos y XP",
         href: "/dashboard/community/levels",
         icon: TrendingUp,
-        soon: true,
         blurb: "Niveles por texto, voz y gamificación.",
       },
       {

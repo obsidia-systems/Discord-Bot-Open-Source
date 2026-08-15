@@ -9,6 +9,7 @@ import { moderationModule } from "./moderation/index.js";
 import { botProfileModule } from "./bot-profile/index.js";
 import { actionLogsModule } from "./action-logs/index.js";
 import { autoModModule } from "./auto-mod/index.js";
+import { levelsModule } from "./levels/index.js";
 
 /**
  * Catálogo explícito de módulos habilitados.
@@ -25,6 +26,7 @@ export const ENABLED_MODULES: readonly AdobosModule[] = [
   moderationModule,
   actionLogsModule,
   autoModModule,
+  levelsModule,
 ];
 
 export {
@@ -38,4 +40,5 @@ export {
   botProfileModule,
   actionLogsModule,
   autoModModule,
+  levelsModule,
 };

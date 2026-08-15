@@ -218,6 +218,41 @@ function ensureCoreTables(database: Database.Database): void {
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS xp_config (
+      guild_id TEXT PRIMARY KEY NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      text_xp_min INTEGER NOT NULL DEFAULT 15,
+      text_xp_max INTEGER NOT NULL DEFAULT 25,
+      cooldown_seconds INTEGER NOT NULL DEFAULT 60,
+      voice_enabled INTEGER NOT NULL DEFAULT 0,
+      voice_xp_per_minute INTEGER NOT NULL DEFAULT 10,
+      xp_multiplier INTEGER NOT NULL DEFAULT 1,
+      ignored_roles TEXT NOT NULL DEFAULT '[]',
+      ignored_channels TEXT NOT NULL DEFAULT '[]',
+      level_up_channel_id TEXT,
+      live_leaderboard_channel_id TEXT,
+      live_leaderboard_message_id TEXT,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS xp_rewards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      level INTEGER NOT NULL,
+      role_id TEXT NOT NULL,
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS user_xp (
+      guild_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      xp INTEGER NOT NULL DEFAULT 0,
+      level INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (guild_id, user_id),
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS bot_presence_settings (
       id TEXT PRIMARY KEY NOT NULL DEFAULT 'default',
       status TEXT NOT NULL DEFAULT 'online',
@@ -362,6 +397,24 @@ function ensureCoreTables(database: Database.Database): void {
     database.exec(
       `ALTER TABLE auto_mod_config ADD COLUMN warn_decay_days INTEGER NOT NULL DEFAULT 30`,
     );
+  }
+
+  // Migración suave: leaderboard en vivo en xp_config
+  const xpConfigCols = database
+    .prepare(`PRAGMA table_info(xp_config)`)
+    .all() as Array<{ name: string }>;
+  if (xpConfigCols.length > 0) {
+    const names = new Set(xpConfigCols.map((c) => c.name));
+    if (!names.has("live_leaderboard_channel_id")) {
+      database.exec(
+        `ALTER TABLE xp_config ADD COLUMN live_leaderboard_channel_id TEXT`,
+      );
+    }
+    if (!names.has("live_leaderboard_message_id")) {
+      database.exec(
+        `ALTER TABLE xp_config ADD COLUMN live_leaderboard_message_id TEXT`,
+      );
+    }
   }
 }
 

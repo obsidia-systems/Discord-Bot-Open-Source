@@ -146,66 +146,66 @@ adobos-bot/
 
 Los alcances o funcionalidades (Requerimientos funcionales) que he pensado son:
 
-- Mensajes Embed
+[x] - Mensajes Embed
 
-- Autoroles (reaccion, menus, etc)
+[x] - Autoroles (reaccion, menus, etc)
 
-- Bienvenida/Despedida/Ban
+[x] - Bienvenida/Despedida/Ban
 
-- Integracion con servidor de minecraft (colocando credenciales o algo asi)
-	-> Estatus del servidor (Online u Offline / Cantidad de Players)
-	-> Comandos de administrador (Apagar / Prender / Reiniciar / Banear / Unban / Lista de OP / etc. )
+[ ] - Integracion con servidor de minecraft (colocando credenciales o algo asi)
+	[ ] -> Estatus del servidor (Online u Offline / Cantidad de Players)
+	[ ] -> Comandos de administrador (Apagar / Prender / Reiniciar / Banear / Unban / Lista de OP / etc. )
 
-- Action logs (Eventos)
-	-> De mensajes: delete, edit, etc.
-	-> De miembros: join, leave, role add, rol remove, ban, unban
-	-> De roles: Creacion, borrado, actualizacion
-	-> Canales: creacion, borrado, actualizacion
-	-> Emojis/Stickers/Sonidos: creacion, borrado, actualizacion
-	-> Opcion de ignorar eventos de ciertos canales de texto o voz y de ciertos roles
+[x] - Action logs (Eventos)
+	[x] -> De mensajes: delete, edit, etc.
+	[x] -> De miembros: join, leave, role add, rol remove, ban, unban
+	[x] -> De roles: Creacion, borrado, actualizacion
+	[x] -> Canales: creacion, borrado, actualizacion
+	[x] -> Emojis/Stickers/Sonidos: creacion, borrado, actualizacion
+	[x] -> Opcion de ignorar eventos de ciertos canales de texto o voz y de ciertos roles
 
-- Auto delete de mensajes
+[ ] - Auto delete de mensajes
 
-- Mensaje sautomaticos (Como programar eventos o que con ciertos comandos se lancen o asi)
+[ ] - Mensajes automaticos (Como programar eventos o que con ciertos comandos se lancen o asi)
 
-- Auto Ban / Auto mod (No se si implementarlo o no realmente)
+[x] - Auto mod (No se si implementarlo o no realmente)
 
-- auto roles
-	-> Que pueda dar un rol en especifico a los nuevos miembros
-	-> Rangos (Asiganr roles por nivel de interaccion en texto, tiempo en chat de voz, niveles de XP, etc - gamificar los roles)
+[ ] - auto roles
+	[x] -> Que pueda dar un rol en especifico a los nuevos miembros
+	[ ] -> Rangos (Asiganr roles por nivel de interaccion en texto, tiempo en chat de voz, niveles de XP, etc - gamificar los roles)
 
-- Generar comandos custom
+[ ] - Generar comandos custom
 
-- Generar formulacios o encuestas
+[ ] - Generar formulacios o encuestas
 
-- Moderacion (funciones)
+[x] - Moderacion (funciones)
 
-- Customizacion del perfil del bot: Avatar, nombre, y asi
+[x] - Customizacion del perfil del bot: Avatar, nombre, y asi
 
-- Anuncios de encendido de Twitch, Kick, nuevo TikTok, etc, linkeando cuentas que deben trackearse.
+[ ] - Anuncios de encendido de Twitch, Kick, nuevo TikTok, etc, linkeando cuentas que deben trackearse.
 
-- Opciones de OSU!, como trackear sala o un comando para que pueda compartir la sala a jugar, compartir mapas, o compartir una repeticion o skins del juego (consumiento api de OSU? o como lo hacen otros bots?)
+[ ] - Opciones de OSU!, como trackear sala o un comando para que pueda compartir la sala a jugar, compartir mapas, o compartir una repeticion o skins del juego (consumiento api de OSU? o como lo hacen otros bots?)
 
-- Utilidades de valorant
+[ ] - Utilidades de valorant
 	-> Ver tienda, night market, tracker etc.
 
-- Anuncios de juegos gratis en EpicGames o en Steam
+[ ] - Anuncios de juegos gratis en EpicGames o en Steam
 
-- Anuncios de actualizacion de gatchas como NTE, Genshin, WuWa que serian de version, eventos o builds de personajes
+[ ] - Anuncios de actualizacion de gatchas como NTE, Genshin, WuWa que serian de version, eventos o builds de personajes
 
-- Economia (metodos de ganar economia, casino tipo gambling, ruleta pocker etc, y que se pueda canjear esto por recompensas - roles?)
+[ ] - Economia (metodos de ganar economia, casino tipo gambling, ruleta pocker etc, y que se pueda canjear esto por recompensas - roles?)
 
-- Pokemon: Formacion de equipos competitivos, objetos, formas, debilidades, coberturas, movesets, stats, donde conseguir cierto pokemon, etc.
+[ ] - Pokemon: Formacion de equipos competitivos, objetos, formas, debilidades, coberturas, movesets, stats, donde conseguir cierto pokemon, etc.
 
-- League of Legends: ...
+[ ] - League of Legends: ...
 
-- Esports transmiciones: Valorant, rocket, LoL, etc.
+[ ] - Esports transmiciones: Valorant, rocket, LoL, etc.
 
-- TTS bot con voz custom (basado en TTS Bot - repo anexo despues)
+[ ] - TTS bot con voz custom (basado en TTS Bot - repo anexo despues)
 
-- Posible integracion de webhoks para creacion de salas temporales como lo hace el bot voicemaster.
+[ ] - Posible integracion de webhoks para creacion de salas temporales como lo hace el bot voicemaster.
 
-- Integracion de reproduccion de musica. (checar si el bot puede reproducir en multiples canales a la vez con diferente musica o asi)
+[ ] - Integracion de reproduccion de musica. (checar si el bot puede reproducir en multiples canales a la vez con diferente musica o asi)
 
 
 
