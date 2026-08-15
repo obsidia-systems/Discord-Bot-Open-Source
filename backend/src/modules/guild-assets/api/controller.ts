@@ -144,6 +144,7 @@ export async function getGuildAssets(
   return {
     guildId: guild.id,
     guildName: guild.name,
+    iconUrl: guild.iconURL({ size: 256 }),
     channels: mapChannels(guild),
     emojis: mapEmojis(guild),
     stickers: mapStickers(guild),

@@ -443,9 +443,32 @@ export const xpConfig = sqliteTable("xp_config", {
   levelUpMessage: text("level_up_message")
     .notNull()
     .default("🎉 {user} subió al **nivel {level}**!"),
+  levelUpEmbedTitle: text("level_up_embed_title")
+    .notNull()
+    .default("¡Subida de Nivel!"),
+  levelUpEmbedColor: text("level_up_embed_color")
+    .notNull()
+    .default("#34E21D"),
+  levelUpShowThumbnail: integer("level_up_show_thumbnail", { mode: "boolean" })
+    .notNull()
+    .default(true),
   levelUpImage: text("level_up_image"),
   liveLeaderboardChannelId: text("live_leaderboard_channel_id"),
   liveLeaderboardMessageId: text("live_leaderboard_message_id"),
+  leaderboardEmbedTitle: text("leaderboard_embed_title")
+    .notNull()
+    .default("🏆 Tabla de Clasificación"),
+  leaderboardEmbedDescription: text("leaderboard_embed_description")
+    .notNull()
+    .default(""),
+  leaderboardEmbedColor: text("leaderboard_embed_color")
+    .notNull()
+    .default("#CA7AFF"),
+  leaderboardShowThumbnail: integer("leaderboard_show_thumbnail", {
+    mode: "boolean",
+  })
+    .notNull()
+    .default(false),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),

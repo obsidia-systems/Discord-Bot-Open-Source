@@ -56,6 +56,8 @@ export interface GuildRoleAsset {
 export interface GuildAssetsResponse {
   guildId: string;
   guildName: string;
+  /** Icono del servidor (CDN), si existe. */
+  iconUrl: string | null;
   channels: GuildChannelAsset[];
   emojis: GuildEmojiAsset[];
   stickers: GuildStickerAsset[];

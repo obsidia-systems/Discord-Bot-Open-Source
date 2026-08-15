@@ -8,9 +8,14 @@ import type {
   UpdateLevelsConfigRequest,
 } from "@adobos/shared";
 import {
+  DEFAULT_LEADERBOARD_EMBED_COLOR,
+  DEFAULT_LEADERBOARD_EMBED_TITLE,
+  DEFAULT_LEVEL_UP_EMBED_COLOR,
+  DEFAULT_LEVEL_UP_EMBED_TITLE,
   DEFAULT_LEVEL_UP_MESSAGE,
   defaultLevelsConfig,
   levelFromXp,
+  normalizeEmbedColor,
   normalizeLevelUpFormat,
   xpForLevel,
 } from "@adobos/shared";
@@ -160,9 +165,25 @@ function rowToConfig(
     levelUpFormat: normalizeLevelUpFormat(row.levelUpFormat),
     levelUpMessage:
       (row.levelUpMessage ?? "").trim() || DEFAULT_LEVEL_UP_MESSAGE,
+    levelUpEmbedTitle:
+      (row.levelUpEmbedTitle ?? "").trim() || DEFAULT_LEVEL_UP_EMBED_TITLE,
+    levelUpEmbedColor: normalizeEmbedColor(
+      row.levelUpEmbedColor,
+      DEFAULT_LEVEL_UP_EMBED_COLOR,
+    ),
+    levelUpShowThumbnail: Boolean(row.levelUpShowThumbnail),
     levelUpImage: row.levelUpImage ?? null,
     liveLeaderboardChannelId: row.liveLeaderboardChannelId ?? null,
     liveLeaderboardMessageId: row.liveLeaderboardMessageId ?? null,
+    leaderboardEmbedTitle:
+      (row.leaderboardEmbedTitle ?? "").trim() ||
+      DEFAULT_LEADERBOARD_EMBED_TITLE,
+    leaderboardEmbedDescription: row.leaderboardEmbedDescription ?? "",
+    leaderboardEmbedColor: normalizeEmbedColor(
+      row.leaderboardEmbedColor,
+      DEFAULT_LEADERBOARD_EMBED_COLOR,
+    ),
+    leaderboardShowThumbnail: Boolean(row.leaderboardShowThumbnail),
     rewards: loadRewards(guildId),
     updatedAt: new Date(row.updatedAt).toISOString(),
   };
@@ -300,12 +321,46 @@ export function updateLevelsConfig(
       input.levelUpMessage !== undefined
         ? input.levelUpMessage.trim() || DEFAULT_LEVEL_UP_MESSAGE
         : current.levelUpMessage,
+    levelUpEmbedTitle:
+      input.levelUpEmbedTitle !== undefined
+        ? input.levelUpEmbedTitle.trim() || DEFAULT_LEVEL_UP_EMBED_TITLE
+        : current.levelUpEmbedTitle,
+    levelUpEmbedColor:
+      input.levelUpEmbedColor !== undefined
+        ? normalizeEmbedColor(
+            input.levelUpEmbedColor,
+            DEFAULT_LEVEL_UP_EMBED_COLOR,
+          )
+        : current.levelUpEmbedColor,
+    levelUpShowThumbnail:
+      input.levelUpShowThumbnail !== undefined
+        ? Boolean(input.levelUpShowThumbnail)
+        : current.levelUpShowThumbnail,
     levelUpImage:
       input.levelUpImage !== undefined
         ? input.levelUpImage
         : current.levelUpImage,
     liveLeaderboardChannelId: nextChannel,
     liveLeaderboardMessageId: nextMessageId,
+    leaderboardEmbedTitle:
+      input.leaderboardEmbedTitle !== undefined
+        ? input.leaderboardEmbedTitle.trim() || DEFAULT_LEADERBOARD_EMBED_TITLE
+        : current.leaderboardEmbedTitle,
+    leaderboardEmbedDescription:
+      input.leaderboardEmbedDescription !== undefined
+        ? input.leaderboardEmbedDescription
+        : current.leaderboardEmbedDescription,
+    leaderboardEmbedColor:
+      input.leaderboardEmbedColor !== undefined
+        ? normalizeEmbedColor(
+            input.leaderboardEmbedColor,
+            DEFAULT_LEADERBOARD_EMBED_COLOR,
+          )
+        : current.leaderboardEmbedColor,
+    leaderboardShowThumbnail:
+      input.leaderboardShowThumbnail !== undefined
+        ? Boolean(input.leaderboardShowThumbnail)
+        : current.leaderboardShowThumbnail,
     rewards: nextRewards,
     updatedAt: new Date().toISOString(),
   };
@@ -327,9 +382,16 @@ export function updateLevelsConfig(
       levelUpChannelId: next.levelUpChannelId,
       levelUpFormat: next.levelUpFormat,
       levelUpMessage: next.levelUpMessage,
+      levelUpEmbedTitle: next.levelUpEmbedTitle,
+      levelUpEmbedColor: next.levelUpEmbedColor,
+      levelUpShowThumbnail: next.levelUpShowThumbnail,
       levelUpImage: next.levelUpImage,
       liveLeaderboardChannelId: next.liveLeaderboardChannelId,
       liveLeaderboardMessageId: next.liveLeaderboardMessageId,
+      leaderboardEmbedTitle: next.leaderboardEmbedTitle,
+      leaderboardEmbedDescription: next.leaderboardEmbedDescription,
+      leaderboardEmbedColor: next.leaderboardEmbedColor,
+      leaderboardShowThumbnail: next.leaderboardShowThumbnail,
       updatedAt: new Date(),
     })
     .onConflictDoUpdate({
@@ -348,9 +410,16 @@ export function updateLevelsConfig(
         levelUpChannelId: next.levelUpChannelId,
         levelUpFormat: next.levelUpFormat,
         levelUpMessage: next.levelUpMessage,
+        levelUpEmbedTitle: next.levelUpEmbedTitle,
+        levelUpEmbedColor: next.levelUpEmbedColor,
+        levelUpShowThumbnail: next.levelUpShowThumbnail,
         levelUpImage: next.levelUpImage,
         liveLeaderboardChannelId: next.liveLeaderboardChannelId,
         liveLeaderboardMessageId: next.liveLeaderboardMessageId,
+        leaderboardEmbedTitle: next.leaderboardEmbedTitle,
+        leaderboardEmbedDescription: next.leaderboardEmbedDescription,
+        leaderboardEmbedColor: next.leaderboardEmbedColor,
+        leaderboardShowThumbnail: next.leaderboardShowThumbnail,
         updatedAt: new Date(),
       },
     })
@@ -456,6 +525,27 @@ export function rewardsBetweenLevels(
   return config.rewards.filter(
     (r) => r.level > fromLevel && r.level <= toLevel,
   );
+}
+
+/** Recompensa exacta de un nivel (si existe). */
+export function rewardAtLevel(
+  guildId: string,
+  level: number,
+): LevelsReward | null {
+  const config = getLevelsConfigCached(guildId);
+  return config.rewards.find((r) => r.level === level) ?? null;
+}
+
+/** Próxima recompensa con nivel estrictamente mayor al actual. */
+export function nextRewardAfter(
+  guildId: string,
+  level: number,
+): LevelsReward | null {
+  const config = getLevelsConfigCached(guildId);
+  const upcoming = config.rewards
+    .filter((r) => r.level > level)
+    .sort((a, b) => a.level - b.level);
+  return upcoming[0] ?? null;
 }
 
 export function randomTextXp(

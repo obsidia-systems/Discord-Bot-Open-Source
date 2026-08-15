@@ -25,7 +25,7 @@ function medals(rank: number): string {
   if (rank === 1) return "🥇";
   if (rank === 2) return "🥈";
   if (rank === 3) return "🥉";
-  return `**${rank}.**`;
+  return `**#${rank}**`;
 }
 
 async function resolveDisplayName(
@@ -50,8 +50,9 @@ export async function buildLiveLeaderboardEmbed(
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i]!;
     const name = await resolveDisplayName(client, guildId, row.userId);
+    const rank = i + 1;
     lines.push(
-      `${medals(i + 1)} <@${row.userId}> · **Nv. ${row.level}** · \`${row.xp.toLocaleString("es-MX")} XP\` — ${name}`,
+      `${medals(rank)} | <@${row.userId}> | ${name} | Nivel **${row.level}** | \`${row.xp.toLocaleString("es-MX")} XP\``,
     );
   }
 
@@ -60,12 +61,18 @@ export async function buildLiveLeaderboardEmbed(
       ? lines.join("\n")
       : "_Todavía no hay usuarios con XP._";
 
-  return new EmbedBuilder()
-    .setColor(0xe11d48)
-    .setTitle("🏆 Clasificación — Top 10")
-    .setDescription(description)
+  const embed = new EmbedBuilder()
+    .setColor(0xca7aff)
+    .setTitle("🏆 Tabla de Clasificación")
+    .setDescription(description.slice(0, 4096))
     .setFooter({ text: "Actualización automática · Rangos y XP" })
     .setTimestamp(new Date());
+
+  const guild = client.guilds.cache.get(guildId);
+  const icon = guild?.iconURL({ size: 256 });
+  if (icon) embed.setThumbnail(icon);
+
+  return embed;
 }
 
 async function flushLiveLeaderboard(

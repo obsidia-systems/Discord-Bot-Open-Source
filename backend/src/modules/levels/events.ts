@@ -1,25 +1,25 @@
 import {
-  AttachmentBuilder,
   ChannelType,
   EmbedBuilder,
   type Client,
   type GuildMember,
   type Message,
   type OmitPartialGroupDMChannel,
-  type TextBasedChannel,
   type VoiceState,
 } from "discord.js";
-import path from "node:path";
-import { DEFAULT_LEVEL_UP_MESSAGE } from "@adobos/shared";
-import { resolvePublicUploadPath } from "../../lib/dataPaths.js";
 import {
   addUserXp,
   getLevelsConfigCached,
+  nextRewardAfter,
   randomTextXp,
+  rewardAtLevel,
   rewardsBetweenLevels,
   scaleXpAmount,
 } from "./service.js";
 import { scheduleLiveLeaderboardRefresh } from "./liveLeaderboard.js";
+
+/** Color fijo del anuncio de subida de nivel. */
+const LEVEL_UP_EMBED_COLOR = 0x34e21d;
 
 type GuildMessage = OmitPartialGroupDMChannel<Message<true>>;
 
@@ -66,120 +66,67 @@ async function applyLevelRewards(
   guildId: string,
   fromLevel: number,
   toLevel: number,
-): Promise<string[]> {
+): Promise<void> {
   const rewards = rewardsBetweenLevels(guildId, fromLevel, toLevel);
-  const granted: string[] = [];
   for (const reward of rewards) {
-    if (member.roles.cache.has(reward.roleId)) {
-      granted.push(reward.roleId);
-      continue;
-    }
-    try {
-      await member.roles.add(reward.roleId, `Rangos y XP — nivel ${reward.level}`);
-      granted.push(reward.roleId);
-    } catch (error) {
-      console.warn(
-        `[adobos] levels: no se pudo otorgar rol ${reward.roleId} (nivel ${reward.level}):`,
-        error,
-      );
-    }
+    if (member.roles.cache.has(reward.roleId)) continue;
+    await member.roles
+      .add(reward.roleId, `Rangos y XP — nivel ${reward.level}`)
+      .catch(() => {});
   }
-  return granted;
 }
 
-function applyLevelUpTemplate(
-  template: string,
-  vars: { user: string; username: string; level: number; server: string },
+function buildLevelUpRewardsField(
+  guildId: string,
+  newLevel: number,
 ): string {
-  return (template || DEFAULT_LEVEL_UP_MESSAGE)
-    .replaceAll("{user}", vars.user)
-    .replaceAll("{username}", vars.username)
-    .replaceAll("{level}", String(vars.level))
-    .replaceAll("{server}", vars.server);
+  const current = rewardAtLevel(guildId, newLevel);
+  if (current) {
+    return `🎉 Desbloqueaste el rol: <@&${current.roleId}>`;
+  }
+  const next = nextRewardAfter(guildId, newLevel);
+  if (next) {
+    return `🔒 Próxima recompensa: <@&${next.roleId}> al Nivel **${next.level}**.`;
+  }
+  return "🌟 ¡Has alcanzado el máximo nivel de recompensas!";
 }
 
 async function announceLevelUp(input: {
   client: Client;
   guildId: string;
-  userId: string;
-  username: string;
+  member: GuildMember;
   newLevel: number;
-  preferredChannel: TextBasedChannel | null;
 }): Promise<void> {
   const config = getLevelsConfigCached(input.guildId);
-  let channel: TextBasedChannel | null = input.preferredChannel;
+  if (!config.levelUpChannelId) return;
 
-  if (config.levelUpChannelId) {
-    const dedicated = await input.client.channels
-      .fetch(config.levelUpChannelId)
-      .catch(() => null);
-    if (dedicated?.isTextBased()) channel = dedicated;
-  }
+  const dedicated = await input.client.channels
+    .fetch(config.levelUpChannelId)
+    .catch(() => null);
+  if (!dedicated?.isTextBased() || !("send" in dedicated)) return;
 
-  if (!channel || !("send" in channel)) return;
+  const avatarUrl = input.member.user.displayAvatarURL({ size: 256 });
+  const embed = new EmbedBuilder()
+    .setColor(LEVEL_UP_EMBED_COLOR)
+    .setTitle("¡Subida de Nivel!")
+    .setThumbnail(avatarUrl)
+    .setDescription(
+      `¡Felicidades <@${input.member.id}>! Has alcanzado el **Nivel ${input.newLevel}**.`,
+    )
+    .addFields({
+      name: "Recompensas",
+      value: buildLevelUpRewardsField(input.guildId, input.newLevel),
+    })
+    .setTimestamp(new Date());
 
-  const guildName =
-    input.client.guilds.cache.get(input.guildId)?.name ?? "el servidor";
-  const content = applyLevelUpTemplate(config.levelUpMessage, {
-    user: `<@${input.userId}>`,
-    username: input.username,
-    level: input.newLevel,
-    server: guildName,
-  });
-
-  const format = config.levelUpFormat;
-
-  try {
-    if (format === "EMBED") {
-      const embed = new EmbedBuilder()
-        .setColor(0xe11d48)
-        .setDescription(content)
-        .setTimestamp(new Date());
-      await channel.send({
-        embeds: [embed],
-        allowedMentions: { users: [input.userId] },
-      });
-      return;
-    }
-
-    if (format === "IMAGE" && config.levelUpImage) {
-      const imagePath = config.levelUpImage.trim();
-      const local = resolvePublicUploadPath(imagePath);
-      if (local) {
-        const file = new AttachmentBuilder(local, {
-          name: path.basename(local),
-        });
-        const embed = new EmbedBuilder()
-          .setColor(0xe11d48)
-          .setDescription(content)
-          .setImage(`attachment://${path.basename(local)}`)
-          .setTimestamp(new Date());
-        await channel.send({
-          embeds: [embed],
-          files: [file],
-          allowedMentions: { users: [input.userId] },
-        });
-        return;
-      }
-      const embed = new EmbedBuilder()
-        .setColor(0xe11d48)
-        .setDescription(content)
-        .setImage(imagePath)
-        .setTimestamp(new Date());
-      await channel.send({
-        embeds: [embed],
-        allowedMentions: { users: [input.userId] },
-      });
-      return;
-    }
-
-    await channel.send({
-      content,
-      allowedMentions: { users: [input.userId] },
+  await dedicated
+    .send({
+      embeds: [embed],
+      allowedMentions: { users: [input.member.id], roles: [] },
+    })
+    .catch((error) => {
+      console.warn("[adobos] levels: no se pudo anunciar level-up:", error);
     });
-  } catch (error) {
-    console.warn("[adobos] levels: no se pudo anunciar level-up:", error);
-  }
 }
 
 async function grantXpAndHandleLevelUp(input: {
@@ -187,7 +134,6 @@ async function grantXpAndHandleLevelUp(input: {
   guildId: string;
   member: GuildMember;
   amount: number;
-  preferredChannel: TextBasedChannel | null;
 }): Promise<void> {
   if (input.amount <= 0) return;
   const result = addUserXp(input.guildId, input.member.id, input.amount);
@@ -205,10 +151,8 @@ async function grantXpAndHandleLevelUp(input: {
   await announceLevelUp({
     client: input.client,
     guildId: input.guildId,
-    userId: input.member.id,
-    username: input.member.user.username,
+    member: input.member,
     newLevel: result.newLevel,
-    preferredChannel: input.preferredChannel,
   });
 }
 
@@ -257,7 +201,6 @@ export async function onLevelsMessageCreate(
       guildId,
       member,
       amount,
-      preferredChannel: message.channel,
     });
   } catch (error) {
     console.warn("[adobos] levels messageCreate falló:", error);
@@ -308,18 +251,11 @@ async function settleVoiceSession(
   );
   if (amount <= 0) return;
 
-  let preferred: TextBasedChannel | null = null;
-  if (config.levelUpChannelId) {
-    const ch = await client.channels.fetch(config.levelUpChannelId).catch(() => null);
-    if (ch?.isTextBased()) preferred = ch;
-  }
-
   await grantXpAndHandleLevelUp({
     client,
     guildId,
     member,
     amount,
-    preferredChannel: preferred,
   });
 
   void reason;

@@ -3,28 +3,25 @@ import type {
   GuildRoleAsset,
   LevelsConfig,
   LevelsLeaderboardEntry,
-  LevelsLevelUpFormat,
   LevelsReward,
   LevelsRoleMultiplier,
 } from "@adobos/shared";
-import {
-  DEFAULT_LEVEL_UP_MESSAGE,
-  defaultLevelsConfig,
-  xpForLevel,
-} from "@adobos/shared";
+import { defaultLevelsConfig, xpForLevel } from "@adobos/shared";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
   fetchGuildAssets,
   fetchLevelsConfig,
   fetchLevelsLeaderboard,
-  resolvePublicAssetUrl,
   saveLevelsConfig,
-  uploadImageFile,
 } from "@/lib/api";
 import { ChannelMultiSelect } from "@/components/shared/ChannelMultiSelect";
 import { HeaderEnableSwitch } from "@/components/shared/HeaderEnableSwitch";
 import { RoleColorDot } from "@/components/shared/RoleColorDot";
 import { RoleMultiSelect } from "@/components/shared/RoleMultiSelect";
+import {
+  LeaderboardDiscordPreview,
+  LevelUpDiscordPreview,
+} from "@/features/levels/LevelsEmbedPreview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,11 +43,9 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import { ToastBanner } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import {
-  ImagePlus,
   Info,
   Loader2,
   Plus,
@@ -59,29 +54,14 @@ import {
   Trash2,
   TrendingUp,
 } from "lucide-react";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ChangeEvent,
-} from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type TabId = "xp" | "rewards" | "leaderboard" | "discord";
+type MonitorSideTab = "preview" | "datos";
 
 const TEXT_CHANNEL_TYPES = new Set([0, 5, 15]);
 const IGNORE_CHANNEL_TYPES = new Set([0, 2, 4, 5, 13, 15]);
 const LEADERBOARD_LIMIT = 100;
-
-const LEVEL_UP_FORMAT_OPTIONS: {
-  value: LevelsLevelUpFormat;
-  label: string;
-}[] = [
-  { value: "TEXT", label: "Texto plano" },
-  { value: "EMBED", label: "Embed" },
-  { value: "IMAGE", label: "Tarjeta de imagen" },
-];
 
 function configFingerprint(config: LevelsConfig): string {
   return JSON.stringify({
@@ -101,8 +81,15 @@ function configFingerprint(config: LevelsConfig): string {
     levelUpChannelId: config.levelUpChannelId,
     levelUpFormat: config.levelUpFormat,
     levelUpMessage: config.levelUpMessage,
+    levelUpEmbedTitle: config.levelUpEmbedTitle,
+    levelUpEmbedColor: config.levelUpEmbedColor,
+    levelUpShowThumbnail: config.levelUpShowThumbnail,
     levelUpImage: config.levelUpImage,
     liveLeaderboardChannelId: config.liveLeaderboardChannelId,
+    leaderboardEmbedTitle: config.leaderboardEmbedTitle,
+    leaderboardEmbedDescription: config.leaderboardEmbedDescription,
+    leaderboardEmbedColor: config.leaderboardEmbedColor,
+    leaderboardShowThumbnail: config.leaderboardShowThumbnail,
     rewards: config.rewards.map((r) => ({
       level: r.level,
       roleId: r.roleId,
@@ -185,6 +172,8 @@ const leaderboardColumns: ColumnDef<LevelsLeaderboardEntry, unknown>[] = [
 /** Dashboard Rangos y XP — ajustes, recompensas, clasificación y Discord. */
 export function LevelsDashboard() {
   const [tab, setTab] = useState<TabId>("xp");
+  const [monitorSideTab, setMonitorSideTab] =
+    useState<MonitorSideTab>("preview");
   const [config, setConfig] = useState<LevelsConfig>(() =>
     defaultLevelsConfig(),
   );
@@ -193,15 +182,14 @@ export function LevelsDashboard() {
   );
   const [channels, setChannels] = useState<GuildChannelAsset[]>([]);
   const [roles, setRoles] = useState<GuildRoleAsset[]>([]);
+  const [guildIconUrl, setGuildIconUrl] = useState<string | null>(null);
   const [leaderboard, setLeaderboard] = useState<LevelsLeaderboardEntry[]>([]);
   const [leaderboardTotal, setLeaderboardTotal] = useState(0);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const levelUpImageInputRef = useRef<HTMLInputElement>(null);
 
   const dirty = useMemo(
     () => configFingerprint(config) !== savedFingerprint,
@@ -245,12 +233,6 @@ export function LevelsDashboard() {
     return ch ? `#${ch.name}` : "Canal configurado";
   }, [config.liveLeaderboardChannelId, textChannels]);
 
-  const levelUpImagePreview = useMemo(() => {
-    const path = config.levelUpImage?.trim();
-    if (!path) return null;
-    return resolvePublicAssetUrl(path);
-  }, [config.levelUpImage]);
-
   const loadLeaderboard = useCallback(async () => {
     setLeaderboardLoading(true);
     try {
@@ -280,6 +262,7 @@ export function LevelsDashboard() {
       setSavedFingerprint(configFingerprint(cfgRes.config));
       setChannels(assets.channels);
       setRoles(assets.roles);
+      setGuildIconUrl(assets.iconUrl ?? null);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "No se pudo cargar Rangos y XP.",
@@ -357,25 +340,6 @@ export function LevelsDashboard() {
     setSuccess(null);
   };
 
-  const onLevelUpImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-
-    setUploadingImage(true);
-    setError(null);
-    try {
-      const result = await uploadImageFile(file);
-      patch({ levelUpImage: result.path });
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "No se pudo subir la imagen.",
-      );
-    } finally {
-      setUploadingImage(false);
-    }
-  };
-
   const save = async () => {
     setSaving(true);
     setError(null);
@@ -393,10 +357,17 @@ export function LevelsDashboard() {
         ignoredRoles: config.ignoredRoles,
         ignoredChannels: config.ignoredChannels,
         levelUpChannelId: config.levelUpChannelId,
-        levelUpFormat: config.levelUpFormat,
+        levelUpFormat: "EMBED",
         levelUpMessage: config.levelUpMessage,
+        levelUpEmbedTitle: config.levelUpEmbedTitle,
+        levelUpEmbedColor: config.levelUpEmbedColor,
+        levelUpShowThumbnail: config.levelUpShowThumbnail,
         levelUpImage: config.levelUpImage,
         liveLeaderboardChannelId: config.liveLeaderboardChannelId,
+        leaderboardEmbedTitle: config.leaderboardEmbedTitle,
+        leaderboardEmbedDescription: config.leaderboardEmbedDescription,
+        leaderboardEmbedColor: config.leaderboardEmbedColor,
+        leaderboardShowThumbnail: config.leaderboardShowThumbnail,
         rewards: config.rewards,
       });
       setConfig(res.config);
@@ -929,12 +900,10 @@ export function LevelsDashboard() {
                           }
                         >
                           <SelectTrigger id="levelUpChannel">
-                            <SelectValue placeholder="Usar canal de interacción" />
+                            <SelectValue placeholder="Sin canal" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="__none__">
-                              Usar canal de interacción
-                            </SelectItem>
+                            <SelectItem value="__none__">Sin canal</SelectItem>
                             {textChannels.map((ch) => (
                               <SelectItem key={ch.id} value={ch.id}>
                                 #{ch.name}
@@ -942,6 +911,10 @@ export function LevelsDashboard() {
                             ))}
                           </SelectContent>
                         </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Si no hay canal, no se envía el anuncio de subida de
+                          nivel.
+                        </p>
                       </div>
                     </CardContent>
                   </Card>
@@ -952,118 +925,30 @@ export function LevelsDashboard() {
                         Anuncio de subida de nivel
                       </CardTitle>
                       <CardDescription>
-                        Formato y plantilla del mensaje al subir de nivel.
+                        Embed fijo del bot (verde claro). Incluye el rol
+                        desbloqueado o la próxima recompensa.
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="levelUpFormat">Formato</Label>
-                        <Select
-                          value={config.levelUpFormat}
-                          onValueChange={(value) =>
-                            patch({
-                              levelUpFormat: value as LevelsLevelUpFormat,
-                            })
-                          }
-                        >
-                          <SelectTrigger id="levelUpFormat">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {LEVEL_UP_FORMAT_OPTIONS.map((opt) => (
-                              <SelectItem key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="levelUpMessage">Mensaje</Label>
-                        <Textarea
-                          id="levelUpMessage"
-                          rows={3}
-                          value={config.levelUpMessage}
-                          placeholder={DEFAULT_LEVEL_UP_MESSAGE}
-                          onChange={(e) =>
-                            patch({ levelUpMessage: e.target.value })
-                          }
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Placeholders:{" "}
-                          <code className="text-[10px]">{"{user}"}</code>{" "}
-                          <code className="text-[10px]">{"{level}"}</code>{" "}
-                          <code className="text-[10px]">{"{server}"}</code>{" "}
-                          <code className="text-[10px]">{"{username}"}</code>
-                        </p>
-                      </div>
-                      {config.levelUpFormat === "IMAGE" ? (
-                        <div className="space-y-2">
-                          <Label>Imagen de fondo</Label>
-                          <input
-                            ref={levelUpImageInputRef}
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => void onLevelUpImageChange(e)}
-                          />
-                          {levelUpImagePreview ? (
-                            <div className="flex flex-wrap items-center gap-3">
-                              <img
-                                src={levelUpImagePreview}
-                                alt=""
-                                className="h-20 max-w-[200px] rounded-md object-cover ring-1 ring-border"
-                              />
-                              <div className="flex flex-wrap gap-2">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  disabled={uploadingImage}
-                                  onClick={() =>
-                                    levelUpImageInputRef.current?.click()
-                                  }
-                                >
-                                  {uploadingImage ? (
-                                    <Loader2 className="size-4 animate-spin" />
-                                  ) : (
-                                    <ImagePlus className="size-4" />
-                                  )}
-                                  Cambiar
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  disabled={uploadingImage}
-                                  onClick={() => patch({ levelUpImage: null })}
-                                >
-                                  <Trash2 className="size-4" />
-                                  Quitar
-                                </Button>
-                              </div>
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              disabled={uploadingImage}
-                              onClick={() =>
-                                levelUpImageInputRef.current?.click()
-                              }
-                              className="flex w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border px-4 py-8 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-muted/20"
-                            >
-                              {uploadingImage ? (
-                                <Loader2 className="size-5 animate-spin" />
-                              ) : (
-                                <ImagePlus className="size-5" />
-                              )}
-                              {uploadingImage
-                                ? "Subiendo…"
-                                : "Arrastra o haz clic para subir una imagen"}
-                            </button>
-                          )}
-                        </div>
-                      ) : null}
+                    <CardContent>
+                      <LevelUpDiscordPreview config={config} />
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">
+                        Leaderboard en vivo
+                      </CardTitle>
+                      <CardDescription>
+                        Embed fijo Top 10 (morado lila). Se actualiza con
+                        debounce para evitar rate limits.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <LeaderboardDiscordPreview
+                        config={config}
+                        guildIconUrl={guildIconUrl}
+                      />
                     </CardContent>
                   </Card>
 
@@ -1097,95 +982,193 @@ export function LevelsDashboard() {
           </Tabs>
         </div>
 
-        <div className="sticky top-6 flex flex-col gap-4 self-start">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <TrendingUp className="size-4 text-primary" />
-                Monitor de estado
-              </CardTitle>
-              <CardDescription>Resumen en vivo de la config.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">Estado general</span>
-                <Badge
-                  className={cn(
-                    "normal-case tracking-normal",
-                    config.enabled
-                      ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
-                      : "border-border bg-muted text-muted-foreground",
-                  )}
-                >
-                  {config.enabled ? "Activo" : "Inactivo"}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">Multiplicador base</span>
-                <span className="font-mono text-xs">
-                  {config.xpMultiplier.toFixed(1)}x
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">Recompensas</span>
-                <span className="font-mono text-xs">
-                  {config.rewards.length}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">XP texto</span>
-                <span className="font-mono text-xs">
-                  {config.textXpMin}–{config.textXpMax}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">Leaderboard vivo</span>
-                <span className="max-w-[140px] truncate text-right text-xs">
-                  {liveChannelLabel}
-                </span>
-              </div>
-              <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
-                <div className="mb-1 flex items-center gap-1.5 font-medium text-foreground/80">
-                  <Info className="size-3.5" />
-                  Fórmula de nivel
-                </div>
-                <code className="text-[10px]">floor(0.1 × √totalXp)</code>
-              </div>
-              <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
-                <p className="mb-2 text-[11px] font-medium text-foreground/80">
-                  Curva de XP (Preview)
-                </p>
-                <ul className="space-y-1 font-mono text-[11px] text-muted-foreground">
-                  {[1, 2, 3, 4, 5].map((level) => (
-                    <li
-                      key={level}
-                      className="flex items-center justify-between gap-2"
-                    >
-                      <span>Nivel {level}</span>
-                      <span>
-                        {xpForLevel(level).toLocaleString("es-MX")} XP
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <Button
-                type="button"
-                className="w-full"
-                disabled={!dirty || saving}
-                onClick={() => void save()}
-              >
-                {saving ? (
-                  <Loader2 className="size-4 animate-spin" />
+        <div className="sticky top-6 flex min-h-[28rem] flex-col gap-4 self-start">
+          {tab === "discord" ? (
+            <Card className="flex min-h-[28rem] flex-col">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <TrendingUp className="size-4 text-primary" />
+                  Monitor
+                </CardTitle>
+                <CardDescription>
+                  Vista previa Discord o resumen de datos.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-1 flex-col gap-3">
+                <TabsList className="grid h-auto w-full grid-cols-2 gap-1">
+                  <TabsTrigger
+                    className="w-full"
+                    active={monitorSideTab === "preview"}
+                    onClick={() => setMonitorSideTab("preview")}
+                  >
+                    Vista Previa
+                  </TabsTrigger>
+                  <TabsTrigger
+                    className="w-full"
+                    active={monitorSideTab === "datos"}
+                    onClick={() => setMonitorSideTab("datos")}
+                  >
+                    Datos
+                  </TabsTrigger>
+                </TabsList>
+
+                {monitorSideTab === "preview" ? (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        Anuncio de nivel
+                      </p>
+                      <LevelUpDiscordPreview config={config} />
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        Leaderboard
+                      </p>
+                      <LeaderboardDiscordPreview
+                        config={config}
+                        guildIconUrl={guildIconUrl}
+                      />
+                    </div>
+                  </div>
                 ) : (
-                  <Save className="size-4" />
+                  <StatusMonitorBody
+                    config={config}
+                    liveChannelLabel={liveChannelLabel}
+                    dirty={dirty}
+                    saving={saving}
+                    onSave={() => void save()}
+                  />
                 )}
-                Guardar configuración
-              </Button>
-            </CardContent>
-          </Card>
+
+                {monitorSideTab === "preview" ? (
+                  <Button
+                    type="button"
+                    className="mt-auto w-full"
+                    disabled={!dirty || saving}
+                    onClick={() => void save()}
+                  >
+                    {saving ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Save className="size-4" />
+                    )}
+                    Guardar configuración
+                  </Button>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <TrendingUp className="size-4 text-primary" />
+                  Monitor de estado
+                </CardTitle>
+                <CardDescription>Resumen en vivo de la config.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <StatusMonitorBody
+                  config={config}
+                  liveChannelLabel={liveChannelLabel}
+                  dirty={dirty}
+                  saving={saving}
+                  onSave={() => void save()}
+                />
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function StatusMonitorBody({
+  config,
+  liveChannelLabel,
+  dirty,
+  saving,
+  onSave,
+}: {
+  config: LevelsConfig;
+  liveChannelLabel: string;
+  dirty: boolean;
+  saving: boolean;
+  onSave: () => void;
+}) {
+  return (
+    <div className="space-y-3 text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-muted-foreground">Estado general</span>
+        <Badge
+          className={cn(
+            "normal-case tracking-normal",
+            config.enabled
+              ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
+              : "border-border bg-muted text-muted-foreground",
+          )}
+        >
+          {config.enabled ? "Activo" : "Inactivo"}
+        </Badge>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-muted-foreground">Multiplicador base</span>
+        <span className="font-mono text-xs">
+          {config.xpMultiplier.toFixed(1)}x
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-muted-foreground">Recompensas</span>
+        <span className="font-mono text-xs">{config.rewards.length}</span>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-muted-foreground">XP texto</span>
+        <span className="font-mono text-xs">
+          {config.textXpMin}–{config.textXpMax}
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-muted-foreground">Leaderboard vivo</span>
+        <span className="max-w-[140px] truncate text-right text-xs">
+          {liveChannelLabel}
+        </span>
+      </div>
+      <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
+        <div className="mb-1 flex items-center gap-1.5 font-medium text-foreground/80">
+          <Info className="size-3.5" />
+          Fórmula de nivel
+        </div>
+        <code className="text-[10px]">floor(0.1 × √totalXp)</code>
+      </div>
+      <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+        <p className="mb-2 text-[11px] font-medium text-foreground/80">
+          Curva de XP (Preview)
+        </p>
+        <ul className="space-y-1 font-mono text-[11px] text-muted-foreground">
+          {[1, 2, 3, 4, 5].map((level) => (
+            <li
+              key={level}
+              className="flex items-center justify-between gap-2"
+            >
+              <span>Nivel {level}</span>
+              <span>{xpForLevel(level).toLocaleString("es-MX")} XP</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <Button
+        type="button"
+        className="w-full"
+        disabled={!dirty || saving}
+        onClick={onSave}
+      >
+        {saving ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Save className="size-4" />
+        )}
+        Guardar configuración
+      </Button>
     </div>
   );
 }

@@ -231,11 +231,18 @@ function ensureCoreTables(database: Database.Database): void {
       ignored_channels TEXT NOT NULL DEFAULT '[]',
       level_up_channel_id TEXT,
       custom_multipliers TEXT NOT NULL DEFAULT '[]',
-      level_up_format TEXT NOT NULL DEFAULT 'TEXT',
-      level_up_message TEXT NOT NULL DEFAULT '🎉 {user} subió al **nivel {level}**!',
+      level_up_format TEXT NOT NULL DEFAULT 'EMBED',
+      level_up_message TEXT NOT NULL DEFAULT '¡Felicidades {user}! Has alcanzado el **Nivel {level}**.',
+      level_up_embed_title TEXT NOT NULL DEFAULT '¡Subida de Nivel!',
+      level_up_embed_color TEXT NOT NULL DEFAULT '#34E21D',
+      level_up_show_thumbnail INTEGER NOT NULL DEFAULT 1,
       level_up_image TEXT,
       live_leaderboard_channel_id TEXT,
       live_leaderboard_message_id TEXT,
+      leaderboard_embed_title TEXT NOT NULL DEFAULT '🏆 Tabla de Clasificación',
+      leaderboard_embed_description TEXT NOT NULL DEFAULT '',
+      leaderboard_embed_color TEXT NOT NULL DEFAULT '#CA7AFF',
+      leaderboard_show_thumbnail INTEGER NOT NULL DEFAULT 0,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
     );
@@ -436,6 +443,41 @@ function ensureCoreTables(database: Database.Database): void {
     }
     if (!names.has("level_up_image")) {
       database.exec(`ALTER TABLE xp_config ADD COLUMN level_up_image TEXT`);
+    }
+    if (!names.has("level_up_embed_title")) {
+      database.exec(
+        `ALTER TABLE xp_config ADD COLUMN level_up_embed_title TEXT NOT NULL DEFAULT '¡Subida de Nivel!'`,
+      );
+    }
+    if (!names.has("level_up_embed_color")) {
+      database.exec(
+        `ALTER TABLE xp_config ADD COLUMN level_up_embed_color TEXT NOT NULL DEFAULT '#34E21D'`,
+      );
+    }
+    if (!names.has("level_up_show_thumbnail")) {
+      database.exec(
+        `ALTER TABLE xp_config ADD COLUMN level_up_show_thumbnail INTEGER NOT NULL DEFAULT 1`,
+      );
+    }
+    if (!names.has("leaderboard_embed_title")) {
+      database.exec(
+        `ALTER TABLE xp_config ADD COLUMN leaderboard_embed_title TEXT NOT NULL DEFAULT '🏆 Tabla de Clasificación'`,
+      );
+    }
+    if (!names.has("leaderboard_embed_description")) {
+      database.exec(
+        `ALTER TABLE xp_config ADD COLUMN leaderboard_embed_description TEXT NOT NULL DEFAULT ''`,
+      );
+    }
+    if (!names.has("leaderboard_embed_color")) {
+      database.exec(
+        `ALTER TABLE xp_config ADD COLUMN leaderboard_embed_color TEXT NOT NULL DEFAULT '#CA7AFF'`,
+      );
+    }
+    if (!names.has("leaderboard_show_thumbnail")) {
+      database.exec(
+        `ALTER TABLE xp_config ADD COLUMN leaderboard_show_thumbnail INTEGER NOT NULL DEFAULT 0`,
+      );
     }
   }
 }
