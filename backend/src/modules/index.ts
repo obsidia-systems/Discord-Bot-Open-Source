@@ -10,6 +10,7 @@ import { botProfileModule } from "./bot-profile/index.js";
 import { actionLogsModule } from "./action-logs/index.js";
 import { autoModModule } from "./auto-mod/index.js";
 import { levelsModule } from "./levels/index.js";
+import { rolesBuilderModule } from "./roles-builder/index.js";
 
 /**
  * Catálogo explícito de módulos habilitados.
@@ -27,6 +28,7 @@ export const ENABLED_MODULES: readonly AdobosModule[] = [
   actionLogsModule,
   autoModModule,
   levelsModule,
+  rolesBuilderModule,
 ];
 
 export {
@@ -41,4 +43,5 @@ export {
   actionLogsModule,
   autoModModule,
   levelsModule,
+  rolesBuilderModule,
 };

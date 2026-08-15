@@ -13,6 +13,7 @@
     "@adobos/shared": "workspace:*",
     "@astrojs/react": "^4.1.6",
     "@astrojs/tailwind": "^5.1.5",
+    "@hello-pangea/dnd": "^18.0.1",
     "@radix-ui/react-checkbox": "^1.3.11",
     "@radix-ui/react-select": "^2.3.7",
     "@radix-ui/react-slider": "^1.4.7",

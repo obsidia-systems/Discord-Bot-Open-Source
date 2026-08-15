@@ -62,3 +62,8 @@ export {
   saveLevelsConfig,
   fetchLevelsLeaderboard,
 } from "./api/levels";
+export {
+  fetchRolesBuilderList,
+  createGuildRole,
+  updateRolePositions,
+} from "./api/roles-builder";

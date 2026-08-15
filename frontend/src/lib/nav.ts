@@ -28,6 +28,7 @@ import {
   Users,
   Zap,
   Bot,
+  Palette,
 } from "lucide-react";
 
 export interface NavItemConfig {
@@ -182,6 +183,12 @@ export const dashboardNav: NavCategoryConfig[] = [
         href: "/dashboard/community/levels",
         icon: TrendingUp,
         blurb: "Niveles por texto, voz y gamificación.",
+      },
+      {
+        label: "Fabricador de Roles",
+        href: "/dashboard/community/roles-builder",
+        icon: Palette,
+        blurb: "Crea roles con color, permisos y jerarquía.",
       },
       {
         label: "Formularios",

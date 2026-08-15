@@ -9,7 +9,8 @@ export type ModuleId =
   | "bot-profile"
   | "action-logs"
   | "auto-mod"
-  | "levels";
+  | "levels"
+  | "roles-builder";
 
 export type PluginId =
   | "minecraft"
