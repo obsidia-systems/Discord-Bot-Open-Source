@@ -921,39 +921,6 @@ export function LevelsDashboard() {
 
                   <Card>
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">
-                        Anuncio de subida de nivel
-                      </CardTitle>
-                      <CardDescription>
-                        Embed fijo del bot (verde claro). Incluye el rol
-                        desbloqueado o la próxima recompensa.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <LevelUpDiscordPreview config={config} />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">
-                        Leaderboard en vivo
-                      </CardTitle>
-                      <CardDescription>
-                        Embed fijo Top 10 (morado lila). Se actualiza con
-                        debounce para evitar rate limits.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <LeaderboardDiscordPreview
-                        config={config}
-                        guildIconUrl={guildIconUrl}
-                      />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="pb-3">
                       <CardTitle className="text-base">Exclusiones</CardTitle>
                       <CardDescription>
                         Roles y canales donde no se gana XP.
