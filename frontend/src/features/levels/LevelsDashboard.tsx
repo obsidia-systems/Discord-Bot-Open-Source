@@ -3,18 +3,27 @@ import type {
   GuildRoleAsset,
   LevelsConfig,
   LevelsLeaderboardEntry,
+  LevelsLevelUpFormat,
   LevelsReward,
+  LevelsRoleMultiplier,
 } from "@adobos/shared";
-import { defaultLevelsConfig } from "@adobos/shared";
+import {
+  DEFAULT_LEVEL_UP_MESSAGE,
+  defaultLevelsConfig,
+  xpForLevel,
+} from "@adobos/shared";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
   fetchGuildAssets,
   fetchLevelsConfig,
   fetchLevelsLeaderboard,
+  resolvePublicAssetUrl,
   saveLevelsConfig,
+  uploadImageFile,
 } from "@/lib/api";
 import { ChannelMultiSelect } from "@/components/shared/ChannelMultiSelect";
 import { HeaderEnableSwitch } from "@/components/shared/HeaderEnableSwitch";
+import { RoleColorDot } from "@/components/shared/RoleColorDot";
 import { RoleMultiSelect } from "@/components/shared/RoleMultiSelect";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,9 +46,11 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { ToastBanner } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import {
+  ImagePlus,
   Info,
   Loader2,
   Plus,
@@ -48,13 +59,29 @@ import {
   Trash2,
   TrendingUp,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
 
 type TabId = "xp" | "rewards" | "leaderboard" | "discord";
 
 const TEXT_CHANNEL_TYPES = new Set([0, 5, 15]);
 const IGNORE_CHANNEL_TYPES = new Set([0, 2, 4, 5, 13, 15]);
 const LEADERBOARD_LIMIT = 100;
+
+const LEVEL_UP_FORMAT_OPTIONS: {
+  value: LevelsLevelUpFormat;
+  label: string;
+}[] = [
+  { value: "TEXT", label: "Texto plano" },
+  { value: "EMBED", label: "Embed" },
+  { value: "IMAGE", label: "Tarjeta de imagen" },
+];
 
 function configFingerprint(config: LevelsConfig): string {
   return JSON.stringify({
@@ -65,9 +92,16 @@ function configFingerprint(config: LevelsConfig): string {
     voiceEnabled: config.voiceEnabled,
     voiceXpPerMinute: config.voiceXpPerMinute,
     xpMultiplier: config.xpMultiplier,
+    customMultipliers: config.customMultipliers.map((m) => ({
+      roleId: m.roleId,
+      multiplier: m.multiplier,
+    })),
     ignoredChannels: [...config.ignoredChannels].sort(),
     ignoredRoles: [...config.ignoredRoles].sort(),
     levelUpChannelId: config.levelUpChannelId,
+    levelUpFormat: config.levelUpFormat,
+    levelUpMessage: config.levelUpMessage,
+    levelUpImage: config.levelUpImage,
     liveLeaderboardChannelId: config.liveLeaderboardChannelId,
     rewards: config.rewards.map((r) => ({
       level: r.level,
@@ -78,6 +112,15 @@ function configFingerprint(config: LevelsConfig): string {
 
 function newRewardRow(): LevelsReward {
   return { level: 5, roleId: "" };
+}
+
+function newMultiplierRow(): LevelsRoleMultiplier {
+  return { roleId: "", multiplier: 1.5 };
+}
+
+function roleDotColor(role: GuildRoleAsset | undefined): string | number | null {
+  if (!role) return null;
+  return role.hexColor ?? role.color;
 }
 
 const leaderboardColumns: ColumnDef<LevelsLeaderboardEntry, unknown>[] = [
@@ -155,8 +198,10 @@ export function LevelsDashboard() {
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const levelUpImageInputRef = useRef<HTMLInputElement>(null);
 
   const dirty = useMemo(
     () => configFingerprint(config) !== savedFingerprint,
@@ -194,9 +239,17 @@ export function LevelsDashboard() {
 
   const liveChannelLabel = useMemo(() => {
     if (!config.liveLeaderboardChannelId) return "Sin configurar";
-    const ch = textChannels.find((c) => c.id === config.liveLeaderboardChannelId);
+    const ch = textChannels.find(
+      (c) => c.id === config.liveLeaderboardChannelId,
+    );
     return ch ? `#${ch.name}` : "Canal configurado";
   }, [config.liveLeaderboardChannelId, textChannels]);
+
+  const levelUpImagePreview = useMemo(() => {
+    const path = config.levelUpImage?.trim();
+    if (!path) return null;
+    return resolvePublicAssetUrl(path);
+  }, [config.levelUpImage]);
 
   const loadLeaderboard = useCallback(async () => {
     setLeaderboardLoading(true);
@@ -275,6 +328,54 @@ export function LevelsDashboard() {
     setSuccess(null);
   };
 
+  const updateMultiplier = (
+    index: number,
+    partial: Partial<LevelsRoleMultiplier>,
+  ) => {
+    setConfig((prev) => ({
+      ...prev,
+      customMultipliers: prev.customMultipliers.map((row, i) =>
+        i === index ? { ...row, ...partial } : row,
+      ),
+    }));
+    setSuccess(null);
+  };
+
+  const removeMultiplier = (index: number) => {
+    setConfig((prev) => ({
+      ...prev,
+      customMultipliers: prev.customMultipliers.filter((_, i) => i !== index),
+    }));
+    setSuccess(null);
+  };
+
+  const addMultiplier = () => {
+    setConfig((prev) => ({
+      ...prev,
+      customMultipliers: [...prev.customMultipliers, newMultiplierRow()],
+    }));
+    setSuccess(null);
+  };
+
+  const onLevelUpImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setUploadingImage(true);
+    setError(null);
+    try {
+      const result = await uploadImageFile(file);
+      patch({ levelUpImage: result.path });
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "No se pudo subir la imagen.",
+      );
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const save = async () => {
     setSaving(true);
     setError(null);
@@ -288,9 +389,13 @@ export function LevelsDashboard() {
         voiceEnabled: config.voiceEnabled,
         voiceXpPerMinute: config.voiceXpPerMinute,
         xpMultiplier: config.xpMultiplier,
+        customMultipliers: config.customMultipliers,
         ignoredRoles: config.ignoredRoles,
         ignoredChannels: config.ignoredChannels,
         levelUpChannelId: config.levelUpChannelId,
+        levelUpFormat: config.levelUpFormat,
+        levelUpMessage: config.levelUpMessage,
+        levelUpImage: config.levelUpImage,
         liveLeaderboardChannelId: config.liveLeaderboardChannelId,
         rewards: config.rewards,
       });
@@ -337,26 +442,30 @@ export function LevelsDashboard() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0 space-y-4">
           <Tabs>
-            <TabsList className="flex h-auto flex-wrap gap-1">
+            <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4">
               <TabsTrigger
+                className="w-full"
                 active={tab === "xp"}
                 onClick={() => setTab("xp")}
               >
                 Ajustes de XP
               </TabsTrigger>
               <TabsTrigger
+                className="w-full"
                 active={tab === "rewards"}
                 onClick={() => setTab("rewards")}
               >
                 Recompensas
               </TabsTrigger>
               <TabsTrigger
+                className="w-full"
                 active={tab === "leaderboard"}
                 onClick={() => setTab("leaderboard")}
               >
                 Clasificación
               </TabsTrigger>
               <TabsTrigger
+                className="w-full"
                 active={tab === "discord"}
                 onClick={() => setTab("discord")}
               >
@@ -374,99 +483,102 @@ export function LevelsDashboard() {
                         XP aleatoria por mensaje con cooldown anti-spam.
                       </CardDescription>
                     </CardHeader>
-                    <CardContent>
-                      <div className="grid gap-3 sm:grid-cols-3">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="textXpMin">XP mínima</Label>
-                          <Input
-                            id="textXpMin"
-                            type="number"
-                            min={1}
-                            max={10000}
-                            value={config.textXpMin}
-                            onChange={(e) =>
-                              patch({
-                                textXpMin: Number(e.target.value) || 15,
-                              })
-                            }
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="textXpMax">XP máxima</Label>
-                          <Input
-                            id="textXpMax"
-                            type="number"
-                            min={1}
-                            max={10000}
-                            value={config.textXpMax}
-                            onChange={(e) =>
-                              patch({
-                                textXpMax: Number(e.target.value) || 25,
-                              })
-                            }
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="cooldownSeconds">
-                            Cooldown (segundos)
-                          </Label>
-                          <Input
-                            id="cooldownSeconds"
-                            type="number"
-                            min={0}
-                            max={86400}
-                            value={config.cooldownSeconds}
-                            onChange={(e) =>
-                              patch({
-                                cooldownSeconds: Number(e.target.value) || 0,
-                              })
-                            }
-                          />
-                        </div>
+                    <CardContent className="space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <Label htmlFor="textXpMin">XP mínima</Label>
+                        <Input
+                          id="textXpMin"
+                          type="number"
+                          min={1}
+                          max={10000}
+                          className="h-9 w-24"
+                          value={config.textXpMin}
+                          onChange={(e) =>
+                            patch({
+                              textXpMin: Number(e.target.value) || 15,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <Label htmlFor="textXpMax">XP máxima</Label>
+                        <Input
+                          id="textXpMax"
+                          type="number"
+                          min={1}
+                          max={10000}
+                          className="h-9 w-24"
+                          value={config.textXpMax}
+                          onChange={(e) =>
+                            patch({
+                              textXpMax: Number(e.target.value) || 25,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <Label htmlFor="cooldownSeconds">
+                          Cooldown (segundos)
+                        </Label>
+                        <Input
+                          id="cooldownSeconds"
+                          type="number"
+                          min={0}
+                          max={86400}
+                          className="h-9 w-24"
+                          value={config.cooldownSeconds}
+                          onChange={(e) =>
+                            patch({
+                              cooldownSeconds: Number(e.target.value) || 0,
+                            })
+                          }
+                        />
                       </div>
                     </CardContent>
                   </Card>
 
                   <Card>
                     <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="space-y-1">
-                          <CardTitle className="text-base">Voz</CardTitle>
-                          <CardDescription>
-                            XP por minuto en canales de voz (sin mute/deafen).
-                          </CardDescription>
-                        </div>
-                        <Switch
-                          id="voiceEnabled"
-                          checked={config.voiceEnabled}
-                          onCheckedChange={(voiceEnabled) =>
-                            patch({ voiceEnabled })
-                          }
-                        />
-                      </div>
+                      <CardTitle className="text-base">Voz</CardTitle>
+                      <CardDescription>
+                        XP por minuto en canales de voz (sin mute/deafen).
+                      </CardDescription>
                     </CardHeader>
-                    {config.voiceEnabled ? (
-                      <CardContent>
-                        <div className="space-y-1.5 sm:max-w-xs">
-                          <Label htmlFor="voiceXpPerMinute">
-                            XP por minuto
-                          </Label>
-                          <Input
-                            id="voiceXpPerMinute"
-                            type="number"
-                            min={0}
-                            max={10000}
-                            value={config.voiceXpPerMinute}
-                            onChange={(e) =>
-                              patch({
-                                voiceXpPerMinute:
-                                  Number(e.target.value) || 0,
-                              })
+                    <CardContent>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0 space-y-0.5">
+                          <Label htmlFor="voiceXpPerMinute">XP por minuto</Label>
+                          <p className="text-xs text-muted-foreground">
+                            Solo cuenta miembros activos en voz.
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-3">
+                          {config.voiceEnabled ? (
+                            <Input
+                              id="voiceXpPerMinute"
+                              type="number"
+                              min={0}
+                              max={10000}
+                              className="h-9 w-24"
+                              value={config.voiceXpPerMinute}
+                              onChange={(e) =>
+                                patch({
+                                  voiceXpPerMinute:
+                                    Number(e.target.value) || 0,
+                                })
+                              }
+                            />
+                          ) : null}
+                          <Switch
+                            id="voiceEnabled"
+                            checked={config.voiceEnabled}
+                            onCheckedChange={(voiceEnabled) =>
+                              patch({ voiceEnabled })
                             }
                           />
                         </div>
-                      </CardContent>
-                    ) : null}
+                      </div>
+                    </CardContent>
                   </Card>
 
                   <Card>
@@ -477,13 +589,15 @@ export function LevelsDashboard() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-1.5 sm:max-w-xs">
+                      <div className="flex items-center justify-between gap-3">
                         <Label htmlFor="xpMultiplier">Multiplicador base</Label>
                         <Input
                           id="xpMultiplier"
                           type="number"
                           min={1}
                           max={10}
+                          step={0.1}
+                          className="h-9 w-24"
                           value={config.xpMultiplier}
                           onChange={(e) =>
                             patch({
@@ -492,6 +606,112 @@ export function LevelsDashboard() {
                           }
                         />
                       </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">
+                        Multiplicadores personalizados
+                      </CardTitle>
+                      <CardDescription>
+                        Bonus por rol. Si un miembro tiene varios, se usa el
+                        máximo.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {config.customMultipliers.length === 0 ? (
+                        <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
+                          Aún no hay multiplicadores. Añade el primero debajo.
+                        </p>
+                      ) : (
+                        config.customMultipliers.map((entry, index) => {
+                          const selectedRole = assignableRoles.find(
+                            (r) => r.id === entry.roleId,
+                          );
+                          return (
+                            <div
+                              key={`mult-${index}-${entry.roleId || "new"}`}
+                              className="flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-muted/10 px-3 py-2.5"
+                            >
+                              <Select
+                                value={entry.roleId || undefined}
+                                onValueChange={(roleId) =>
+                                  updateMultiplier(index, { roleId })
+                                }
+                              >
+                                <SelectTrigger className="h-9 min-w-[160px] flex-1">
+                                  {selectedRole ? (
+                                    <span className="flex min-w-0 items-center gap-2">
+                                      <RoleColorDot
+                                        color={roleDotColor(selectedRole)}
+                                      />
+                                      <span className="truncate">
+                                        @{selectedRole.name}
+                                      </span>
+                                    </span>
+                                  ) : (
+                                    <SelectValue placeholder="Seleccionar rol" />
+                                  )}
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {assignableRoles.map((role) => (
+                                    <SelectItem key={role.id} value={role.id}>
+                                      <span className="flex items-center gap-2">
+                                        <RoleColorDot
+                                          color={roleDotColor(role)}
+                                        />
+                                        @{role.name}
+                                      </span>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <span className="text-sm text-muted-foreground">
+                                gana
+                              </span>
+                              <div className="relative">
+                                <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                                  x
+                                </span>
+                                <Input
+                                  type="number"
+                                  min={0.1}
+                                  max={10}
+                                  step={0.1}
+                                  className="h-9 w-20 pl-6"
+                                  value={entry.multiplier}
+                                  onChange={(e) =>
+                                    updateMultiplier(index, {
+                                      multiplier:
+                                        Number(e.target.value) || 1,
+                                    })
+                                  }
+                                />
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="shrink-0 text-muted-foreground hover:text-destructive"
+                                aria-label="Eliminar multiplicador"
+                                onClick={() => removeMultiplier(index)}
+                              >
+                                <Trash2 className="size-4" />
+                              </Button>
+                            </div>
+                          );
+                        })
+                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full sm:w-auto"
+                        onClick={addMultiplier}
+                      >
+                        <Plus className="size-4" />
+                        Añadir multiplicador
+                      </Button>
                     </CardContent>
                   </Card>
                 </div>
@@ -516,58 +736,79 @@ export function LevelsDashboard() {
                         Aún no hay recompensas. Añade la primera debajo.
                       </p>
                     ) : (
-                      config.rewards.map((reward, index) => (
-                        <div
-                          key={`reward-${index}-${reward.id ?? "new"}`}
-                          className="flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-muted/10 px-3 py-2.5"
-                        >
-                          <span className="text-sm text-muted-foreground">
-                            Al alcanzar el nivel
-                          </span>
-                          <Input
-                            type="number"
-                            min={1}
-                            max={500}
-                            value={reward.level}
-                            onChange={(e) =>
-                              updateReward(index, {
-                                level: Number(e.target.value) || 1,
-                              })
-                            }
-                            className="h-9 w-20"
-                          />
-                          <span className="text-sm text-muted-foreground">
-                            otorgar rol
-                          </span>
-                          <Select
-                            value={reward.roleId || undefined}
-                            onValueChange={(roleId) =>
-                              updateReward(index, { roleId })
-                            }
+                      config.rewards.map((reward, index) => {
+                        const selectedRole = assignableRoles.find(
+                          (r) => r.id === reward.roleId,
+                        );
+                        return (
+                          <div
+                            key={`reward-${index}-${reward.id ?? "new"}`}
+                            className="flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-muted/10 px-3 py-2.5"
                           >
-                            <SelectTrigger className="h-9 min-w-[160px] flex-1">
-                              <SelectValue placeholder="Seleccionar rol" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {assignableRoles.map((role) => (
-                                <SelectItem key={role.id} value={role.id}>
-                                  {role.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="shrink-0 text-muted-foreground hover:text-destructive"
-                            aria-label="Eliminar recompensa"
-                            onClick={() => removeReward(index)}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </div>
-                      ))
+                            <span className="text-sm text-muted-foreground">
+                              Al alcanzar el nivel
+                            </span>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={500}
+                              value={reward.level}
+                              onChange={(e) =>
+                                updateReward(index, {
+                                  level: Number(e.target.value) || 1,
+                                })
+                              }
+                              className="h-9 w-20"
+                            />
+                            <span className="text-sm text-muted-foreground">
+                              otorgar rol
+                            </span>
+                            <Select
+                              value={reward.roleId || undefined}
+                              onValueChange={(roleId) =>
+                                updateReward(index, { roleId })
+                              }
+                            >
+                              <SelectTrigger className="h-9 min-w-[160px] flex-1">
+                                {selectedRole ? (
+                                  <span className="flex min-w-0 items-center gap-2">
+                                    <RoleColorDot
+                                      color={roleDotColor(selectedRole)}
+                                    />
+                                    <span className="truncate">
+                                      @{selectedRole.name}
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <SelectValue placeholder="Seleccionar rol" />
+                                )}
+                              </SelectTrigger>
+                              <SelectContent>
+                                {assignableRoles.map((role) => (
+                                  <SelectItem key={role.id} value={role.id}>
+                                    <span className="flex items-center gap-2">
+                                      <RoleColorDot
+                                        color={roleDotColor(role)}
+                                      />
+                                      @{role.name}
+                                    </span>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="shrink-0 text-muted-foreground hover:text-destructive"
+                              aria-label="Eliminar recompensa"
+                              onClick={() => removeReward(index)}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </div>
+                        );
+                      })
                     )}
                     <Button
                       type="button"
@@ -707,6 +948,127 @@ export function LevelsDashboard() {
 
                   <Card>
                     <CardHeader className="pb-3">
+                      <CardTitle className="text-base">
+                        Anuncio de subida de nivel
+                      </CardTitle>
+                      <CardDescription>
+                        Formato y plantilla del mensaje al subir de nivel.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="levelUpFormat">Formato</Label>
+                        <Select
+                          value={config.levelUpFormat}
+                          onValueChange={(value) =>
+                            patch({
+                              levelUpFormat: value as LevelsLevelUpFormat,
+                            })
+                          }
+                        >
+                          <SelectTrigger id="levelUpFormat">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {LEVEL_UP_FORMAT_OPTIONS.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="levelUpMessage">Mensaje</Label>
+                        <Textarea
+                          id="levelUpMessage"
+                          rows={3}
+                          value={config.levelUpMessage}
+                          placeholder={DEFAULT_LEVEL_UP_MESSAGE}
+                          onChange={(e) =>
+                            patch({ levelUpMessage: e.target.value })
+                          }
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Placeholders:{" "}
+                          <code className="text-[10px]">{"{user}"}</code>{" "}
+                          <code className="text-[10px]">{"{level}"}</code>{" "}
+                          <code className="text-[10px]">{"{server}"}</code>{" "}
+                          <code className="text-[10px]">{"{username}"}</code>
+                        </p>
+                      </div>
+                      {config.levelUpFormat === "IMAGE" ? (
+                        <div className="space-y-2">
+                          <Label>Imagen de fondo</Label>
+                          <input
+                            ref={levelUpImageInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => void onLevelUpImageChange(e)}
+                          />
+                          {levelUpImagePreview ? (
+                            <div className="flex flex-wrap items-center gap-3">
+                              <img
+                                src={levelUpImagePreview}
+                                alt=""
+                                className="h-20 max-w-[200px] rounded-md object-cover ring-1 ring-border"
+                              />
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={uploadingImage}
+                                  onClick={() =>
+                                    levelUpImageInputRef.current?.click()
+                                  }
+                                >
+                                  {uploadingImage ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                  ) : (
+                                    <ImagePlus className="size-4" />
+                                  )}
+                                  Cambiar
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={uploadingImage}
+                                  onClick={() => patch({ levelUpImage: null })}
+                                >
+                                  <Trash2 className="size-4" />
+                                  Quitar
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={uploadingImage}
+                              onClick={() =>
+                                levelUpImageInputRef.current?.click()
+                              }
+                              className="flex w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border px-4 py-8 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-muted/20"
+                            >
+                              {uploadingImage ? (
+                                <Loader2 className="size-5 animate-spin" />
+                              ) : (
+                                <ImagePlus className="size-5" />
+                              )}
+                              {uploadingImage
+                                ? "Subiendo…"
+                                : "Arrastra o haz clic para subir una imagen"}
+                            </button>
+                          )}
+                        </div>
+                      ) : null}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
                       <CardTitle className="text-base">Exclusiones</CardTitle>
                       <CardDescription>
                         Roles y canales donde no se gana XP.
@@ -788,6 +1150,24 @@ export function LevelsDashboard() {
                   Fórmula de nivel
                 </div>
                 <code className="text-[10px]">floor(0.1 × √totalXp)</code>
+              </div>
+              <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+                <p className="mb-2 text-[11px] font-medium text-foreground/80">
+                  Curva de XP (Preview)
+                </p>
+                <ul className="space-y-1 font-mono text-[11px] text-muted-foreground">
+                  {[1, 2, 3, 4, 5].map((level) => (
+                    <li
+                      key={level}
+                      className="flex items-center justify-between gap-2"
+                    >
+                      <span>Nivel {level}</span>
+                      <span>
+                        {xpForLevel(level).toLocaleString("es-MX")} XP
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </div>
               <Button
                 type="button"

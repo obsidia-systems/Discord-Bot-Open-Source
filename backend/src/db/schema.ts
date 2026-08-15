@@ -436,6 +436,14 @@ export const xpConfig = sqliteTable("xp_config", {
   /** JSON: string[] */
   ignoredChannels: text("ignored_channels").notNull().default("[]"),
   levelUpChannelId: text("level_up_channel_id"),
+  /** JSON: LevelsRoleMultiplier[] */
+  customMultipliers: text("custom_multipliers").notNull().default("[]"),
+  /** TEXT | EMBED | IMAGE */
+  levelUpFormat: text("level_up_format").notNull().default("TEXT"),
+  levelUpMessage: text("level_up_message")
+    .notNull()
+    .default("🎉 {user} subió al **nivel {level}**!"),
+  levelUpImage: text("level_up_image"),
   liveLeaderboardChannelId: text("live_leaderboard_channel_id"),
   liveLeaderboardMessageId: text("live_leaderboard_message_id"),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" })

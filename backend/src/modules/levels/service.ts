@@ -3,12 +3,15 @@ import type {
   LevelsConfig,
   LevelsLeaderboardEntry,
   LevelsReward,
+  LevelsRoleMultiplier,
   LevelsUserRankStats,
   UpdateLevelsConfigRequest,
 } from "@adobos/shared";
 import {
+  DEFAULT_LEVEL_UP_MESSAGE,
   defaultLevelsConfig,
   levelFromXp,
+  normalizeLevelUpFormat,
   xpForLevel,
 } from "@adobos/shared";
 import { getDb } from "../../db/client.js";
@@ -97,6 +100,41 @@ function loadRewards(guildId: string): LevelsReward[] {
     }));
 }
 
+function normalizeCustomMultipliers(
+  input: LevelsRoleMultiplier[] | undefined,
+): LevelsRoleMultiplier[] {
+  if (!input) return [];
+  const seen = new Set<string>();
+  const out: LevelsRoleMultiplier[] = [];
+  for (const raw of input) {
+    const roleId = String(raw.roleId ?? "").trim();
+    if (!/^\d{17,20}$/.test(roleId) || seen.has(roleId)) continue;
+    const multiplier = Number(raw.multiplier);
+    if (!Number.isFinite(multiplier) || multiplier <= 0) continue;
+    seen.add(roleId);
+    out.push({
+      roleId,
+      multiplier: Math.max(0.1, Math.min(20, Math.round(multiplier * 100) / 100)),
+    });
+  }
+  return out;
+}
+
+/** Mejor multiplicador de rol aplicable (máximo), o 1. */
+export function resolveRoleXpMultiplier(
+  config: LevelsConfig,
+  roleIds: Iterable<string>,
+): number {
+  const owned = new Set(roleIds);
+  let best = 1;
+  for (const entry of config.customMultipliers) {
+    if (owned.has(entry.roleId) && entry.multiplier > best) {
+      best = entry.multiplier;
+    }
+  }
+  return best;
+}
+
 function rowToConfig(
   guildId: string,
   row: typeof xpConfig.$inferSelect | undefined,
@@ -113,9 +151,16 @@ function rowToConfig(
     voiceEnabled: Boolean(row.voiceEnabled),
     voiceXpPerMinute: row.voiceXpPerMinute,
     xpMultiplier: row.xpMultiplier,
+    customMultipliers: normalizeCustomMultipliers(
+      parseJson<LevelsRoleMultiplier[]>(row.customMultipliers, []),
+    ),
     ignoredRoles: parseJson<string[]>(row.ignoredRoles, []),
     ignoredChannels: parseJson<string[]>(row.ignoredChannels, []),
     levelUpChannelId: row.levelUpChannelId ?? null,
+    levelUpFormat: normalizeLevelUpFormat(row.levelUpFormat),
+    levelUpMessage:
+      (row.levelUpMessage ?? "").trim() || DEFAULT_LEVEL_UP_MESSAGE,
+    levelUpImage: row.levelUpImage ?? null,
     liveLeaderboardChannelId: row.liveLeaderboardChannelId ?? null,
     liveLeaderboardMessageId: row.liveLeaderboardMessageId ?? null,
     rewards: loadRewards(guildId),
@@ -237,12 +282,28 @@ export function updateLevelsConfig(
       10,
       1,
     ),
+    customMultipliers:
+      input.customMultipliers !== undefined
+        ? normalizeCustomMultipliers(input.customMultipliers)
+        : current.customMultipliers,
     ignoredRoles: input.ignoredRoles ?? current.ignoredRoles,
     ignoredChannels: input.ignoredChannels ?? current.ignoredChannels,
     levelUpChannelId:
       input.levelUpChannelId !== undefined
         ? input.levelUpChannelId
         : current.levelUpChannelId,
+    levelUpFormat:
+      input.levelUpFormat !== undefined
+        ? normalizeLevelUpFormat(input.levelUpFormat)
+        : current.levelUpFormat,
+    levelUpMessage:
+      input.levelUpMessage !== undefined
+        ? input.levelUpMessage.trim() || DEFAULT_LEVEL_UP_MESSAGE
+        : current.levelUpMessage,
+    levelUpImage:
+      input.levelUpImage !== undefined
+        ? input.levelUpImage
+        : current.levelUpImage,
     liveLeaderboardChannelId: nextChannel,
     liveLeaderboardMessageId: nextMessageId,
     rewards: nextRewards,
@@ -260,9 +321,13 @@ export function updateLevelsConfig(
       voiceEnabled: next.voiceEnabled,
       voiceXpPerMinute: next.voiceXpPerMinute,
       xpMultiplier: next.xpMultiplier,
+      customMultipliers: JSON.stringify(next.customMultipliers),
       ignoredRoles: JSON.stringify(next.ignoredRoles),
       ignoredChannels: JSON.stringify(next.ignoredChannels),
       levelUpChannelId: next.levelUpChannelId,
+      levelUpFormat: next.levelUpFormat,
+      levelUpMessage: next.levelUpMessage,
+      levelUpImage: next.levelUpImage,
       liveLeaderboardChannelId: next.liveLeaderboardChannelId,
       liveLeaderboardMessageId: next.liveLeaderboardMessageId,
       updatedAt: new Date(),
@@ -277,9 +342,13 @@ export function updateLevelsConfig(
         voiceEnabled: next.voiceEnabled,
         voiceXpPerMinute: next.voiceXpPerMinute,
         xpMultiplier: next.xpMultiplier,
+        customMultipliers: JSON.stringify(next.customMultipliers),
         ignoredRoles: JSON.stringify(next.ignoredRoles),
         ignoredChannels: JSON.stringify(next.ignoredChannels),
         levelUpChannelId: next.levelUpChannelId,
+        levelUpFormat: next.levelUpFormat,
+        levelUpMessage: next.levelUpMessage,
+        levelUpImage: next.levelUpImage,
         liveLeaderboardChannelId: next.liveLeaderboardChannelId,
         liveLeaderboardMessageId: next.liveLeaderboardMessageId,
         updatedAt: new Date(),
@@ -389,11 +458,30 @@ export function rewardsBetweenLevels(
   );
 }
 
-export function randomTextXp(config: LevelsConfig): number {
+export function randomTextXp(
+  config: LevelsConfig,
+  roleIds: Iterable<string> = [],
+): number {
   const min = Math.min(config.textXpMin, config.textXpMax);
   const max = Math.max(config.textXpMin, config.textXpMax);
   const base = Math.floor(Math.random() * (max - min + 1)) + min;
-  return Math.max(0, Math.floor(base * config.xpMultiplier));
+  const roleMult = resolveRoleXpMultiplier(config, roleIds);
+  return Math.max(
+    0,
+    Math.floor(base * config.xpMultiplier * roleMult),
+  );
+}
+
+export function scaleXpAmount(
+  config: LevelsConfig,
+  baseAmount: number,
+  roleIds: Iterable<string> = [],
+): number {
+  const roleMult = resolveRoleXpMultiplier(config, roleIds);
+  return Math.max(
+    0,
+    Math.floor(baseAmount * config.xpMultiplier * roleMult),
+  );
 }
 
 /** Top N por XP (sin resolver Discord). */

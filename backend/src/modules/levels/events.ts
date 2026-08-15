@@ -1,5 +1,7 @@
 import {
+  AttachmentBuilder,
   ChannelType,
+  EmbedBuilder,
   type Client,
   type GuildMember,
   type Message,
@@ -7,11 +9,15 @@ import {
   type TextBasedChannel,
   type VoiceState,
 } from "discord.js";
+import path from "node:path";
+import { DEFAULT_LEVEL_UP_MESSAGE } from "@adobos/shared";
+import { resolvePublicUploadPath } from "../../lib/dataPaths.js";
 import {
   addUserXp,
   getLevelsConfigCached,
   randomTextXp,
   rewardsBetweenLevels,
+  scaleXpAmount,
 } from "./service.js";
 import { scheduleLiveLeaderboardRefresh } from "./liveLeaderboard.js";
 
@@ -81,10 +87,22 @@ async function applyLevelRewards(
   return granted;
 }
 
+function applyLevelUpTemplate(
+  template: string,
+  vars: { user: string; username: string; level: number; server: string },
+): string {
+  return (template || DEFAULT_LEVEL_UP_MESSAGE)
+    .replaceAll("{user}", vars.user)
+    .replaceAll("{username}", vars.username)
+    .replaceAll("{level}", String(vars.level))
+    .replaceAll("{server}", vars.server);
+}
+
 async function announceLevelUp(input: {
   client: Client;
   guildId: string;
   userId: string;
+  username: string;
   newLevel: number;
   preferredChannel: TextBasedChannel | null;
 }): Promise<void> {
@@ -100,12 +118,68 @@ async function announceLevelUp(input: {
 
   if (!channel || !("send" in channel)) return;
 
-  await channel
-    .send({
-      content: `🎉 <@${input.userId}> subió al **nivel ${input.newLevel}**!`,
+  const guildName =
+    input.client.guilds.cache.get(input.guildId)?.name ?? "el servidor";
+  const content = applyLevelUpTemplate(config.levelUpMessage, {
+    user: `<@${input.userId}>`,
+    username: input.username,
+    level: input.newLevel,
+    server: guildName,
+  });
+
+  const format = config.levelUpFormat;
+
+  try {
+    if (format === "EMBED") {
+      const embed = new EmbedBuilder()
+        .setColor(0xe11d48)
+        .setDescription(content)
+        .setTimestamp(new Date());
+      await channel.send({
+        embeds: [embed],
+        allowedMentions: { users: [input.userId] },
+      });
+      return;
+    }
+
+    if (format === "IMAGE" && config.levelUpImage) {
+      const imagePath = config.levelUpImage.trim();
+      const local = resolvePublicUploadPath(imagePath);
+      if (local) {
+        const file = new AttachmentBuilder(local, {
+          name: path.basename(local),
+        });
+        const embed = new EmbedBuilder()
+          .setColor(0xe11d48)
+          .setDescription(content)
+          .setImage(`attachment://${path.basename(local)}`)
+          .setTimestamp(new Date());
+        await channel.send({
+          embeds: [embed],
+          files: [file],
+          allowedMentions: { users: [input.userId] },
+        });
+        return;
+      }
+      const embed = new EmbedBuilder()
+        .setColor(0xe11d48)
+        .setDescription(content)
+        .setImage(imagePath)
+        .setTimestamp(new Date());
+      await channel.send({
+        embeds: [embed],
+        allowedMentions: { users: [input.userId] },
+      });
+      return;
+    }
+
+    await channel.send({
+      content,
       allowedMentions: { users: [input.userId] },
-    })
-    .catch(() => {});
+    });
+  } catch (error) {
+    console.warn("[adobos] levels: no se pudo anunciar level-up:", error);
+  }
 }
 
 async function grantXpAndHandleLevelUp(input: {
@@ -132,6 +206,7 @@ async function grantXpAndHandleLevelUp(input: {
     client: input.client,
     guildId: input.guildId,
     userId: input.member.id,
+    username: input.member.user.username,
     newLevel: result.newLevel,
     preferredChannel: input.preferredChannel,
   });
@@ -173,7 +248,7 @@ export async function onLevelsMessageCreate(
     const last = textCooldowns.get(key) ?? 0;
     if (now - last < config.cooldownSeconds * 1000) return;
 
-    const amount = randomTextXp(config);
+    const amount = randomTextXp(config, member.roles.cache.keys());
     if (amount <= 0) return;
 
     textCooldowns.set(key, now);
@@ -226,8 +301,10 @@ async function settleVoiceSession(
   const minutes = Math.floor(elapsedMs / 60_000);
   if (minutes < 1) return;
 
-  const amount = Math.floor(
-    minutes * config.voiceXpPerMinute * config.xpMultiplier,
+  const amount = scaleXpAmount(
+    config,
+    minutes * config.voiceXpPerMinute,
+    member.roles.cache.keys(),
   );
   if (amount <= 0) return;
 

@@ -230,6 +230,10 @@ function ensureCoreTables(database: Database.Database): void {
       ignored_roles TEXT NOT NULL DEFAULT '[]',
       ignored_channels TEXT NOT NULL DEFAULT '[]',
       level_up_channel_id TEXT,
+      custom_multipliers TEXT NOT NULL DEFAULT '[]',
+      level_up_format TEXT NOT NULL DEFAULT 'TEXT',
+      level_up_message TEXT NOT NULL DEFAULT '🎉 {user} subió al **nivel {level}**!',
+      level_up_image TEXT,
       live_leaderboard_channel_id TEXT,
       live_leaderboard_message_id TEXT,
       updated_at INTEGER NOT NULL,
@@ -399,7 +403,7 @@ function ensureCoreTables(database: Database.Database): void {
     );
   }
 
-  // Migración suave: leaderboard en vivo en xp_config
+  // Migración suave: leaderboard en vivo + anuncios premium en xp_config
   const xpConfigCols = database
     .prepare(`PRAGMA table_info(xp_config)`)
     .all() as Array<{ name: string }>;
@@ -414,6 +418,24 @@ function ensureCoreTables(database: Database.Database): void {
       database.exec(
         `ALTER TABLE xp_config ADD COLUMN live_leaderboard_message_id TEXT`,
       );
+    }
+    if (!names.has("custom_multipliers")) {
+      database.exec(
+        `ALTER TABLE xp_config ADD COLUMN custom_multipliers TEXT NOT NULL DEFAULT '[]'`,
+      );
+    }
+    if (!names.has("level_up_format")) {
+      database.exec(
+        `ALTER TABLE xp_config ADD COLUMN level_up_format TEXT NOT NULL DEFAULT 'TEXT'`,
+      );
+    }
+    if (!names.has("level_up_message")) {
+      database.exec(
+        `ALTER TABLE xp_config ADD COLUMN level_up_message TEXT NOT NULL DEFAULT '🎉 {user} subió al **nivel {level}**!'`,
+      );
+    }
+    if (!names.has("level_up_image")) {
+      database.exec(`ALTER TABLE xp_config ADD COLUMN level_up_image TEXT`);
     }
   }
 }

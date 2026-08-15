@@ -7,6 +7,15 @@ export interface LevelsReward {
   roleId: string;
 }
 
+/** Multiplicador de XP asociado a un rol. */
+export interface LevelsRoleMultiplier {
+  roleId: string;
+  /** Factor (ej. 1.5 = +50%). */
+  multiplier: number;
+}
+
+export type LevelsLevelUpFormat = "TEXT" | "EMBED" | "IMAGE";
+
 export interface LevelsConfig {
   guildId: string;
   /** Master switch del módulo. */
@@ -18,10 +27,20 @@ export interface LevelsConfig {
   voiceXpPerMinute: number;
   /** Multiplicador global de XP (texto y voz). Default 1. */
   xpMultiplier: number;
+  /** Multiplicadores extra por rol (se usa el máximo aplicable). */
+  customMultipliers: LevelsRoleMultiplier[];
   ignoredRoles: string[];
   ignoredChannels: string[];
   /** Canal opcional para anuncios de subida de nivel. */
   levelUpChannelId: string | null;
+  /** Formato del anuncio de nivel. */
+  levelUpFormat: LevelsLevelUpFormat;
+  /**
+   * Plantilla del mensaje. Placeholders: {user} {level} {server} {username}.
+   */
+  levelUpMessage: string;
+  /** URL/ruta de imagen de fondo (formato IMAGE). */
+  levelUpImage: string | null;
   /** Canal del mensaje de leaderboard en vivo (Top 10). */
   liveLeaderboardChannelId: string | null;
   /** Message ID del embed de leaderboard (editado por el bot). */
@@ -42,9 +61,13 @@ export type UpdateLevelsConfigRequest = Partial<{
   voiceEnabled: boolean;
   voiceXpPerMinute: number;
   xpMultiplier: number;
+  customMultipliers: LevelsRoleMultiplier[];
   ignoredRoles: string[];
   ignoredChannels: string[];
   levelUpChannelId: string | null;
+  levelUpFormat: LevelsLevelUpFormat;
+  levelUpMessage: string;
+  levelUpImage: string | null;
   liveLeaderboardChannelId: string | null;
   rewards: LevelsReward[];
 }>;
@@ -77,6 +100,9 @@ export interface LevelsUserRankStats {
   totalUsers: number;
 }
 
+export const DEFAULT_LEVEL_UP_MESSAGE =
+  "🎉 {user} subió al **nivel {level}**!";
+
 export function defaultLevelsConfig(guildId = ""): LevelsConfig {
   return {
     guildId,
@@ -87,9 +113,13 @@ export function defaultLevelsConfig(guildId = ""): LevelsConfig {
     voiceEnabled: false,
     voiceXpPerMinute: 10,
     xpMultiplier: 1,
+    customMultipliers: [],
     ignoredRoles: [],
     ignoredChannels: [],
     levelUpChannelId: null,
+    levelUpFormat: "TEXT",
+    levelUpMessage: DEFAULT_LEVEL_UP_MESSAGE,
+    levelUpImage: null,
     liveLeaderboardChannelId: null,
     liveLeaderboardMessageId: null,
     rewards: [],
@@ -110,4 +140,10 @@ export function levelFromXp(totalXp: number): number {
 export function xpForLevel(level: number): number {
   const l = Math.max(0, Math.floor(Number(level) || 0));
   return (l * 10) ** 2;
+}
+
+export function normalizeLevelUpFormat(value: unknown): LevelsLevelUpFormat {
+  const v = String(value ?? "").toUpperCase();
+  if (v === "EMBED" || v === "IMAGE" || v === "TEXT") return v;
+  return "TEXT";
 }
