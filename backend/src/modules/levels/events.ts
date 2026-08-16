@@ -27,7 +27,12 @@ type GuildMessage = OmitPartialGroupDMChannel<Message<true>>;
 const textCooldowns = new Map<string, number>();
 const voiceSessions = new Map<
   string,
-  { joinedAt: number; channelId: string }
+  {
+    joinedAt: number;
+    channelId: string;
+    /** Ms sobrantes de un tramo anterior (< 1 min) para no perderlos al mutear. */
+    carryMs: number;
+  }
 >();
 
 function voiceKey(guildId: string, userId: string): string {
@@ -52,6 +57,7 @@ function memberHasIgnoredRole(
   return member.roles.cache.some((role) => ignoredRoles.includes(role.id));
 }
 
+/** Mute/deaf propio, de servidor o suppress de escenario = no gana XP. */
 function isVoiceInactive(state: VoiceState): boolean {
   return Boolean(
     state.selfMute ||
@@ -60,6 +66,18 @@ function isVoiceInactive(state: VoiceState): boolean {
       state.serverDeaf ||
       state.suppress,
   );
+}
+
+function startVoiceSession(
+  key: string,
+  channelId: string,
+  carryMs = 0,
+): void {
+  voiceSessions.set(key, {
+    joinedAt: Date.now(),
+    channelId,
+    carryMs: Math.max(0, carryMs),
+  });
 }
 
 async function applyLevelRewards(
@@ -209,21 +227,27 @@ export async function onLevelsMessageCreate(
   }
 }
 
+/**
+ * Cierra un tramo de voz activo y otorga XP acumulada.
+ * - leave/switch: sale o cambia de canal.
+ * - pause: mute/deaf — paga el intervalo activo (p. ej. 2 h) y no descarta
+ *   por el mute actual del VoiceState (la sesión solo existía mientras activo).
+ * Devuelve ms sobrantes (< 1 min) para reanudar sin perder fracciones.
+ */
 async function settleVoiceSession(
   client: Client,
   state: VoiceState,
-  reason: "leave" | "switch",
-): Promise<void> {
+  reason: "leave" | "switch" | "pause",
+): Promise<number> {
   const guildId = state.guild.id;
   const userId = state.id;
   const key = voiceKey(guildId, userId);
   const session = voiceSessions.get(key);
-  if (!session) return;
+  if (!session) return 0;
   voiceSessions.delete(key);
 
   const config = getLevelsConfigCached(guildId);
-  if (!config.enabled || !config.voiceEnabled) return;
-  if (isVoiceInactive(state)) return;
+  if (!config.enabled || !config.voiceEnabled) return 0;
 
   const parentId = state.channel?.parentId ?? null;
   if (
@@ -233,35 +257,40 @@ async function settleVoiceSession(
       parentId,
     )
   ) {
-    return;
+    return 0;
   }
 
   const member =
     state.member ??
     (await state.guild.members.fetch(userId).catch(() => null));
-  if (!member || member.user.bot) return;
-  if (memberHasIgnoredRole(member, config.ignoredRoles)) return;
+  if (!member || member.user.bot) return 0;
+  if (memberHasIgnoredRole(member, config.ignoredRoles)) return 0;
 
-  const elapsedMs = Date.now() - session.joinedAt;
+  const elapsedMs = Date.now() - session.joinedAt + (session.carryMs || 0);
   const minutes = Math.floor(elapsedMs / 60_000);
-  if (minutes < 1) return;
+  const remainderMs = elapsedMs % 60_000;
 
-  const amount = scaleXpAmount(
-    config,
-    minutes * config.voiceXpPerMinute,
-    member.roles.cache.keys(),
-  );
-  if (amount <= 0) return;
+  if (minutes >= 1) {
+    const amount = scaleXpAmount(
+      config,
+      minutes * config.voiceXpPerMinute,
+      member.roles.cache.keys(),
+    );
+    if (amount > 0) {
+      await grantXpAndHandleLevelUp({
+        client,
+        guildId,
+        member,
+        amount,
+      });
+    }
+  }
 
-  await grantXpAndHandleLevelUp({
-    client,
-    guildId,
-    member,
-    amount,
-  });
-
-  void reason;
+  return reason === "pause" ? remainderMs : 0;
 }
+
+/** Resto <1 min guardado entre mute → unmute. */
+const voicePauseCarryMs = new Map<string, number>();
 
 export async function onLevelsVoiceStateUpdate(
   oldState: VoiceState,
@@ -273,18 +302,17 @@ export async function onLevelsVoiceStateUpdate(
     const guildId = newState.guild.id;
     const config = getLevelsConfigCached(guildId);
     if (!config.enabled || !config.voiceEnabled) {
-      // Limpiar sesión si el módulo se desactiva a mitad.
       if (oldState.channelId && !newState.channelId) {
-        voiceSessions.delete(voiceKey(guildId, newState.id));
+        const key = voiceKey(guildId, newState.id);
+        voiceSessions.delete(key);
+        voicePauseCarryMs.delete(key);
       }
       return;
     }
 
     const key = voiceKey(guildId, newState.id);
-    const joined =
-      !oldState.channelId && Boolean(newState.channelId);
-    const left =
-      Boolean(oldState.channelId) && !newState.channelId;
+    const joined = !oldState.channelId && Boolean(newState.channelId);
+    const left = Boolean(oldState.channelId) && !newState.channelId;
     const switched =
       Boolean(oldState.channelId) &&
       Boolean(newState.channelId) &&
@@ -297,41 +325,44 @@ export async function onLevelsVoiceStateUpdate(
       ) {
         return;
       }
+      // Entra muteado: no abre sesión hasta desmutear.
       if (isVoiceInactive(newState)) return;
-      voiceSessions.set(key, {
-        joinedAt: Date.now(),
-        channelId: newState.channelId,
-      });
+      startVoiceSession(key, newState.channelId);
       return;
     }
 
     if (left) {
       await settleVoiceSession(newState.client as Client, oldState, "leave");
+      voicePauseCarryMs.delete(key);
       return;
     }
 
     if (switched) {
       await settleVoiceSession(newState.client as Client, oldState, "switch");
+      voicePauseCarryMs.delete(key);
       if (newState.channelId && !isVoiceInactive(newState)) {
-        voiceSessions.set(key, {
-          joinedAt: Date.now(),
-          channelId: newState.channelId,
-        });
+        startVoiceSession(key, newState.channelId);
       }
       return;
     }
 
-    // Mute/deafen mid-session: pausar (cerrar) o reanudar.
+    // Mismo canal: mute/deaf → liquidar XP del tramo; unmute → nuevo timestamp.
     if (oldState.channelId && newState.channelId) {
       const wasInactive = isVoiceInactive(oldState);
       const nowInactive = isVoiceInactive(newState);
+
       if (!wasInactive && nowInactive) {
-        await settleVoiceSession(newState.client as Client, oldState, "leave");
-      } else if (wasInactive && !nowInactive && newState.channelId) {
-        voiceSessions.set(key, {
-          joinedAt: Date.now(),
-          channelId: newState.channelId,
-        });
+        const remainder = await settleVoiceSession(
+          newState.client as Client,
+          oldState,
+          "pause",
+        );
+        if (remainder > 0) voicePauseCarryMs.set(key, remainder);
+        else voicePauseCarryMs.delete(key);
+      } else if (wasInactive && !nowInactive) {
+        const carry = voicePauseCarryMs.get(key) ?? 0;
+        voicePauseCarryMs.delete(key);
+        startVoiceSession(key, newState.channelId, carry);
       }
     }
   } catch (error) {

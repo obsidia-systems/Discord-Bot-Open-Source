@@ -125,19 +125,23 @@ function normalizeCustomMultipliers(
   return out;
 }
 
-/** Mejor multiplicador de rol aplicable (máximo), o 1. */
+/**
+ * Multiplicador de roles aplicables: se suman entre sí.
+ * Ej. x2 + x1.5 → 3.5. Sin roles coincidentes → 1.
+ */
 export function resolveRoleXpMultiplier(
   config: LevelsConfig,
   roleIds: Iterable<string>,
 ): number {
   const owned = new Set(roleIds);
-  let best = 1;
+  let sum = 0;
+  let matched = false;
   for (const entry of config.customMultipliers) {
-    if (owned.has(entry.roleId) && entry.multiplier > best) {
-      best = entry.multiplier;
-    }
+    if (!owned.has(entry.roleId)) continue;
+    sum += entry.multiplier;
+    matched = true;
   }
-  return best;
+  return matched ? sum : 1;
 }
 
 function rowToConfig(

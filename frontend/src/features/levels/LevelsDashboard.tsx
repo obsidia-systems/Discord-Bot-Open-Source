@@ -598,8 +598,8 @@ export function LevelsDashboard() {
                         Multiplicadores personalizados
                       </CardTitle>
                       <CardDescription>
-                        Bonus por rol. Si un miembro tiene varios, se usa el
-                        máximo.
+                        Bonus por rol. Si un miembro tiene varios, se
+                        suman (ej. x2 + x1.5 = x3.5).
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">

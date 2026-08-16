@@ -27,7 +27,7 @@ export interface LevelsConfig {
   voiceXpPerMinute: number;
   /** Multiplicador global de XP (texto y voz). Default 1. */
   xpMultiplier: number;
-  /** Multiplicadores extra por rol (se usa el máximo aplicable). */
+  /** Multiplicadores extra por rol (se suman si el miembro tiene varios). */
   customMultipliers: LevelsRoleMultiplier[];
   ignoredRoles: string[];
   ignoredChannels: string[];
