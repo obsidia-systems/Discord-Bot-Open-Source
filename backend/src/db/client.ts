@@ -219,6 +219,14 @@ function ensureCoreTables(database: Database.Database): void {
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS auto_delete_config (
+      guild_id TEXT PRIMARY KEY NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      rules TEXT NOT NULL DEFAULT '[]',
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS xp_config (
       guild_id TEXT PRIMARY KEY NOT NULL,
       enabled INTEGER NOT NULL DEFAULT 0,

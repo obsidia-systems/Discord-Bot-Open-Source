@@ -190,6 +190,13 @@
       "when": 1786480000000,
       "tag": "0026_levels_channel_stream_multipliers",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1786490000000,
+      "tag": "0027_auto_delete_config",
+      "breakpoints": true
     }
   ]
 }

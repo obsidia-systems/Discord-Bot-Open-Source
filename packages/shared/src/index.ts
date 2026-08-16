@@ -14,6 +14,7 @@ export * from "./sent-embeds.js";
 export * from "./discord-audit.js";
 export * from "./action-logs.js";
 export * from "./auto-mod.js";
+export * from "./auto-delete.js";
 export * from "./levels.js";
 export * from "./roles-builder.js";
 

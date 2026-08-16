@@ -9,6 +9,7 @@ import { moderationModule } from "./moderation/index.js";
 import { botProfileModule } from "./bot-profile/index.js";
 import { actionLogsModule } from "./action-logs/index.js";
 import { autoModModule } from "./auto-mod/index.js";
+import { autoDeleteModule } from "./auto-delete/index.js";
 import { levelsModule } from "./levels/index.js";
 import { rolesBuilderModule } from "./roles-builder/index.js";
 
@@ -27,6 +28,7 @@ export const ENABLED_MODULES: readonly AdobosModule[] = [
   moderationModule,
   actionLogsModule,
   autoModModule,
+  autoDeleteModule,
   levelsModule,
   rolesBuilderModule,
 ];
@@ -42,6 +44,7 @@ export {
   botProfileModule,
   actionLogsModule,
   autoModModule,
+  autoDeleteModule,
   levelsModule,
   rolesBuilderModule,
 };

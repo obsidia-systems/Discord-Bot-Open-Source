@@ -419,6 +419,24 @@ export type AutoModConfigRow = typeof autoModConfig.$inferSelect;
 export type NewAutoModConfigRow = typeof autoModConfig.$inferInsert;
 
 /**
+ * Configuración de Auto-delete por guild (reglas de borrado por canal).
+ */
+export const autoDeleteConfig = sqliteTable("auto_delete_config", {
+  guildId: text("guild_id")
+    .primaryKey()
+    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
+  /** JSON: AutoDeleteRule[] */
+  rules: text("rules").notNull().default("[]"),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export type AutoDeleteConfigRow = typeof autoDeleteConfig.$inferSelect;
+export type NewAutoDeleteConfigRow = typeof autoDeleteConfig.$inferInsert;
+
+/**
  * Configuración de Rangos y XP por guild.
  */
 export const xpConfig = sqliteTable("xp_config", {

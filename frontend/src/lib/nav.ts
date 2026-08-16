@@ -161,7 +161,6 @@ export const dashboardNav: NavCategoryConfig[] = [
         label: "Auto-delete",
         href: "/dashboard/moderation/auto-delete",
         icon: Trash2,
-        soon: true,
         blurb: "Borrado automático en canales.",
       },
     ],

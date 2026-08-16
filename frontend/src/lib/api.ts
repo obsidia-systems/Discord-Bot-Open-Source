@@ -58,10 +58,15 @@ export {
 } from "./api/action-logs";
 export { fetchAutoModConfig, saveAutoModConfig } from "./api/auto-mod";
 export {
+  fetchAutoDeleteConfig,
+  saveAutoDeleteConfig,
+} from "./api/auto-delete";
+export {
   fetchLevelsConfig,
   saveLevelsConfig,
   fetchLevelsLeaderboard,
 } from "./api/levels";
+
 export {
   fetchRolesBuilderList,
   createGuildRole,

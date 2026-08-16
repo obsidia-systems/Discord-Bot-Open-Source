@@ -9,6 +9,7 @@ export type ModuleId =
   | "bot-profile"
   | "action-logs"
   | "auto-mod"
+  | "auto-delete"
   | "levels"
   | "roles-builder";
 

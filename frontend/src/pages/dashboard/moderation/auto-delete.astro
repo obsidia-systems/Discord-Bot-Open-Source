@@ -1,8 +1,11 @@
 ---
-import ComingSoon from "../../../components/shared/ComingSoon.astro";
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { AutoDeleteDashboard } from "../../../features/auto-delete";
 ---
 
-<ComingSoon
+<DashboardLayout
   title="Auto-delete"
   description="Borrado automático de mensajes en canales."
-/>
+>
+  <AutoDeleteDashboard client:load />
+</DashboardLayout>
