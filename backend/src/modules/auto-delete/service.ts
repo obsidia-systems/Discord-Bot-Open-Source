@@ -5,8 +5,12 @@ import type {
 } from "@adobos/shared";
 import {
   defaultAutoDeleteConfig,
+  clampCountdownDelay,
   normalizeAutoDeleteDelayUnit,
   normalizeAutoDeleteFilterType,
+  normalizeAutoDeleteMode,
+  normalizeScheduledDays,
+  normalizeScheduledTime,
 } from "@adobos/shared";
 import { eq } from "drizzle-orm";
 import { getDb } from "../../db/client.js";
@@ -24,6 +28,17 @@ export class AutoDeleteError extends Error {
 }
 
 const configCache = new Map<string, AutoDeleteConfig>();
+
+/** Callback opcional para reprogramar crons tras guardar. */
+let onConfigChanged:
+  | ((config: AutoDeleteConfig) => void)
+  | null = null;
+
+export function setAutoDeleteConfigChangeListener(
+  listener: ((config: AutoDeleteConfig) => void) | null,
+): void {
+  onConfigChanged = listener;
+}
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   if (!raw) return fallback;
@@ -65,10 +80,11 @@ function ensureGuildRow(guildId: string): void {
   }
 }
 
-function clampDelayValue(value: unknown): number {
-  const n = Math.round(Number(value));
-  if (!Number.isFinite(n)) return 60;
-  return Math.max(1, Math.min(604_800, n));
+function clampDelayValue(
+  value: unknown,
+  unit: ReturnType<typeof normalizeAutoDeleteDelayUnit>,
+): number {
+  return clampCountdownDelay(Number(value), unit);
 }
 
 export function normalizeAutoDeleteRules(
@@ -81,10 +97,15 @@ export function normalizeAutoDeleteRules(
     const channelId = String(raw.channelId ?? "").trim();
     if (!/^\d{17,20}$/.test(channelId) || seen.has(channelId)) continue;
     seen.add(channelId);
+    const mode = normalizeAutoDeleteMode(raw.mode);
+    const delayUnit = normalizeAutoDeleteDelayUnit(raw.delayUnit);
     out.push({
       channelId,
-      delayValue: clampDelayValue(raw.delayValue),
-      delayUnit: normalizeAutoDeleteDelayUnit(raw.delayUnit),
+      mode,
+      delayValue: clampDelayValue(raw.delayValue, delayUnit),
+      delayUnit,
+      scheduledTime: normalizeScheduledTime(raw.scheduledTime),
+      scheduledDays: normalizeScheduledDays(raw.scheduledDays),
       filterType: normalizeAutoDeleteFilterType(raw.filterType),
     });
   }
@@ -137,6 +158,16 @@ export function getAutoDeleteConfigCached(guildId: string): AutoDeleteConfig {
   }
 }
 
+/** Todas las configs guardadas (para rehidratar crons al arranque). */
+export function listAllAutoDeleteConfigs(): AutoDeleteConfig[] {
+  const rows = getDb().select().from(autoDeleteConfig).all();
+  return rows.map((row) => {
+    const config = rowToConfig(row.guildId, row);
+    configCache.set(row.guildId, config);
+    return config;
+  });
+}
+
 export function updateAutoDeleteConfig(
   input: UpdateAutoDeleteConfigRequest,
   guildId?: string,
@@ -174,5 +205,10 @@ export function updateAutoDeleteConfig(
     .run();
 
   configCache.set(id, next);
+  try {
+    onConfigChanged?.(next);
+  } catch (error) {
+    console.warn("[adobos] auto-delete: onConfigChanged falló:", error);
+  }
   return next;
 }

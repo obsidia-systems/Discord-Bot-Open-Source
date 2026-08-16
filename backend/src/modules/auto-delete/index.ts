@@ -2,6 +2,12 @@ import { GatewayIntentBits } from "discord.js";
 import type { AdobosModule } from "../../core/modules/types.js";
 import { autoDeleteRoutes } from "./api/routes.js";
 import { registerAutoDeleteListeners } from "./events.js";
+import {
+  bindAutoDeleteScheduler,
+  rehydrateAllAutoDeleteJobs,
+  syncAutoDeleteJobsForConfig,
+} from "./scheduler.js";
+import { setAutoDeleteConfigChangeListener } from "./service.js";
 
 export const autoDeleteModule: AdobosModule = {
   id: "auto-delete",
@@ -12,8 +18,18 @@ export const autoDeleteModule: AdobosModule = {
     GatewayIntentBits.MessageContent,
   ],
   register(ctx) {
+    bindAutoDeleteScheduler(ctx.client);
+    setAutoDeleteConfigChangeListener((config) => {
+      syncAutoDeleteJobsForConfig(config);
+    });
+
     ctx.route("/api/auto-delete", autoDeleteRoutes(ctx.client));
     registerAutoDeleteListeners(ctx);
+
+    ctx.once("ready", () => {
+      rehydrateAllAutoDeleteJobs();
+      console.log("[adobos] auto-delete: crons rehidratados");
+    });
   },
 };
 
@@ -22,5 +38,6 @@ export {
   getAutoDeleteConfig,
   getAutoDeleteConfigCached,
   invalidateAutoDeleteConfigCache,
+  listAllAutoDeleteConfigs,
   updateAutoDeleteConfig,
 } from "./service.js";

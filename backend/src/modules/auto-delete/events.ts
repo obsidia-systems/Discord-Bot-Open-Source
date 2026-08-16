@@ -1,5 +1,5 @@
 import type { Message } from "discord.js";
-import { delayToMs } from "@adobos/shared";
+import { delayToMs, AUTO_DELETE_MAX_COUNTDOWN_MS } from "@adobos/shared";
 import { getAutoDeleteConfigCached } from "./service.js";
 
 export async function onAutoDeleteMessageCreate(
@@ -15,7 +15,7 @@ export async function onAutoDeleteMessageCreate(
     if (!config.enabled || config.rules.length === 0) return;
 
     const rule = config.rules.find((r) => r.channelId === message.channelId);
-    if (!rule) return;
+    if (!rule || rule.mode !== "COUNTDOWN") return;
 
     if (rule.filterType === "bots_only" && !message.author.bot) return;
     if (
@@ -25,7 +25,10 @@ export async function onAutoDeleteMessageCreate(
       return;
     }
 
-    const delayMs = delayToMs(rule.delayValue, rule.delayUnit);
+    const delayMs = Math.min(
+      delayToMs(rule.delayValue, rule.delayUnit),
+      AUTO_DELETE_MAX_COUNTDOWN_MS,
+    );
     if (delayMs <= 0) return;
 
     setTimeout(() => {

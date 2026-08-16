@@ -2,10 +2,16 @@ import type {
   AutoDeleteConfig,
   AutoDeleteDelayUnit,
   AutoDeleteFilterType,
+  AutoDeleteMode,
   AutoDeleteRule,
+  AutoDeleteWeekday,
   GuildChannelAsset,
 } from "@adobos/shared";
-import { defaultAutoDeleteConfig } from "@adobos/shared";
+import {
+  clampCountdownDelay,
+  defaultAutoDeleteConfig,
+  maxCountdownValue,
+} from "@adobos/shared";
 import {
   fetchAutoDeleteConfig,
   fetchGuildAssets,
@@ -32,10 +38,15 @@ import {
 } from "@/components/ui/select";
 import { ToastBanner } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
-import { Loader2, Plus, Save, Trash2 } from "lucide-react";
+import { AlertTriangle, Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 const TEXT_CHANNEL_TYPES = new Set([0, 5, 15]);
+
+const MODE_LABELS: Record<AutoDeleteMode, string> = {
+  COUNTDOWN: "Cuenta Regresiva",
+  SCHEDULED: "Limpieza a Hora Fija",
+};
 
 const UNIT_LABELS: Record<AutoDeleteDelayUnit, string> = {
   seconds: "Segundos",
@@ -49,13 +60,27 @@ const FILTER_LABELS: Record<AutoDeleteFilterType, string> = {
   no_attachments: "Solo sin adjuntos (texto puro)",
 };
 
+/** Orden UI Lun→Dom; valor cron 0=Dom … 6=Sáb. */
+const WEEKDAY_OPTIONS: Array<{ value: AutoDeleteWeekday; label: string }> = [
+  { value: 1, label: "Lun" },
+  { value: 2, label: "Mar" },
+  { value: 3, label: "Mié" },
+  { value: 4, label: "Jue" },
+  { value: 5, label: "Vie" },
+  { value: 6, label: "Sáb" },
+  { value: 0, label: "Dom" },
+];
+
 function configFingerprint(config: AutoDeleteConfig): string {
   return JSON.stringify({
     enabled: config.enabled,
     rules: config.rules.map((r) => ({
       channelId: r.channelId,
+      mode: r.mode,
       delayValue: r.delayValue,
       delayUnit: r.delayUnit,
+      scheduledTime: r.scheduledTime,
+      scheduledDays: [...(r.scheduledDays ?? [])].sort((a, b) => a - b),
       filterType: r.filterType,
     })),
   });
@@ -64,10 +89,23 @@ function configFingerprint(config: AutoDeleteConfig): string {
 function newRule(): AutoDeleteRule {
   return {
     channelId: "",
+    mode: "COUNTDOWN",
     delayValue: 60,
     delayUnit: "seconds",
+    scheduledTime: "18:00",
+    scheduledDays: [],
     filterType: "all",
   };
+}
+
+function toggleScheduledDay(
+  days: AutoDeleteWeekday[],
+  day: AutoDeleteWeekday,
+): AutoDeleteWeekday[] {
+  const set = new Set(days);
+  if (set.has(day)) set.delete(day);
+  else set.add(day);
+  return [...set].sort((a, b) => a - b);
 }
 
 export function AutoDeleteDashboard() {
@@ -110,6 +148,11 @@ export function AutoDeleteDashboard() {
   }, [config.rules]);
 
   const hasDuplicateChannels = duplicateChannelIds.size > 0;
+
+  const scheduledCount = useMemo(
+    () => config.rules.filter((r) => r.mode === "SCHEDULED").length,
+    [config.rules],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -222,176 +265,305 @@ export function AutoDeleteDashboard() {
         onDismiss={() => setSuccess(null)}
       />
 
+      {!config.enabled ? (
+        <div
+          role="status"
+          className="flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100"
+        >
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-500" />
+          <p>
+            El módulo está inactivo. Las reglas se guardarán pero no se
+            ejecutarán.
+          </p>
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="min-w-0 lg:col-span-2">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Reglas de Canales</CardTitle>
               <CardDescription>
-                Define en qué canales se borran mensajes y tras cuánto tiempo.
-                Los mensajes anclados nunca se eliminan.
+                Cuenta regresiva por mensaje o limpieza diaria a hora fija. Los
+                anclados nunca se eliminan.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-4">
               {config.rules.length === 0 ? (
-                <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
-                  Aún no hay reglas. Añade la primera debajo.
-                </p>
+                <div className="flex flex-col items-center justify-center gap-4 rounded-lg border-2 border-dashed border-border px-4 py-12 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    No hay reglas de borrado configuradas
+                  </p>
+                  <Button type="button" variant="outline" onClick={addRule}>
+                    <Plus className="size-4" />
+                    Añadir regla
+                  </Button>
+                </div>
               ) : (
-                config.rules.map((rule, index) => {
-                  const isDuplicate =
-                    Boolean(rule.channelId) &&
-                    duplicateChannelIds.has(rule.channelId);
-                  const usedElsewhere = new Set(
-                    config.rules
-                      .map((r, i) => (i === index ? "" : r.channelId))
-                      .filter(Boolean),
-                  );
-                  return (
-                    <div
-                      key={`rule-${index}-${rule.channelId || "new"}`}
-                      className={cn(
-                        "space-y-2 rounded-lg border border-border/70 bg-muted/10 px-3 py-2.5",
-                        isDuplicate && "border-destructive/50",
-                      )}
-                    >
-                      <div className="flex flex-wrap items-end gap-2">
-                        <div className="min-w-[160px] flex-1 space-y-1">
-                          <Label className="text-xs text-muted-foreground">
-                            Canal
-                          </Label>
-                          <Select
-                            value={rule.channelId || undefined}
-                            onValueChange={(channelId) =>
-                              updateRule(index, { channelId })
-                            }
-                          >
-                            <SelectTrigger
-                              className={cn(
-                                "h-9",
-                                isDuplicate && "border-destructive",
-                              )}
-                            >
-                              <SelectValue placeholder="Seleccionar canal" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {textChannels.map((ch) => (
-                                <SelectItem
-                                  key={ch.id}
-                                  value={ch.id}
-                                  disabled={usedElsewhere.has(ch.id)}
-                                >
-                                  #{ch.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">
-                            Tiempo
-                          </Label>
-                          <Input
-                            type="number"
-                            min={1}
-                            max={604800}
-                            className="h-9 w-24"
-                            value={rule.delayValue}
-                            onChange={(e) =>
-                              updateRule(index, {
-                                delayValue: Number(e.target.value) || 1,
-                              })
-                            }
-                          />
-                        </div>
-
-                        <div className="min-w-[120px] space-y-1">
-                          <Label className="text-xs text-muted-foreground">
-                            Unidad
-                          </Label>
-                          <Select
-                            value={rule.delayUnit}
-                            onValueChange={(value) =>
-                              updateRule(index, {
-                                delayUnit: value as AutoDeleteDelayUnit,
-                              })
-                            }
-                          >
-                            <SelectTrigger className="h-9">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {(
-                                Object.keys(UNIT_LABELS) as AutoDeleteDelayUnit[]
-                              ).map((unit) => (
-                                <SelectItem key={unit} value={unit}>
-                                  {UNIT_LABELS[unit]}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="min-w-[180px] flex-1 space-y-1">
-                          <Label className="text-xs text-muted-foreground">
-                            Filtro
-                          </Label>
-                          <Select
-                            value={rule.filterType}
-                            onValueChange={(value) =>
-                              updateRule(index, {
-                                filterType: value as AutoDeleteFilterType,
-                              })
-                            }
-                          >
-                            <SelectTrigger className="h-9">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {(
-                                Object.keys(
-                                  FILTER_LABELS,
-                                ) as AutoDeleteFilterType[]
-                              ).map((filter) => (
-                                <SelectItem key={filter} value={filter}>
-                                  {FILTER_LABELS[filter]}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
+                <>
+                  {config.rules.map((rule, index) => {
+                    const isDuplicate =
+                      Boolean(rule.channelId) &&
+                      duplicateChannelIds.has(rule.channelId);
+                    const usedElsewhere = new Set(
+                      config.rules
+                        .map((r, i) => (i === index ? "" : r.channelId))
+                        .filter(Boolean),
+                    );
+                    const isCountdown = rule.mode !== "SCHEDULED";
+                    return (
+                      <div
+                        key={`rule-${index}-${rule.channelId || "new"}`}
+                        className={cn(
+                          "relative mb-0 rounded-lg border border-border bg-muted/20 p-4 pr-12",
+                          isDuplicate && "border-destructive/50",
+                        )}
+                      >
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="shrink-0 text-muted-foreground hover:text-destructive"
+                          className="absolute right-2 top-2 text-muted-foreground hover:text-destructive"
                           aria-label="Eliminar regla"
                           onClick={() => removeRule(index)}
                         >
                           <Trash2 className="size-4" />
                         </Button>
-                      </div>
-                      {isDuplicate ? (
-                        <p className="text-xs text-destructive">
-                          Este canal ya está en otra regla.
-                        </p>
-                      ) : null}
-                    </div>
-                  );
-                })
-              )}
 
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full sm:w-auto"
-                onClick={addRule}
-              >
-                <Plus className="size-4" />
-                Añadir regla de borrado
-              </Button>
+                        <div className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-2">
+                          <div className="space-y-4">
+                            <div className="space-y-1.5">
+                              <Label className="text-xs text-muted-foreground">
+                                Canal
+                              </Label>
+                              <Select
+                                value={rule.channelId || undefined}
+                                onValueChange={(channelId) =>
+                                  updateRule(index, { channelId })
+                                }
+                              >
+                                <SelectTrigger
+                                  className={cn(
+                                    "h-9",
+                                    isDuplicate && "border-destructive",
+                                  )}
+                                >
+                                  <SelectValue placeholder="Seleccionar canal" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {textChannels.map((ch) => (
+                                    <SelectItem
+                                      key={ch.id}
+                                      value={ch.id}
+                                      disabled={usedElsewhere.has(ch.id)}
+                                    >
+                                      #{ch.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <Label className="text-xs text-muted-foreground">
+                                Modo
+                              </Label>
+                              <Select
+                                value={rule.mode}
+                                onValueChange={(value) =>
+                                  updateRule(index, {
+                                    mode: value as AutoDeleteMode,
+                                  })
+                                }
+                              >
+                                <SelectTrigger className="h-9">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {(
+                                    Object.keys(MODE_LABELS) as AutoDeleteMode[]
+                                  ).map((mode) => (
+                                    <SelectItem key={mode} value={mode}>
+                                      {MODE_LABELS[mode]}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+
+                          <div className="space-y-4">
+                            {isCountdown ? (
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs text-muted-foreground">
+                                    Tiempo
+                                  </Label>
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    max={maxCountdownValue(rule.delayUnit)}
+                                    className="h-9"
+                                    value={rule.delayValue}
+                                    onChange={(e) =>
+                                      updateRule(index, {
+                                        delayValue: clampCountdownDelay(
+                                          Number(e.target.value) || 1,
+                                          rule.delayUnit,
+                                        ),
+                                      })
+                                    }
+                                  />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs text-muted-foreground">
+                                    Unidad
+                                  </Label>
+                                  <Select
+                                    value={rule.delayUnit}
+                                    onValueChange={(value) => {
+                                      const delayUnit =
+                                        value as AutoDeleteDelayUnit;
+                                      updateRule(index, {
+                                        delayUnit,
+                                        delayValue: clampCountdownDelay(
+                                          rule.delayValue,
+                                          delayUnit,
+                                        ),
+                                      });
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-9">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {(
+                                        Object.keys(
+                                          UNIT_LABELS,
+                                        ) as AutoDeleteDelayUnit[]
+                                      ).map((unit) => (
+                                        <SelectItem key={unit} value={unit}>
+                                          {UNIT_LABELS[unit]}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-4">
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs text-muted-foreground">
+                                    Hora (24h)
+                                  </Label>
+                                  <Input
+                                    type="time"
+                                    step={60}
+                                    className="h-9"
+                                    value={rule.scheduledTime || "18:00"}
+                                    onChange={(e) =>
+                                      updateRule(index, {
+                                        scheduledTime:
+                                          e.target.value || "18:00",
+                                      })
+                                    }
+                                  />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs text-muted-foreground">
+                                    Días de la semana
+                                  </Label>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {WEEKDAY_OPTIONS.map((day) => {
+                                      const active = (
+                                        rule.scheduledDays ?? []
+                                      ).includes(day.value);
+                                      return (
+                                        <button
+                                          key={day.value}
+                                          type="button"
+                                          aria-pressed={active}
+                                          className={cn(
+                                            "h-8 min-w-10 rounded-md border px-2 text-xs font-medium transition-colors",
+                                            active
+                                              ? "border-primary bg-primary/15 text-primary"
+                                              : "border-border bg-background text-muted-foreground hover:text-foreground",
+                                          )}
+                                          onClick={() =>
+                                            updateRule(index, {
+                                              scheduledDays:
+                                                toggleScheduledDay(
+                                                  rule.scheduledDays ?? [],
+                                                  day.value,
+                                                ),
+                                            })
+                                          }
+                                        >
+                                          {day.label}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                  <p className="text-[11px] text-muted-foreground">
+                                    {(rule.scheduledDays ?? []).length === 0
+                                      ? "Sin selección = todos los días."
+                                      : "Solo se ejecutará en los días marcados."}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="space-y-1.5">
+                              <Label className="text-xs text-muted-foreground">
+                                Filtro
+                              </Label>
+                              <Select
+                                value={rule.filterType}
+                                onValueChange={(value) =>
+                                  updateRule(index, {
+                                    filterType: value as AutoDeleteFilterType,
+                                  })
+                                }
+                              >
+                                <SelectTrigger className="h-9">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {(
+                                    Object.keys(
+                                      FILTER_LABELS,
+                                    ) as AutoDeleteFilterType[]
+                                  ).map((filter) => (
+                                    <SelectItem key={filter} value={filter}>
+                                      {FILTER_LABELS[filter]}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </div>
+
+                        {isDuplicate ? (
+                          <p className="mt-3 text-xs text-destructive">
+                            Este canal ya está en otra regla.
+                          </p>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    onClick={addRule}
+                  >
+                    <Plus className="size-4" />
+                    Añadir regla de borrado
+                  </Button>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -428,6 +600,10 @@ export function AutoDeleteDashboard() {
                       .length
                   }
                 </span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">Limpiezas diarias</span>
+                <span className="font-mono text-xs">{scheduledCount}</span>
               </div>
               {hasDuplicateChannels ? (
                 <p className="rounded-md border border-destructive/40 bg-destructive/10 px-2.5 py-2 text-xs text-destructive">
