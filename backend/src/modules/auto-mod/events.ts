@@ -2,6 +2,7 @@ import type { Client, Message, OmitPartialGroupDMChannel } from "discord.js";
 import { executeModAction } from "../moderation/service.js";
 import { evaluateAutoModFilters } from "./filters.js";
 import { dispatchAutoModAlert } from "./logs.js";
+import { applyAutoModPunishments } from "./punishments.js";
 import { getAutoModConfigCached } from "./service.js";
 
 type GuildMessage = OmitPartialGroupDMChannel<Message<true>>;
@@ -79,7 +80,7 @@ async function handleAutoModMessage(
   });
   if (!violation) return;
 
-  // 3) Mitigación — sanciones deshabilitadas: solo delete + warn + DM + log
+  // 3) Mitigación: delete + warn + sanciones escaladas + log
   await message.delete().catch(() => {});
 
   const reason = `[AutoMod] Filtro detonado: ${violation.label}`;
@@ -97,6 +98,15 @@ async function handleAutoModMessage(
   } catch (error) {
     console.warn("[adobos] auto-mod: no se pudo registrar warn:", error);
   }
+
+  await applyAutoModPunishments({
+    client: message.client as Client,
+    guildId,
+    member,
+    config,
+  }).catch((error) => {
+    console.warn("[adobos] auto-mod: sanción escalada falló:", error);
+  });
 
   await dispatchAutoModAlert(message.client as Client, {
     guildId,

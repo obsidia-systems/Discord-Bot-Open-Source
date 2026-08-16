@@ -514,6 +514,94 @@ export function addUserXp(
   };
 }
 
+/** Resta XP (mínimo 0) y recalcula nivel. */
+export function deductUserXp(
+  guildId: string,
+  userId: string,
+  amount: number,
+): AddXpResult {
+  const lost = Math.max(0, Math.floor(amount));
+  const existing = getDb()
+    .select()
+    .from(userXp)
+    .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)))
+    .get();
+
+  const previousXp = existing?.xp ?? 0;
+  const previousLevel = existing?.level ?? levelFromXp(previousXp);
+  const xp = Math.max(0, previousXp - lost);
+  const newLevel = levelFromXp(xp);
+
+  if (existing) {
+    getDb()
+      .update(userXp)
+      .set({ xp, level: newLevel })
+      .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)))
+      .run();
+  } else {
+    getDb()
+      .insert(userXp)
+      .values({ guildId, userId, xp: 0, level: 0 })
+      .run();
+  }
+
+  return {
+    xp,
+    previousLevel,
+    newLevel,
+    previousXp,
+    gained: -Math.min(lost, previousXp),
+    leveledUp: false,
+  };
+}
+
+/** ¿El usuario tiene XP congelada ahora? */
+export function isUserXpFrozen(guildId: string, userId: string): boolean {
+  const row = getDb()
+    .select({ xpFrozenUntil: userXp.xpFrozenUntil })
+    .from(userXp)
+    .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)))
+    .get();
+  if (!row?.xpFrozenUntil) return false;
+  return row.xpFrozenUntil.getTime() > Date.now();
+}
+
+/** Congela ganancia de XP hasta `until` (timestamp Date). */
+export function freezeUserXp(
+  guildId: string,
+  userId: string,
+  until: Date,
+): void {
+  const existing = getDb()
+    .select()
+    .from(userXp)
+    .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)))
+    .get();
+
+  if (existing) {
+    const currentMs = existing.xpFrozenUntil?.getTime() ?? 0;
+    const nextUntil =
+      until.getTime() > currentMs ? until : (existing.xpFrozenUntil ?? until);
+    getDb()
+      .update(userXp)
+      .set({ xpFrozenUntil: nextUntil })
+      .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)))
+      .run();
+    return;
+  }
+
+  getDb()
+    .insert(userXp)
+    .values({
+      guildId,
+      userId,
+      xp: 0,
+      level: 0,
+      xpFrozenUntil: until,
+    })
+    .run();
+}
+
 /** Roles a otorgar al subir de `fromLevel` (exclusivo) a `toLevel` (inclusivo). */
 export function rewardsBetweenLevels(
   guildId: string,

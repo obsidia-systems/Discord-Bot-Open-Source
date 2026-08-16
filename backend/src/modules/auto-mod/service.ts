@@ -1,4 +1,3 @@
-import { eq } from "drizzle-orm";
 import type {
   AutoModConfig,
   AutoModFilters,
@@ -7,10 +6,12 @@ import type {
 import {
   defaultAutoModConfig,
   defaultAutoModFilters,
+  normalizeAutoModPunishments,
   normalizeWarnDecayDays,
 } from "@adobos/shared";
+import { and, eq, gte, sql } from "drizzle-orm";
 import { getDb } from "../../db/client.js";
-import { autoModConfig, guildSettings } from "../../db/schema.js";
+import { autoModConfig, guildSettings, warnings } from "../../db/schema.js";
 import { actionLogsConfig } from "../../db/schema.js";
 
 export class AutoModError extends Error {
@@ -146,6 +147,9 @@ function rowToConfig(
     ignoredChannels: parseJson<string[]>(row.ignoredChannels, []),
     logChannelId: row.logChannelId ?? null,
     warnDecayDays: normalizeWarnDecayDays(row.warnDecayDays),
+    punishments: normalizeAutoModPunishments(
+      parseJson(row.punishments, []),
+    ),
     updatedAt: new Date(row.updatedAt).toISOString(),
   };
 }
@@ -205,6 +209,10 @@ export function updateAutoModConfig(
         ? input.warnDecayDays
         : current.warnDecayDays,
     ),
+    punishments:
+      input.punishments !== undefined
+        ? normalizeAutoModPunishments(input.punishments)
+        : current.punishments,
     updatedAt: new Date().toISOString(),
   };
 
@@ -218,6 +226,7 @@ export function updateAutoModConfig(
       ignoredChannels: JSON.stringify(next.ignoredChannels),
       logChannelId: next.logChannelId,
       warnDecayDays: next.warnDecayDays,
+      punishments: JSON.stringify(next.punishments),
       updatedAt: new Date(),
     })
     .onConflictDoUpdate({
@@ -229,6 +238,7 @@ export function updateAutoModConfig(
         ignoredChannels: JSON.stringify(next.ignoredChannels),
         logChannelId: next.logChannelId,
         warnDecayDays: next.warnDecayDays,
+        punishments: JSON.stringify(next.punishments),
         updatedAt: new Date(),
       },
     })
@@ -253,4 +263,26 @@ export function resolveAutoModLogChannelId(guildId: string): string | null {
     .get();
   const fallback = actionRow?.globalChannelId?.trim();
   return fallback || null;
+}
+
+/** Warns activos respetando caducidad (`warnDecayDays`; 0 = todos). */
+export function countActiveWarns(
+  guildId: string,
+  userId: string,
+  warnDecayDays: number,
+): number {
+  const conditions = [
+    eq(warnings.guildId, guildId),
+    eq(warnings.userId, userId),
+  ];
+  if (warnDecayDays > 0) {
+    const cutoff = new Date(Date.now() - warnDecayDays * 24 * 60 * 60 * 1000);
+    conditions.push(gte(warnings.createdAt, cutoff));
+  }
+  const row = getDb()
+    .select({ count: sql<number>`count(*)` })
+    .from(warnings)
+    .where(and(...conditions))
+    .get();
+  return Number(row?.count ?? 0);
 }

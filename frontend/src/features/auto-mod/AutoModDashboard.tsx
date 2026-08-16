@@ -1,19 +1,24 @@
 import type {
   AutoModConfig,
   AutoModFilters,
+  AutoModPunishmentAction,
   AutoModWarnDecayDays,
   GuildChannelAsset,
   GuildRoleAsset,
 } from "@adobos/shared";
 import {
+  AUTO_MOD_DURATION_OPTIONS,
+  AUTO_MOD_PUNISHMENT_ACTION_OPTIONS,
   AUTO_MOD_TOGGLE_FILTER_COUNT,
   AUTO_MOD_WARN_DECAY_OPTIONS,
   countActiveAutoModFilters,
   defaultAutoModConfig,
+  newAutoModPunishmentRow,
 } from "@adobos/shared";
 import {
   fetchAutoModConfig,
   fetchGuildAssets,
+  fetchLevelsConfig,
   saveAutoModConfig,
 } from "@/lib/api";
 import { ChannelMultiSelect } from "@/components/shared/ChannelMultiSelect";
@@ -41,7 +46,15 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToastBanner } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
-import { Construction, Info, Loader2, Save, ShieldAlert, X } from "lucide-react";
+import {
+  Info,
+  Loader2,
+  Plus,
+  Save,
+  ShieldAlert,
+  Trash2,
+  X,
+} from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -64,6 +77,7 @@ function configFingerprint(config: AutoModConfig): string {
     ignoredRoles: [...config.ignoredRoles].sort(),
     logChannelId: config.logChannelId,
     warnDecayDays: config.warnDecayDays,
+    punishments: config.punishments,
   });
 }
 
@@ -203,6 +217,7 @@ export function AutoModDashboard() {
   );
   const [channels, setChannels] = useState<GuildChannelAsset[]>([]);
   const [roles, setRoles] = useState<GuildRoleAsset[]>([]);
+  const [levelsEnabled, setLevelsEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -251,14 +266,16 @@ export function AutoModDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const [cfgRes, assets] = await Promise.all([
+      const [cfgRes, assets, levelsRes] = await Promise.all([
         fetchAutoModConfig(),
         fetchGuildAssets(),
+        fetchLevelsConfig().catch(() => null),
       ]);
       setConfig(cfgRes.config);
       setSavedFingerprint(configFingerprint(cfgRes.config));
       setChannels(assets.channels);
       setRoles(assets.roles);
+      setLevelsEnabled(Boolean(levelsRes?.config.enabled));
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "No se pudo cargar Auto Mod",
@@ -295,6 +312,7 @@ export function AutoModDashboard() {
         ignoredChannels: config.ignoredChannels,
         logChannelId: config.logChannelId,
         warnDecayDays: config.warnDecayDays,
+        punishments: config.punishments,
       });
       setConfig(res.config);
       setSavedFingerprint(configFingerprint(res.config));
@@ -650,51 +668,185 @@ export function AutoModDashboard() {
                     </CardContent>
                   </Card>
 
-                  <div className="flex gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
-                    <Construction
-                      className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400"
-                      aria-hidden
-                    />
-                    <p>
-                      Constructor Dinámico de Sanciones en desarrollo.
-                      Próximamente podrás encadenar Warns con Timeouts, Kicks y
-                      Bans directamente.
-                    </p>
-                  </div>
-
-                  <Card className="opacity-80">
-                    <CardHeader>
+                  <Card>
+                    <CardHeader className="pb-3">
                       <CardTitle className="text-base">
-                        Escalado de sanciones (vista previa)
+                        Escalado de sanciones
                       </CardTitle>
                       <CardDescription>
-                        Mockup estático — no se guarda ni se ejecuta en esta
-                        fase.
+                        Al alcanzar exactamente N warns activos se ejecuta la
+                        acción. Integra castigos de Discord y de Rangos y XP.
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="pointer-events-none space-y-3 select-none">
-                      {[
-                        { warns: 3, action: "Timeout 10 mins" },
-                        { warns: 5, action: "Timeout 1 hora" },
-                        { warns: 7, action: "Kick del servidor" },
-                      ].map((row) => (
+                    <CardContent className="space-y-3">
+                      {config.punishments.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          Sin reglas todavía. Añade una sanción para empezar.
+                        </p>
+                      ) : null}
+
+                      {config.punishments.map((row, index) => (
                         <div
-                          key={row.warns}
-                          className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-border bg-muted/15 px-3 py-2.5 text-sm text-muted-foreground"
-                          aria-disabled
+                          key={`${row.actionType}-${index}`}
+                          className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/10 px-3 py-2.5"
                         >
-                          <Badge className="border-border bg-background font-mono text-muted-foreground">
-                            A los {row.warns} Warns
-                          </Badge>
-                          <span aria-hidden>🡒</span>
-                          <span className="font-medium text-muted-foreground/90">
-                            {row.action}
+                          <span className="text-sm text-muted-foreground">
+                            A los
                           </span>
-                          <Badge className="ml-auto border-border bg-background text-muted-foreground">
-                            Próximamente
-                          </Badge>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={100}
+                            className="w-16"
+                            value={row.warnThreshold}
+                            onChange={(e) => {
+                              const warnThreshold = Math.max(
+                                1,
+                                Math.min(
+                                  100,
+                                  Math.round(Number(e.target.value) || 1),
+                                ),
+                              );
+                              patch({
+                                punishments: config.punishments.map((p, i) =>
+                                  i === index ? { ...p, warnThreshold } : p,
+                                ),
+                              });
+                            }}
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            Warns 🡒
+                          </span>
+                          <Select
+                            value={row.actionType}
+                            onValueChange={(value) => {
+                              const actionType =
+                                value as AutoModPunishmentAction;
+                              let actionParam: number | null = null;
+                              if (
+                                actionType === "TIMEOUT" ||
+                                actionType === "XP_FREEZE"
+                              ) {
+                                actionParam =
+                                  AUTO_MOD_DURATION_OPTIONS[0]!.value;
+                              } else if (actionType === "REMOVE_XP") {
+                                actionParam = 100;
+                              }
+                              patch({
+                                punishments: config.punishments.map((p, i) =>
+                                  i === index
+                                    ? { ...p, actionType, actionParam }
+                                    : p,
+                                ),
+                              });
+                            }}
+                          >
+                            <SelectTrigger className="w-[9.5rem]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {AUTO_MOD_PUNISHMENT_ACTION_OPTIONS.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+
+                          {row.actionType === "TIMEOUT" ||
+                          row.actionType === "XP_FREEZE" ? (
+                            <Select
+                              value={String(
+                                row.actionParam ??
+                                  AUTO_MOD_DURATION_OPTIONS[0]!.value,
+                              )}
+                              onValueChange={(value) => {
+                                const actionParam = Number(value);
+                                patch({
+                                  punishments: config.punishments.map((p, i) =>
+                                    i === index ? { ...p, actionParam } : p,
+                                  ),
+                                });
+                              }}
+                            >
+                              <SelectTrigger className="w-[8.5rem]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {AUTO_MOD_DURATION_OPTIONS.map((opt) => (
+                                  <SelectItem
+                                    key={opt.value}
+                                    value={String(opt.value)}
+                                  >
+                                    {opt.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : null}
+
+                          {row.actionType === "REMOVE_XP" ? (
+                            <Input
+                              type="number"
+                              min={1}
+                              className="w-28"
+                              placeholder="XP"
+                              value={row.actionParam ?? 100}
+                              onChange={(e) => {
+                                const actionParam = Math.max(
+                                  1,
+                                  Math.round(Number(e.target.value) || 1),
+                                );
+                                patch({
+                                  punishments: config.punishments.map((p, i) =>
+                                    i === index ? { ...p, actionParam } : p,
+                                  ),
+                                });
+                              }}
+                            />
+                          ) : null}
+
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="ml-auto text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() =>
+                              patch({
+                                punishments: config.punishments.filter(
+                                  (_, i) => i !== index,
+                                ),
+                              })
+                            }
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
                         </div>
                       ))}
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          patch({
+                            punishments: [
+                              ...config.punishments,
+                              newAutoModPunishmentRow(),
+                            ],
+                          })
+                        }
+                      >
+                        <Plus className="size-4" />
+                        Añadir Sanción
+                      </Button>
+
+                      {!levelsEnabled ? (
+                        <p className="text-xs text-amber-600 dark:text-amber-400">
+                          ⚠️ Las sanciones de XP no tendrán efecto mientras el
+                          módulo de Rangos y XP esté apagado.
+                        </p>
+                      ) : null}
                     </CardContent>
                   </Card>
                 </div>
@@ -826,6 +978,13 @@ export function AutoModDashboard() {
                 <span className="text-muted-foreground">Caducidad</span>
                 <span className="text-xs">
                   {warnDecayLabel(config.warnDecayDays)}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">Sanciones</span>
+                <span className="font-mono text-xs">
+                  {config.punishments.length}
                 </span>
               </div>
 

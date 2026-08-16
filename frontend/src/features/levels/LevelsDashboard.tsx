@@ -225,6 +225,18 @@ export function LevelsDashboard() {
     [roles],
   );
 
+  /** Multiplicadores: roles normales + Server Booster (managed nativo). */
+  const multiplierRoles = useMemo(
+    () =>
+      roles
+        .filter(
+          (r) =>
+            r.name !== "@everyone" && (!r.managed || r.premiumSubscriber),
+        )
+        .sort((a, b) => b.position - a.position),
+    [roles],
+  );
+
   const liveChannelLabel = useMemo(() => {
     if (!config.liveLeaderboardChannelId) return "Sin configurar";
     const ch = textChannels.find(
@@ -597,7 +609,7 @@ export function LevelsDashboard() {
                         </p>
                       ) : (
                         config.customMultipliers.map((entry, index) => {
-                          const selectedRole = assignableRoles.find(
+                          const selectedRole = multiplierRoles.find(
                             (r) => r.id === entry.roleId,
                           );
                           return (
@@ -626,7 +638,7 @@ export function LevelsDashboard() {
                                   )}
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {assignableRoles.map((role) => (
+                                  {multiplierRoles.map((role) => (
                                     <SelectItem key={role.id} value={role.id}>
                                       <span className="flex items-center gap-2">
                                         <RoleColorDot

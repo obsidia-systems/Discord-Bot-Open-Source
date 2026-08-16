@@ -214,6 +214,7 @@ function ensureCoreTables(database: Database.Database): void {
       ignored_channels TEXT NOT NULL DEFAULT '[]',
       log_channel_id TEXT,
       warn_decay_days INTEGER NOT NULL DEFAULT 30,
+      punishments TEXT NOT NULL DEFAULT '[]',
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
     );
@@ -260,6 +261,7 @@ function ensureCoreTables(database: Database.Database): void {
       user_id TEXT NOT NULL,
       xp INTEGER NOT NULL DEFAULT 0,
       level INTEGER NOT NULL DEFAULT 0,
+      xp_frozen_until INTEGER,
       PRIMARY KEY (guild_id, user_id),
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
     );
@@ -397,17 +399,33 @@ function ensureCoreTables(database: Database.Database): void {
     }
   }
 
-  // Migración suave: warn_decay_days en auto_mod_config
+  // Migración suave: warn_decay_days + punishments en auto_mod_config
   const autoModCols = database
     .prepare(`PRAGMA table_info(auto_mod_config)`)
     .all() as Array<{ name: string }>;
+  if (autoModCols.length > 0) {
+    const names = new Set(autoModCols.map((c) => c.name));
+    if (!names.has("warn_decay_days")) {
+      database.exec(
+        `ALTER TABLE auto_mod_config ADD COLUMN warn_decay_days INTEGER NOT NULL DEFAULT 30`,
+      );
+    }
+    if (!names.has("punishments")) {
+      database.exec(
+        `ALTER TABLE auto_mod_config ADD COLUMN punishments TEXT NOT NULL DEFAULT '[]'`,
+      );
+    }
+  }
+
+  // Migración suave: xp_frozen_until en user_xp
+  const userXpCols = database
+    .prepare(`PRAGMA table_info(user_xp)`)
+    .all() as Array<{ name: string }>;
   if (
-    autoModCols.length > 0 &&
-    !autoModCols.some((column) => column.name === "warn_decay_days")
+    userXpCols.length > 0 &&
+    !userXpCols.some((column) => column.name === "xp_frozen_until")
   ) {
-    database.exec(
-      `ALTER TABLE auto_mod_config ADD COLUMN warn_decay_days INTEGER NOT NULL DEFAULT 30`,
-    );
+    database.exec(`ALTER TABLE user_xp ADD COLUMN xp_frozen_until INTEGER`);
   }
 
   // Migración suave: leaderboard en vivo + anuncios premium en xp_config

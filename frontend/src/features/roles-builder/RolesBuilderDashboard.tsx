@@ -16,13 +16,13 @@ import {
   fetchRolesBuilderList,
   updateRolePositions,
 } from "@/lib/api";
+import { Button } from "@/components/ui/button";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -33,6 +33,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToastBanner } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import {
@@ -173,7 +174,14 @@ function buildPositionPayload(
     .map(({ roleId, position }) => ({ roleId, position }));
 }
 
-function PermissionsAccordion({
+const PERMISSION_TAB_SHORT: Record<string, string> = {
+  general: "General",
+  moderation: "Moderación",
+  membership: "Membresía",
+  voice: "Voz",
+};
+
+function PermissionsTabs({
   groups,
   selected,
   onToggle,
@@ -182,55 +190,64 @@ function PermissionsAccordion({
   selected: Set<string>;
   onToggle: (key: string, enabled: boolean) => void;
 }) {
-  const [openId, setOpenId] = useState<string | null>(groups[0]?.id ?? null);
+  const [tab, setTab] = useState(groups[0]?.id ?? "general");
+  const activeGroup = groups.find((g) => g.id === tab) ?? groups[0];
 
   return (
-    <Accordion>
-      {groups.map((group) => {
-        const enabledCount = group.permissions.filter((p) =>
-          selected.has(p.key),
-        ).length;
-        const open = openId === group.id;
-        return (
-          <AccordionItem key={group.id}>
-            <AccordionTrigger
-              open={open}
-              onClick={() => setOpenId(open ? null : group.id)}
-              subtitle={`${enabledCount}/${group.permissions.length} activos`}
+    <Tabs className="space-y-0">
+      <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4">
+        {groups.map((group) => {
+          const enabledCount = group.permissions.filter((p) =>
+            selected.has(p.key),
+          ).length;
+          const short =
+            PERMISSION_TAB_SHORT[group.id] ?? group.label.split(" ")[0]!;
+          return (
+            <TabsTrigger
+              key={group.id}
+              className="h-auto min-h-9 w-full flex-col gap-0.5 px-1.5 py-1.5 text-xs sm:text-sm"
+              active={tab === group.id}
+              onClick={() => setTab(group.id)}
             >
-              {group.label}
-            </AccordionTrigger>
-            <AccordionContent open={open}>
-              <div className="space-y-2">
-                {group.permissions.map((perm) => (
-                  <div
-                    key={perm.key}
-                    className="flex items-start justify-between gap-3 rounded-md border border-border/40 px-3 py-2"
-                  >
-                    <div className="min-w-0">
-                      <Label className="text-sm font-normal leading-snug">
-                        {perm.label}
-                      </Label>
-                      {perm.description ? (
-                        <p className="mt-0.5 text-[11px] text-muted-foreground">
-                          {perm.description}
-                        </p>
-                      ) : null}
-                    </div>
-                    <Switch
-                      checked={selected.has(perm.key)}
-                      onCheckedChange={(checked) =>
-                        onToggle(perm.key, checked)
-                      }
-                    />
+              <span>{short}</span>
+              <span className="text-[10px] font-normal text-muted-foreground">
+                {enabledCount}/{group.permissions.length}
+              </span>
+            </TabsTrigger>
+          );
+        })}
+      </TabsList>
+
+      {activeGroup ? (
+        <TabsContent className="mt-3">
+          <div className="min-h-[18rem] space-y-2 sm:min-h-[20rem]">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {activeGroup.permissions.map((perm) => (
+                <div
+                  key={perm.key}
+                  className="flex items-start justify-between gap-3 rounded-md border border-border/40 px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <Label className="text-sm font-normal leading-snug">
+                      {perm.label}
+                    </Label>
+                    {perm.description ? (
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        {perm.description}
+                      </p>
+                    ) : null}
                   </div>
-                ))}
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        );
-      })}
-    </Accordion>
+                  <Switch
+                    checked={selected.has(perm.key)}
+                    onCheckedChange={(checked) => onToggle(perm.key, checked)}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        </TabsContent>
+      ) : null}
+    </Tabs>
   );
 }
 
@@ -385,6 +402,7 @@ export function RolesBuilderDashboard() {
   const [color, setColor] = useState("#5865F2");
   const [hoist, setHoist] = useState(false);
   const [mentionable, setMentionable] = useState(false);
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
   const [selectedPerms, setSelectedPerms] = useState<Set<string>>(
     () => new Set(),
   );
@@ -665,12 +683,28 @@ export function RolesBuilderDashboard() {
             </div>
 
             <div className="space-y-2">
-              <Label>Permisos</Label>
-              <PermissionsAccordion
-                groups={permissionGroups}
-                selected={selectedPerms}
-                onToggle={togglePerm}
-              />
+              <Accordion>
+                <AccordionItem>
+                  <AccordionTrigger
+                    open={permissionsOpen}
+                    onClick={() => setPermissionsOpen((v) => !v)}
+                    subtitle={
+                      selectedPerms.size > 0
+                        ? `${selectedPerms.size} permiso${selectedPerms.size === 1 ? "" : "s"} seleccionado${selectedPerms.size === 1 ? "" : "s"}`
+                        : "Cerrado por defecto — opcional"
+                    }
+                  >
+                    Permisos
+                  </AccordionTrigger>
+                  <AccordionContent open={permissionsOpen}>
+                    <PermissionsTabs
+                      groups={permissionGroups}
+                      selected={selectedPerms}
+                      onToggle={togglePerm}
+                    />
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </div>
 
             <Button

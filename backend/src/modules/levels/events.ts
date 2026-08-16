@@ -10,6 +10,7 @@ import {
 import {
   addUserXp,
   getLevelsConfigCached,
+  isUserXpFrozen,
   nextRewardAfter,
   randomTextXp,
   rewardAtLevel,
@@ -136,6 +137,7 @@ async function grantXpAndHandleLevelUp(input: {
   amount: number;
 }): Promise<void> {
   if (input.amount <= 0) return;
+  if (isUserXpFrozen(input.guildId, input.member.id)) return;
   const result = addUserXp(input.guildId, input.member.id, input.amount);
 
   scheduleLiveLeaderboardRefresh(input.client, input.guildId);

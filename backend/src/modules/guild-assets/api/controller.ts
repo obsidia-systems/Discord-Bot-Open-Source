@@ -106,8 +106,14 @@ function mapStickers(guild: Guild): GuildStickerAsset[] {
 }
 
 function mapRoles(guild: Guild): GuildRoleAsset[] {
+  const boosterId = guild.roles.premiumSubscriberRole?.id ?? null;
   return [...guild.roles.cache.values()]
-    .filter((role) => role.id !== guild.id && !role.managed)
+    .filter((role) => {
+      if (role.id === guild.id) return false;
+      // Incluir Server Booster aunque sea managed; el resto de managed se omiten.
+      if (role.managed) return boosterId !== null && role.id === boosterId;
+      return true;
+    })
     .map((role) => ({
       id: role.id,
       name: role.name,
@@ -115,6 +121,7 @@ function mapRoles(guild: Guild): GuildRoleAsset[] {
       hexColor: role.hexColor,
       position: role.position,
       managed: role.managed,
+      premiumSubscriber: boosterId !== null && role.id === boosterId,
     }))
     .sort((a, b) => b.position - a.position);
 }

@@ -51,6 +51,8 @@ export interface GuildRoleAsset {
   hexColor: string;
   position: number;
   managed: boolean;
+  /** Rol nativo «Server Booster» de Discord. */
+  premiumSubscriber?: boolean;
 }
 
 export interface GuildAssetsResponse {

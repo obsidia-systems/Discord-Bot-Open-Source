@@ -38,6 +38,47 @@ export interface AutoModFilters {
 /** Días de caducidad de Warns activos; 0 = nunca caducan. */
 export type AutoModWarnDecayDays = 0 | 14 | 30 | 60 | 90;
 
+export type AutoModPunishmentAction =
+  | "TIMEOUT"
+  | "KICK"
+  | "BAN"
+  | "REMOVE_XP"
+  | "XP_FREEZE";
+
+/**
+ * Regla de escalado: al llegar exactamente a `warnThreshold` warns activos
+ * se ejecuta `actionType`. `actionParam` es ms (TIMEOUT / XP_FREEZE) o
+ * cantidad de XP (REMOVE_XP); null para KICK/BAN.
+ */
+export interface AutoModPunishment {
+  warnThreshold: number;
+  actionType: AutoModPunishmentAction;
+  actionParam: number | null;
+}
+
+export const AUTO_MOD_PUNISHMENT_ACTION_OPTIONS: ReadonlyArray<{
+  value: AutoModPunishmentAction;
+  label: string;
+}> = [
+  { value: "TIMEOUT", label: "Timeout" },
+  { value: "KICK", label: "Kick" },
+  { value: "BAN", label: "Ban" },
+  { value: "REMOVE_XP", label: "Quitar XP" },
+  { value: "XP_FREEZE", label: "Congelar XP" },
+];
+
+/** Duraciones para TIMEOUT y XP_FREEZE (valor = ms). */
+export const AUTO_MOD_DURATION_OPTIONS: ReadonlyArray<{
+  value: number;
+  label: string;
+}> = [
+  { value: 10 * 60 * 1000, label: "10 min" },
+  { value: 60 * 60 * 1000, label: "1 hora" },
+  { value: 12 * 60 * 60 * 1000, label: "12 horas" },
+  { value: 24 * 60 * 60 * 1000, label: "24 horas" },
+  { value: 7 * 24 * 60 * 60 * 1000, label: "1 semana" },
+];
+
 export const AUTO_MOD_WARN_DECAY_OPTIONS: ReadonlyArray<{
   value: AutoModWarnDecayDays;
   label: string;
@@ -63,6 +104,8 @@ export interface AutoModConfig {
    * El expediente histórico se conserva completo. 0 = sin caducidad.
    */
   warnDecayDays: AutoModWarnDecayDays;
+  /** Escalado dinámico de sanciones por umbral de Warns. */
+  punishments: AutoModPunishment[];
   updatedAt: string;
 }
 
@@ -77,6 +120,7 @@ export type UpdateAutoModConfigRequest = Partial<{
   ignoredChannels: string[];
   logChannelId: string | null;
   warnDecayDays: AutoModWarnDecayDays;
+  punishments: AutoModPunishment[];
 }>;
 
 export function defaultAutoModFilters(): AutoModFilters {
@@ -109,6 +153,7 @@ export function defaultAutoModConfig(guildId = ""): AutoModConfig {
     ignoredChannels: [],
     logChannelId: null,
     warnDecayDays: 30,
+    punishments: [],
     updatedAt: new Date().toISOString(),
   };
 }
@@ -136,6 +181,55 @@ export function normalizeWarnDecayDays(
   const n = Math.round(Number(value));
   if (n === 0 || n === 14 || n === 30 || n === 60 || n === 90) return n;
   return 30;
+}
+
+const PUNISHMENT_ACTIONS = new Set<AutoModPunishmentAction>([
+  "TIMEOUT",
+  "KICK",
+  "BAN",
+  "REMOVE_XP",
+  "XP_FREEZE",
+]);
+
+export function normalizeAutoModPunishments(
+  value: unknown,
+): AutoModPunishment[] {
+  if (!Array.isArray(value)) return [];
+  const out: AutoModPunishment[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const row = raw as Record<string, unknown>;
+    const actionType = String(row.actionType ?? "").toUpperCase();
+    if (!PUNISHMENT_ACTIONS.has(actionType as AutoModPunishmentAction)) {
+      continue;
+    }
+    const warnThreshold = Math.max(
+      1,
+      Math.min(100, Math.round(Number(row.warnThreshold) || 1)),
+    );
+    let actionParam: number | null = null;
+    if (actionType === "TIMEOUT" || actionType === "XP_FREEZE") {
+      const ms = Math.round(Number(row.actionParam));
+      const allowed = AUTO_MOD_DURATION_OPTIONS.some((o) => o.value === ms);
+      actionParam = allowed ? ms : AUTO_MOD_DURATION_OPTIONS[0]!.value;
+    } else if (actionType === "REMOVE_XP") {
+      actionParam = Math.max(1, Math.round(Number(row.actionParam) || 100));
+    }
+    out.push({
+      warnThreshold,
+      actionType: actionType as AutoModPunishmentAction,
+      actionParam,
+    });
+  }
+  return out.sort((a, b) => a.warnThreshold - b.warnThreshold);
+}
+
+export function newAutoModPunishmentRow(): AutoModPunishment {
+  return {
+    warnThreshold: 3,
+    actionType: "TIMEOUT",
+    actionParam: AUTO_MOD_DURATION_OPTIONS[0]!.value,
+  };
 }
 
 /** Cuenta toggles de filtro activos (para monitor). */

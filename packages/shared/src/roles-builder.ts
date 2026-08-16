@@ -32,11 +32,6 @@ export const ROLE_PERMISSION_GROUPS: RolePermissionGroup[] = [
       { key: "CreateInstantInvite", label: "Crear invitación" },
       { key: "ChangeNickname", label: "Cambiar apodo" },
       { key: "ManageNicknames", label: "Gestionar apodos" },
-      {
-        key: "Administrator",
-        label: "Administrador",
-        description: "Otorga todos los permisos e ignora denegaciones.",
-      },
     ],
   },
   {

@@ -379,6 +379,8 @@ export const autoModConfig = sqliteTable("auto_mod_config", {
   logChannelId: text("log_channel_id"),
   /** Días para caducidad de Warns activos; 0 = nunca. */
   warnDecayDays: integer("warn_decay_days").notNull().default(30),
+  /** JSON: AutoModPunishment[] */
+  punishments: text("punishments").notNull().default("[]"),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),
@@ -494,6 +496,8 @@ export const userXp = sqliteTable(
     userId: text("user_id").notNull(),
     xp: integer("xp").notNull().default(0),
     level: integer("level").notNull().default(0),
+    /** Si está en el futuro, el usuario no gana XP (Auto Mod XP_FREEZE). */
+    xpFrozenUntil: integer("xp_frozen_until", { mode: "timestamp_ms" }),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.guildId, table.userId] }),

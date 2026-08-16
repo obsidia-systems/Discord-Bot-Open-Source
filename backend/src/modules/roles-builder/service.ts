@@ -101,6 +101,8 @@ function permissionsFromKeys(keys: string[] | undefined): bigint {
   if (!keys?.length) return 0n;
   let bits = 0n;
   for (const key of keys) {
+    // Nunca otorgar Administrator desde el panel.
+    if (key === "Administrator") continue;
     const flag = PermissionFlagsBits[key as keyof typeof PermissionFlagsBits];
     if (typeof flag === "bigint") {
       bits |= flag;
