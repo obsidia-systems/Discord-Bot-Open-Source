@@ -10,7 +10,14 @@ export interface LevelsReward {
 /** Multiplicador de XP asociado a un rol. */
 export interface LevelsRoleMultiplier {
   roleId: string;
-  /** Factor (ej. 1.5 = +50%). */
+  /** Factor (ej. 1.5 = +50% como bonus de 0.5 sobre la base). */
+  multiplier: number;
+}
+
+/** Multiplicador de XP asociado a un canal (hot zone). */
+export interface LevelsChannelMultiplier {
+  channelId: string;
+  /** Factor (ej. 2.0 = +100% bonus sobre la base). */
   multiplier: number;
 }
 
@@ -25,10 +32,21 @@ export interface LevelsConfig {
   cooldownSeconds: number;
   voiceEnabled: boolean;
   voiceXpPerMinute: number;
+  /**
+   * Bonus al transmitir pantalla en voz (1.0 = sin bonus).
+   * Se suma como (streamMultiplier - 1) al total.
+   */
+  streamMultiplier: number;
   /** Multiplicador global de XP (texto y voz). Default 1. */
   xpMultiplier: number;
-  /** Multiplicadores extra por rol (se suman si el miembro tiene varios). */
+  /**
+   * Multiplicadores por rol. Bonus = sum(mult - 1) de roles aplicables.
+   */
   customMultipliers: LevelsRoleMultiplier[];
+  /**
+   * Multiplicadores por canal (texto/voz). Bonus = (mult - 1) del canal.
+   */
+  customChannelMultipliers: LevelsChannelMultiplier[];
   ignoredRoles: string[];
   ignoredChannels: string[];
   /** Canal opcional para anuncios de subida de nivel. */
@@ -74,8 +92,10 @@ export type UpdateLevelsConfigRequest = Partial<{
   cooldownSeconds: number;
   voiceEnabled: boolean;
   voiceXpPerMinute: number;
+  streamMultiplier: number;
   xpMultiplier: number;
   customMultipliers: LevelsRoleMultiplier[];
+  customChannelMultipliers: LevelsChannelMultiplier[];
   ignoredRoles: string[];
   ignoredChannels: string[];
   levelUpChannelId: string | null;
@@ -140,8 +160,10 @@ export function defaultLevelsConfig(guildId = ""): LevelsConfig {
     cooldownSeconds: 60,
     voiceEnabled: false,
     voiceXpPerMinute: 10,
+    streamMultiplier: 1,
     xpMultiplier: 1,
     customMultipliers: [],
+    customChannelMultipliers: [],
     ignoredRoles: [],
     ignoredChannels: [],
     levelUpChannelId: null,

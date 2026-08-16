@@ -1,5 +1,6 @@
 import { and, asc, count, desc, eq, gt } from "drizzle-orm";
 import type {
+  LevelsChannelMultiplier,
   LevelsConfig,
   LevelsLeaderboardEntry,
   LevelsReward,
@@ -91,6 +92,17 @@ function clampInt(
   return Math.max(min, Math.min(max, n));
 }
 
+function clampFloat(
+  value: unknown,
+  min: number,
+  max: number,
+  fallback: number,
+): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(n * 100) / 100));
+}
+
 function loadRewards(guildId: string): LevelsReward[] {
   return getDb()
     .select()
@@ -125,23 +137,59 @@ function normalizeCustomMultipliers(
   return out;
 }
 
+function normalizeChannelMultipliers(
+  input: LevelsChannelMultiplier[] | undefined,
+): LevelsChannelMultiplier[] {
+  if (!input) return [];
+  const seen = new Set<string>();
+  const out: LevelsChannelMultiplier[] = [];
+  for (const raw of input) {
+    const channelId = String(raw.channelId ?? "").trim();
+    if (!/^\d{17,20}$/.test(channelId) || seen.has(channelId)) continue;
+    const multiplier = Number(raw.multiplier);
+    if (!Number.isFinite(multiplier) || multiplier <= 0) continue;
+    seen.add(channelId);
+    out.push({
+      channelId,
+      multiplier: Math.max(0.1, Math.min(20, Math.round(multiplier * 100) / 100)),
+    });
+  }
+  return out;
+}
+
 /**
- * Multiplicador de roles aplicables: se suman entre sí.
- * Ej. x2 + x1.5 → 3.5. Sin roles coincidentes → 1.
+ * Multiplicador total de XP (aditivo sobre la base):
+ * base + Σ(rol − 1) + (canal − 1) + (stream − 1 si streaming).
+ * Ej. base 1, rol 1.5, canal 2.0 → 2.5x.
  */
-export function resolveRoleXpMultiplier(
+export function resolveXpMultiplier(
   config: LevelsConfig,
   roleIds: Iterable<string>,
+  options?: { channelId?: string | null; streaming?: boolean },
 ): number {
+  const base = Math.max(0.1, Number(config.xpMultiplier) || 1);
+  let total = base;
+
   const owned = new Set(roleIds);
-  let sum = 0;
-  let matched = false;
   for (const entry of config.customMultipliers) {
     if (!owned.has(entry.roleId)) continue;
-    sum += entry.multiplier;
-    matched = true;
+    total += entry.multiplier - 1;
   }
-  return matched ? sum : 1;
+
+  const channelId = options?.channelId ?? null;
+  if (channelId) {
+    const channelEntry = config.customChannelMultipliers.find(
+      (e) => e.channelId === channelId,
+    );
+    if (channelEntry) total += channelEntry.multiplier - 1;
+  }
+
+  if (options?.streaming) {
+    const stream = Math.max(0.1, Number(config.streamMultiplier) || 1);
+    total += stream - 1;
+  }
+
+  return Math.max(0, Math.round(total * 1000) / 1000);
 }
 
 function rowToConfig(
@@ -159,9 +207,13 @@ function rowToConfig(
     cooldownSeconds: row.cooldownSeconds,
     voiceEnabled: Boolean(row.voiceEnabled),
     voiceXpPerMinute: row.voiceXpPerMinute,
+    streamMultiplier: clampFloat(row.streamMultiplier, 0.1, 20, 1),
     xpMultiplier: row.xpMultiplier,
     customMultipliers: normalizeCustomMultipliers(
       parseJson<LevelsRoleMultiplier[]>(row.customMultipliers, []),
+    ),
+    customChannelMultipliers: normalizeChannelMultipliers(
+      parseJson<LevelsChannelMultiplier[]>(row.customChannelMultipliers, []),
     ),
     ignoredRoles: parseJson<string[]>(row.ignoredRoles, []),
     ignoredChannels: parseJson<string[]>(row.ignoredChannels, []),
@@ -301,6 +353,12 @@ export function updateLevelsConfig(
       10_000,
       10,
     ),
+    streamMultiplier: clampFloat(
+      input.streamMultiplier ?? current.streamMultiplier,
+      0.1,
+      20,
+      1,
+    ),
     xpMultiplier: clampInt(
       input.xpMultiplier ?? current.xpMultiplier,
       1,
@@ -311,6 +369,10 @@ export function updateLevelsConfig(
       input.customMultipliers !== undefined
         ? normalizeCustomMultipliers(input.customMultipliers)
         : current.customMultipliers,
+    customChannelMultipliers:
+      input.customChannelMultipliers !== undefined
+        ? normalizeChannelMultipliers(input.customChannelMultipliers)
+        : current.customChannelMultipliers,
     ignoredRoles: input.ignoredRoles ?? current.ignoredRoles,
     ignoredChannels: input.ignoredChannels ?? current.ignoredChannels,
     levelUpChannelId:
@@ -379,8 +441,10 @@ export function updateLevelsConfig(
       cooldownSeconds: next.cooldownSeconds,
       voiceEnabled: next.voiceEnabled,
       voiceXpPerMinute: next.voiceXpPerMinute,
+      streamMultiplier: next.streamMultiplier,
       xpMultiplier: next.xpMultiplier,
       customMultipliers: JSON.stringify(next.customMultipliers),
+      customChannelMultipliers: JSON.stringify(next.customChannelMultipliers),
       ignoredRoles: JSON.stringify(next.ignoredRoles),
       ignoredChannels: JSON.stringify(next.ignoredChannels),
       levelUpChannelId: next.levelUpChannelId,
@@ -407,8 +471,10 @@ export function updateLevelsConfig(
         cooldownSeconds: next.cooldownSeconds,
         voiceEnabled: next.voiceEnabled,
         voiceXpPerMinute: next.voiceXpPerMinute,
+        streamMultiplier: next.streamMultiplier,
         xpMultiplier: next.xpMultiplier,
         customMultipliers: JSON.stringify(next.customMultipliers),
+        customChannelMultipliers: JSON.stringify(next.customChannelMultipliers),
         ignoredRoles: JSON.stringify(next.ignoredRoles),
         ignoredChannels: JSON.stringify(next.ignoredChannels),
         levelUpChannelId: next.levelUpChannelId,
@@ -643,27 +709,23 @@ export function nextRewardAfter(
 export function randomTextXp(
   config: LevelsConfig,
   roleIds: Iterable<string> = [],
+  channelId?: string | null,
 ): number {
   const min = Math.min(config.textXpMin, config.textXpMax);
   const max = Math.max(config.textXpMin, config.textXpMax);
   const base = Math.floor(Math.random() * (max - min + 1)) + min;
-  const roleMult = resolveRoleXpMultiplier(config, roleIds);
-  return Math.max(
-    0,
-    Math.floor(base * config.xpMultiplier * roleMult),
-  );
+  const mult = resolveXpMultiplier(config, roleIds, { channelId });
+  return Math.max(0, Math.floor(base * mult));
 }
 
 export function scaleXpAmount(
   config: LevelsConfig,
   baseAmount: number,
   roleIds: Iterable<string> = [],
+  options?: { channelId?: string | null; streaming?: boolean },
 ): number {
-  const roleMult = resolveRoleXpMultiplier(config, roleIds);
-  return Math.max(
-    0,
-    Math.floor(baseAmount * config.xpMultiplier * roleMult),
-  );
+  const mult = resolveXpMultiplier(config, roleIds, options);
+  return Math.max(0, Math.floor(baseAmount * mult));
 }
 
 /** Top N por XP (sin resolver Discord). */

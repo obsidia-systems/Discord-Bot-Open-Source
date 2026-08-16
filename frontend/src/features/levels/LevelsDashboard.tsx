@@ -1,6 +1,7 @@
 import type {
   GuildChannelAsset,
   GuildRoleAsset,
+  LevelsChannelMultiplier,
   LevelsConfig,
   LevelsLeaderboardEntry,
   LevelsReward,
@@ -46,6 +47,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToastBanner } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import {
+  Hash,
   Info,
   Loader2,
   Plus,
@@ -53,13 +55,17 @@ import {
   Save,
   Trash2,
   TrendingUp,
+  Volume2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type TabId = "xp" | "rewards" | "leaderboard" | "discord";
 type MonitorSideTab = "preview" | "datos";
+type MultipliersTab = "roles" | "channels";
 
 const TEXT_CHANNEL_TYPES = new Set([0, 5, 15]);
+/** Texto + voz (+ stage/anuncio/foro) para hot zones. */
+const MULTIPLIER_CHANNEL_TYPES = new Set([0, 2, 5, 13, 15]);
 const IGNORE_CHANNEL_TYPES = new Set([0, 2, 4, 5, 13, 15]);
 const LEADERBOARD_LIMIT = 100;
 
@@ -71,9 +77,14 @@ function configFingerprint(config: LevelsConfig): string {
     cooldownSeconds: config.cooldownSeconds,
     voiceEnabled: config.voiceEnabled,
     voiceXpPerMinute: config.voiceXpPerMinute,
+    streamMultiplier: config.streamMultiplier,
     xpMultiplier: config.xpMultiplier,
     customMultipliers: config.customMultipliers.map((m) => ({
       roleId: m.roleId,
+      multiplier: m.multiplier,
+    })),
+    customChannelMultipliers: config.customChannelMultipliers.map((m) => ({
+      channelId: m.channelId,
       multiplier: m.multiplier,
     })),
     ignoredChannels: [...config.ignoredChannels].sort(),
@@ -103,6 +114,14 @@ function newRewardRow(): LevelsReward {
 
 function newMultiplierRow(): LevelsRoleMultiplier {
   return { roleId: "", multiplier: 1.5 };
+}
+
+function newChannelMultiplierRow(): LevelsChannelMultiplier {
+  return { channelId: "", multiplier: 1.5 };
+}
+
+function isVoiceChannelType(type: number): boolean {
+  return type === 2 || type === 13;
 }
 
 function roleDotColor(role: GuildRoleAsset | undefined): string | number | null {
@@ -172,6 +191,8 @@ const leaderboardColumns: ColumnDef<LevelsLeaderboardEntry, unknown>[] = [
 /** Dashboard Rangos y XP — ajustes, recompensas, clasificación y Discord. */
 export function LevelsDashboard() {
   const [tab, setTab] = useState<TabId>("xp");
+  const [multipliersTab, setMultipliersTab] =
+    useState<MultipliersTab>("roles");
   const [monitorSideTab, setMonitorSideTab] =
     useState<MonitorSideTab>("preview");
   const [config, setConfig] = useState<LevelsConfig>(() =>
@@ -212,6 +233,19 @@ export function LevelsDashboard() {
           const ac = a.type === 4 ? 0 : 1;
           const bc = b.type === 4 ? 0 : 1;
           if (ac !== bc) return ac - bc;
+          return a.position - b.position || a.name.localeCompare(b.name);
+        }),
+    [channels],
+  );
+
+  const multiplierChannels = useMemo(
+    () =>
+      channels
+        .filter((ch) => MULTIPLIER_CHANNEL_TYPES.has(ch.type))
+        .sort((a, b) => {
+          const av = isVoiceChannelType(a.type) ? 1 : 0;
+          const bv = isVoiceChannelType(b.type) ? 1 : 0;
+          if (av !== bv) return av - bv;
           return a.position - b.position || a.name.localeCompare(b.name);
         }),
     [channels],
@@ -352,6 +386,40 @@ export function LevelsDashboard() {
     setSuccess(null);
   };
 
+  const updateChannelMultiplier = (
+    index: number,
+    partial: Partial<LevelsChannelMultiplier>,
+  ) => {
+    setConfig((prev) => ({
+      ...prev,
+      customChannelMultipliers: prev.customChannelMultipliers.map((row, i) =>
+        i === index ? { ...row, ...partial } : row,
+      ),
+    }));
+    setSuccess(null);
+  };
+
+  const removeChannelMultiplier = (index: number) => {
+    setConfig((prev) => ({
+      ...prev,
+      customChannelMultipliers: prev.customChannelMultipliers.filter(
+        (_, i) => i !== index,
+      ),
+    }));
+    setSuccess(null);
+  };
+
+  const addChannelMultiplier = () => {
+    setConfig((prev) => ({
+      ...prev,
+      customChannelMultipliers: [
+        ...prev.customChannelMultipliers,
+        newChannelMultiplierRow(),
+      ],
+    }));
+    setSuccess(null);
+  };
+
   const save = async () => {
     setSaving(true);
     setError(null);
@@ -364,8 +432,10 @@ export function LevelsDashboard() {
         cooldownSeconds: config.cooldownSeconds,
         voiceEnabled: config.voiceEnabled,
         voiceXpPerMinute: config.voiceXpPerMinute,
+        streamMultiplier: config.streamMultiplier,
         xpMultiplier: config.xpMultiplier,
         customMultipliers: config.customMultipliers,
+        customChannelMultipliers: config.customChannelMultipliers,
         ignoredRoles: config.ignoredRoles,
         ignoredChannels: config.ignoredChannels,
         levelUpChannelId: config.levelUpChannelId,
@@ -527,7 +597,7 @@ export function LevelsDashboard() {
                         XP por minuto en canales de voz (sin mute/deafen).
                       </CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="space-y-4">
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0 space-y-0.5">
                           <Label htmlFor="voiceXpPerMinute">XP por minuto</Label>
@@ -561,6 +631,39 @@ export function LevelsDashboard() {
                           />
                         </div>
                       </div>
+                      {config.voiceEnabled ? (
+                        <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-4">
+                          <div className="min-w-0 space-y-0.5">
+                            <Label htmlFor="streamMultiplier">
+                              Bonus por transmitir pantalla (Stream)
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              Ej: 1.5 dará 50% más de XP por minuto al hacer
+                              stream.
+                            </p>
+                          </div>
+                          <div className="relative shrink-0">
+                            <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                              x
+                            </span>
+                            <Input
+                              id="streamMultiplier"
+                              type="number"
+                              min={0.1}
+                              max={20}
+                              step={0.1}
+                              className="h-9 w-24 pl-6"
+                              value={config.streamMultiplier}
+                              onChange={(e) =>
+                                patch({
+                                  streamMultiplier:
+                                    Number(e.target.value) || 1,
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                      ) : null}
                     </CardContent>
                   </Card>
 
@@ -595,106 +698,255 @@ export function LevelsDashboard() {
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">
-                        Multiplicadores personalizados
+                        Multiplicadores Extra
                       </CardTitle>
                       <CardDescription>
-                        Bonus por rol. Si un miembro tiene varios, se
-                        suman (ej. x2 + x1.5 = x3.5).
+                        Configura bonus de XP por rol o zonas calientes por
+                        canal. Los bonus se suman al multiplicador base.
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-3">
-                      {config.customMultipliers.length === 0 ? (
-                        <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
-                          Aún no hay multiplicadores. Añade el primero debajo.
-                        </p>
-                      ) : (
-                        config.customMultipliers.map((entry, index) => {
-                          const selectedRole = multiplierRoles.find(
-                            (r) => r.id === entry.roleId,
-                          );
-                          return (
-                            <div
-                              key={`mult-${index}-${entry.roleId || "new"}`}
-                              className="flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-muted/10 px-3 py-2.5"
-                            >
-                              <Select
-                                value={entry.roleId || undefined}
-                                onValueChange={(roleId) =>
-                                  updateMultiplier(index, { roleId })
-                                }
-                              >
-                                <SelectTrigger className="h-9 min-w-[160px] flex-1">
-                                  {selectedRole ? (
-                                    <span className="flex min-w-0 items-center gap-2">
-                                      <RoleColorDot
-                                        color={roleDotColor(selectedRole)}
-                                      />
-                                      <span className="truncate">
-                                        @{selectedRole.name}
-                                      </span>
+                    <CardContent>
+                      <Tabs className="w-full">
+                        <TabsList className="grid h-auto w-full grid-cols-2 gap-1">
+                          <TabsTrigger
+                            type="button"
+                            active={multipliersTab === "roles"}
+                            onClick={() => setMultipliersTab("roles")}
+                          >
+                            Por Rol
+                          </TabsTrigger>
+                          <TabsTrigger
+                            type="button"
+                            active={multipliersTab === "channels"}
+                            onClick={() => setMultipliersTab("channels")}
+                          >
+                            Por Canal
+                          </TabsTrigger>
+                        </TabsList>
+
+                        {multipliersTab === "roles" ? (
+                          <TabsContent className="mt-3 space-y-3">
+                            {config.customMultipliers.length === 0 ? (
+                              <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
+                                Aún no hay multiplicadores. Añade el primero
+                                debajo.
+                              </p>
+                            ) : (
+                              config.customMultipliers.map((entry, index) => {
+                                const selectedRole = multiplierRoles.find(
+                                  (r) => r.id === entry.roleId,
+                                );
+                                return (
+                                  <div
+                                    key={`mult-${index}-${entry.roleId || "new"}`}
+                                    className="flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-muted/10 px-3 py-2.5"
+                                  >
+                                    <Select
+                                      value={entry.roleId || undefined}
+                                      onValueChange={(roleId) =>
+                                        updateMultiplier(index, { roleId })
+                                      }
+                                    >
+                                      <SelectTrigger className="h-9 min-w-[160px] flex-1">
+                                        {selectedRole ? (
+                                          <span className="flex min-w-0 items-center gap-2">
+                                            <RoleColorDot
+                                              color={roleDotColor(
+                                                selectedRole,
+                                              )}
+                                            />
+                                            <span className="truncate">
+                                              @{selectedRole.name}
+                                            </span>
+                                          </span>
+                                        ) : (
+                                          <SelectValue placeholder="Seleccionar rol" />
+                                        )}
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {multiplierRoles.map((role) => (
+                                          <SelectItem
+                                            key={role.id}
+                                            value={role.id}
+                                          >
+                                            <span className="flex items-center gap-2">
+                                              <RoleColorDot
+                                                color={roleDotColor(role)}
+                                              />
+                                              @{role.name}
+                                            </span>
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <span className="text-sm text-muted-foreground">
+                                      gana
                                     </span>
-                                  ) : (
-                                    <SelectValue placeholder="Seleccionar rol" />
-                                  )}
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {multiplierRoles.map((role) => (
-                                    <SelectItem key={role.id} value={role.id}>
-                                      <span className="flex items-center gap-2">
-                                        <RoleColorDot
-                                          color={roleDotColor(role)}
-                                        />
-                                        @{role.name}
+                                    <div className="relative">
+                                      <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                                        x
                                       </span>
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <span className="text-sm text-muted-foreground">
-                                gana
-                              </span>
-                              <div className="relative">
-                                <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                                  x
-                                </span>
-                                <Input
-                                  type="number"
-                                  min={0.1}
-                                  max={10}
-                                  step={0.1}
-                                  className="h-9 w-20 pl-6"
-                                  value={entry.multiplier}
-                                  onChange={(e) =>
-                                    updateMultiplier(index, {
-                                      multiplier:
-                                        Number(e.target.value) || 1,
-                                    })
-                                  }
-                                />
-                              </div>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="shrink-0 text-muted-foreground hover:text-destructive"
-                                aria-label="Eliminar multiplicador"
-                                onClick={() => removeMultiplier(index)}
-                              >
-                                <Trash2 className="size-4" />
-                              </Button>
-                            </div>
-                          );
-                        })
-                      )}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full sm:w-auto"
-                        onClick={addMultiplier}
-                      >
-                        <Plus className="size-4" />
-                        Añadir multiplicador
-                      </Button>
+                                      <Input
+                                        type="number"
+                                        min={0.1}
+                                        max={10}
+                                        step={0.1}
+                                        className="h-9 w-20 pl-6"
+                                        value={entry.multiplier}
+                                        onChange={(e) =>
+                                          updateMultiplier(index, {
+                                            multiplier:
+                                              Number(e.target.value) || 1,
+                                          })
+                                        }
+                                      />
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                                      aria-label="Eliminar multiplicador"
+                                      onClick={() => removeMultiplier(index)}
+                                    >
+                                      <Trash2 className="size-4" />
+                                    </Button>
+                                  </div>
+                                );
+                              })
+                            )}
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="w-full sm:w-auto"
+                              onClick={addMultiplier}
+                            >
+                              <Plus className="size-4" />
+                              Añadir multiplicador
+                            </Button>
+                          </TabsContent>
+                        ) : null}
+
+                        {multipliersTab === "channels" ? (
+                          <TabsContent className="mt-3 space-y-3">
+                            {config.customChannelMultipliers.length === 0 ? (
+                              <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
+                                Aún no hay zonas calientes. Añade la primera
+                                debajo.
+                              </p>
+                            ) : (
+                              config.customChannelMultipliers.map(
+                                (entry, index) => {
+                                  const selectedChannel =
+                                    multiplierChannels.find(
+                                      (c) => c.id === entry.channelId,
+                                    );
+                                  const voice =
+                                    selectedChannel &&
+                                    isVoiceChannelType(selectedChannel.type);
+                                  return (
+                                    <div
+                                      key={`ch-mult-${index}-${entry.channelId || "new"}`}
+                                      className="flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-muted/10 px-3 py-2.5"
+                                    >
+                                      <Select
+                                        value={entry.channelId || undefined}
+                                        onValueChange={(channelId) =>
+                                          updateChannelMultiplier(index, {
+                                            channelId,
+                                          })
+                                        }
+                                      >
+                                        <SelectTrigger className="h-9 min-w-[160px] flex-1">
+                                          {selectedChannel ? (
+                                            <span className="flex min-w-0 items-center gap-2">
+                                              {voice ? (
+                                                <Volume2 className="size-3.5 shrink-0 text-muted-foreground" />
+                                              ) : (
+                                                <Hash className="size-3.5 shrink-0 text-muted-foreground" />
+                                              )}
+                                              <span className="truncate">
+                                                {selectedChannel.name}
+                                              </span>
+                                            </span>
+                                          ) : (
+                                            <SelectValue placeholder="Seleccionar canal" />
+                                          )}
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {multiplierChannels.map((ch) => {
+                                            const chVoice = isVoiceChannelType(
+                                              ch.type,
+                                            );
+                                            return (
+                                              <SelectItem
+                                                key={ch.id}
+                                                value={ch.id}
+                                              >
+                                                <span className="flex items-center gap-2">
+                                                  {chVoice ? (
+                                                    <Volume2 className="size-3.5 shrink-0 text-muted-foreground" />
+                                                  ) : (
+                                                    <Hash className="size-3.5 shrink-0 text-muted-foreground" />
+                                                  )}
+                                                  {ch.name}
+                                                </span>
+                                              </SelectItem>
+                                            );
+                                          })}
+                                        </SelectContent>
+                                      </Select>
+                                      <span className="text-sm text-muted-foreground">
+                                        gana
+                                      </span>
+                                      <div className="relative">
+                                        <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                                          x
+                                        </span>
+                                        <Input
+                                          type="number"
+                                          min={0.1}
+                                          max={10}
+                                          step={0.1}
+                                          className="h-9 w-20 pl-6"
+                                          value={entry.multiplier}
+                                          onChange={(e) =>
+                                            updateChannelMultiplier(index, {
+                                              multiplier:
+                                                Number(e.target.value) || 1,
+                                            })
+                                          }
+                                        />
+                                      </div>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="shrink-0 text-muted-foreground hover:text-destructive"
+                                        aria-label="Eliminar multiplicador de canal"
+                                        onClick={() =>
+                                          removeChannelMultiplier(index)
+                                        }
+                                      >
+                                        <Trash2 className="size-4" />
+                                      </Button>
+                                    </div>
+                                  );
+                                },
+                              )
+                            )}
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="w-full sm:w-auto"
+                              onClick={addChannelMultiplier}
+                            >
+                              <Plus className="size-4" />
+                              Añadir multiplicador
+                            </Button>
+                          </TabsContent>
+                        ) : null}
+                      </Tabs>
                     </CardContent>
                   </Card>
                 </div>
@@ -1104,6 +1356,18 @@ function StatusMonitorBody({
         <span className="text-muted-foreground">XP texto</span>
         <span className="font-mono text-xs">
           {config.textXpMin}–{config.textXpMax}
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-muted-foreground">Bonus stream</span>
+        <span className="font-mono text-xs">
+          {Number(config.streamMultiplier ?? 1).toFixed(1)}x
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-muted-foreground">Zonas calientes</span>
+        <span className="font-mono text-xs">
+          {(config.customChannelMultipliers ?? []).length}
         </span>
       </div>
       <div className="flex items-center justify-between gap-2">

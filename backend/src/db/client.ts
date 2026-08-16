@@ -227,11 +227,13 @@ function ensureCoreTables(database: Database.Database): void {
       cooldown_seconds INTEGER NOT NULL DEFAULT 60,
       voice_enabled INTEGER NOT NULL DEFAULT 0,
       voice_xp_per_minute INTEGER NOT NULL DEFAULT 10,
+      stream_multiplier REAL NOT NULL DEFAULT 1,
       xp_multiplier INTEGER NOT NULL DEFAULT 1,
       ignored_roles TEXT NOT NULL DEFAULT '[]',
       ignored_channels TEXT NOT NULL DEFAULT '[]',
       level_up_channel_id TEXT,
       custom_multipliers TEXT NOT NULL DEFAULT '[]',
+      custom_channel_multipliers TEXT NOT NULL DEFAULT '[]',
       level_up_format TEXT NOT NULL DEFAULT 'EMBED',
       level_up_message TEXT NOT NULL DEFAULT '¡Felicidades {user}! Has alcanzado el **Nivel {level}**.',
       level_up_embed_title TEXT NOT NULL DEFAULT '¡Subida de Nivel!',
@@ -495,6 +497,16 @@ function ensureCoreTables(database: Database.Database): void {
     if (!names.has("leaderboard_show_thumbnail")) {
       database.exec(
         `ALTER TABLE xp_config ADD COLUMN leaderboard_show_thumbnail INTEGER NOT NULL DEFAULT 0`,
+      );
+    }
+    if (!names.has("stream_multiplier")) {
+      database.exec(
+        `ALTER TABLE xp_config ADD COLUMN stream_multiplier REAL NOT NULL DEFAULT 1`,
+      );
+    }
+    if (!names.has("custom_channel_multipliers")) {
+      database.exec(
+        `ALTER TABLE xp_config ADD COLUMN custom_channel_multipliers TEXT NOT NULL DEFAULT '[]'`,
       );
     }
   }

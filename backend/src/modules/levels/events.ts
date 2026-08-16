@@ -30,6 +30,8 @@ const voiceSessions = new Map<
   {
     joinedAt: number;
     channelId: string;
+    /** Si el usuario estaba transmitiendo pantalla en este tramo. */
+    streaming: boolean;
     /** Ms sobrantes de un tramo anterior (< 1 min) para no perderlos al mutear. */
     carryMs: number;
   }
@@ -71,12 +73,13 @@ function isVoiceInactive(state: VoiceState): boolean {
 function startVoiceSession(
   key: string,
   channelId: string,
-  carryMs = 0,
+  options: { streaming?: boolean; carryMs?: number } = {},
 ): void {
   voiceSessions.set(key, {
     joinedAt: Date.now(),
     channelId,
-    carryMs: Math.max(0, carryMs),
+    streaming: Boolean(options.streaming),
+    carryMs: Math.max(0, options.carryMs ?? 0),
   });
 }
 
@@ -212,7 +215,11 @@ export async function onLevelsMessageCreate(
     const last = textCooldowns.get(key) ?? 0;
     if (now - last < config.cooldownSeconds * 1000) return;
 
-    const amount = randomTextXp(config, member.roles.cache.keys());
+    const amount = randomTextXp(
+      config,
+      member.roles.cache.keys(),
+      message.channelId,
+    );
     if (amount <= 0) return;
 
     textCooldowns.set(key, now);
@@ -275,6 +282,10 @@ async function settleVoiceSession(
       config,
       minutes * config.voiceXpPerMinute,
       member.roles.cache.keys(),
+      {
+        channelId: session.channelId,
+        streaming: session.streaming,
+      },
     );
     if (amount > 0) {
       await grantXpAndHandleLevelUp({
@@ -327,7 +338,9 @@ export async function onLevelsVoiceStateUpdate(
       }
       // Entra muteado: no abre sesión hasta desmutear.
       if (isVoiceInactive(newState)) return;
-      startVoiceSession(key, newState.channelId);
+      startVoiceSession(key, newState.channelId, {
+        streaming: Boolean(newState.streaming),
+      });
       return;
     }
 
@@ -341,15 +354,20 @@ export async function onLevelsVoiceStateUpdate(
       await settleVoiceSession(newState.client as Client, oldState, "switch");
       voicePauseCarryMs.delete(key);
       if (newState.channelId && !isVoiceInactive(newState)) {
-        startVoiceSession(key, newState.channelId);
+        startVoiceSession(key, newState.channelId, {
+          streaming: Boolean(newState.streaming),
+        });
       }
       return;
     }
 
     // Mismo canal: mute/deaf → liquidar XP del tramo; unmute → nuevo timestamp.
+    // Cambio de stream → liquidar con el multiplicador anterior y reiniciar.
     if (oldState.channelId && newState.channelId) {
       const wasInactive = isVoiceInactive(oldState);
       const nowInactive = isVoiceInactive(newState);
+      const streamToggled =
+        Boolean(oldState.streaming) !== Boolean(newState.streaming);
 
       if (!wasInactive && nowInactive) {
         const remainder = await settleVoiceSession(
@@ -362,7 +380,20 @@ export async function onLevelsVoiceStateUpdate(
       } else if (wasInactive && !nowInactive) {
         const carry = voicePauseCarryMs.get(key) ?? 0;
         voicePauseCarryMs.delete(key);
-        startVoiceSession(key, newState.channelId, carry);
+        startVoiceSession(key, newState.channelId, {
+          streaming: Boolean(newState.streaming),
+          carryMs: carry,
+        });
+      } else if (!wasInactive && !nowInactive && streamToggled) {
+        const remainder = await settleVoiceSession(
+          newState.client as Client,
+          oldState,
+          "pause",
+        );
+        startVoiceSession(key, newState.channelId, {
+          streaming: Boolean(newState.streaming),
+          carryMs: remainder,
+        });
       }
     }
   } catch (error) {

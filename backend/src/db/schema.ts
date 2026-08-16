@@ -1,6 +1,7 @@
 import {
   integer,
   primaryKey,
+  real,
   sqliteTable,
   text,
 } from "drizzle-orm/sqlite-core";
@@ -432,6 +433,8 @@ export const xpConfig = sqliteTable("xp_config", {
     .notNull()
     .default(false),
   voiceXpPerMinute: integer("voice_xp_per_minute").notNull().default(10),
+  /** Multiplicador al transmitir pantalla (1.0 = sin bonus). */
+  streamMultiplier: real("stream_multiplier").notNull().default(1),
   xpMultiplier: integer("xp_multiplier").notNull().default(1),
   /** JSON: string[] */
   ignoredRoles: text("ignored_roles").notNull().default("[]"),
@@ -440,6 +443,10 @@ export const xpConfig = sqliteTable("xp_config", {
   levelUpChannelId: text("level_up_channel_id"),
   /** JSON: LevelsRoleMultiplier[] */
   customMultipliers: text("custom_multipliers").notNull().default("[]"),
+  /** JSON: LevelsChannelMultiplier[] */
+  customChannelMultipliers: text("custom_channel_multipliers")
+    .notNull()
+    .default("[]"),
   /** TEXT | EMBED | IMAGE */
   levelUpFormat: text("level_up_format").notNull().default("TEXT"),
   levelUpMessage: text("level_up_message")
