@@ -48,6 +48,7 @@ import {
 import { EmbedFormTemplate } from "@/components/shared/EmbedFormTemplate";
 import { RoleColorDot } from "@/components/shared/RoleColorDot";
 import { RoleMultiSelect } from "@/components/shared/RoleMultiSelect";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import { AlertDialog } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -792,10 +793,11 @@ export function AutoRoleBuilder() {
               </div>
             ) : fetchedMessage ? (
               <div className="flex items-start gap-3">
-                <img
+                <UserAvatar
                   src={fetchedMessage.author.avatarUrl}
-                  alt=""
-                  className="size-10 shrink-0 rounded-full object-cover"
+                  name={fetchedMessage.author.displayName}
+                  className="size-10 ring-0"
+                  fallbackClassName="text-xs"
                 />
                 <div className="min-w-0 flex-1 space-y-2">
                   <div className="flex flex-wrap items-baseline gap-2">

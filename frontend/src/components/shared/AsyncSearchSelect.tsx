@@ -3,6 +3,7 @@ import { Check, ChevronsUpDown, Loader2, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import { cn } from "@/lib/utils";
 
 export interface AsyncSelectOption {
@@ -122,11 +123,11 @@ export function AsyncSearchSelect({
           onClick={() => setOpen((prev) => !prev)}
         >
           <span className="flex min-w-0 items-center gap-2 truncate">
-            {value?.avatarUrl ? (
-              <img
+            {value && value.avatarUrl !== undefined ? (
+              <UserAvatar
                 src={value.avatarUrl}
-                alt=""
-                className="size-5 shrink-0 rounded-full object-cover"
+                name={value.label}
+                className="size-5 ring-0"
               />
             ) : null}
             <span className="truncate">
@@ -205,11 +206,11 @@ export function AsyncSearchSelect({
                       setQuery("");
                     }}
                   >
-                    {option.avatarUrl ? (
-                      <img
+                    {option.avatarUrl !== undefined ? (
+                      <UserAvatar
                         src={option.avatarUrl}
-                        alt=""
-                        className="size-7 shrink-0 rounded-full object-cover"
+                        name={option.label}
+                        className="size-7"
                       />
                     ) : (
                       <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-[10px]">

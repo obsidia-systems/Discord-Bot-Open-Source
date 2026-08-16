@@ -25,6 +25,7 @@ import {
 } from "@/features/levels/LevelsEmbedPreview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import {
   Card,
   CardContent,
@@ -147,15 +148,11 @@ const leaderboardColumns: ColumnDef<LevelsLeaderboardEntry, unknown>[] = [
       const e = row.original;
       return (
         <div className="flex min-w-0 items-center gap-2">
-          {e.avatarUrl ? (
-            <img
-              src={e.avatarUrl}
-              alt=""
-              className="size-7 shrink-0 rounded-full"
-            />
-          ) : (
-            <div className="size-7 shrink-0 rounded-full bg-muted" />
-          )}
+          <UserAvatar
+            src={e.avatarUrl}
+            name={e.displayName}
+            className="size-7"
+          />
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{e.displayName}</p>
             <p className="truncate text-[11px] text-muted-foreground">

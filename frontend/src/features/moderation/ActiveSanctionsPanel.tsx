@@ -13,6 +13,7 @@ import { AlertDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToastBanner } from "@/components/ui/toast";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import { cn } from "@/lib/utils";
 
 type SanctionSubTab = "bans" | "timeouts";
@@ -202,10 +203,10 @@ export function ActiveSanctionsPanel({
                             })
                           }
                         >
-                          <img
+                          <UserAvatar
                             src={ban.avatarUrl}
-                            alt=""
-                            className="size-8 shrink-0 rounded-full object-cover ring-1 ring-border"
+                            name={ban.displayName}
+                            className="size-8"
                           />
                           <div className="min-w-0">
                             <p className="truncate text-sm font-medium">
@@ -273,10 +274,10 @@ export function ActiveSanctionsPanel({
                             })
                           }
                         >
-                          <img
+                          <UserAvatar
                             src={item.avatarUrl}
-                            alt=""
-                            className="size-8 shrink-0 rounded-full object-cover ring-1 ring-border"
+                            name={item.displayName}
+                            className="size-8"
                           />
                           <div className="min-w-0">
                             <p className="truncate text-sm font-medium">

@@ -23,6 +23,7 @@ import {
   AsyncSearchSelect,
   type AsyncSelectOption,
 } from "@/components/shared/AsyncSearchSelect";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -250,15 +251,11 @@ export function ServerAuditLog() {
           return (
             <Tooltip content={full}>
               <div className="flex min-w-0 items-center gap-2">
-                {user.avatarUrl ? (
-                  <img
-                    src={user.avatarUrl}
-                    alt=""
-                    className="size-7 shrink-0 rounded-full object-cover ring-1 ring-border"
-                  />
-                ) : (
-                  <div className="size-7 shrink-0 rounded-full bg-muted" />
-                )}
+                <UserAvatar
+                  src={user.avatarUrl}
+                  name={user.displayName}
+                  className="size-7"
+                />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">
                     {user.displayName}
@@ -484,15 +481,11 @@ export function ServerAuditLog() {
               </h3>
               <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3 text-sm">
                 <div className="flex items-center gap-3">
-                  {selected.executor?.avatarUrl ? (
-                    <img
-                      src={selected.executor.avatarUrl}
-                      alt=""
-                      className="size-10 rounded-full object-cover ring-1 ring-border"
-                    />
-                  ) : (
-                    <div className="size-10 rounded-full bg-muted" />
-                  )}
+                  <UserAvatar
+                    src={selected.executor?.avatarUrl}
+                    name={selected.executor?.displayName ?? "Desconocido"}
+                    className="size-10"
+                  />
                   <div className="min-w-0">
                     <p className="font-medium">
                       {selected.executor?.displayName ?? "Desconocido"}

@@ -5,6 +5,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 
 /** Placeholder tipográfico para variables de plantilla en la preview. */
 function Tpl({ children }: { children: string }) {
@@ -41,18 +42,11 @@ export function ActionLogDiscordPreview({
       <CardContent className="pb-3 pt-0">
         <div className="overflow-hidden rounded-md bg-[#313338] p-2.5 text-[11px] leading-snug text-[#dbdee1] shadow-inner">
           <div className="flex gap-2">
-            {webhookAvatarUrl ? (
-              <img
-                src={webhookAvatarUrl}
-                alt=""
-                className="mt-0.5 size-8 shrink-0 rounded-full object-cover"
-              />
-            ) : (
-              <div
-                className="mt-0.5 size-8 shrink-0 rounded-full bg-gradient-to-br from-primary to-fuchsia-700"
-                aria-hidden
-              />
-            )}
+            <UserAvatar
+              src={webhookAvatarUrl}
+              name={webhookDisplayName}
+              className="mt-0.5 size-8 ring-0"
+            />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="truncate text-[13px] font-semibold text-white">

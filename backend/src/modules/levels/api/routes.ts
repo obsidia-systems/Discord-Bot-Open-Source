@@ -6,6 +6,7 @@ import type {
   LevelsLeaderboardResponse,
   UpdateLevelsConfigRequest,
 } from "@adobos/shared";
+import { resolveMembersBatch } from "../../../lib/discordMember.js";
 import { forceLiveLeaderboardRefresh } from "../liveLeaderboard.js";
 import {
   LevelsError,
@@ -39,24 +40,28 @@ async function resolveLeaderboardEntries(
 ): Promise<LevelsLeaderboardResponse> {
   const rows = listLeaderboardRows(guildId, limit);
   const total = getLeaderboardTotal(guildId);
-  const guild = await bot.guilds.fetch(guildId).catch(() => null);
+  const guild =
+    bot.guilds.cache.get(guildId) ??
+    (await bot.guilds.fetch(guildId).catch(() => null));
 
-  const entries: LevelsLeaderboardEntry[] = [];
-  for (const row of rows) {
-    const member = await guild?.members.fetch(row.userId).catch(() => null);
-    const user =
-      member?.user ??
-      (await bot.users.fetch(row.userId).catch(() => null));
-    entries.push({
+  const resolved = await resolveMembersBatch(
+    guild,
+    bot,
+    rows.map((row) => row.userId),
+  );
+
+  const entries: LevelsLeaderboardEntry[] = rows.map((row) => {
+    const member = resolved.get(row.userId);
+    return {
       rank: row.rank,
       userId: row.userId,
-      username: user?.username ?? row.userId,
-      displayName: member?.displayName ?? user?.username ?? row.userId,
-      avatarUrl: user?.displayAvatarURL({ size: 64 }) ?? null,
+      username: member?.username ?? row.userId,
+      displayName: member?.displayName ?? "Usuario Desconocido",
+      avatarUrl: member?.avatarUrl ?? null,
       level: row.level,
       xp: row.xp,
-    });
-  }
+    };
+  });
 
   return { entries, total };
 }

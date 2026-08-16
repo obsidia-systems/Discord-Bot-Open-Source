@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import {
   Card,
   CardContent,
@@ -46,10 +47,11 @@ export function BotProfilePreview({
           <div className="relative px-4 pb-4 pt-0">
             <div className="-mt-10 inline-block">
               <div className="relative">
-                <img
+                <UserAvatar
                   src={avatarUrl}
-                  alt=""
-                  className="size-[80px] rounded-full border-[6px] border-[#111214] bg-muted object-cover"
+                  name={name}
+                  className="size-[80px] border-[6px] border-[#111214] ring-0"
+                  fallbackClassName="text-lg"
                 />
                 <span
                   className="absolute bottom-1 right-1 size-4 rounded-full border-[3px] border-[#111214] bg-[#23a55a]"

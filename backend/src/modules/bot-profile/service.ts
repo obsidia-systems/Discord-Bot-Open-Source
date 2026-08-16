@@ -198,11 +198,11 @@ function mapMemberToProfile(
   me: NonNullable<Guild["members"]["me"]>,
 ): BotGuildProfileResponse {
   const serverAvatarURL =
-    me.avatarURL({ size: 256, extension: "png", forceStatic: false }) ?? null;
+    me.avatarURL({ size: 256, extension: "png", forceStatic: true }) ?? null;
   const globalAvatarURL = me.user.displayAvatarURL({
     size: 256,
     extension: "png",
-    forceStatic: false,
+    forceStatic: true,
   });
 
   return {

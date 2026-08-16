@@ -32,6 +32,7 @@ import {
 } from "@/components/shared/AsyncSearchSelect";
 import { ActiveSanctionsPanel } from "@/features/moderation/ActiveSanctionsPanel";
 import { RoleColorBadge } from "@/components/shared/RoleColorDot";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -139,10 +140,11 @@ function MemberDossier({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <img
+        <UserAvatar
           src={info.avatarUrl}
-          alt=""
-          className="size-14 rounded-full object-cover ring-1 ring-border"
+          name={info.displayName}
+          className="size-14"
+          fallbackClassName="text-sm"
         />
         <div className="min-w-0">
           <p className="truncate font-display text-lg font-semibold">

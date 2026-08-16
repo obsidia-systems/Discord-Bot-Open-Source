@@ -4,6 +4,7 @@ import {
   type Client,
   type Guild,
   type GuildAuditLogsEntry,
+  type User,
 } from "discord.js";
 import type {
   DiscordAuditCategory,
@@ -14,6 +15,10 @@ import type {
   DiscordAuditTargetKind,
   DiscordAuditTone,
 } from "@adobos/shared";
+import {
+  resolveMembersBatch,
+  resolveUserPreview,
+} from "../../lib/discordMember.js";
 import { ModerationError } from "./service.js";
 import { consolidateAuditLogs } from "./consolidateAuditLogs.js";
 
@@ -654,7 +659,10 @@ function mapEntry(
     reason ? `Razón: ${reason}` : null,
   ].filter(Boolean) as string[];
 
-  const executorUser = entry.executor;
+  const executorUser = entry.executor as User | null;
+  const executorPreview = executorUser
+    ? resolveUserPreview(guild, executorUser, 64)
+    : null;
   const mapped: DiscordAuditEntry = {
     id: entry.id,
     createdAt: entry.createdAt.toISOString(),
@@ -663,15 +671,12 @@ function mapEntry(
     actionLabel: meta.label,
     category: meta.category,
     tone: meta.tone,
-    executor: executorUser
+    executor: executorPreview
       ? {
-          id: executorUser.id,
-          username: executorUser.username ?? "unknown",
-          displayName:
-            executorUser.globalName ||
-            executorUser.username ||
-            "Desconocido",
-          avatarUrl: executorUser.displayAvatarURL({ size: 64 }),
+          id: executorPreview.userId,
+          username: executorPreview.username,
+          displayName: executorPreview.displayName,
+          avatarUrl: executorPreview.avatarUrl,
         }
       : null,
     target: resolveTarget(guild, entry, meta),
@@ -742,6 +747,16 @@ export async function fetchDiscordAuditLog(
 
   try {
     const logs = await guild.fetchAuditLogs(fetchOptions);
+    const executorIds = [
+      ...new Set(
+        [...logs.entries.values()]
+          .map((entry) => entry.executorId ?? entry.executor?.id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    if (executorIds.length > 0) {
+      await resolveMembersBatch(guild, bot, executorIds, 64);
+    }
     const rawEntries = [...logs.entries.values()].map((entry) =>
       mapEntry(guild, entry),
     );

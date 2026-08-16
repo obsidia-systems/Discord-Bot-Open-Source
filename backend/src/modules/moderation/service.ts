@@ -26,6 +26,10 @@ import type {
 import { MOD_ACTION_TYPES } from "@adobos/shared";
 import { getDb } from "../../db/client.js";
 import {
+  safeMemberAvatarURL,
+  safeUserAvatarURL,
+} from "../../lib/discordMember.js";
+import {
   autorolesRegistry,
   guildSettings,
   modLogs,
@@ -150,7 +154,7 @@ function memberHit(member: GuildMember) {
     username: member.user.username,
     globalName: member.user.globalName,
     displayName: member.displayName,
-    avatarUrl: member.user.displayAvatarURL({ size: 64 }),
+    avatarUrl: safeMemberAvatarURL(member, 64),
     bot: member.user.bot,
   };
 }
@@ -303,7 +307,7 @@ export async function getMemberInfo(
       id: member.id,
       username: member.user.username,
       displayName: member.displayName,
-      avatarUrl: member.user.displayAvatarURL({ size: 256 }),
+      avatarUrl: safeMemberAvatarURL(member, 256),
       joinedAt: member.joinedAt?.toISOString() ?? null,
       roles: member.roles.cache
         .filter((role) => role.id !== guild.id)
@@ -325,7 +329,7 @@ export async function getMemberInfo(
         id: user.id,
         username: user.username,
         displayName: user.globalName || user.username,
-        avatarUrl: user.displayAvatarURL({ size: 256 }),
+        avatarUrl: safeUserAvatarURL(user, 256),
         joinedAt: null,
         roles: [],
         warnings: warningRows(),
@@ -349,7 +353,7 @@ export async function listActiveBans(
         id: ban.user.id,
         username: ban.user.username,
         displayName: ban.user.globalName || ban.user.username,
-        avatarUrl: ban.user.displayAvatarURL({ size: 64 }),
+        avatarUrl: safeUserAvatarURL(ban.user, 64),
         reason: ban.reason?.trim() || null,
       }))
       .sort((a, b) =>
@@ -387,7 +391,7 @@ export async function listActiveTimeouts(
           id: member.id,
           username: member.user.username,
           displayName: member.displayName,
-          avatarUrl: member.user.displayAvatarURL({ size: 64 }),
+          avatarUrl: safeMemberAvatarURL(member, 64),
           timedOutUntil: new Date(until).toISOString(),
           remainingSeconds: Math.max(0, Math.ceil((until - now) / 1000)),
         };
@@ -942,7 +946,9 @@ export async function fetchDiscordMessage(
           message.member?.displayName ||
           message.author.globalName ||
           message.author.username,
-        avatarUrl: message.author.displayAvatarURL({ size: 64 }),
+        avatarUrl: message.member
+          ? safeMemberAvatarURL(message.member, 64)
+          : safeUserAvatarURL(message.author, 64),
       },
       isBotAuthor: Boolean(bot.user && message.author.id === bot.user.id),
       alreadyConfigured,
