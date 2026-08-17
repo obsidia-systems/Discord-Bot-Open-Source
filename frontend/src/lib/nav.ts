@@ -193,7 +193,6 @@ export const dashboardNav: NavCategoryConfig[] = [
         label: "Formularios",
         href: "/dashboard/community/forms",
         icon: ClipboardList,
-        soon: true,
         blurb: "Encuestas y formularios interactivos.",
       },
     ],

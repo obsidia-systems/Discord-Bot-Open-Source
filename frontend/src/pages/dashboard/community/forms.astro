@@ -1,8 +1,11 @@
 ---
-import ComingSoon from "../../../components/shared/ComingSoon.astro";
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { FormsDashboard } from "../../../features/forms";
 ---
 
-<ComingSoon
+<DashboardLayout
   title="Formularios"
   description="Encuestas y formularios interactivos."
-/>
+>
+  <FormsDashboard client:load />
+</DashboardLayout>

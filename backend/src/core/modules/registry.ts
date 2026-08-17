@@ -2,11 +2,13 @@ import type {
   ButtonInteraction,
   Client,
   ClientEvents,
+  ModalSubmitInteraction,
 } from "discord.js";
 import type {
   AdobosModule,
   ButtonHandler,
   ChatInputCommandDefinition,
+  ModalHandler,
   ModuleContext,
   RegisteredRoute,
 } from "./types.js";
@@ -16,6 +18,7 @@ export interface ModuleRegistry {
   routes: readonly RegisteredRoute[];
   commands: readonly ChatInputCommandDefinition[];
   buttonHandlers: ReadonlyMap<string, ButtonHandler>;
+  modalHandlers: ReadonlyMap<string, ModalHandler>;
   intents: readonly number[];
   /** Enlaza eventos/comandos/botones de todos los módulos al Client. */
   bindClient: (client: Client) => void;
@@ -31,6 +34,7 @@ export function createModuleRegistry(
   const routes: RegisteredRoute[] = [];
   const commands: ChatInputCommandDefinition[] = [];
   const buttonHandlers = new Map<string, ButtonHandler>();
+  const modalHandlers = new Map<string, ModalHandler>();
   const intentSet = new Set<number>();
   const pendingEvents: Array<{
     once: boolean;
@@ -84,6 +88,12 @@ export function createModuleRegistry(
         }
         buttonHandlers.set(prefixOrId, handler);
       },
+      modal(prefixOrId, handler) {
+        if (modalHandlers.has(prefixOrId)) {
+          throw new Error(`[adobos] Modal handler duplicado: ${prefixOrId}`);
+        }
+        modalHandlers.set(prefixOrId, handler);
+      },
     };
 
     // Primera pasada: register (puede encolar eventos y rutas)
@@ -91,6 +101,7 @@ export function createModuleRegistry(
     routes.length = 0;
     commands.length = 0;
     buttonHandlers.clear();
+    modalHandlers.clear();
 
     for (const mod of modules) {
       mod.register(ctx);
@@ -116,20 +127,22 @@ export function createModuleRegistry(
     get buttonHandlers() {
       return buttonHandlers;
     },
+    get modalHandlers() {
+      return modalHandlers;
+    },
     intents: [...intentSet],
     bindClient,
   };
 }
 
-/** Resuelve un handler de botón por customId (exacto o prefijo). */
-export function resolveButtonHandler(
-  registry: ModuleRegistry,
+function resolvePrefixedHandler<T>(
+  map: ReadonlyMap<string, T>,
   customId: string,
-): ButtonHandler | undefined {
-  const exact = registry.buttonHandlers.get(customId);
+): T | undefined {
+  const exact = map.get(customId);
   if (exact) return exact;
 
-  for (const [key, handler] of registry.buttonHandlers) {
+  for (const [key, handler] of map) {
     if (key.endsWith("_") && customId.startsWith(key)) {
       return handler;
     }
@@ -137,11 +150,37 @@ export function resolveButtonHandler(
   return undefined;
 }
 
+/** Resuelve un handler de botón por customId (exacto o prefijo). */
+export function resolveButtonHandler(
+  registry: ModuleRegistry,
+  customId: string,
+): ButtonHandler | undefined {
+  return resolvePrefixedHandler(registry.buttonHandlers, customId);
+}
+
 export async function dispatchButton(
   registry: ModuleRegistry,
   interaction: ButtonInteraction,
 ): Promise<boolean> {
   const handler = resolveButtonHandler(registry, interaction.customId);
+  if (!handler) return false;
+  await handler(interaction);
+  return true;
+}
+
+/** Resuelve un handler de modal submit por customId (exacto o prefijo). */
+export function resolveModalHandler(
+  registry: ModuleRegistry,
+  customId: string,
+): ModalHandler | undefined {
+  return resolvePrefixedHandler(registry.modalHandlers, customId);
+}
+
+export async function dispatchModal(
+  registry: ModuleRegistry,
+  interaction: ModalSubmitInteraction,
+): Promise<boolean> {
+  const handler = resolveModalHandler(registry, interaction.customId);
   if (!handler) return false;
   await handler(interaction);
   return true;

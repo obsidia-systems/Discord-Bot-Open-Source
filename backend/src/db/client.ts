@@ -227,6 +227,22 @@ function ensureCoreTables(database: Database.Database): void {
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS interactive_forms (
+      guild_id TEXT PRIMARY KEY NOT NULL,
+      modal_title TEXT NOT NULL DEFAULT 'Formulario',
+      button_label TEXT NOT NULL DEFAULT 'Abrir formulario',
+      embed_title TEXT NOT NULL DEFAULT 'Formulario del servidor',
+      embed_description TEXT NOT NULL DEFAULT 'Haz clic en el botón para completar el formulario.',
+      embed_color TEXT NOT NULL DEFAULT '#5865F2',
+      publish_channel_id TEXT,
+      reception_channel_id TEXT,
+      questions TEXT NOT NULL DEFAULT '[]',
+      published_channel_id TEXT,
+      published_message_id TEXT,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS xp_config (
       guild_id TEXT PRIMARY KEY NOT NULL,
       enabled INTEGER NOT NULL DEFAULT 0,

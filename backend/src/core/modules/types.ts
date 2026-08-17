@@ -3,6 +3,7 @@ import type {
   ChatInputCommandInteraction,
   Client,
   ClientEvents,
+  ModalSubmitInteraction,
 } from "discord.js";
 import type { Router } from "express";
 
@@ -15,6 +16,10 @@ export interface ChatInputCommandDefinition {
 
 export type ButtonHandler = (
   interaction: ButtonInteraction,
+) => Promise<void>;
+
+export type ModalHandler = (
+  interaction: ModalSubmitInteraction,
 ) => Promise<void>;
 
 /**
@@ -35,6 +40,8 @@ export interface ModuleContext {
   command: (def: ChatInputCommandDefinition) => void;
   /** Prefijo o customId exacto. Prefijos terminan en `_` (ej. `autorole_`). */
   button: (prefixOrId: string, handler: ButtonHandler) => void;
+  /** Prefijo o customId exacto de modal submit. Prefijos terminan en `_`. */
+  modal: (prefixOrId: string, handler: ModalHandler) => void;
 }
 
 /** Contrato plug-and-play de un bloque Lego del bot. */

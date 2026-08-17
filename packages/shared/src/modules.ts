@@ -10,6 +10,7 @@ export type ModuleId =
   | "action-logs"
   | "auto-mod"
   | "auto-delete"
+  | "forms"
   | "levels"
   | "roles-builder";
 

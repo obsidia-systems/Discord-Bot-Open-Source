@@ -536,6 +536,34 @@ export type NewXpRewardRow = typeof xpRewards.$inferInsert;
 export type UserXpRow = typeof userXp.$inferSelect;
 export type NewUserXpRow = typeof userXp.$inferInsert;
 
+/**
+ * Configuración de Formularios interactivos (Discord Modals) por guild.
+ */
+export const interactiveForms = sqliteTable("interactive_forms", {
+  guildId: text("guild_id")
+    .primaryKey()
+    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+  modalTitle: text("modal_title").notNull().default("Formulario"),
+  buttonLabel: text("button_label").notNull().default("Abrir formulario"),
+  embedTitle: text("embed_title").notNull().default("Formulario del servidor"),
+  embedDescription: text("embed_description")
+    .notNull()
+    .default("Haz clic en el botón para completar el formulario."),
+  embedColor: text("embed_color").notNull().default("#5865F2"),
+  publishChannelId: text("publish_channel_id"),
+  receptionChannelId: text("reception_channel_id"),
+  /** JSON: FormQuestion[] */
+  questions: text("questions").notNull().default("[]"),
+  publishedChannelId: text("published_channel_id"),
+  publishedMessageId: text("published_message_id"),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export type InteractiveFormsRow = typeof interactiveForms.$inferSelect;
+export type NewInteractiveFormsRow = typeof interactiveForms.$inferInsert;
+
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [
   "minecraft",

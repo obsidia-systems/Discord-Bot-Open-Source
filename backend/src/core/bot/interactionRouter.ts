@@ -3,15 +3,17 @@ import type {
   ChatInputCommandInteraction,
   Client,
   Interaction,
+  ModalSubmitInteraction,
 } from "discord.js";
 import {
   dispatchButton,
+  dispatchModal,
   type ModuleRegistry,
 } from "../modules/registry.js";
 
 /**
  * Despacha interacciones a handlers registrados por módulos
- * (slash commands + botones por id/prefijo).
+ * (slash commands + botones + modal submits).
  */
 export function registerInteractionRouter(
   client: Client,
@@ -33,6 +35,10 @@ async function onInteractionCreate(
     }
     if (interaction.isButton()) {
       await handleButton(interaction, registry);
+      return;
+    }
+    if (interaction.isModalSubmit()) {
+      await handleModal(interaction, registry);
     }
   } catch (error: unknown) {
     console.error("[adobos] Error en interactionCreate:", error);
@@ -85,6 +91,20 @@ async function handleButton(
   if (interaction.replied || interaction.deferred) return;
   await interaction.reply({
     content: `No hay handler registrado para \`${interaction.customId}\`.`,
+    ephemeral: true,
+  });
+}
+
+async function handleModal(
+  interaction: ModalSubmitInteraction,
+  registry: ModuleRegistry,
+): Promise<void> {
+  const handled = await dispatchModal(registry, interaction);
+  if (handled) return;
+
+  if (interaction.replied || interaction.deferred) return;
+  await interaction.reply({
+    content: `No hay handler de modal para \`${interaction.customId}\`.`,
     ephemeral: true,
   });
 }
