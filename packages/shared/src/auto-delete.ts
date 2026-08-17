@@ -36,6 +36,8 @@ export interface AutoDeleteConfig {
 
 export interface AutoDeleteConfigResponse {
   config: AutoDeleteConfig;
+  /** Zona horaria del servidor usada por node-cron (modo SCHEDULED). */
+  timezone: string;
 }
 
 export type UpdateAutoDeleteConfigRequest = Partial<{

@@ -243,6 +243,19 @@ function ensureCoreTables(database: Database.Database): void {
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS scheduled_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+      guild_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      timezone TEXT NOT NULL DEFAULT 'UTC',
+      frequency TEXT NOT NULL DEFAULT '{}',
+      embed_data TEXT NOT NULL DEFAULT '{}',
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS xp_config (
       guild_id TEXT PRIMARY KEY NOT NULL,
       enabled INTEGER NOT NULL DEFAULT 0,
@@ -531,6 +544,19 @@ function ensureCoreTables(database: Database.Database): void {
     if (!names.has("custom_channel_multipliers")) {
       database.exec(
         `ALTER TABLE xp_config ADD COLUMN custom_channel_multipliers TEXT NOT NULL DEFAULT '[]'`,
+      );
+    }
+  }
+
+  // Migración suave: timezone por mensaje programado
+  const scheduledCols = database
+    .prepare(`PRAGMA table_info(scheduled_messages)`)
+    .all() as Array<{ name: string }>;
+  if (scheduledCols.length > 0) {
+    const scheduledNames = new Set(scheduledCols.map((c) => c.name));
+    if (!scheduledNames.has("timezone")) {
+      database.exec(
+        `ALTER TABLE scheduled_messages ADD COLUMN timezone TEXT NOT NULL DEFAULT 'UTC'`,
       );
     }
   }

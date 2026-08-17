@@ -120,6 +120,7 @@ export function AutoDeleteDashboard() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [timezone, setTimezone] = useState("UTC");
 
   const dirty = useMemo(
     () => configFingerprint(config) !== savedFingerprint,
@@ -164,6 +165,7 @@ export function AutoDeleteDashboard() {
       ]);
       setConfig(cfgRes.config);
       setSavedFingerprint(configFingerprint(cfgRes.config));
+      setTimezone(cfgRes.timezone || "UTC");
       setChannels(assets.channels);
     } catch (err) {
       setError(
@@ -226,6 +228,7 @@ export function AutoDeleteDashboard() {
       });
       setConfig(res.config);
       setSavedFingerprint(configFingerprint(res.config));
+      setTimezone(res.timezone || timezone);
       setSuccess("Configuración de Auto-delete guardada.");
     } catch (err) {
       setError(
@@ -468,6 +471,12 @@ export function AutoDeleteDashboard() {
                                       })
                                     }
                                   />
+                                  <p className="text-[11px] text-muted-foreground">
+                                    Zona horaria del servidor:{" "}
+                                    <span className="font-mono text-foreground/80">
+                                      {timezone}
+                                    </span>
+                                  </p>
                                 </div>
                                 <div className="space-y-1.5">
                                   <Label className="text-xs text-muted-foreground">

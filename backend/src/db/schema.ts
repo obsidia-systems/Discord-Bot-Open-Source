@@ -564,6 +564,33 @@ export const interactiveForms = sqliteTable("interactive_forms", {
 export type InteractiveFormsRow = typeof interactiveForms.$inferSelect;
 export type NewInteractiveFormsRow = typeof interactiveForms.$inferInsert;
 
+/**
+ * Mensajes programados (cron) por guild.
+ */
+export const scheduledMessages = sqliteTable("scheduled_messages", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  guildId: text("guild_id")
+    .notNull()
+    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+  channelId: text("channel_id").notNull(),
+  /** IANA timezone, ej. America/Mexico_City */
+  timezone: text("timezone").notNull().default("UTC"),
+  /** JSON: ScheduledFrequency */
+  frequency: text("frequency").notNull().default("{}"),
+  /** JSON: ScheduledEmbedData */
+  embedData: text("embed_data").notNull().default("{}"),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export type ScheduledMessageRow = typeof scheduledMessages.$inferSelect;
+export type NewScheduledMessageRow = typeof scheduledMessages.$inferInsert;
+
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [
   "minecraft",

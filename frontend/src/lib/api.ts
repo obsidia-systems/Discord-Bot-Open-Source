@@ -67,6 +67,13 @@ export {
   publishFormsConfig,
 } from "./api/forms";
 export {
+  fetchScheduledMessages,
+  createScheduledMessage,
+  updateScheduledMessage,
+  toggleScheduledMessage,
+  deleteScheduledMessage,
+} from "./api/scheduled-messages";
+export {
   fetchLevelsConfig,
   saveLevelsConfig,
   fetchLevelsLeaderboard,

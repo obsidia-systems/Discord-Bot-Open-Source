@@ -1,8 +1,11 @@
 ---
-import ComingSoon from "../../../components/shared/ComingSoon.astro";
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { ScheduledDashboard } from "../../../features/scheduled-messages";
 ---
 
-<ComingSoon
+<DashboardLayout
   title="Mensajes programados"
   description="Anuncios y recordatorios en horario."
-/>
+>
+  <ScheduledDashboard client:load />
+</DashboardLayout>

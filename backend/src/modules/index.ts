@@ -11,6 +11,7 @@ import { actionLogsModule } from "./action-logs/index.js";
 import { autoModModule } from "./auto-mod/index.js";
 import { autoDeleteModule } from "./auto-delete/index.js";
 import { formsModule } from "./forms/index.js";
+import { scheduledMessagesModule } from "./scheduled-messages/index.js";
 import { levelsModule } from "./levels/index.js";
 import { rolesBuilderModule } from "./roles-builder/index.js";
 
@@ -31,6 +32,7 @@ export const ENABLED_MODULES: readonly AdobosModule[] = [
   autoModModule,
   autoDeleteModule,
   formsModule,
+  scheduledMessagesModule,
   levelsModule,
   rolesBuilderModule,
 ];
@@ -48,6 +50,7 @@ export {
   autoModModule,
   autoDeleteModule,
   formsModule,
+  scheduledMessagesModule,
   levelsModule,
   rolesBuilderModule,
 };

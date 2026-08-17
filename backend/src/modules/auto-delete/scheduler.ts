@@ -6,6 +6,10 @@ import {
   type Message,
 } from "discord.js";
 import type { AutoDeleteConfig, AutoDeleteRule } from "@adobos/shared";
+import {
+  resolveSchedulerTimezone,
+  timeAndDaysToCron,
+} from "../../lib/schedulerTimezone.js";
 import { listAllAutoDeleteConfigs } from "./service.js";
 
 const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
@@ -79,26 +83,12 @@ async function runScheduledCleanup(
   }
 }
 
-/** Convierte hora + días a cron `m h * * dow`.
- * Días vacíos → todos (`*`). Ej: 18:00 Dom+Mié → `0 18 * * 0,3`.
- */
+/** Convierte hora + días a cron `m h * * dow`. */
 export function scheduledTimeToCron(
   time: string,
   days: number[] = [],
 ): string | null {
-  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time.trim());
-  if (!match) return null;
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  const uniqueDays = [
-    ...new Set(
-      days
-        .map((d) => Math.round(Number(d)))
-        .filter((d) => Number.isFinite(d) && d >= 0 && d <= 6),
-    ),
-  ].sort((a, b) => a - b);
-  const dow = uniqueDays.length === 0 ? "*" : uniqueDays.join(",");
-  return `${minute} ${hour} * * ${dow}`;
+  return timeAndDaysToCron(time, days);
 }
 
 export function stopAutoDeleteJobsForGuild(guildId: string): void {
@@ -129,11 +119,7 @@ export function syncAutoDeleteJobsForConfig(config: AutoDeleteConfig): void {
   stopAutoDeleteJobsForGuild(config.guildId);
   if (!client || !config.enabled) return;
 
-  const timezone =
-    process.env.AUTO_DELETE_TZ?.trim() ||
-    process.env.TZ?.trim() ||
-    Intl.DateTimeFormat().resolvedOptions().timeZone ||
-    "UTC";
+  const timezone = resolveSchedulerTimezone();
 
   const jobs: ScheduledTask[] = [];
   for (const rule of config.rules) {

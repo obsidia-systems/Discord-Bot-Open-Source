@@ -4,6 +4,7 @@ import type {
   ApiErrorBody,
   UpdateAutoDeleteConfigRequest,
 } from "@adobos/shared";
+import { resolveSchedulerTimezone } from "../../../lib/schedulerTimezone.js";
 import {
   AutoDeleteError,
   getAutoDeleteConfig,
@@ -36,7 +37,7 @@ export function autoDeleteRoutes(_bot: Client): Router {
       const guildId =
         typeof req.query.guildId === "string" ? req.query.guildId : undefined;
       const config = getAutoDeleteConfig(guildId);
-      res.json({ config });
+      res.json({ config, timezone: resolveSchedulerTimezone() });
     } catch (error) {
       handleError(error, res);
     }
@@ -53,7 +54,7 @@ export function autoDeleteRoutes(_bot: Client): Router {
             : undefined;
       const body = (req.body ?? {}) as UpdateAutoDeleteConfigRequest;
       const config = updateAutoDeleteConfig(body, guildId);
-      res.json({ config });
+      res.json({ config, timezone: resolveSchedulerTimezone() });
     } catch (error) {
       handleError(error, res);
     }
