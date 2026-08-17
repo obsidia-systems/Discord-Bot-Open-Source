@@ -583,17 +583,6 @@ export function ScheduledDashboard() {
                       </div>
                     </div>
 
-                    <TimezoneCombobox
-                      value={draft.timezone}
-                      onChange={(timezone) =>
-                        setDraft((prev) => ({ ...prev, timezone }))
-                      }
-                    />
-                    <p className="text-[11px] text-muted-foreground">
-                      La hora se interpreta en la zona elegida para este mensaje
-                      (por defecto, la de tu navegador).
-                    </p>
-
                     {draft.frequency.type === "weekly" ? (
                       <div className="space-y-1.5">
                         <Label>Días de la semana</Label>
@@ -657,6 +646,17 @@ export function ScheduledDashboard() {
                         />
                       </div>
                     ) : null}
+
+                    <TimezoneCombobox
+                      value={draft.timezone}
+                      onChange={(timezone) =>
+                        setDraft((prev) => ({ ...prev, timezone }))
+                      }
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      La hora se interpreta en la zona elegida para este mensaje
+                      (por defecto, la de tu navegador).
+                    </p>
 
                     <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
                       <div>

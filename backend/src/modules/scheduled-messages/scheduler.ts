@@ -2,6 +2,7 @@ import cron, { type ScheduledTask } from "node-cron";
 import {
   ChannelType,
   EmbedBuilder,
+  type AttachmentBuilder,
   type Client,
   type TextChannel,
 } from "discord.js";
@@ -62,7 +63,7 @@ async function sendScheduledMessage(
     }
 
     const textChannel = channel as TextChannel;
-    const files = [];
+    const files: AttachmentBuilder[] = [];
     const data: ScheduledEmbedData = message.embedData;
     let imageUrl: string | undefined;
     if (data.imageUrl) {
