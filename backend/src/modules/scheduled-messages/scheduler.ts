@@ -7,14 +7,22 @@ import {
   type TextChannel,
 } from "discord.js";
 import type { ScheduledEmbedData, ScheduledMessage } from "@adobos/shared";
-import { normalizeScheduledTimezone } from "@adobos/shared";
+import {
+  getCalendarYearInTimezone,
+  normalizeScheduledTimezone,
+} from "@adobos/shared";
 import { resolveEmbedMedia } from "../../lib/embedMedia.js";
 import {
   isValidIanaTimezone,
   timeAndDaysToCron,
   timeAndMonthDayToCron,
+  timeAndSpecificDateToCron,
 } from "../../lib/schedulerTimezone.js";
-import { listAllActiveScheduledMessages, getScheduledMessage } from "./service.js";
+import {
+  getScheduledMessage,
+  listAllActiveScheduledMessages,
+  setScheduledMessageActive,
+} from "./service.js";
 
 /** Jobs en memoria: id del mensaje → task de node-cron. */
 const jobs = new Map<number, ScheduledTask>();
@@ -32,6 +40,9 @@ function embedColorInt(hex: string): number {
 
 function frequencyToCronExpression(message: ScheduledMessage): string | null {
   const { frequency } = message;
+  if (frequency.type === "specific_date") {
+    return timeAndSpecificDateToCron(frequency.time, frequency.date);
+  }
   if (frequency.type === "monthly") {
     return timeAndMonthDayToCron(frequency.time, frequency.dayOfMonth);
   }
@@ -101,6 +112,22 @@ async function sendScheduledMessage(
   }
 }
 
+/**
+ * Fecha específica one-shot: solo corre el año de `date` en la timezone del mensaje.
+ * Si el año no coincide, se ignora el tick (p. ej. años posteriores sin repeatYearly).
+ */
+function shouldRunSpecificDateTick(message: ScheduledMessage): boolean {
+  if (message.frequency.type !== "specific_date") return true;
+  if (message.frequency.repeatYearly) return true;
+
+  const dateYear = Number.parseInt(message.frequency.date.slice(0, 4), 10);
+  if (!Number.isFinite(dateYear)) return false;
+
+  const timezone = normalizeScheduledTimezone(message.timezone);
+  const currentYear = getCalendarYearInTimezone(timezone);
+  return currentYear === dateYear;
+}
+
 export function stopScheduledJob(messageId: number): void {
   const job = jobs.get(messageId);
   if (!job) return;
@@ -159,7 +186,20 @@ export function syncScheduledJob(message: ScheduledMessage | null): void {
             stopScheduledJob(messageId);
             return;
           }
+
+          if (!shouldRunSpecificDateTick(fresh)) {
+            return;
+          }
+
           await sendScheduledMessage(client, fresh);
+
+          // One-shot: desactivar tras enviar en el año programado
+          if (
+            fresh.frequency.type === "specific_date" &&
+            !fresh.frequency.repeatYearly
+          ) {
+            setScheduledMessageActive(messageId, false, fresh.guildId);
+          }
         } catch (error) {
           console.warn(
             `[adobos] scheduled-messages: tick falló (id=${messageId}):`,

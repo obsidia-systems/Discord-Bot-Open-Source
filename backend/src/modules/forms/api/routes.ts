@@ -2,13 +2,18 @@ import { Router } from "express";
 import type { Client } from "discord.js";
 import type {
   ApiErrorBody,
-  UpdateFormsConfigRequest,
+  CreateFormRequest,
+  UpdateFormRequest,
 } from "@adobos/shared";
-import { publishFormsMessage } from "../publish.js";
+import { publishFormMessage } from "../publish.js";
 import {
   FormsError,
-  getFormsConfig,
-  updateFormsConfig,
+  createForm,
+  deleteForm,
+  getForm,
+  listFormResponses,
+  listForms,
+  updateForm,
 } from "../service.js";
 
 function handleError(error: unknown, res: import("express").Response): void {
@@ -28,51 +33,123 @@ function handleError(error: unknown, res: import("express").Response): void {
   res.status(500).json(body);
 }
 
+function parseFormId(raw: string): number {
+  const id = Number.parseInt(raw, 10);
+  if (!Number.isFinite(id) || id < 1) {
+    throw new FormsError("ID de formulario inválido.", 400, "INVALID_ID");
+  }
+  return id;
+}
+
+function resolveGuildId(req: {
+  query: Record<string, unknown>;
+  body?: Record<string, unknown>;
+}): string | undefined {
+  if (typeof req.body?.guildId === "string") return req.body.guildId;
+  if (typeof req.query.guildId === "string") return req.query.guildId;
+  return undefined;
+}
+
 export function formsRoutes(bot: Client): Router {
   const router = Router();
 
-  /** GET /api/forms/config */
-  router.get("/config", (req, res) => {
+  /** GET /api/forms */
+  router.get("/", (req, res) => {
     try {
-      const guildId =
-        typeof req.query.guildId === "string" ? req.query.guildId : undefined;
-      const config = getFormsConfig(guildId);
-      res.json({ config });
+      const forms = listForms(resolveGuildId(req));
+      res.json({ forms });
     } catch (error) {
       handleError(error, res);
     }
   });
 
-  /** POST /api/forms/config */
-  router.post("/config", (req, res) => {
+  /** POST /api/forms */
+  router.post("/", (req, res) => {
     try {
-      const guildId =
-        typeof req.body?.guildId === "string"
-          ? req.body.guildId
-          : typeof req.query.guildId === "string"
-            ? req.query.guildId
-            : undefined;
-      const body = (req.body ?? {}) as UpdateFormsConfigRequest;
-      const config = updateFormsConfig(body, guildId);
-      res.json({ config });
+      const body = (req.body ?? {}) as CreateFormRequest;
+      const form = createForm(body, resolveGuildId(req));
+      res.status(201).json({ form });
     } catch (error) {
       handleError(error, res);
     }
   });
 
-  /** POST /api/forms/publish */
-  router.post("/publish", (req, res) => {
+  /** GET /api/forms/:id/responses — antes de /:id genérico */
+  router.get("/:id/responses", (req, res) => {
+    try {
+      const formId = parseFormId(req.params.id);
+      const responses = listFormResponses(formId, resolveGuildId(req));
+      res.json({ responses });
+    } catch (error) {
+      handleError(error, res);
+    }
+  });
+
+  /** POST /api/forms/:id/publish */
+  router.post("/:id/publish", (req, res) => {
     void (async () => {
       try {
-        const guildId =
-          typeof req.body?.guildId === "string"
-            ? req.body.guildId
-            : typeof req.query.guildId === "string"
-              ? req.query.guildId
-              : undefined;
-        const body = (req.body ?? {}) as UpdateFormsConfigRequest;
-        const result = await publishFormsMessage(bot, guildId, body);
+        const formId = parseFormId(req.params.id);
+        const body = (req.body ?? {}) as UpdateFormRequest;
+        const result = await publishFormMessage(
+          bot,
+          formId,
+          resolveGuildId(req),
+          body,
+        );
         res.json(result);
+      } catch (error) {
+        handleError(error, res);
+      }
+    })();
+  });
+
+  /** GET /api/forms/:id */
+  router.get("/:id", (req, res) => {
+    try {
+      const formId = parseFormId(req.params.id);
+      const form = getForm(formId, resolveGuildId(req));
+      res.json({ form });
+    } catch (error) {
+      handleError(error, res);
+    }
+  });
+
+  /** PATCH /api/forms/:id */
+  router.patch("/:id", (req, res) => {
+    try {
+      const formId = parseFormId(req.params.id);
+      const body = (req.body ?? {}) as UpdateFormRequest;
+      const form = updateForm(formId, body, resolveGuildId(req));
+      res.json({ form });
+    } catch (error) {
+      handleError(error, res);
+    }
+  });
+
+  /** DELETE /api/forms/:id */
+  router.delete("/:id", (req, res) => {
+    void (async () => {
+      try {
+        const formId = parseFormId(req.params.id);
+        const meta = deleteForm(formId, resolveGuildId(req));
+        if (
+          bot.isReady() &&
+          meta.publishedChannelId &&
+          meta.publishedMessageId
+        ) {
+          try {
+            const channel = await bot.channels.fetch(meta.publishedChannelId);
+            if (channel && channel.isTextBased() && "messages" in channel) {
+              await channel.messages
+                .delete(meta.publishedMessageId)
+                .catch(() => null);
+            }
+          } catch {
+            /* mensaje ya borrado o sin permisos */
+          }
+        }
+        res.status(204).send();
       } catch (error) {
         handleError(error, res);
       }

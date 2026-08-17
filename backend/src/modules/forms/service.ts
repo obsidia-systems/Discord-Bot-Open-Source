@@ -1,18 +1,25 @@
 import { randomBytes } from "node:crypto";
 import type {
+  CreateFormRequest,
+  FormAnswerEntry,
   FormQuestion,
-  FormsConfig,
-  UpdateFormsConfigRequest,
+  FormResponse,
+  InteractiveForm,
+  UpdateFormRequest,
 } from "@adobos/shared";
 import {
   DEFAULT_FORMS_EMBED_COLOR,
   FORMS_MAX_QUESTIONS,
-  defaultFormsConfig,
+  defaultInteractiveForm,
   normalizeFormQuestionStyle,
 } from "@adobos/shared";
-import { eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import { getDb } from "../../db/client.js";
-import { guildSettings, interactiveForms } from "../../db/schema.js";
+import {
+  formResponses,
+  guildForms,
+  guildSettings,
+} from "../../db/schema.js";
 
 export class FormsError extends Error {
   constructor(
@@ -25,7 +32,7 @@ export class FormsError extends Error {
   }
 }
 
-const configCache = new Map<string, FormsConfig>();
+const formCache = new Map<number, InteractiveForm>();
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   if (!raw) return fallback;
@@ -81,6 +88,15 @@ function normalizeColor(value: unknown): string {
   return DEFAULT_FORMS_EMBED_COLOR;
 }
 
+function normalizeMediaRef(value: unknown): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  if (raw.startsWith("/uploads/")) return raw.slice(0, 500);
+  if (/^https?:\/\//i.test(raw)) return raw.slice(0, 500);
+  return null;
+}
+
 function newQuestionId(): string {
   return randomBytes(4).toString("hex");
 }
@@ -103,18 +119,27 @@ export function normalizeFormQuestions(
       label,
       style: normalizeFormQuestionStyle(raw.style),
       required: Boolean(raw.required),
+      placeholder: String(raw.placeholder ?? "")
+        .trim()
+        .slice(0, 100),
     });
   }
   return out;
 }
 
-function rowToConfig(
-  guildId: string,
-  row: typeof interactiveForms.$inferSelect | undefined,
-): FormsConfig {
-  if (!row) return defaultFormsConfig(guildId);
+function clampCooldown(value: unknown): number {
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.min(n, 60 * 24 * 30);
+}
+
+function rowToForm(
+  row: typeof guildForms.$inferSelect,
+  responseCount = 0,
+): InteractiveForm {
   return {
-    guildId,
+    id: row.id,
+    guildId: row.guildId,
     modalTitle: (row.modalTitle ?? "").trim().slice(0, 45) || "Formulario",
     buttonLabel:
       (row.buttonLabel ?? "").trim().slice(0, 80) || "Abrir formulario",
@@ -122,95 +147,162 @@ function rowToConfig(
       (row.embedTitle ?? "").trim().slice(0, 256) || "Formulario del servidor",
     embedDescription: (row.embedDescription ?? "").trim().slice(0, 4000),
     embedColor: normalizeColor(row.embedColor),
+    embedImageUrl: normalizeMediaRef(row.embedImageUrl),
+    embedThumbnailUrl: normalizeMediaRef(row.embedThumbnailUrl),
     publishChannelId: row.publishChannelId ?? null,
     receptionChannelId: row.receptionChannelId ?? null,
     questions: normalizeFormQuestions(
       parseJson<FormQuestion[]>(row.questions, []),
     ),
+    cooldownMinutes: clampCooldown(row.cooldownMinutes),
     publishedChannelId: row.publishedChannelId ?? null,
     publishedMessageId: row.publishedMessageId ?? null,
+    responseCount,
+    createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),
   };
 }
 
-export function invalidateFormsConfigCache(guildId?: string): void {
-  if (guildId) configCache.delete(guildId);
-  else configCache.clear();
+export function invalidateFormsCache(formId?: number): void {
+  if (formId != null) formCache.delete(formId);
+  else formCache.clear();
 }
 
-export function getFormsConfig(guildId?: string): FormsConfig {
+export function listForms(guildId?: string): InteractiveForm[] {
   const id = resolveGuildId(guildId);
   ensureGuildRow(id);
+  const rows = getDb()
+    .select()
+    .from(guildForms)
+    .where(eq(guildForms.guildId, id))
+    .orderBy(desc(guildForms.updatedAt))
+    .all();
+
+  return rows.map((row) => {
+    const countRow = getDb()
+      .select({ c: count() })
+      .from(formResponses)
+      .where(eq(formResponses.formId, row.id))
+      .get();
+    const mapped = rowToForm(row, countRow?.c ?? 0);
+    formCache.set(mapped.id, mapped);
+    return mapped;
+  });
+}
+
+export function getForm(formId: number, guildId?: string): InteractiveForm {
+  const gid = resolveGuildId(guildId);
   const row = getDb()
     .select()
-    .from(interactiveForms)
-    .where(eq(interactiveForms.guildId, id))
+    .from(guildForms)
+    .where(and(eq(guildForms.id, formId), eq(guildForms.guildId, gid)))
     .get();
-  const config = rowToConfig(id, row);
-  configCache.set(id, config);
-  return config;
-}
-
-export function getFormsConfigCached(guildId: string): FormsConfig {
-  const cached = configCache.get(guildId);
-  if (cached) return cached;
-  try {
-    return getFormsConfig(guildId);
-  } catch {
-    return defaultFormsConfig(guildId);
+  if (!row) {
+    throw new FormsError("Formulario no encontrado.", 404, "NOT_FOUND");
   }
+  const countRow = getDb()
+    .select({ c: count() })
+    .from(formResponses)
+    .where(eq(formResponses.formId, formId))
+    .get();
+  const mapped = rowToForm(row, countRow?.c ?? 0);
+  formCache.set(mapped.id, mapped);
+  return mapped;
 }
 
-export function updateFormsConfig(
-  input: UpdateFormsConfigRequest,
-  guildId?: string,
-): FormsConfig {
-  const id = resolveGuildId(guildId);
-  ensureGuildRow(id);
-  const current = getFormsConfig(id);
+/** Lookup por id (handlers Discord) sin exigir guild query. */
+export function getFormById(formId: number): InteractiveForm | null {
+  const cached = formCache.get(formId);
+  if (cached) return cached;
+  const row = getDb()
+    .select()
+    .from(guildForms)
+    .where(eq(guildForms.id, formId))
+    .get();
+  if (!row) return null;
+  const countRow = getDb()
+    .select({ c: count() })
+    .from(formResponses)
+    .where(eq(formResponses.formId, formId))
+    .get();
+  const mapped = rowToForm(row, countRow?.c ?? 0);
+  formCache.set(mapped.id, mapped);
+  return mapped;
+}
 
-  const next: FormsConfig = {
-    guildId: id,
+function applyInput(
+  base: InteractiveForm,
+  input: CreateFormRequest | UpdateFormRequest,
+): Omit<
+  InteractiveForm,
+  "id" | "guildId" | "responseCount" | "createdAt" | "updatedAt" | "publishedChannelId" | "publishedMessageId"
+> & {
+  publishedChannelId: string | null;
+  publishedMessageId: string | null;
+} {
+  return {
     modalTitle:
       input.modalTitle !== undefined
         ? String(input.modalTitle).trim().slice(0, 45) || "Formulario"
-        : current.modalTitle,
+        : base.modalTitle,
     buttonLabel:
       input.buttonLabel !== undefined
         ? String(input.buttonLabel).trim().slice(0, 80) || "Abrir formulario"
-        : current.buttonLabel,
+        : base.buttonLabel,
     embedTitle:
       input.embedTitle !== undefined
         ? String(input.embedTitle).trim().slice(0, 256) ||
           "Formulario del servidor"
-        : current.embedTitle,
+        : base.embedTitle,
     embedDescription:
       input.embedDescription !== undefined
         ? String(input.embedDescription).trim().slice(0, 4000)
-        : current.embedDescription,
+        : base.embedDescription,
     embedColor:
       input.embedColor !== undefined
         ? normalizeColor(input.embedColor)
-        : current.embedColor,
+        : base.embedColor,
+    embedImageUrl:
+      input.embedImageUrl !== undefined
+        ? normalizeMediaRef(input.embedImageUrl)
+        : base.embedImageUrl,
+    embedThumbnailUrl:
+      input.embedThumbnailUrl !== undefined
+        ? normalizeMediaRef(input.embedThumbnailUrl)
+        : base.embedThumbnailUrl,
     publishChannelId:
       input.publishChannelId !== undefined
         ? normalizeSnowflake(input.publishChannelId)
-        : current.publishChannelId,
+        : base.publishChannelId,
     receptionChannelId:
       input.receptionChannelId !== undefined
         ? normalizeSnowflake(input.receptionChannelId)
-        : current.receptionChannelId,
+        : base.receptionChannelId,
     questions:
       input.questions !== undefined
         ? normalizeFormQuestions(input.questions)
-        : current.questions,
-    publishedChannelId: current.publishedChannelId,
-    publishedMessageId: current.publishedMessageId,
-    updatedAt: new Date().toISOString(),
+        : base.questions,
+    cooldownMinutes:
+      input.cooldownMinutes !== undefined
+        ? clampCooldown(input.cooldownMinutes)
+        : base.cooldownMinutes,
+    publishedChannelId: base.publishedChannelId,
+    publishedMessageId: base.publishedMessageId,
   };
+}
 
-  getDb()
-    .insert(interactiveForms)
+export function createForm(
+  input: CreateFormRequest,
+  guildId?: string,
+): InteractiveForm {
+  const id = resolveGuildId(guildId);
+  ensureGuildRow(id);
+  const defaults = defaultInteractiveForm(id);
+  const next = applyInput(defaults, input);
+  const now = new Date();
+
+  const result = getDb()
+    .insert(guildForms)
     .values({
       guildId: id,
       modalTitle: next.modalTitle,
@@ -218,57 +310,184 @@ export function updateFormsConfig(
       embedTitle: next.embedTitle,
       embedDescription: next.embedDescription,
       embedColor: next.embedColor,
+      embedImageUrl: next.embedImageUrl,
+      embedThumbnailUrl: next.embedThumbnailUrl,
       publishChannelId: next.publishChannelId,
       receptionChannelId: next.receptionChannelId,
       questions: JSON.stringify(next.questions),
-      publishedChannelId: next.publishedChannelId,
-      publishedMessageId: next.publishedMessageId,
-      updatedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: interactiveForms.guildId,
-      set: {
-        modalTitle: next.modalTitle,
-        buttonLabel: next.buttonLabel,
-        embedTitle: next.embedTitle,
-        embedDescription: next.embedDescription,
-        embedColor: next.embedColor,
-        publishChannelId: next.publishChannelId,
-        receptionChannelId: next.receptionChannelId,
-        questions: JSON.stringify(next.questions),
-        updatedAt: new Date(),
-      },
+      cooldownMinutes: next.cooldownMinutes,
+      publishedChannelId: null,
+      publishedMessageId: null,
+      createdAt: now,
+      updatedAt: now,
     })
     .run();
 
-  configCache.set(id, next);
-  return next;
+  return getForm(Number(result.lastInsertRowid), id);
 }
 
-export function setFormsPublishedMessage(
-  guildId: string,
-  channelId: string,
-  messageId: string,
-): FormsConfig {
+export function updateForm(
+  formId: number,
+  input: UpdateFormRequest,
+  guildId?: string,
+): InteractiveForm {
   const id = resolveGuildId(guildId);
-  const current = getFormsConfig(id);
-  const next: FormsConfig = {
-    ...current,
-    publishedChannelId: channelId,
-    publishedMessageId: messageId,
-    updatedAt: new Date().toISOString(),
-  };
+  const current = getForm(formId, id);
+  const next = applyInput(current, input);
 
   getDb()
-    .update(interactiveForms)
+    .update(guildForms)
+    .set({
+      modalTitle: next.modalTitle,
+      buttonLabel: next.buttonLabel,
+      embedTitle: next.embedTitle,
+      embedDescription: next.embedDescription,
+      embedColor: next.embedColor,
+      embedImageUrl: next.embedImageUrl,
+      embedThumbnailUrl: next.embedThumbnailUrl,
+      publishChannelId: next.publishChannelId,
+      receptionChannelId: next.receptionChannelId,
+      questions: JSON.stringify(next.questions),
+      cooldownMinutes: next.cooldownMinutes,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(guildForms.id, formId), eq(guildForms.guildId, id)))
+    .run();
+
+  invalidateFormsCache(formId);
+  return getForm(formId, id);
+}
+
+export function setFormPublishedMessage(
+  formId: number,
+  channelId: string,
+  messageId: string,
+  guildId?: string,
+): InteractiveForm {
+  const id = resolveGuildId(guildId);
+  getForm(formId, id);
+  getDb()
+    .update(guildForms)
     .set({
       publishedChannelId: channelId,
       publishedMessageId: messageId,
       updatedAt: new Date(),
     })
-    .where(eq(interactiveForms.guildId, id))
+    .where(and(eq(guildForms.id, formId), eq(guildForms.guildId, id)))
+    .run();
+  invalidateFormsCache(formId);
+  return getForm(formId, id);
+}
+
+export function deleteForm(
+  formId: number,
+  guildId?: string,
+): { publishedChannelId: string | null; publishedMessageId: string | null } {
+  const id = resolveGuildId(guildId);
+  const current = getForm(formId, id);
+  getDb()
+    .delete(guildForms)
+    .where(and(eq(guildForms.id, formId), eq(guildForms.guildId, id)))
+    .run();
+  invalidateFormsCache(formId);
+  return {
+    publishedChannelId: current.publishedChannelId,
+    publishedMessageId: current.publishedMessageId,
+  };
+}
+
+export function getUserCooldownRemainingMs(
+  formId: number,
+  userId: string,
+  cooldownMinutes: number,
+): number {
+  if (cooldownMinutes <= 0) return 0;
+  const last = getDb()
+    .select({ createdAt: formResponses.createdAt })
+    .from(formResponses)
+    .where(
+      and(
+        eq(formResponses.formId, formId),
+        eq(formResponses.userId, userId),
+      ),
+    )
+    .orderBy(desc(formResponses.createdAt))
+    .limit(1)
+    .get();
+  if (!last) return 0;
+  const elapsed = Date.now() - new Date(last.createdAt).getTime();
+  const windowMs = cooldownMinutes * 60_000;
+  return Math.max(0, windowMs - elapsed);
+}
+
+export function insertFormResponse(input: {
+  formId: number;
+  guildId: string;
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  answers: FormAnswerEntry[];
+}): FormResponse {
+  const now = new Date();
+  const result = getDb()
+    .insert(formResponses)
+    .values({
+      formId: input.formId,
+      guildId: input.guildId,
+      userId: input.userId,
+      username: input.username.slice(0, 100),
+      displayName: input.displayName.slice(0, 100),
+      avatarUrl: input.avatarUrl,
+      answers: JSON.stringify(input.answers),
+      createdAt: now,
+    })
     .run();
 
-  configCache.set(id, next);
-  return next;
+  invalidateFormsCache(input.formId);
+  return {
+    id: Number(result.lastInsertRowid),
+    formId: input.formId,
+    guildId: input.guildId,
+    userId: input.userId,
+    username: input.username,
+    displayName: input.displayName,
+    avatarUrl: input.avatarUrl,
+    answers: input.answers,
+    createdAt: now.toISOString(),
+  };
+}
+
+export function listFormResponses(
+  formId: number,
+  guildId?: string,
+): FormResponse[] {
+  const id = resolveGuildId(guildId);
+  getForm(formId, id);
+  const rows = getDb()
+    .select()
+    .from(formResponses)
+    .where(
+      and(eq(formResponses.formId, formId), eq(formResponses.guildId, id)),
+    )
+    .orderBy(desc(formResponses.createdAt))
+    .all();
+
+  return rows.map((row) => ({
+    id: row.id,
+    formId: row.formId,
+    guildId: row.guildId,
+    userId: row.userId,
+    username: row.username,
+    displayName: row.displayName,
+    avatarUrl: row.avatarUrl,
+    answers: parseJson<FormAnswerEntry[]>(row.answers, []),
+    createdAt: new Date(row.createdAt).toISOString(),
+  }));
+}
+
+/** Compat: invalida caché (nombre antiguo). */
+export function invalidateFormsConfigCache(guildId?: string): void {
+  void guildId;
+  invalidateFormsCache();
 }

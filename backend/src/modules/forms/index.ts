@@ -24,9 +24,14 @@ export const formsModule: AdobosModule = {
 
 export {
   FormsError,
-  getFormsConfig,
-  getFormsConfigCached,
+  createForm,
+  deleteForm,
+  getForm,
+  getFormById,
+  invalidateFormsCache,
   invalidateFormsConfigCache,
-  updateFormsConfig,
+  listFormResponses,
+  listForms,
+  updateForm,
 } from "./service.js";
-export { publishFormsMessage } from "./publish.js";
+export { publishFormMessage } from "./publish.js";

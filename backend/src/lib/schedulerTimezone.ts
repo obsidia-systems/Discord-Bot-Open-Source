@@ -90,3 +90,22 @@ export function timeAndMonthDayToCron(
   const day = Math.max(1, Math.min(31, Math.round(Number(dayOfMonth) || 1)));
   return `${minute} ${hour} ${day} * *`;
 }
+
+/**
+ * Cron fecha específica: `m h day month *` (se dispara cada año ese día/mes).
+ * El filtrado por año (one-shot) se hace en el tick del job.
+ */
+export function timeAndSpecificDateToCron(
+  time: string,
+  dateYmd: string,
+): string | null {
+  const timeMatch = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time.trim());
+  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateYmd.trim());
+  if (!timeMatch || !dateMatch) return null;
+  const hour = Number(timeMatch[1]);
+  const minute = Number(timeMatch[2]);
+  const month = Number(dateMatch[2]);
+  const day = Number(dateMatch[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return `${minute} ${hour} ${day} ${month} *`;
+}

@@ -69,6 +69,7 @@ const FREQUENCY_LABELS: Record<ScheduledFrequencyType, string> = {
   daily: "Diario",
   weekly: "Semanal",
   monthly: "Mensual",
+  specific_date: "Fecha específica",
 };
 
 const WEEKDAY_OPTIONS: { value: ScheduledWeekday; label: string }[] = [
@@ -644,6 +645,45 @@ export function ScheduledDashboard() {
                             })
                           }
                         />
+                      </div>
+                    ) : null}
+
+                    {draft.frequency.type === "specific_date" ? (
+                      <div className="space-y-4">
+                        <div className="space-y-1.5">
+                          <Label>Fecha</Label>
+                          <Input
+                            type="date"
+                            value={draft.frequency.date}
+                            onChange={(e) =>
+                              patchFrequency({
+                                date: e.target.value || draft.frequency.date,
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
+                          <div className="min-w-0">
+                            <Label
+                              htmlFor="scheduled-repeat-yearly"
+                              className="text-sm font-medium"
+                            >
+                              Repetir anualmente
+                            </Label>
+                            <p className="text-[11px] text-muted-foreground">
+                              Si está activo, el mensaje se enviará cada año en
+                              esta fecha. Si está apagado, se enviará una sola
+                              vez y se desactivará.
+                            </p>
+                          </div>
+                          <Switch
+                            id="scheduled-repeat-yearly"
+                            checked={draft.frequency.repeatYearly}
+                            onCheckedChange={(checked) =>
+                              patchFrequency({ repeatYearly: checked })
+                            }
+                          />
+                        </div>
                       </div>
                     ) : null}
 

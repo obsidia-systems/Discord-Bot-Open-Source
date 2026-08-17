@@ -218,6 +218,13 @@
       "when": 1786520000000,
       "tag": "0030_scheduled_messages_timezone",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1786530000000,
+      "tag": "0031_guild_forms_and_responses",
+      "breakpoints": true
     }
   ]
 }

@@ -243,6 +243,41 @@ function ensureCoreTables(database: Database.Database): void {
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS guild_forms (
+      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+      guild_id TEXT NOT NULL,
+      modal_title TEXT NOT NULL DEFAULT 'Formulario',
+      button_label TEXT NOT NULL DEFAULT 'Abrir formulario',
+      embed_title TEXT NOT NULL DEFAULT 'Formulario del servidor',
+      embed_description TEXT NOT NULL DEFAULT 'Haz clic en el botón para completar el formulario.',
+      embed_color TEXT NOT NULL DEFAULT '#5865F2',
+      embed_image_url TEXT,
+      embed_thumbnail_url TEXT,
+      publish_channel_id TEXT,
+      reception_channel_id TEXT,
+      questions TEXT NOT NULL DEFAULT '[]',
+      cooldown_minutes INTEGER NOT NULL DEFAULT 0,
+      published_channel_id TEXT,
+      published_message_id TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS form_responses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+      form_id INTEGER NOT NULL,
+      guild_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      username TEXT NOT NULL DEFAULT '',
+      display_name TEXT NOT NULL DEFAULT '',
+      avatar_url TEXT,
+      answers TEXT NOT NULL DEFAULT '[]',
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (form_id) REFERENCES guild_forms(id) ON DELETE CASCADE,
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS scheduled_messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
       guild_id TEXT NOT NULL,
@@ -559,6 +594,55 @@ function ensureCoreTables(database: Database.Database): void {
         `ALTER TABLE scheduled_messages ADD COLUMN timezone TEXT NOT NULL DEFAULT 'UTC'`,
       );
     }
+  }
+
+  // Migración suave: interactive_forms (1:1) → guild_forms (N)
+  try {
+    const guildFormsCount = (
+      database.prepare(`SELECT COUNT(*) AS c FROM guild_forms`).get() as {
+        c: number;
+      }
+    ).c;
+    if (guildFormsCount === 0) {
+      const legacy = database
+        .prepare(`SELECT * FROM interactive_forms`)
+        .all() as Array<Record<string, unknown>>;
+      const now = Date.now();
+      const insert = database.prepare(`
+        INSERT INTO guild_forms (
+          guild_id, modal_title, button_label, embed_title, embed_description,
+          embed_color, publish_channel_id, reception_channel_id, questions,
+          cooldown_minutes, published_channel_id, published_message_id,
+          created_at, updated_at
+        ) VALUES (
+          @guild_id, @modal_title, @button_label, @embed_title, @embed_description,
+          @embed_color, @publish_channel_id, @reception_channel_id, @questions,
+          0, @published_channel_id, @published_message_id,
+          @created_at, @updated_at
+        )
+      `);
+      for (const row of legacy) {
+        insert.run({
+          guild_id: row.guild_id,
+          modal_title: row.modal_title ?? "Formulario",
+          button_label: row.button_label ?? "Abrir formulario",
+          embed_title: row.embed_title ?? "Formulario del servidor",
+          embed_description:
+            row.embed_description ??
+            "Haz clic en el botón para completar el formulario.",
+          embed_color: row.embed_color ?? "#5865F2",
+          publish_channel_id: row.publish_channel_id ?? null,
+          reception_channel_id: row.reception_channel_id ?? null,
+          questions: row.questions ?? "[]",
+          published_channel_id: row.published_channel_id ?? null,
+          published_message_id: row.published_message_id ?? null,
+          created_at: Number(row.updated_at) || now,
+          updated_at: Number(row.updated_at) || now,
+        });
+      }
+    }
+  } catch {
+    /* tablas aún no listas */
   }
 }
 

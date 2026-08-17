@@ -2,7 +2,11 @@
 
 import type { EmbedPayload } from "./messages.js";
 
-export type ScheduledFrequencyType = "daily" | "weekly" | "monthly";
+export type ScheduledFrequencyType =
+  | "daily"
+  | "weekly"
+  | "monthly"
+  | "specific_date";
 
 /** 0 = Domingo … 6 = Sábado (node-cron). */
 export type ScheduledWeekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -15,6 +19,14 @@ export interface ScheduledFrequency {
   days: ScheduledWeekday[];
   /** Mensual: día del mes 1–31. */
   dayOfMonth: number;
+  /** Fecha específica: `YYYY-MM-DD`. */
+  date: string;
+  /**
+   * Fecha específica: si true, se repite cada año (mismo día/mes).
+   * Si false, solo el año de `date` y luego se desactiva.
+   * Default: false.
+   */
+  repeatYearly: boolean;
 }
 
 export interface ScheduledEmbedData {
@@ -67,12 +79,22 @@ export type UpdateScheduledMessageRequest = Partial<{
 export const DEFAULT_SCHEDULED_EMBED_COLOR = "#5865F2";
 export const DEFAULT_SCHEDULED_TIMEZONE = "UTC";
 
+function todayYmd(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export function defaultScheduledFrequency(): ScheduledFrequency {
   return {
     type: "daily",
     time: "12:00",
     days: [],
     dayOfMonth: 1,
+    date: todayYmd(),
+    repeatYearly: false,
   };
 }
 
@@ -120,9 +142,19 @@ export function detectLocalTimezone(): string {
 export function normalizeScheduledFrequencyType(
   value: unknown,
 ): ScheduledFrequencyType {
-  const raw = String(value ?? "").trim().toLowerCase();
+  const raw = String(value ?? "").trim().toLowerCase().replace(/-/g, "_");
   if (raw === "weekly" || raw === "semanal") return "weekly";
   if (raw === "monthly" || raw === "mensual") return "monthly";
+  if (
+    raw === "specific_date" ||
+    raw === "specificdate" ||
+    raw === "fecha_especifica" ||
+    raw === "fechaespecifica" ||
+    raw === "once" ||
+    raw === "one_shot"
+  ) {
+    return "specific_date";
+  }
   return "daily";
 }
 
@@ -147,6 +179,23 @@ export function normalizeScheduledClockTime(
   return `${match[1]!.padStart(2, "0")}:${match[2]!}`;
 }
 
+/** Normaliza `YYYY-MM-DD`. Fallback = hoy (local). */
+export function normalizeScheduledDate(
+  value: unknown,
+  fallback = todayYmd(),
+): string {
+  const raw = String(value ?? "").trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (!match) return fallback;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (year < 1970 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) {
+    return fallback;
+  }
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 export function normalizeScheduledFrequency(
   input: Partial<ScheduledFrequency> | undefined,
 ): ScheduledFrequency {
@@ -161,6 +210,9 @@ export function normalizeScheduledFrequency(
       1,
       Math.min(31, Math.round(Number(input.dayOfMonth) || 1)),
     ),
+    date: normalizeScheduledDate(input.date ?? base.date),
+    /** Default false para no spamear en años posteriores. */
+    repeatYearly: Boolean(input.repeatYearly),
   };
 }
 
@@ -219,6 +271,11 @@ export function formatScheduledFrequencySummary(
     base = `Todos los días a las ${time}`;
   } else if (frequency.type === "monthly") {
     base = `El día ${frequency.dayOfMonth} de cada mes a las ${time}`;
+  } else if (frequency.type === "specific_date") {
+    const date = frequency.date || "—";
+    base = frequency.repeatYearly
+      ? `Cada año el ${date.slice(5)} a las ${time}`
+      : `El ${date} a las ${time} (una vez)`;
   } else {
     const days = frequency.days ?? [];
     if (days.length === 0) {
@@ -230,4 +287,22 @@ export function formatScheduledFrequencySummary(
   }
   if (timezone?.trim()) return `${base} (${timezone.trim()})`;
   return base;
+}
+
+/** Año civil en una zona IANA. */
+export function getCalendarYearInTimezone(
+  timezone: string,
+  at: Date = new Date(),
+): number {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      year: "numeric",
+    }).formatToParts(at);
+    const year = Number(parts.find((p) => p.type === "year")?.value);
+    if (Number.isFinite(year)) return year;
+  } catch {
+    /* ignore */
+  }
+  return at.getUTCFullYear();
 }

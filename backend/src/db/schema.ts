@@ -537,7 +537,67 @@ export type UserXpRow = typeof userXp.$inferSelect;
 export type NewUserXpRow = typeof userXp.$inferInsert;
 
 /**
- * Configuración de Formularios interactivos (Discord Modals) por guild.
+ * Formularios interactivos (Discord Modals) — varios por guild.
+ */
+export const guildForms = sqliteTable("guild_forms", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  guildId: text("guild_id")
+    .notNull()
+    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+  modalTitle: text("modal_title").notNull().default("Formulario"),
+  buttonLabel: text("button_label").notNull().default("Abrir formulario"),
+  embedTitle: text("embed_title").notNull().default("Formulario del servidor"),
+  embedDescription: text("embed_description")
+    .notNull()
+    .default("Haz clic en el botón para completar el formulario."),
+  embedColor: text("embed_color").notNull().default("#5865F2"),
+  embedImageUrl: text("embed_image_url"),
+  embedThumbnailUrl: text("embed_thumbnail_url"),
+  publishChannelId: text("publish_channel_id"),
+  receptionChannelId: text("reception_channel_id"),
+  /** JSON: FormQuestion[] */
+  questions: text("questions").notNull().default("[]"),
+  cooldownMinutes: integer("cooldown_minutes").notNull().default(0),
+  publishedChannelId: text("published_channel_id"),
+  publishedMessageId: text("published_message_id"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export type GuildFormRow = typeof guildForms.$inferSelect;
+export type NewGuildFormRow = typeof guildForms.$inferInsert;
+
+/**
+ * Respuestas enviadas a formularios.
+ */
+export const formResponses = sqliteTable("form_responses", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  formId: integer("form_id")
+    .notNull()
+    .references(() => guildForms.id, { onDelete: "cascade" }),
+  guildId: text("guild_id")
+    .notNull()
+    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  username: text("username").notNull().default(""),
+  displayName: text("display_name").notNull().default(""),
+  avatarUrl: text("avatar_url"),
+  /** JSON: FormAnswerEntry[] */
+  answers: text("answers").notNull().default("[]"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export type FormResponseRow = typeof formResponses.$inferSelect;
+export type NewFormResponseRow = typeof formResponses.$inferInsert;
+
+/**
+ * @deprecated Tabla legacy 1:1 por guild. Migrada a `guild_forms`.
  */
 export const interactiveForms = sqliteTable("interactive_forms", {
   guildId: text("guild_id")
@@ -552,7 +612,6 @@ export const interactiveForms = sqliteTable("interactive_forms", {
   embedColor: text("embed_color").notNull().default("#5865F2"),
   publishChannelId: text("publish_channel_id"),
   receptionChannelId: text("reception_channel_id"),
-  /** JSON: FormQuestion[] */
   questions: text("questions").notNull().default("[]"),
   publishedChannelId: text("published_channel_id"),
   publishedMessageId: text("published_message_id"),

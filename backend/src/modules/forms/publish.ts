@@ -4,19 +4,18 @@ import {
   ButtonStyle,
   ChannelType,
   EmbedBuilder,
+  type AttachmentBuilder,
   type Client,
   type TextChannel,
 } from "discord.js";
-import {
-  FORM_OPEN_PREFIX,
-  type PublishFormsResponse,
-  type UpdateFormsConfigRequest,
-} from "@adobos/shared";
+import type { PublishFormResponse, UpdateFormRequest } from "@adobos/shared";
+import { FORM_OPEN_PREFIX } from "@adobos/shared";
+import { resolveEmbedMedia } from "../../lib/embedMedia.js";
 import {
   FormsError,
-  getFormsConfig,
-  setFormsPublishedMessage,
-  updateFormsConfig,
+  getForm,
+  setFormPublishedMessage,
+  updateForm,
 } from "./service.js";
 
 function embedColorInt(hex: string): number {
@@ -24,11 +23,12 @@ function embedColorInt(hex: string): number {
   return Number.isFinite(n) ? n : 0x5865f2;
 }
 
-export async function publishFormsMessage(
+export async function publishFormMessage(
   bot: Client,
+  formId: number,
   guildId?: string,
-  input?: UpdateFormsConfigRequest,
-): Promise<PublishFormsResponse> {
+  input?: UpdateFormRequest,
+): Promise<PublishFormResponse> {
   if (!bot.isReady()) {
     throw new FormsError(
       "El bot de Discord no está conectado.",
@@ -37,25 +37,25 @@ export async function publishFormsMessage(
     );
   }
 
-  const config = input
-    ? updateFormsConfig(input, guildId)
-    : getFormsConfig(guildId);
+  const form = input
+    ? updateForm(formId, input, guildId)
+    : getForm(formId, guildId);
 
-  if (!config.publishChannelId) {
+  if (!form.publishChannelId) {
     throw new FormsError(
       "Selecciona un canal de publicación en «Mensaje Base».",
       400,
       "MISSING_PUBLISH_CHANNEL",
     );
   }
-  if (!config.receptionChannelId) {
+  if (!form.receptionChannelId) {
     throw new FormsError(
       "Selecciona un canal de recepción en la pestaña «Recepción».",
       400,
       "MISSING_RECEPTION_CHANNEL",
     );
   }
-  if (config.questions.length === 0) {
+  if (form.questions.length === 0) {
     throw new FormsError(
       "Añade al menos una pregunta al formulario.",
       400,
@@ -64,7 +64,7 @@ export async function publishFormsMessage(
   }
 
   const channel = await bot.channels
-    .fetch(config.publishChannelId)
+    .fetch(form.publishChannelId)
     .catch(() => null);
   if (
     !channel ||
@@ -79,55 +79,117 @@ export async function publishFormsMessage(
   }
 
   const textChannel = channel as TextChannel;
-  const openCustomId = `${FORM_OPEN_PREFIX}${config.guildId}`.slice(0, 100);
+  const openCustomId = `${FORM_OPEN_PREFIX}${form.id}`.slice(0, 100);
+
+  const files: AttachmentBuilder[] = [];
+  let imageUrl: string | undefined;
+  let thumbnailUrl: string | undefined;
+
+  if (form.embedImageUrl) {
+    try {
+      const resolved = resolveEmbedMedia(
+        form.embedImageUrl,
+        "embedImageUrl",
+        "form-image",
+      );
+      if (resolved.file) files.push(resolved.file);
+      imageUrl = resolved.url;
+    } catch (error) {
+      throw new FormsError(
+        error instanceof Error
+          ? error.message
+          : "Imagen principal inválida.",
+        400,
+        "INVALID_IMAGE",
+      );
+    }
+  }
+
+  if (form.embedThumbnailUrl) {
+    try {
+      const resolved = resolveEmbedMedia(
+        form.embedThumbnailUrl,
+        "embedThumbnailUrl",
+        "form-thumb",
+      );
+      if (resolved.file) files.push(resolved.file);
+      thumbnailUrl = resolved.url;
+    } catch (error) {
+      throw new FormsError(
+        error instanceof Error ? error.message : "Thumbnail inválido.",
+        400,
+        "INVALID_THUMBNAIL",
+      );
+    }
+  }
 
   const embed = new EmbedBuilder()
-    .setColor(embedColorInt(config.embedColor))
-    .setTitle(config.embedTitle)
-    .setDescription(config.embedDescription || "\u200b");
+    .setColor(embedColorInt(form.embedColor))
+    .setTitle(form.embedTitle)
+    .setDescription(form.embedDescription || "\u200b");
+  if (imageUrl) embed.setImage(imageUrl);
+  if (thumbnailUrl) embed.setThumbnail(thumbnailUrl);
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(openCustomId)
-      .setLabel(config.buttonLabel.slice(0, 80))
+      .setLabel(form.buttonLabel.slice(0, 80))
       .setStyle(ButtonStyle.Primary),
   );
 
-  let messageId = config.publishedMessageId;
-  let channelId = config.publishedChannelId ?? config.publishChannelId;
+  let messageId = form.publishedMessageId;
+  let channelId = form.publishedChannelId ?? form.publishChannelId;
+
+  const payload = {
+    embeds: [embed],
+    components: [row],
+    files: files.length > 0 ? files : undefined,
+  };
 
   if (
-    config.publishedMessageId &&
-    config.publishedChannelId === config.publishChannelId
+    form.publishedMessageId &&
+    form.publishedChannelId === form.publishChannelId
   ) {
     const existing = await textChannel.messages
-      .fetch(config.publishedMessageId)
+      .fetch(form.publishedMessageId)
       .catch(() => null);
     if (existing) {
-      await existing.edit({ embeds: [embed], components: [row] });
+      await existing.edit(payload);
       messageId = existing.id;
       channelId = textChannel.id;
     } else {
-      const sent = await textChannel.send({
-        embeds: [embed],
-        components: [row],
-      });
+      const sent = await textChannel.send(payload);
       messageId = sent.id;
       channelId = textChannel.id;
     }
   } else {
-    const sent = await textChannel.send({
-      embeds: [embed],
-      components: [row],
-    });
+    const sent = await textChannel.send(payload);
     messageId = sent.id;
     channelId = textChannel.id;
   }
 
-  const next = setFormsPublishedMessage(config.guildId, channelId, messageId!);
+  const next = setFormPublishedMessage(
+    form.id,
+    channelId,
+    messageId!,
+    form.guildId,
+  );
   return {
-    config: next,
+    form: next,
     messageId: messageId!,
     channelId,
   };
+}
+
+/** @deprecated — API multi-formulario. */
+export async function publishFormsMessage(
+  _bot: Client,
+  _guildId?: string,
+  _input?: UpdateFormRequest,
+): Promise<PublishFormResponse> {
+  throw new FormsError(
+    "Usa publishFormMessage(formId). El API de formularios ahora es multi-formulario.",
+    400,
+    "DEPRECATED",
+  );
 }

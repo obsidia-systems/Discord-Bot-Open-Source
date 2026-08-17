@@ -62,6 +62,13 @@ export {
   saveAutoDeleteConfig,
 } from "./api/auto-delete";
 export {
+  fetchForms,
+  fetchForm,
+  createForm,
+  saveForm,
+  deleteForm,
+  publishForm,
+  fetchFormResponses,
   fetchFormsConfig,
   saveFormsConfig,
   publishFormsConfig,
