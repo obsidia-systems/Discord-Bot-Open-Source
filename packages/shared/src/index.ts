@@ -20,5 +20,6 @@ export * from "./scheduled-messages.js";
 export * from "./custom-commands.js";
 export * from "./system-commands.js";
 export * from "./levels.js";
+export * from "./economy.js";
 export * from "./roles-builder.js";
 

@@ -1,0 +1,11 @@
+---
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { EconomySettingsDashboard } from "../../../features/economy";
+---
+
+<DashboardLayout
+  title="Banco y Ajustes"
+  description="Moneda del servidor, impuesto de transferencias y clasificación económica."
+>
+  <EconomySettingsDashboard client:load />
+</DashboardLayout>

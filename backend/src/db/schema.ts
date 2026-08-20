@@ -707,6 +707,50 @@ export type DefaultCommandPermissionRow =
 export type NewDefaultCommandPermissionRow =
   typeof defaultCommandPermissions.$inferInsert;
 
+/**
+ * Configuración global de economía por guild.
+ */
+export const economyConfig = sqliteTable("economy_config", {
+  guildId: text("guild_id")
+    .primaryKey()
+    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(false),
+  currencyName: text("currency_name").notNull().default("Adobos Coins"),
+  currencySymbol: text("currency_symbol").notNull().default("🪙"),
+  startBalance: integer("start_balance").notNull().default(0),
+  transferTax: integer("transfer_tax").notNull().default(0),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export type EconomyConfigRow = typeof economyConfig.$inferSelect;
+export type NewEconomyConfigRow = typeof economyConfig.$inferInsert;
+
+/**
+ * Saldos de economía por usuario/guild.
+ */
+export const userEconomy = sqliteTable(
+  "user_economy",
+  {
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    wallet: integer("wallet").notNull().default(0),
+    bank: integer("bank").notNull().default(0),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    primaryKey({ columns: [table.guildId, table.userId] }),
+  ],
+);
+
+export type UserEconomyRow = typeof userEconomy.$inferSelect;
+export type NewUserEconomyRow = typeof userEconomy.$inferInsert;
+
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [
   "minecraft",

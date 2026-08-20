@@ -683,6 +683,29 @@ function ensureCoreTables(database: Database.Database): void {
   } catch {
     /* tabla aún no lista */
   }
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS economy_config (
+      guild_id TEXT PRIMARY KEY NOT NULL,
+      is_active INTEGER NOT NULL DEFAULT 0,
+      currency_name TEXT NOT NULL DEFAULT 'Adobos Coins',
+      currency_symbol TEXT NOT NULL DEFAULT '🪙',
+      start_balance INTEGER NOT NULL DEFAULT 0,
+      transfer_tax INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS user_economy (
+      guild_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      wallet INTEGER NOT NULL DEFAULT 0,
+      bank INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (guild_id, user_id),
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
+  `);
 }
 
 export function initDatabase(): AppDatabase {
