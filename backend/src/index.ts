@@ -6,6 +6,7 @@ import { loadModules } from "./core/modules/index.js";
 import { createBotClient } from "./core/bot/createClient.js";
 import { createApp } from "./core/http/createApp.js";
 import { ENABLED_MODULES } from "./modules/index.js";
+import { wireCustomCommandsBuiltinSync } from "./modules/custom-commands/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -16,6 +17,12 @@ async function main(): Promise<void> {
   initDatabase();
 
   const registry = loadModules(ENABLED_MODULES);
+  wireCustomCommandsBuiltinSync(
+    registry.commands.map((c) => ({
+      name: c.name,
+      description: c.description,
+    })),
+  );
   const bot = createBotClient(registry);
   const app = createApp({
     bot,

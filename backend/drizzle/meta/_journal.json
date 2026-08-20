@@ -225,6 +225,13 @@
       "when": 1786530000000,
       "tag": "0031_guild_forms_and_responses",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1786540000000,
+      "tag": "0032_custom_commands",
+      "breakpoints": true
     }
   ]
 }

@@ -650,6 +650,33 @@ export const scheduledMessages = sqliteTable("scheduled_messages", {
 export type ScheduledMessageRow = typeof scheduledMessages.$inferSelect;
 export type NewScheduledMessageRow = typeof scheduledMessages.$inferInsert;
 
+/**
+ * Slash commands personalizados por guild.
+ */
+export const customCommands = sqliteTable("custom_commands", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  guildId: text("guild_id")
+    .notNull()
+    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description").notNull().default("Comando personalizado"),
+  /** JSON: CustomCommandResponseData */
+  responseData: text("response_data").notNull().default("{}"),
+  /** JSON: CustomCommandOptions */
+  options: text("options").notNull().default("{}"),
+  /** JSON: CustomCommandPermissions */
+  permissions: text("permissions").notNull().default("{}"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export type CustomCommandRow = typeof customCommands.$inferSelect;
+export type NewCustomCommandRow = typeof customCommands.$inferInsert;
+
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [
   "minecraft",

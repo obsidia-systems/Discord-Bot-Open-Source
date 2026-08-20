@@ -81,6 +81,12 @@ export {
   deleteScheduledMessage,
 } from "./api/scheduled-messages";
 export {
+  fetchCustomCommands,
+  createCustomCommand,
+  updateCustomCommand,
+  deleteCustomCommand,
+} from "./api/custom-commands";
+export {
   fetchLevelsConfig,
   saveLevelsConfig,
   fetchLevelsLeaderboard,

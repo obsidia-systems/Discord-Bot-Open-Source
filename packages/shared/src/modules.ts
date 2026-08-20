@@ -12,6 +12,7 @@ export type ModuleId =
   | "auto-delete"
   | "forms"
   | "scheduled-messages"
+  | "custom-commands"
   | "levels"
   | "roles-builder";
 

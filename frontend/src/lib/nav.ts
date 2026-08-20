@@ -213,7 +213,6 @@ export const dashboardNav: NavCategoryConfig[] = [
         label: "Comandos custom",
         href: "/dashboard/automation/custom-commands",
         icon: Terminal,
-        soon: true,
         blurb: "Respuestas y slash commands propios.",
       },
     ],

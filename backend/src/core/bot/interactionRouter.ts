@@ -62,14 +62,25 @@ async function handleChatInput(
   registry: ModuleRegistry,
 ): Promise<void> {
   const def = registry.commands.find((c) => c.name === interaction.commandName);
-  if (!def) {
-    await interaction.reply({
-      content: `Comando \`/${interaction.commandName}\` no registrado.`,
-      ephemeral: true,
-    });
+  if (def) {
+    await def.handle(interaction);
     return;
   }
-  await def.handle(interaction);
+
+  try {
+    const { handleCustomChatCommand } = await import(
+      "../../modules/custom-commands/handler.js"
+    );
+    const handled = await handleCustomChatCommand(interaction);
+    if (handled) return;
+  } catch (error) {
+    console.warn("[adobos] custom-commands handler falló:", error);
+  }
+
+  await interaction.reply({
+    content: `Comando \`/${interaction.commandName}\` no registrado.`,
+    ephemeral: true,
+  });
 }
 
 async function handleButton(

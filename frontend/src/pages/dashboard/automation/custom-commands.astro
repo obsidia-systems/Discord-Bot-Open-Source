@@ -1,8 +1,11 @@
 ---
-import ComingSoon from "../../../components/shared/ComingSoon.astro";
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { CustomCommandsDashboard } from "../../../features/custom-commands";
 ---
 
-<ComingSoon
+<DashboardLayout
   title="Comandos custom"
   description="Respuestas y slash commands propios."
-/>
+>
+  <CustomCommandsDashboard client:load />
+</DashboardLayout>
