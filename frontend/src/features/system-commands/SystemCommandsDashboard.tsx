@@ -1,4 +1,5 @@
 import type {
+  GuildChannelAsset,
   GuildRoleAsset,
   SystemCommandCategory,
   SystemCommandConfig,
@@ -13,6 +14,7 @@ import {
   fetchSystemCommands,
   saveSystemCommands,
 } from "@/lib/api";
+import { ChannelMultiSelect } from "@/components/shared/ChannelMultiSelect";
 import { RoleMultiSelect } from "@/components/shared/RoleMultiSelect";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,6 +38,8 @@ import {
   Eye,
   Gavel,
   Loader2,
+  Power,
+  PowerOff,
   Save,
   Search,
   Terminal,
@@ -83,12 +87,19 @@ const CATEGORY_STYLES: Record<
   },
 };
 
+const CHANNEL_TYPES = new Set([0, 2, 5, 13, 15]);
+
+function uniqueIds(ids: string[]): string[] {
+  return [...new Set(ids.filter(Boolean))];
+}
+
 function commandsFingerprint(commands: SystemCommandConfig[]): string {
   return JSON.stringify(
     commands.map((c) => ({
       commandName: c.name,
       enabled: c.enabled,
       allowedRoles: [...c.allowedRoles].sort(),
+      ignoredChannels: [...(c.ignoredChannels ?? [])].sort(),
       ephemeral: c.ephemeral,
     })),
   );
@@ -98,11 +109,14 @@ export function SystemCommandsDashboard() {
   const [commands, setCommands] = useState<SystemCommandConfig[]>([]);
   const [savedFingerprint, setSavedFingerprint] = useState("");
   const [roles, setRoles] = useState<GuildRoleAsset[]>([]);
+  const [channels, setChannels] = useState<GuildChannelAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<CategoryFilter>("all");
   const [configuringName, setConfiguringName] = useState<string | null>(null);
+  const [bulkRoles, setBulkRoles] = useState<string[]>([]);
+  const [bulkChannels, setBulkChannels] = useState<string[]>([]);
   const [toast, setToast] = useState<{
     variant: "success" | "error";
     message: string;
@@ -118,6 +132,14 @@ export function SystemCommandsDashboard() {
     [commands, configuringName],
   );
 
+  const selectableChannels = useMemo(
+    () =>
+      channels
+        .filter((ch) => CHANNEL_TYPES.has(ch.type))
+        .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name)),
+    [channels],
+  );
+
   const load = useCallback(async () => {
     setLoading(true);
     setToast(null);
@@ -129,6 +151,7 @@ export function SystemCommandsDashboard() {
       setCommands(list);
       setSavedFingerprint(commandsFingerprint(list));
       setRoles(assets.roles ?? []);
+      setChannels(assets.channels ?? []);
     } catch (error) {
       setToast({
         variant: "error",
@@ -146,6 +169,11 @@ export function SystemCommandsDashboard() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    setBulkRoles([]);
+    setBulkChannels([]);
+  }, [category]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return commands.filter((cmd) => {
@@ -161,12 +189,46 @@ export function SystemCommandsDashboard() {
   function patchCommand(
     name: string,
     patch: Partial<
-      Pick<SystemCommandConfig, "enabled" | "allowedRoles" | "ephemeral">
+      Pick<
+        SystemCommandConfig,
+        "enabled" | "allowedRoles" | "ignoredChannels" | "ephemeral"
+      >
     >,
   ): void {
     setCommands((prev) =>
       prev.map((c) => (c.name === name ? { ...c, ...patch } : c)),
     );
+  }
+
+  function patchCategoryCommands(
+    cat: SystemCommandCategory,
+    mapper: (cmd: SystemCommandConfig) => SystemCommandConfig,
+  ): void {
+    setCommands((prev) =>
+      prev.map((c) => (c.category === cat ? mapper(c) : c)),
+    );
+  }
+
+  function enableCategory(cat: SystemCommandCategory, enabled: boolean): void {
+    patchCategoryCommands(cat, (c) => ({ ...c, enabled }));
+  }
+
+  function applyBulkToCategory(cat: SystemCommandCategory): void {
+    patchCategoryCommands(cat, (c) => ({
+      ...c,
+      allowedRoles:
+        bulkRoles.length > 0
+          ? uniqueIds([...c.allowedRoles, ...bulkRoles])
+          : c.allowedRoles,
+      ignoredChannels:
+        bulkChannels.length > 0
+          ? uniqueIds([...(c.ignoredChannels ?? []), ...bulkChannels])
+          : (c.ignoredChannels ?? []),
+    }));
+    setToast({
+      variant: "success",
+      message: `Cambios aplicados a ${SYSTEM_COMMAND_CATEGORY_LABELS[cat]}. Recuerda guardar.`,
+    });
   }
 
   async function handleSave(): Promise<void> {
@@ -178,6 +240,7 @@ export function SystemCommandsDashboard() {
           commandName: c.name,
           enabled: c.enabled,
           allowedRoles: c.allowedRoles,
+          ignoredChannels: c.ignoredChannels ?? [],
           ephemeral: c.ephemeral,
         })),
       );
@@ -254,6 +317,67 @@ export function SystemCommandsDashboard() {
           </TabsList>
         </Tabs>
       </div>
+
+      {category !== "all" ? (
+        <Card className="mb-2 border-primary/20 bg-muted/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">
+              Acciones Masivas para {SYSTEM_COMMAND_CATEGORY_LABELS[category]}
+            </CardTitle>
+            <CardDescription>
+              Afecta solo los comandos de esta categoría en el estado local.
+              Pulsa Guardar Cambios para persistir.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => enableCategory(category, true)}
+              >
+                <Power className="size-4" />
+                Activar Todos
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => enableCategory(category, false)}
+              >
+                <PowerOff className="size-4" />
+                Desactivar Todos
+              </Button>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <RoleMultiSelect
+                label="Aplicar Rol Permitido a toda la categoría"
+                placeholder="Seleccionar roles…"
+                roles={roles}
+                value={bulkRoles}
+                onChange={setBulkRoles}
+                emptyHint="Sin roles seleccionados para aplicar."
+              />
+              <ChannelMultiSelect
+                label="Aplicar Canal Ignorado a toda la categoría"
+                placeholder="Seleccionar canales…"
+                channels={selectableChannels}
+                value={bulkChannels}
+                onChange={setBulkChannels}
+                emptyHint="Sin canales seleccionados para aplicar."
+              />
+            </div>
+            <Button
+              type="button"
+              onClick={() => applyBulkToCategory(category)}
+              disabled={bulkRoles.length === 0 && bulkChannels.length === 0}
+            >
+              Aplicar a la categoría
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {filtered.length === 0 ? (
         <Card>
@@ -335,7 +459,7 @@ export function SystemCommandsDashboard() {
             className="w-full"
             onClick={() => setConfiguringName(null)}
           >
-            Listo
+            Guardar cambios del comando
           </Button>
         }
       >
@@ -363,30 +487,30 @@ export function SystemCommandsDashboard() {
                     <tbody>
                       {(configuring.parameters ?? configuring.options).map(
                         (param) => (
-                        <tr
-                          key={param.name}
-                          className="border-t border-border"
-                        >
-                          <td className="px-3 py-2 font-mono text-xs">
-                            {param.name}
-                          </td>
-                          <td className="px-3 py-2 text-muted-foreground">
-                            {SYSTEM_COMMAND_PARAM_TYPE_LABELS[param.type]}
-                          </td>
-                          <td className="px-3 py-2">
-                            <Badge
-                              className={cn(
-                                "normal-case tracking-normal",
-                                param.required
-                                  ? "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300"
-                                  : "border-border bg-muted text-muted-foreground",
-                              )}
-                            >
-                              {param.required ? "Requerido" : "Opcional"}
-                            </Badge>
-                          </td>
-                        </tr>
-                      ),
+                          <tr
+                            key={param.name}
+                            className="border-t border-border"
+                          >
+                            <td className="px-3 py-2 font-mono text-xs">
+                              {param.name}
+                            </td>
+                            <td className="px-3 py-2 text-muted-foreground">
+                              {SYSTEM_COMMAND_PARAM_TYPE_LABELS[param.type]}
+                            </td>
+                            <td className="px-3 py-2">
+                              <Badge
+                                className={cn(
+                                  "normal-case tracking-normal",
+                                  param.required
+                                    ? "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300"
+                                    : "border-border bg-muted text-muted-foreground",
+                                )}
+                              >
+                                {param.required ? "Requerido" : "Opcional"}
+                              </Badge>
+                            </td>
+                          </tr>
+                        ),
                       )}
                     </tbody>
                   </table>
@@ -409,6 +533,16 @@ export function SystemCommandsDashboard() {
                     ? "Sin roles: se exige permiso de moderación de Discord."
                     : "Sin roles: cualquier miembro puede usarlo."
                 }
+              />
+              <ChannelMultiSelect
+                label="Canales Ignorados"
+                placeholder="Ningún canal ignorado…"
+                channels={selectableChannels}
+                value={configuring.ignoredChannels ?? []}
+                onChange={(ignoredChannels) =>
+                  patchCommand(configuring.name, { ignoredChannels })
+                }
+                emptyHint="Vacío: el comando se puede usar en todos los canales."
               />
               {configuring.supportsEphemeral ? (
                 <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-3">
@@ -438,7 +572,7 @@ export function SystemCommandsDashboard() {
       <div
         className={cn(
           "fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80",
-          !dirty && "pointer-events-none opacity-0",
+          (!dirty || configuring) && "pointer-events-none opacity-0",
         )}
       >
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">

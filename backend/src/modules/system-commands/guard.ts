@@ -57,15 +57,14 @@ function memberHasModPermission(
 }
 
 /**
- * Valida enabled / roles / admin-by-default antes de ejecutar un slash nativo.
- * Guarda la preferencia ephemeral en el mapa de interacción.
+ * Valida enabled / canales ignorados / roles / admin-by-default
+ * antes de ejecutar un slash nativo.
  */
 export function assertSystemCommandAllowed(
   interaction: ChatInputCommandInteraction,
 ): SystemCommandGuardResult {
   const def = getSystemCommandDefinition(interaction.commandName);
   if (!def) {
-    // No está en el catálogo (custom u otro) — no bloquear aquí.
     return { ok: true, ephemeral: false };
   }
 
@@ -86,6 +85,16 @@ export function assertSystemCommandAllowed(
     return {
       ok: false,
       message: "❌ Este comando ha sido desactivado por los administradores.",
+    };
+  }
+
+  if (
+    interaction.channelId &&
+    perm.ignoredChannels.includes(interaction.channelId)
+  ) {
+    return {
+      ok: false,
+      message: "🚫 Este comando no se puede usar en este canal.",
     };
   }
 

@@ -43,7 +43,7 @@ export function Sheet({
   return (
     <div
       className={cn(
-        "fixed inset-0 z-50",
+        "fixed inset-0 z-[60]",
         open ? "pointer-events-auto" : "pointer-events-none",
       )}
       aria-hidden={!open}
@@ -61,7 +61,7 @@ export function Sheet({
         role="dialog"
         aria-modal="true"
         className={cn(
-          "absolute top-0 flex h-full w-full max-w-md flex-col border-border bg-card shadow-2xl transition-transform duration-300 ease-out",
+          "absolute top-0 flex h-full max-h-dvh w-full max-w-md flex-col border-border bg-card p-0 shadow-2xl transition-transform duration-300 ease-out",
           side === "right" ? "right-0 border-l" : "left-0 border-r",
           open
             ? "translate-x-0"
@@ -71,7 +71,7 @@ export function Sheet({
           className,
         )}
       >
-        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4">
+        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-border p-6 pb-2">
           <div className="min-w-0 space-y-1">
             <h2 className="font-display text-base font-semibold leading-tight">
               {title}
@@ -91,9 +91,11 @@ export function Sheet({
             <span className="sr-only">Cerrar</span>
           </Button>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-6">
+          {children}
+        </div>
         {footer ? (
-          <footer className="shrink-0 border-t border-border bg-card px-5 py-4">
+          <footer className="sticky bottom-0 z-10 mt-auto shrink-0 border-t border-border bg-background p-4">
             {footer}
           </footer>
         ) : null}

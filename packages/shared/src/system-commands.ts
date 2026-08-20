@@ -63,6 +63,7 @@ export interface SystemCommandPermission {
   commandName: string;
   enabled: boolean;
   allowedRoles: string[];
+  ignoredChannels: string[];
   ephemeral: boolean;
 }
 
@@ -70,6 +71,7 @@ export interface SystemCommandPermission {
 export interface SystemCommandConfig extends SystemCommandDefinition {
   enabled: boolean;
   allowedRoles: string[];
+  ignoredChannels: string[];
   ephemeral: boolean;
   /** Alias de `options` para el Sheet/tabla de parámetros. */
   parameters: SystemCommandOption[];
@@ -84,6 +86,7 @@ export type UpdateSystemCommandsRequest = {
     commandName: string;
     enabled: boolean;
     allowedRoles: string[];
+    ignoredChannels: string[];
     ephemeral: boolean;
   }>;
 };
@@ -525,6 +528,7 @@ export function defaultSystemCommandPermission(
     commandName: def.name,
     enabled: def.defaultEnabled,
     allowedRoles: [],
+    ignoredChannels: [],
     ephemeral: def.defaultEphemeral,
   };
 }
@@ -541,6 +545,8 @@ export function toDiscordSlashCommandBody(def: SystemCommandDefinition): {
     min_value?: number;
     max_value?: number;
   }>;
+  /** Discord bitfield string, o `null` = visible para todos. */
+  default_member_permissions?: string | null;
 } {
   const options = def.options.map((o) => ({
     type: DISCORD_OPTION_TYPE[o.type],
@@ -555,4 +561,21 @@ export function toDiscordSlashCommandBody(def: SystemCommandDefinition): {
     description: def.description.slice(0, 100),
     ...(options.length ? { options } : {}),
   };
+}
+
+/**
+ * Preset de visibilidad nativa en Discord (autocompletado).
+ * `public` → null (todos). El backend mapea a PermissionFlagsBits.
+ */
+export type SystemCommandDiscordPermPreset =
+  | "public"
+  | "moderation"
+  | "manage_guild";
+
+export function resolveDiscordPermPreset(
+  def: SystemCommandDefinition,
+): SystemCommandDiscordPermPreset {
+  if (!def.requiresAdminByDefault) return "public";
+  if (def.category === "moderation") return "moderation";
+  return "manage_guild";
 }

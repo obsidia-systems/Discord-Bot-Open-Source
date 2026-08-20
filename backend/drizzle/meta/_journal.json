@@ -239,6 +239,13 @@
       "when": 1786550000000,
       "tag": "0033_default_command_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1786560000000,
+      "tag": "0034_default_command_ignored_channels",
+      "breakpoints": true
     }
   ]
 }

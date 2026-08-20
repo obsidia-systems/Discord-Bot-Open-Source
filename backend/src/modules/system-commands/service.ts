@@ -26,7 +26,7 @@ export class SystemCommandsError extends Error {
   }
 }
 
-function parseRoles(raw: string | null | undefined): string[] {
+function parseIdArray(raw: string | null | undefined): string[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw) as unknown;
@@ -77,6 +77,7 @@ function rowToPermission(
     | {
         enabled: boolean;
         allowedRoles: string;
+        ignoredChannels?: string | null;
         ephemeral: boolean;
       }
     | undefined,
@@ -87,7 +88,8 @@ function rowToPermission(
       guildId,
       commandName,
       enabled: row?.enabled ?? true,
-      allowedRoles: parseRoles(row?.allowedRoles),
+      allowedRoles: parseIdArray(row?.allowedRoles),
+      ignoredChannels: parseIdArray(row?.ignoredChannels),
       ephemeral: row?.ephemeral ?? false,
     };
   }
@@ -96,7 +98,8 @@ function rowToPermission(
     guildId,
     commandName,
     enabled: row.enabled,
-    allowedRoles: parseRoles(row.allowedRoles),
+    allowedRoles: parseIdArray(row.allowedRoles),
+    ignoredChannels: parseIdArray(row.ignoredChannels),
     ephemeral: row.ephemeral,
   };
 }
@@ -140,6 +143,7 @@ export function listSystemCommandConfigs(
       parameters: def.options,
       enabled: perm.enabled,
       allowedRoles: perm.allowedRoles,
+      ignoredChannels: perm.ignoredChannels,
       ephemeral: perm.ephemeral,
     };
   });
@@ -180,12 +184,15 @@ export function updateSystemCommandPermissions(
           .map((r) => r.trim())
       : [];
 
+    const ignoredChannels = Array.isArray(item.ignoredChannels)
+      ? item.ignoredChannels
+          .filter((r): r is string => typeof r === "string" && r.trim().length > 0)
+          .map((r) => r.trim())
+      : [];
+
     const enabled = Boolean(item.enabled);
     const ephemeral = Boolean(item.ephemeral);
     const def = getSystemCommandDefinition(name)!;
-    if (!def.supportsEphemeral && ephemeral) {
-      // Ignorar ephemeral en comandos que no lo soportan
-    }
 
     getDb()
       .insert(defaultCommandPermissions)
@@ -194,6 +201,7 @@ export function updateSystemCommandPermissions(
         commandName: name,
         enabled,
         allowedRoles: JSON.stringify(allowedRoles),
+        ignoredChannels: JSON.stringify(ignoredChannels),
         ephemeral: def.supportsEphemeral ? ephemeral : def.defaultEphemeral,
         updatedAt: now,
       })
@@ -205,6 +213,7 @@ export function updateSystemCommandPermissions(
         set: {
           enabled,
           allowedRoles: JSON.stringify(allowedRoles),
+          ignoredChannels: JSON.stringify(ignoredChannels),
           ephemeral: def.supportsEphemeral ? ephemeral : def.defaultEphemeral,
           updatedAt: now,
         },

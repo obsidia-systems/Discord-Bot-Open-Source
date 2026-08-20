@@ -690,6 +690,8 @@ export const defaultCommandPermissions = sqliteTable(
     enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
     /** JSON: string[] role IDs */
     allowedRoles: text("allowed_roles").notNull().default("[]"),
+    /** JSON: string[] channel IDs donde el comando no se puede usar */
+    ignoredChannels: text("ignored_channels").notNull().default("[]"),
     ephemeral: integer("ephemeral", { mode: "boolean" }).notNull().default(false),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .notNull()

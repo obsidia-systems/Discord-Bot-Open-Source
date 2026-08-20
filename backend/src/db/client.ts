@@ -309,6 +309,7 @@ function ensureCoreTables(database: Database.Database): void {
       command_name TEXT NOT NULL,
       enabled INTEGER NOT NULL DEFAULT 1,
       allowed_roles TEXT NOT NULL DEFAULT '[]',
+      ignored_channels TEXT NOT NULL DEFAULT '[]',
       ephemeral INTEGER NOT NULL DEFAULT 0,
       updated_at INTEGER NOT NULL,
       PRIMARY KEY (guild_id, command_name),
@@ -667,6 +668,20 @@ function ensureCoreTables(database: Database.Database): void {
     }
   } catch {
     /* tablas aún no listas */
+  }
+
+  try {
+    const dcpCols = database
+      .prepare(`PRAGMA table_info(default_command_permissions)`)
+      .all() as Array<{ name: string }>;
+    const dcpNames = new Set(dcpCols.map((c) => c.name));
+    if (dcpNames.size > 0 && !dcpNames.has("ignored_channels")) {
+      database.exec(
+        `ALTER TABLE default_command_permissions ADD COLUMN ignored_channels TEXT NOT NULL DEFAULT '[]'`,
+      );
+    }
+  } catch {
+    /* tabla aún no lista */
   }
 }
 

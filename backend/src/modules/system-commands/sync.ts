@@ -2,10 +2,12 @@ import type {
   Client,
   RESTPostAPIChatInputApplicationCommandsJSONBody,
 } from "discord.js";
-import { REST, Routes } from "discord.js";
+import { PermissionFlagsBits, REST, Routes } from "discord.js";
 import {
   SYSTEM_COMMAND_CATALOG,
+  resolveDiscordPermPreset,
   toDiscordSlashCommandBody,
+  type SystemCommandDefinition,
 } from "@adobos/shared";
 import { getCommandPermission } from "./service.js";
 
@@ -27,9 +29,30 @@ function resolveGuildId(guildId?: string): string {
   return id;
 }
 
+/** Bitfield Discord para ocultar el comando en el autocomplete. */
+function defaultMemberPermissionsFor(
+  def: SystemCommandDefinition,
+): string | null {
+  const preset = resolveDiscordPermPreset(def);
+  switch (preset) {
+    case "public":
+      return null;
+    case "moderation":
+      return String(
+        PermissionFlagsBits.BanMembers |
+          PermissionFlagsBits.KickMembers |
+          PermissionFlagsBits.ModerateMembers |
+          PermissionFlagsBits.ManageChannels,
+      );
+    case "manage_guild":
+      return String(PermissionFlagsBits.ManageGuild);
+    default:
+      return null;
+  }
+}
+
 /**
  * Catálogo filtrado por permisos de la guild (`enabled !== false`).
- * Sin fila en DB → usa `defaultEnabled` del catálogo.
  */
 export function listEnabledDefaultCommands(guildId: string) {
   return SYSTEM_COMMAND_CATALOG.filter((def) => {
@@ -38,21 +61,22 @@ export function listEnabledDefaultCommands(guildId: string) {
   });
 }
 
-/** Cuerpos REST de slash nativos habilitados para la guild. */
+/** Cuerpos REST de slash nativos habilitados (+ default_member_permissions). */
 export function buildEnabledDefaultSlashBodies(
   guildId: string,
 ): RESTPostAPIChatInputApplicationCommandsJSONBody[] {
-  return listEnabledDefaultCommands(guildId).map((def) =>
-    toDiscordSlashCommandBody(def),
-  ) as RESTPostAPIChatInputApplicationCommandsJSONBody[];
+  return listEnabledDefaultCommands(guildId).map((def) => {
+    const body = toDiscordSlashCommandBody(def);
+    return {
+      ...body,
+      default_member_permissions: defaultMemberPermissionsFor(def),
+    } as RESTPostAPIChatInputApplicationCommandsJSONBody;
+  });
 }
 
 /**
- * Registra en Discord solo los comandos nativos habilitados + (opcional) customs
- * vía `syncGuildSlashCommands` del módulo custom-commands.
- *
- * Esta función escribe únicamente los defaults (útil para tests).
- * Preferir `syncGuildSlashCommands` en producción para no borrar customs.
+ * Registra en Discord solo los comandos nativos habilitados.
+ * Preferir `syncGuildSlashCommands` para no borrar customs.
  */
 export async function syncDefaultCommands(
   client: Client,
