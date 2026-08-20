@@ -29,7 +29,25 @@ function memberHasModPermission(
     case "kick":
       return perms.has(PermissionFlagsBits.KickMembers);
     case "timeout":
+    case "untimeout":
+    case "warn":
+    case "warns":
+    case "clearwarns":
       return perms.has(PermissionFlagsBits.ModerateMembers);
+    case "purge":
+    case "slowmode":
+    case "lock":
+    case "unlock":
+      return perms.has(PermissionFlagsBits.ManageChannels);
+    case "givexp":
+    case "removexp":
+    case "setlevel":
+    case "addmoney":
+    case "removemoney":
+      return (
+        perms.has(PermissionFlagsBits.ManageGuild) ||
+        perms.has(PermissionFlagsBits.Administrator)
+      );
     default:
       return (
         perms.has(PermissionFlagsBits.ManageGuild) ||

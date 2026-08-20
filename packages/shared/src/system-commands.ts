@@ -1,25 +1,62 @@
-/** Catálogo y permisos de slash commands nativos del bot. */
+/** Catálogo central de slash commands nativos (única fuente de verdad UI + Discord). */
 
 export type SystemCommandCategory =
   | "moderation"
   | "levels"
-  | "forms"
-  | "utilities";
+  | "economy"
+  | "utilities"
+  | "forms";
+
+/** Tipo Discord de un parámetro slash. */
+export type SystemCommandParamType =
+  | "USER"
+  | "STRING"
+  | "INTEGER"
+  | "NUMBER"
+  | "BOOLEAN"
+  | "CHANNEL"
+  | "ROLE";
+
+/** Códigos ApplicationCommandOptionType de Discord. */
+export const DISCORD_OPTION_TYPE: Record<SystemCommandParamType, number> = {
+  STRING: 3,
+  INTEGER: 4,
+  BOOLEAN: 5,
+  USER: 6,
+  CHANNEL: 7,
+  ROLE: 8,
+  NUMBER: 10,
+};
+
+export interface SystemCommandOption {
+  name: string;
+  type: SystemCommandParamType;
+  required: boolean;
+  description?: string;
+  minValue?: number;
+  maxValue?: number;
+}
 
 export interface SystemCommandDefinition {
   name: string;
   description: string;
   category: SystemCommandCategory;
+  /** Valor por defecto de `enabled` si no hay fila en DB. */
+  defaultEnabled: boolean;
+  /** Opciones slash (Discord + documentación del Sheet). */
+  options: SystemCommandOption[];
   /** Si true, la UI muestra el toggle de respuesta efímera. */
   supportsEphemeral: boolean;
   /** Valor por defecto del flag ephemeral. */
   defaultEphemeral: boolean;
   /**
-   * Si no hay roles configurados, exige permiso de moderación de Discord
-   * (Ban/Kick/Moderate/Manage).
+   * Si no hay roles configurados, exige permiso de moderación / admin de Discord.
    */
   requiresAdminByDefault: boolean;
 }
+
+/** @deprecated Alias de `options` para UI legacy. */
+export type SystemCommandParameter = SystemCommandOption;
 
 export interface SystemCommandPermission {
   guildId: string;
@@ -34,6 +71,8 @@ export interface SystemCommandConfig extends SystemCommandDefinition {
   enabled: boolean;
   allowedRoles: string[];
   ephemeral: boolean;
+  /** Alias de `options` para el Sheet/tabla de parámetros. */
+  parameters: SystemCommandOption[];
 }
 
 export interface SystemCommandsListResponse {
@@ -59,75 +98,410 @@ export const SYSTEM_COMMAND_CATEGORY_LABELS: Record<
 > = {
   moderation: "Moderación",
   levels: "Rangos y XP",
-  forms: "Formularios",
+  economy: "Economía",
   utilities: "Utilidades",
+  forms: "Formularios",
 };
 
-/** Catálogo fijo de slash nativos (alineado con `ctx.command` del backend). */
+export const SYSTEM_COMMAND_PARAM_TYPE_LABELS: Record<
+  SystemCommandParamType,
+  string
+> = {
+  USER: "Usuario",
+  STRING: "Texto",
+  INTEGER: "Número",
+  NUMBER: "Número",
+  BOOLEAN: "Booleano",
+  CHANNEL: "Canal",
+  ROLE: "Rol",
+};
+
+/** Sintaxis tipo Discord: `/ban <usuario> [razon]`. */
+export function formatSystemCommandSyntax(
+  def: Pick<SystemCommandDefinition, "name" | "options">,
+): string {
+  const parts = def.options.map((p) =>
+    p.required ? `<${p.name}>` : `[${p.name}]`,
+  );
+  return parts.length > 0
+    ? `/${def.name} ${parts.join(" ")}`
+    : `/${def.name}`;
+}
+
+function opt(
+  name: string,
+  type: SystemCommandParamType,
+  required: boolean,
+  description: string,
+  extra?: Pick<SystemCommandOption, "minValue" | "maxValue">,
+): SystemCommandOption {
+  return { name, type, required, description, ...extra };
+}
+
+/**
+ * Mega-lista de comandos nativos.
+ * Nombres en minúsculas sin espacios (API Discord).
+ */
 export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
-  {
-    name: "rank",
-    description:
-      "Consulta tu nivel, XP y posición en el ranking (respuesta privada por defecto).",
-    category: "levels",
-    supportsEphemeral: true,
-    defaultEphemeral: true,
-    requiresAdminByDefault: false,
-  },
-  {
-    name: "nivel",
-    description: "Alias de /rank: muestra nivel, XP y ranking.",
-    category: "levels",
-    supportsEphemeral: true,
-    defaultEphemeral: true,
-    requiresAdminByDefault: false,
-  },
-  {
-    name: "leaderboard",
-    description: "Muestra el Top 10 de XP del servidor.",
-    category: "levels",
-    supportsEphemeral: true,
-    defaultEphemeral: true,
-    requiresAdminByDefault: false,
-  },
+  // ── Moderación ──────────────────────────────────────────────
   {
     name: "ban",
-    description: "Banea a un miembro del servidor.",
+    description:
+      "Banea al usuario y opcionalmente borra sus mensajes recientes.",
     category: "moderation",
+    defaultEnabled: true,
+    options: [
+      opt("usuario", "USER", true, "Miembro a banear."),
+      opt("razon", "STRING", false, "Motivo del baneo."),
+      opt("borrar_dias", "INTEGER", false, "Borrar mensajes de los últimos N días (0–7).", {
+        minValue: 0,
+        maxValue: 7,
+      }),
+    ],
     supportsEphemeral: false,
     defaultEphemeral: false,
     requiresAdminByDefault: true,
   },
   {
     name: "kick",
-    description: "Expulsa a un miembro del servidor.",
+    description: "Expulsa al usuario del servidor.",
     category: "moderation",
+    defaultEnabled: true,
+    options: [
+      opt("usuario", "USER", true, "Miembro a expulsar."),
+      opt("razon", "STRING", false, "Motivo de la expulsión."),
+    ],
     supportsEphemeral: false,
     defaultEphemeral: false,
     requiresAdminByDefault: true,
   },
   {
     name: "timeout",
-    description: "Aplica un timeout (silencio temporal) a un miembro.",
+    description:
+      "Aísla al usuario (mute nativo). Duración: 10m, 1h, 24h, etc.",
     category: "moderation",
+    defaultEnabled: true,
+    options: [
+      opt("usuario", "USER", true, "Miembro a silenciar."),
+      opt("duracion", "STRING", true, "Duración (ej. 10m, 1h, 24h)."),
+      opt("razon", "STRING", false, "Motivo del timeout."),
+    ],
     supportsEphemeral: false,
     defaultEphemeral: false,
     requiresAdminByDefault: true,
   },
   {
-    name: "ping",
-    description: "Comprueba la latencia del bot.",
-    category: "utilities",
+    name: "untimeout",
+    description: "Remueve el aislamiento (timeout) de un usuario.",
+    category: "moderation",
+    defaultEnabled: true,
+    options: [
+      opt("usuario", "USER", true, "Miembro a liberar."),
+      opt("razon", "STRING", false, "Motivo."),
+    ],
+    supportsEphemeral: false,
+    defaultEphemeral: false,
+    requiresAdminByDefault: true,
+  },
+  {
+    name: "warn",
+    description: "Añade una advertencia al expediente del usuario.",
+    category: "moderation",
+    defaultEnabled: true,
+    options: [
+      opt("usuario", "USER", true, "Miembro a advertir."),
+      opt("razon", "STRING", true, "Motivo de la advertencia."),
+    ],
+    supportsEphemeral: false,
+    defaultEphemeral: false,
+    requiresAdminByDefault: true,
+  },
+  {
+    name: "warns",
+    description: "Muestra el historial de infracciones de un usuario.",
+    category: "moderation",
+    defaultEnabled: true,
+    options: [opt("usuario", "USER", true, "Miembro a consultar.")],
+    supportsEphemeral: true,
+    defaultEphemeral: true,
+    requiresAdminByDefault: true,
+  },
+  {
+    name: "clearwarns",
+    description: "Limpia el expediente de advertencias de un usuario.",
+    category: "moderation",
+    defaultEnabled: true,
+    options: [opt("usuario", "USER", true, "Miembro a limpiar.")],
+    supportsEphemeral: false,
+    defaultEphemeral: false,
+    requiresAdminByDefault: true,
+  },
+  {
+    name: "purge",
+    description:
+      "Borra hasta 100 mensajes. Si defines un usuario, solo borra los suyos.",
+    category: "moderation",
+    defaultEnabled: true,
+    options: [
+      opt("cantidad", "INTEGER", true, "Cantidad de mensajes (1–100).", {
+        minValue: 1,
+        maxValue: 100,
+      }),
+      opt("usuario", "USER", false, "Solo mensajes de este usuario."),
+    ],
+    supportsEphemeral: true,
+    defaultEphemeral: true,
+    requiresAdminByDefault: true,
+  },
+  {
+    name: "slowmode",
+    description: "Activa el modo lento en un canal.",
+    category: "moderation",
+    defaultEnabled: true,
+    options: [
+      opt("segundos", "INTEGER", true, "Segundos de slowmode (0–21600).", {
+        minValue: 0,
+        maxValue: 21600,
+      }),
+      opt("canal", "CHANNEL", false, "Canal objetivo (por defecto el actual)."),
+    ],
+    supportsEphemeral: true,
+    defaultEphemeral: true,
+    requiresAdminByDefault: true,
+  },
+  {
+    name: "lock",
+    description: "Bloquea un canal para que @everyone no pueda escribir.",
+    category: "moderation",
+    defaultEnabled: true,
+    options: [
+      opt("canal", "CHANNEL", false, "Canal a bloquear (por defecto el actual)."),
+    ],
+    supportsEphemeral: false,
+    defaultEphemeral: false,
+    requiresAdminByDefault: true,
+  },
+  {
+    name: "unlock",
+    description: "Desbloquea un canal previamente bloqueado.",
+    category: "moderation",
+    defaultEnabled: true,
+    options: [
+      opt("canal", "CHANNEL", false, "Canal a desbloquear (por defecto el actual)."),
+    ],
+    supportsEphemeral: false,
+    defaultEphemeral: false,
+    requiresAdminByDefault: true,
+  },
+
+  // ── Rangos y XP ─────────────────────────────────────────────
+  {
+    name: "rank",
+    description: "Muestra el nivel, XP y ranking del usuario.",
+    category: "levels",
+    defaultEnabled: true,
+    options: [
+      opt("usuario", "USER", false, "Miembro a consultar (opcional)."),
+    ],
     supportsEphemeral: true,
     defaultEphemeral: true,
     requiresAdminByDefault: false,
   },
   {
-    name: "serverinfo",
-    description: "Muestra información básica del servidor.",
+    name: "leaderboard",
+    description: "Muestra el top de experiencia del servidor.",
+    category: "levels",
+    defaultEnabled: true,
+    options: [],
+    supportsEphemeral: true,
+    defaultEphemeral: true,
+    requiresAdminByDefault: false,
+  },
+  {
+    name: "givexp",
+    description: "Regala XP a un miembro (solo admin).",
+    category: "levels",
+    defaultEnabled: true,
+    options: [
+      opt("usuario", "USER", true, "Miembro que recibe XP."),
+      opt("cantidad", "INTEGER", true, "Cantidad de XP a otorgar.", {
+        minValue: 1,
+      }),
+    ],
+    supportsEphemeral: true,
+    defaultEphemeral: true,
+    requiresAdminByDefault: true,
+  },
+  {
+    name: "removexp",
+    description: "Quita XP a un miembro (solo admin).",
+    category: "levels",
+    defaultEnabled: true,
+    options: [
+      opt("usuario", "USER", true, "Miembro al que quitar XP."),
+      opt("cantidad", "INTEGER", true, "Cantidad de XP a quitar.", {
+        minValue: 1,
+      }),
+    ],
+    supportsEphemeral: true,
+    defaultEphemeral: true,
+    requiresAdminByDefault: true,
+  },
+  {
+    name: "setlevel",
+    description: "Fuerza el nivel de un usuario (solo admin).",
+    category: "levels",
+    defaultEnabled: true,
+    options: [
+      opt("usuario", "USER", true, "Miembro objetivo."),
+      opt("nivel", "INTEGER", true, "Nivel a asignar.", { minValue: 0 }),
+    ],
+    supportsEphemeral: true,
+    defaultEphemeral: true,
+    requiresAdminByDefault: true,
+  },
+
+  // ── Economía ────────────────────────────────────────────────
+  {
+    name: "balance",
+    description: "Muestra el dinero en cartera y banco.",
+    category: "economy",
+    defaultEnabled: true,
+    options: [
+      opt("usuario", "USER", false, "Miembro a consultar (opcional)."),
+    ],
+    supportsEphemeral: true,
+    defaultEphemeral: true,
+    requiresAdminByDefault: false,
+  },
+  {
+    name: "work",
+    description: "Trabaja para ganar dinero aleatorio (con cooldown).",
+    category: "economy",
+    defaultEnabled: true,
+    options: [],
+    supportsEphemeral: false,
+    defaultEphemeral: false,
+    requiresAdminByDefault: false,
+  },
+  {
+    name: "daily",
+    description: "Recompensa diaria de dinero.",
+    category: "economy",
+    defaultEnabled: true,
+    options: [],
+    supportsEphemeral: false,
+    defaultEphemeral: false,
+    requiresAdminByDefault: false,
+  },
+  {
+    name: "pay",
+    description: "Transfiere dinero a otro miembro.",
+    category: "economy",
+    defaultEnabled: true,
+    options: [
+      opt("usuario", "USER", true, "Destinatario."),
+      opt("cantidad", "INTEGER", true, "Cantidad a transferir.", {
+        minValue: 1,
+      }),
+    ],
+    supportsEphemeral: false,
+    defaultEphemeral: false,
+    requiresAdminByDefault: false,
+  },
+  {
+    name: "addmoney",
+    description: "Añade fondos a un miembro (admin).",
+    category: "economy",
+    defaultEnabled: true,
+    options: [
+      opt("usuario", "USER", true, "Miembro objetivo."),
+      opt("cantidad", "INTEGER", true, "Cantidad a añadir.", { minValue: 1 }),
+    ],
+    supportsEphemeral: true,
+    defaultEphemeral: true,
+    requiresAdminByDefault: true,
+  },
+  {
+    name: "removemoney",
+    description: "Quita fondos a un miembro (admin).",
+    category: "economy",
+    defaultEnabled: true,
+    options: [
+      opt("usuario", "USER", true, "Miembro objetivo."),
+      opt("cantidad", "INTEGER", true, "Cantidad a quitar.", { minValue: 1 }),
+    ],
+    supportsEphemeral: true,
+    defaultEphemeral: true,
+    requiresAdminByDefault: true,
+  },
+  {
+    name: "shop",
+    description: "Muestra la tienda del servidor.",
+    category: "economy",
+    defaultEnabled: true,
+    options: [],
+    supportsEphemeral: false,
+    defaultEphemeral: false,
+    requiresAdminByDefault: false,
+  },
+
+  // ── Utilidades ──────────────────────────────────────────────
+  {
+    name: "userinfo",
+    description:
+      "Muestra fecha de creación, ingreso, roles y permisos de un usuario.",
     category: "utilities",
+    defaultEnabled: true,
+    options: [
+      opt("usuario", "USER", false, "Miembro a consultar (opcional)."),
+    ],
     supportsEphemeral: true,
     defaultEphemeral: false,
+    requiresAdminByDefault: false,
+  },
+  {
+    name: "serverinfo",
+    description:
+      "Muestra boost, canales, roles, emojis y dueño del servidor.",
+    category: "utilities",
+    defaultEnabled: true,
+    options: [],
+    supportsEphemeral: true,
+    defaultEphemeral: false,
+    requiresAdminByDefault: false,
+  },
+  {
+    name: "avatar",
+    description: "Muestra el avatar global y de servidor en alta resolución.",
+    category: "utilities",
+    defaultEnabled: true,
+    options: [
+      opt("usuario", "USER", false, "Miembro a consultar (opcional)."),
+    ],
+    supportsEphemeral: true,
+    defaultEphemeral: false,
+    requiresAdminByDefault: false,
+  },
+  {
+    name: "ping",
+    description: "Muestra la latencia del WebSocket (ms).",
+    category: "utilities",
+    defaultEnabled: true,
+    options: [],
+    supportsEphemeral: true,
+    defaultEphemeral: true,
+    requiresAdminByDefault: false,
+  },
+  {
+    name: "help",
+    description:
+      "Menú interactivo con los comandos disponibles según tus permisos.",
+    category: "utilities",
+    defaultEnabled: true,
+    options: [],
+    supportsEphemeral: true,
+    defaultEphemeral: true,
     requiresAdminByDefault: false,
   },
 ] as const;
@@ -138,6 +512,10 @@ export function getSystemCommandDefinition(
   return SYSTEM_COMMAND_CATALOG.find((c) => c.name === name);
 }
 
+export function listSystemCommandNames(): string[] {
+  return SYSTEM_COMMAND_CATALOG.map((c) => c.name);
+}
+
 export function defaultSystemCommandPermission(
   guildId: string,
   def: SystemCommandDefinition,
@@ -145,8 +523,36 @@ export function defaultSystemCommandPermission(
   return {
     guildId,
     commandName: def.name,
-    enabled: true,
+    enabled: def.defaultEnabled,
     allowedRoles: [],
     ephemeral: def.defaultEphemeral,
+  };
+}
+
+/** Cuerpo mínimo REST de un slash (sin token). */
+export function toDiscordSlashCommandBody(def: SystemCommandDefinition): {
+  name: string;
+  description: string;
+  options?: Array<{
+    type: number;
+    name: string;
+    description: string;
+    required?: boolean;
+    min_value?: number;
+    max_value?: number;
+  }>;
+} {
+  const options = def.options.map((o) => ({
+    type: DISCORD_OPTION_TYPE[o.type],
+    name: o.name,
+    description: (o.description ?? o.name).slice(0, 100),
+    required: o.required,
+    ...(o.minValue !== undefined ? { min_value: o.minValue } : {}),
+    ...(o.maxValue !== undefined ? { max_value: o.maxValue } : {}),
+  }));
+  return {
+    name: def.name,
+    description: def.description.slice(0, 100),
+    ...(options.length ? { options } : {}),
   };
 }

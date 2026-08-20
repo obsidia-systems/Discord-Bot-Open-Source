@@ -61,9 +61,10 @@ async function handleChatInput(
   interaction: ChatInputCommandInteraction,
   registry: ModuleRegistry,
 ): Promise<void> {
-  const def = registry.commands.find((c) => c.name === interaction.commandName);
-  if (def) {
-    try {
+  // 1) Comandos nativos del catálogo (mega-lista)
+  try {
+    const { getSystemCommandDefinition } = await import("@adobos/shared");
+    if (getSystemCommandDefinition(interaction.commandName)) {
       const { assertSystemCommandAllowed } = await import(
         "../../modules/system-commands/guard.js"
       );
@@ -75,14 +76,25 @@ async function handleChatInput(
         });
         return;
       }
-    } catch (error) {
-      console.warn("[adobos] system-commands guard falló:", error);
-    }
 
+      const { dispatchDefaultCommand } = await import(
+        "../../modules/system-commands/handlers/index.js"
+      );
+      const handled = await dispatchDefaultCommand(interaction);
+      if (handled) return;
+    }
+  } catch (error) {
+    console.warn("[adobos] default-commands dispatch falló:", error);
+  }
+
+  // 2) Handlers registrados por módulos (legacy / plugins)
+  const def = registry.commands.find((c) => c.name === interaction.commandName);
+  if (def) {
     await def.handle(interaction);
     return;
   }
 
+  // 3) Comandos custom de la guild
   try {
     const { handleCustomChatCommand } = await import(
       "../../modules/custom-commands/handler.js"

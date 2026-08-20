@@ -1,15 +1,10 @@
 import type { ChatInputCommandInteraction } from "discord.js";
-import {
-  ApplicationCommandOptionType,
-  EmbedBuilder,
-  type APIApplicationCommandOption,
-} from "discord.js";
+import { EmbedBuilder } from "discord.js";
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
 import { getLevelsConfigCached, getUserRankStats } from "../service.js";
 
 /**
- * Esqueleto de /rank (y alias /nivel).
- * Consulta user_xp, posición global y progreso al siguiente nivel.
+ * /rank — consulta user_xp, posición global y progreso al siguiente nivel.
  */
 export async function handleRankCommand(
   interaction: ChatInputCommandInteraction,
@@ -76,12 +71,3 @@ export async function handleRankCommand(
 
   await interaction.editReply({ embeds: [embed] });
 }
-
-export const rankCommandOptions: APIApplicationCommandOption[] = [
-  {
-    type: ApplicationCommandOptionType.User,
-    name: "usuario",
-    description: "Miembro a consultar (opcional).",
-    required: false,
-  },
-];

@@ -1,8 +1,4 @@
 import type { ChatInputCommandInteraction } from "discord.js";
-import {
-  ApplicationCommandOptionType,
-  type APIApplicationCommandOption,
-} from "discord.js";
 import { executeModAction, ModerationError } from "../service.js";
 
 async function replyError(
@@ -14,6 +10,37 @@ async function replyError(
     return;
   }
   await interaction.reply({ content: message, ephemeral: true });
+}
+
+/** Parsea duraciones tipo 10m, 1h, 24h, 30s → segundos. */
+export function parseDurationToSeconds(raw: string): number | null {
+  const trimmed = raw.trim().toLowerCase();
+  const match = /^(\d+)\s*(s|m|h|d|seg|min|hora|horas|dia|días|dias)?$/.exec(
+    trimmed,
+  );
+  if (!match) return null;
+  const amount = Number.parseInt(match[1]!, 10);
+  if (!Number.isFinite(amount) || amount < 1) return null;
+  const unit = match[2] ?? "m";
+  switch (unit) {
+    case "s":
+    case "seg":
+      return amount;
+    case "m":
+    case "min":
+      return amount * 60;
+    case "h":
+    case "hora":
+    case "horas":
+      return amount * 3600;
+    case "d":
+    case "dia":
+    case "días":
+    case "dias":
+      return amount * 86400;
+    default:
+      return amount * 60;
+  }
 }
 
 async function runModSlash(
@@ -32,10 +59,22 @@ async function runModSlash(
   const reason =
     interaction.options.getString("razon")?.trim() ||
     `Acción /${action} por ${interaction.user.tag}`;
-  const durationSeconds =
-    action === "timeout"
-      ? (interaction.options.getInteger("minutos") ?? 10) * 60
-      : undefined;
+
+  let durationSeconds: number | undefined;
+  if (action === "timeout") {
+    const duracion = interaction.options.getString("duracion", true);
+    const parsed = parseDurationToSeconds(duracion);
+    if (parsed === null) {
+      await interaction.reply({
+        content:
+          "❌ Duración inválida. Usa formatos como `10m`, `1h` o `24h`.",
+        ephemeral: true,
+      });
+      return;
+    }
+    durationSeconds = Math.min(parsed, 28 * 86400);
+  }
+
   const deleteMessageDays =
     action === "ban"
       ? (interaction.options.getInteger("borrar_dias") ?? 0)
@@ -80,64 +119,3 @@ export async function handleTimeoutCommand(
 ): Promise<void> {
   await runModSlash(interaction, "timeout");
 }
-
-export const banCommandOptions: APIApplicationCommandOption[] = [
-  {
-    type: ApplicationCommandOptionType.User,
-    name: "usuario",
-    description: "Miembro a banear.",
-    required: true,
-  },
-  {
-    type: ApplicationCommandOptionType.String,
-    name: "razon",
-    description: "Motivo del baneo.",
-    required: false,
-  },
-  {
-    type: ApplicationCommandOptionType.Integer,
-    name: "borrar_dias",
-    description: "Borrar mensajes de los últimos N días (0–7).",
-    required: false,
-    min_value: 0,
-    max_value: 7,
-  },
-];
-
-export const kickCommandOptions: APIApplicationCommandOption[] = [
-  {
-    type: ApplicationCommandOptionType.User,
-    name: "usuario",
-    description: "Miembro a expulsar.",
-    required: true,
-  },
-  {
-    type: ApplicationCommandOptionType.String,
-    name: "razon",
-    description: "Motivo de la expulsión.",
-    required: false,
-  },
-];
-
-export const timeoutCommandOptions: APIApplicationCommandOption[] = [
-  {
-    type: ApplicationCommandOptionType.User,
-    name: "usuario",
-    description: "Miembro a silenciar.",
-    required: true,
-  },
-  {
-    type: ApplicationCommandOptionType.Integer,
-    name: "minutos",
-    description: "Duración del timeout en minutos (por defecto 10).",
-    required: false,
-    min_value: 1,
-    max_value: 40320,
-  },
-  {
-    type: ApplicationCommandOptionType.String,
-    name: "razon",
-    description: "Motivo del timeout.",
-    required: false,
-  },
-];

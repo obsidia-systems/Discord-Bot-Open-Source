@@ -3,7 +3,11 @@ import type {
   SystemCommandCategory,
   SystemCommandConfig,
 } from "@adobos/shared";
-import { SYSTEM_COMMAND_CATEGORY_LABELS } from "@adobos/shared";
+import {
+  SYSTEM_COMMAND_CATEGORY_LABELS,
+  SYSTEM_COMMAND_PARAM_TYPE_LABELS,
+  formatSystemCommandSyntax,
+} from "@adobos/shared";
 import {
   fetchGuildAssets,
   fetchSystemCommands,
@@ -21,12 +25,15 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Sheet } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToastBanner } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import {
+  CircleDollarSign,
   ClipboardList,
+  Eye,
   Gavel,
   Loader2,
   Save,
@@ -43,7 +50,7 @@ const CATEGORY_FILTERS: Array<{ id: CategoryFilter; label: string }> = [
   { id: "all", label: "Todos" },
   { id: "moderation", label: SYSTEM_COMMAND_CATEGORY_LABELS.moderation },
   { id: "levels", label: SYSTEM_COMMAND_CATEGORY_LABELS.levels },
-  { id: "forms", label: SYSTEM_COMMAND_CATEGORY_LABELS.forms },
+  { id: "economy", label: SYSTEM_COMMAND_CATEGORY_LABELS.economy },
   { id: "utilities", label: SYSTEM_COMMAND_CATEGORY_LABELS.utilities },
 ];
 
@@ -60,14 +67,18 @@ const CATEGORY_STYLES: Record<
       "bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30",
     icon: TrendingUp,
   },
+  economy: {
+    badge:
+      "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
+    icon: CircleDollarSign,
+  },
   forms: {
     badge:
       "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30",
     icon: ClipboardList,
   },
   utilities: {
-    badge:
-      "bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30",
+    badge: "bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30",
     icon: Wrench,
   },
 };
@@ -91,6 +102,7 @@ export function SystemCommandsDashboard() {
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<CategoryFilter>("all");
+  const [configuringName, setConfiguringName] = useState<string | null>(null);
   const [toast, setToast] = useState<{
     variant: "success" | "error";
     message: string;
@@ -99,6 +111,11 @@ export function SystemCommandsDashboard() {
   const dirty = useMemo(
     () => commandsFingerprint(commands) !== savedFingerprint,
     [commands, savedFingerprint],
+  );
+
+  const configuring = useMemo(
+    () => commands.find((c) => c.name === configuringName) ?? null,
+    [commands, configuringName],
   );
 
   const load = useCallback(async () => {
@@ -242,9 +259,6 @@ export function SystemCommandsDashboard() {
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
             No hay comandos que coincidan con el filtro.
-            {category === "forms"
-              ? " Los slash de formularios aún no están registrados."
-              : null}
           </CardContent>
         </Card>
       ) : (
@@ -255,12 +269,9 @@ export function SystemCommandsDashboard() {
             return (
               <Card
                 key={cmd.name}
-                className={cn(
-                  "flex flex-col",
-                  !cmd.enabled && "opacity-70",
-                )}
+                className={cn("flex flex-col", !cmd.enabled && "opacity-70")}
               >
-                <CardHeader className="space-y-3 pb-3">
+                <CardHeader className="space-y-2 pb-0">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 space-y-2">
                       <Badge
@@ -284,48 +295,145 @@ export function SystemCommandsDashboard() {
                       aria-label={`Activar /${cmd.name}`}
                     />
                   </div>
-                  <CardDescription className="text-sm leading-relaxed">
+                  <CardDescription className="line-clamp-2 text-sm leading-relaxed">
                     {cmd.description}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="mt-auto space-y-4 border-t pt-4">
-                  <RoleMultiSelect
-                    label="Roles autorizados"
-                    placeholder="Cualquier miembro (vacío)…"
-                    roles={roles}
-                    value={cmd.allowedRoles}
-                    onChange={(allowedRoles) =>
-                      patchCommand(cmd.name, { allowedRoles })
-                    }
-                    emptyHint={
-                      cmd.requiresAdminByDefault
-                        ? "Sin roles: se exige permiso de moderación de Discord."
-                        : "Sin roles: cualquier miembro puede usarlo."
-                    }
-                  />
-                  {cmd.supportsEphemeral ? (
-                    <div className="flex items-center justify-between gap-3">
-                      <Label
-                        htmlFor={`ephemeral-${cmd.name}`}
-                        className="text-xs leading-snug text-muted-foreground"
-                      >
-                        Respuesta efímera (solo visible para quien lo ejecuta)
-                      </Label>
-                      <Switch
-                        id={`ephemeral-${cmd.name}`}
-                        checked={cmd.ephemeral}
-                        onCheckedChange={(ephemeral) =>
-                          patchCommand(cmd.name, { ephemeral })
-                        }
-                      />
-                    </div>
-                  ) : null}
+                <CardContent className="mt-auto pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setConfiguringName(cmd.name)}
+                  >
+                    <Eye className="size-4" />
+                    Configurar Comando
+                  </Button>
                 </CardContent>
               </Card>
             );
           })}
         </div>
       )}
+
+      <Sheet
+        open={Boolean(configuring)}
+        onOpenChange={(open) => {
+          if (!open) setConfiguringName(null);
+        }}
+        title={
+          configuring ? (
+            <span className="font-mono">/{configuring.name}</span>
+          ) : (
+            "Comando"
+          )
+        }
+        description={configuring?.description}
+        footer={
+          <Button
+            type="button"
+            className="w-full"
+            onClick={() => setConfiguringName(null)}
+          >
+            Listo
+          </Button>
+        }
+      >
+        {configuring ? (
+          <div className="space-y-6">
+            <section className="space-y-3">
+              <h3 className="text-sm font-semibold">Sintaxis y parámetros</h3>
+              <code className="block overflow-x-auto rounded-md bg-muted p-3 font-mono text-sm">
+                {formatSystemCommandSyntax(configuring)}
+              </code>
+              {(configuring.parameters ?? configuring.options).length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Este comando no recibe parámetros.
+                </p>
+              ) : (
+                <div className="overflow-hidden rounded-md border border-border">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-muted/50 text-xs text-muted-foreground">
+                      <tr>
+                        <th className="px-3 py-2 font-medium">Parámetro</th>
+                        <th className="px-3 py-2 font-medium">Tipo</th>
+                        <th className="px-3 py-2 font-medium">Uso</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(configuring.parameters ?? configuring.options).map(
+                        (param) => (
+                        <tr
+                          key={param.name}
+                          className="border-t border-border"
+                        >
+                          <td className="px-3 py-2 font-mono text-xs">
+                            {param.name}
+                          </td>
+                          <td className="px-3 py-2 text-muted-foreground">
+                            {SYSTEM_COMMAND_PARAM_TYPE_LABELS[param.type]}
+                          </td>
+                          <td className="px-3 py-2">
+                            <Badge
+                              className={cn(
+                                "normal-case tracking-normal",
+                                param.required
+                                  ? "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300"
+                                  : "border-border bg-muted text-muted-foreground",
+                              )}
+                            >
+                              {param.required ? "Requerido" : "Opcional"}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ),
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            <section className="space-y-4 border-t border-border pt-5">
+              <h3 className="text-sm font-semibold">Permisos</h3>
+              <RoleMultiSelect
+                label="Roles autorizados"
+                placeholder="Cualquier miembro (vacío)…"
+                roles={roles}
+                value={configuring.allowedRoles}
+                onChange={(allowedRoles) =>
+                  patchCommand(configuring.name, { allowedRoles })
+                }
+                emptyHint={
+                  configuring.requiresAdminByDefault
+                    ? "Sin roles: se exige permiso de moderación de Discord."
+                    : "Sin roles: cualquier miembro puede usarlo."
+                }
+              />
+              {configuring.supportsEphemeral ? (
+                <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-3">
+                  <Label
+                    htmlFor={`ephemeral-${configuring.name}`}
+                    className="text-sm leading-snug"
+                  >
+                    Respuesta efímera
+                    <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                      Solo visible para quien ejecuta el comando.
+                    </span>
+                  </Label>
+                  <Switch
+                    id={`ephemeral-${configuring.name}`}
+                    checked={configuring.ephemeral}
+                    onCheckedChange={(ephemeral) =>
+                      patchCommand(configuring.name, { ephemeral })
+                    }
+                  />
+                </div>
+              ) : null}
+            </section>
+          </div>
+        ) : null}
+      </Sheet>
 
       <div
         className={cn(

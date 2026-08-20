@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronsUpDown, Search, X } from "lucide-react";
 import { resolveRoleDotColor } from "@/components/shared/RoleColorDot";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,22 @@ export function RoleMultiSelect({
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: MouseEvent | TouchEvent): void {
+      const root = rootRef.current;
+      const target = event.target;
+      if (!(target instanceof Node) || !root) return;
+      if (!root.contains(target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+    };
+  }, [open]);
 
   const selected = useMemo(
     () => roles.filter((role) => value.includes(role.id)),

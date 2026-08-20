@@ -29,16 +29,7 @@ export class CustomCommandsError extends Error {
 }
 
 /** Nombres de slash built-in (no pueden usarse como custom). */
-let reservedNames = new Set<string>([
-  "rank",
-  "nivel",
-  "leaderboard",
-  "ban",
-  "kick",
-  "timeout",
-  "ping",
-  "serverinfo",
-]);
+let reservedNames = new Set<string>();
 
 export function setReservedSlashCommandNames(names: string[]): void {
   reservedNames = new Set(

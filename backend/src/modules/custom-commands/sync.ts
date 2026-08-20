@@ -1,20 +1,7 @@
 import { REST, Routes, type Client, type RESTPostAPIChatInputApplicationCommandsJSONBody } from "discord.js";
+import { listSystemCommandNames } from "@adobos/shared";
 import { listCustomCommands } from "./service.js";
-
-type BuiltinSlashBody = Pick<
-  RESTPostAPIChatInputApplicationCommandsJSONBody,
-  "name" | "description" | "options"
->;
-
-let builtinBodies: BuiltinSlashBody[] = [];
-
-export function setBuiltinSlashBodies(bodies: BuiltinSlashBody[]): void {
-  builtinBodies = bodies.map((b) => ({
-    name: b.name,
-    description: b.description.slice(0, 100),
-    ...(b.options?.length ? { options: b.options } : {}),
-  }));
-}
+import { buildEnabledDefaultSlashBodies } from "../system-commands/sync.js";
 
 function resolveClientId(client: Client): string {
   const fromEnv = process.env.DISCORD_CLIENT_ID?.trim();
@@ -36,7 +23,7 @@ function resolveGuildId(guildId?: string): string {
 
 /**
  * Bulk-overwrite de slash commands del guild:
- * built-ins del registry + comandos custom de SQLite.
+ * nativos habilitados (catálogo + DB) + comandos custom de SQLite.
  */
 export async function syncGuildSlashCommands(
   client: Client,
@@ -52,15 +39,15 @@ export async function syncGuildSlashCommands(
 
   const gid = resolveGuildId(guildId);
   const clientId = resolveClientId(client);
+  const builtins = buildEnabledDefaultSlashBodies(gid);
+  const reserved = new Set([
+    ...listSystemCommandNames(),
+    ...builtins.map((b) => b.name),
+  ]);
   const customs = listCustomCommands(gid);
 
-  const reserved = new Set(builtinBodies.map((b) => b.name));
   const body: RESTPostAPIChatInputApplicationCommandsJSONBody[] = [
-    ...builtinBodies.map((b) => ({
-      name: b.name,
-      description: b.description,
-      ...(b.options?.length ? { options: b.options } : {}),
-    })),
+    ...builtins,
     ...customs
       .filter((c) => !reserved.has(c.name))
       .map((c) => ({
@@ -72,7 +59,7 @@ export async function syncGuildSlashCommands(
   const rest = new REST({ version: "10" }).setToken(token);
   await rest.put(Routes.applicationGuildCommands(clientId, gid), { body });
   console.log(
-    `[adobos] custom-commands: sync Discord (${body.length} slash) guild=${gid}`,
+    `[adobos] slash sync Discord (${builtins.length} nativos + ${body.length - builtins.length} custom) guild=${gid}`,
   );
   return body.length;
 }

@@ -137,6 +137,7 @@ export function listSystemCommandConfigs(
     const perm = rowToPermission(id, def.name, byName.get(def.name));
     return {
       ...def,
+      parameters: def.options,
       enabled: perm.enabled,
       allowedRoles: perm.allowedRoles,
       ephemeral: perm.ephemeral,

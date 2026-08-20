@@ -1,16 +1,18 @@
 import { GatewayIntentBits } from "discord.js";
+import { listSystemCommandNames } from "@adobos/shared";
 import type { AdobosModule } from "../../core/modules/types.js";
 import { customCommandsRoutes } from "./api/routes.js";
-import {
-  setReservedSlashCommandNames,
-} from "./service.js";
-import { setBuiltinSlashBodies, syncGuildSlashCommands } from "./sync.js";
+import { setReservedSlashCommandNames } from "./service.js";
+import { syncGuildSlashCommands } from "./sync.js";
 
 export const customCommandsModule: AdobosModule = {
   id: "custom-commands",
   name: "Comandos custom",
   intents: [GatewayIntentBits.Guilds],
   register(ctx) {
+    // Reservar nombres del catálogo nativo (no usables como custom).
+    setReservedSlashCommandNames(listSystemCommandNames());
+
     ctx.route("/api/custom-commands", customCommandsRoutes(ctx.client));
 
     ctx.once("ready", () => {
@@ -28,16 +30,15 @@ export const customCommandsModule: AdobosModule = {
   },
 };
 
-/** Llamar tras loadModules para fusionar built-ins en el sync Discord. */
+/** @deprecated El catálogo shared ya reserva nombres; se mantiene por compat. */
 export function wireCustomCommandsBuiltinSync(
-  commands: {
+  _commands?: {
     name: string;
     description: string;
     options?: import("discord.js").APIApplicationCommandOption[];
   }[],
 ): void {
-  setBuiltinSlashBodies(commands);
-  setReservedSlashCommandNames(commands.map((c) => c.name));
+  setReservedSlashCommandNames(listSystemCommandNames());
 }
 
 export {

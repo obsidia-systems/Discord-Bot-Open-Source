@@ -17,13 +17,8 @@ async function main(): Promise<void> {
   initDatabase();
 
   const registry = loadModules(ENABLED_MODULES);
-  wireCustomCommandsBuiltinSync(
-    registry.commands.map((c) => ({
-      name: c.name,
-      description: c.description,
-      options: c.options,
-    })),
-  );
+  // Reserva nombres del catálogo nativo para custom-commands.
+  wireCustomCommandsBuiltinSync();
   const bot = createBotClient(registry);
   const app = createApp({
     bot,
