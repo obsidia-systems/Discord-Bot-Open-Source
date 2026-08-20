@@ -3,7 +3,7 @@ import { listCustomCommands } from "./service.js";
 
 type BuiltinSlashBody = Pick<
   RESTPostAPIChatInputApplicationCommandsJSONBody,
-  "name" | "description"
+  "name" | "description" | "options"
 >;
 
 let builtinBodies: BuiltinSlashBody[] = [];
@@ -12,6 +12,7 @@ export function setBuiltinSlashBodies(bodies: BuiltinSlashBody[]): void {
   builtinBodies = bodies.map((b) => ({
     name: b.name,
     description: b.description.slice(0, 100),
+    ...(b.options?.length ? { options: b.options } : {}),
   }));
 }
 
@@ -58,6 +59,7 @@ export async function syncGuildSlashCommands(
     ...builtinBodies.map((b) => ({
       name: b.name,
       description: b.description,
+      ...(b.options?.length ? { options: b.options } : {}),
     })),
     ...customs
       .filter((c) => !reserved.has(c.name))

@@ -1,0 +1,11 @@
+---
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { SystemCommandsDashboard } from "../../../features/system-commands";
+---
+
+<DashboardLayout
+  title="Comandos del Sistema"
+  description="Controla qué comandos fijos están activos y qué roles tienen permiso de usarlos."
+>
+  <SystemCommandsDashboard client:load />
+</DashboardLayout>

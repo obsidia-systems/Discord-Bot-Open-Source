@@ -30,7 +30,11 @@ export const customCommandsModule: AdobosModule = {
 
 /** Llamar tras loadModules para fusionar built-ins en el sync Discord. */
 export function wireCustomCommandsBuiltinSync(
-  commands: { name: string; description: string }[],
+  commands: {
+    name: string;
+    description: string;
+    options?: import("discord.js").APIApplicationCommandOption[];
+  }[],
 ): void {
   setBuiltinSlashBodies(commands);
   setReservedSlashCommandNames(commands.map((c) => c.name));

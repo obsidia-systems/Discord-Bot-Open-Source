@@ -677,6 +677,34 @@ export const customCommands = sqliteTable("custom_commands", {
 export type CustomCommandRow = typeof customCommands.$inferSelect;
 export type NewCustomCommandRow = typeof customCommands.$inferInsert;
 
+/**
+ * Permisos/visibilidad de slash commands nativos por guild.
+ */
+export const defaultCommandPermissions = sqliteTable(
+  "default_command_permissions",
+  {
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    commandName: text("command_name").notNull(),
+    enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+    /** JSON: string[] role IDs */
+    allowedRoles: text("allowed_roles").notNull().default("[]"),
+    ephemeral: integer("ephemeral", { mode: "boolean" }).notNull().default(false),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    primaryKey({ columns: [table.guildId, table.commandName] }),
+  ],
+);
+
+export type DefaultCommandPermissionRow =
+  typeof defaultCommandPermissions.$inferSelect;
+export type NewDefaultCommandPermissionRow =
+  typeof defaultCommandPermissions.$inferInsert;
+
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [
   "minecraft",

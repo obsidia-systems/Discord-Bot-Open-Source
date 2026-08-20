@@ -1,4 +1,5 @@
 import type {
+  APIApplicationCommandOption,
   ButtonInteraction,
   ChatInputCommandInteraction,
   Client,
@@ -11,6 +12,8 @@ import type { Router } from "express";
 export interface ChatInputCommandDefinition {
   name: string;
   description: string;
+  /** Opciones Discord para el sync REST (usuario, duración, etc.). */
+  options?: APIApplicationCommandOption[];
   handle: (interaction: ChatInputCommandInteraction) => Promise<void>;
 }
 

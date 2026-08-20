@@ -76,6 +76,12 @@ export const dashboardNav: NavCategoryConfig[] = [
         icon: Bot,
         blurb: "Apodo y avatar del bot en este servidor.",
       },
+      {
+        label: "Comandos del Sistema",
+        href: "/dashboard/general/commands",
+        icon: Terminal,
+        blurb: "Activa o restringe los slash commands nativos.",
+      },
     ],
   },
   {

@@ -21,6 +21,7 @@ async function main(): Promise<void> {
     registry.commands.map((c) => ({
       name: c.name,
       description: c.description,
+      options: c.options,
     })),
   );
   const bot = createBotClient(registry);

@@ -1,5 +1,10 @@
 import type { ChatInputCommandInteraction } from "discord.js";
-import { EmbedBuilder } from "discord.js";
+import {
+  ApplicationCommandOptionType,
+  EmbedBuilder,
+  type APIApplicationCommandOption,
+} from "discord.js";
+import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
 import { getLevelsConfigCached, getUserRankStats } from "../service.js";
 
 /**
@@ -26,7 +31,8 @@ export async function handleRankCommand(
     return;
   }
 
-  await interaction.deferReply({ ephemeral: true });
+  const ephemeral = consumeInteractionEphemeral(interaction.id, true);
+  await interaction.deferReply({ ephemeral });
 
   const target = interaction.options.getUser("usuario") ?? interaction.user;
   const stats = getUserRankStats(interaction.guildId, target.id);
@@ -70,3 +76,12 @@ export async function handleRankCommand(
 
   await interaction.editReply({ embeds: [embed] });
 }
+
+export const rankCommandOptions: APIApplicationCommandOption[] = [
+  {
+    type: ApplicationCommandOptionType.User,
+    name: "usuario",
+    description: "Miembro a consultar (opcional).",
+    required: false,
+  },
+];

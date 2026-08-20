@@ -87,6 +87,10 @@ export {
   deleteCustomCommand,
 } from "./api/custom-commands";
 export {
+  fetchSystemCommands,
+  saveSystemCommands,
+} from "./api/system-commands";
+export {
   fetchLevelsConfig,
   saveLevelsConfig,
   fetchLevelsLeaderboard,

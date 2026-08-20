@@ -63,6 +63,22 @@ async function handleChatInput(
 ): Promise<void> {
   const def = registry.commands.find((c) => c.name === interaction.commandName);
   if (def) {
+    try {
+      const { assertSystemCommandAllowed } = await import(
+        "../../modules/system-commands/guard.js"
+      );
+      const guard = assertSystemCommandAllowed(interaction);
+      if (!guard.ok) {
+        await interaction.reply({
+          content: guard.message,
+          ephemeral: true,
+        });
+        return;
+      }
+    } catch (error) {
+      console.warn("[adobos] system-commands guard falló:", error);
+    }
+
     await def.handle(interaction);
     return;
   }

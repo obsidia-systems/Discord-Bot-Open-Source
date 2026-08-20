@@ -13,6 +13,7 @@ export type ModuleId =
   | "forms"
   | "scheduled-messages"
   | "custom-commands"
+  | "system-commands"
   | "levels"
   | "roles-builder";
 
