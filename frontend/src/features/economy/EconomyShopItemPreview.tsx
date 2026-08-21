@@ -1,8 +1,5 @@
-import type { EconomyShopItem } from "@adobos/shared";
-import {
-  ECONOMY_SHOP_REWARD_LABELS,
-  type EconomyShopRewardType,
-} from "@adobos/shared";
+import type { EconomyShopItem, EconomyShopRewards } from "@adobos/shared";
+import { summarizeShopRewards } from "@adobos/shared";
 import { resolvePublicAssetUrl } from "@/lib/api";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
@@ -17,6 +14,46 @@ function isImageIcon(icon: string): boolean {
     s.startsWith("/uploads/") ||
     s.startsWith("http://") ||
     s.startsWith("https://")
+  );
+}
+
+export function ShopItemIcon({
+  icon,
+  className,
+}: {
+  icon: string;
+  className?: string;
+}) {
+  const s = icon.trim() || "🛒";
+  if (isImageIcon(s)) {
+    return (
+      <img
+        src={resolvePublicAssetUrl(s)}
+        alt=""
+        className={cn(
+          "inline-block size-5 object-contain align-middle",
+          className,
+        )}
+      />
+    );
+  }
+  const mention = /^<(a)?:([\w~]+):(\d+)>$/.exec(s);
+  if (mention) {
+    const animated = Boolean(mention[1]);
+    const id = mention[3]!;
+    return (
+      <img
+        src={`https://cdn.discordapp.com/emojis/${id}.${animated ? "gif" : "png"}?size=32`}
+        alt=""
+        className={cn(
+          "inline-block size-5 object-contain align-middle",
+          className,
+        )}
+      />
+    );
+  }
+  return (
+    <span className={cn("text-base leading-none", className)}>{s}</span>
   );
 }
 
@@ -45,29 +82,7 @@ function DiscordShell({ children }: { children: ReactNode }) {
 }
 
 function IconMark({ icon }: { icon: string }) {
-  const s = icon.trim() || "🛒";
-  if (isImageIcon(s)) {
-    return (
-      <img
-        src={resolvePublicAssetUrl(s)}
-        alt=""
-        className="inline-block size-5 object-contain align-middle"
-      />
-    );
-  }
-  const mention = /^<(a)?:([\w~]+):(\d+)>$/.exec(s);
-  if (mention) {
-    const animated = Boolean(mention[1]);
-    const id = mention[3]!;
-    return (
-      <img
-        src={`https://cdn.discordapp.com/emojis/${id}.${animated ? "gif" : "png"}?size=32`}
-        alt=""
-        className="inline-block size-5 object-contain align-middle"
-      />
-    );
-  }
-  return <span className="text-base leading-none">{s}</span>;
+  return <ShopItemIcon icon={icon} />;
 }
 
 export function EconomyShopItemPreview({
@@ -77,18 +92,16 @@ export function EconomyShopItemPreview({
 }: {
   item: Pick<
     EconomyShopItem,
-    "name" | "description" | "price" | "icon" | "stock" | "rewardType"
-  >;
+    "name" | "description" | "price" | "icon" | "stock"
+  > & { rewards: EconomyShopRewards };
   currencyName: string;
   className?: string;
 }) {
   const stockLabel = item.stock === null ? "∞" : String(item.stock);
-  const typeLabel =
-    ECONOMY_SHOP_REWARD_LABELS[item.rewardType as EconomyShopRewardType] ??
-    item.rewardType;
+  const summary = summarizeShopRewards(item.rewards);
 
   return (
-    <div className={cn(className)}>
+    <div className={cn("space-y-3", className)}>
       <DiscordShell>
         <p className="text-[#dbdee1]">
           @UsuarioDePrueba usó{" "}
@@ -108,7 +121,7 @@ export function EconomyShopItemPreview({
               <p className="whitespace-pre-wrap leading-relaxed text-[#dbdee1]">
                 {item.description || "Sin descripción."}
               </p>
-              <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="grid grid-cols-2 gap-2 text-xs">
                 <div>
                   <p className="font-semibold text-white">Precio</p>
                   <p>
@@ -120,15 +133,28 @@ export function EconomyShopItemPreview({
                   <p className="font-semibold text-white">Stock</p>
                   <p>{stockLabel}</p>
                 </div>
-                <div>
-                  <p className="font-semibold text-white">Tipo</p>
-                  <p>{typeLabel}</p>
-                </div>
               </div>
             </div>
           </div>
         </div>
       </DiscordShell>
+
+      <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2.5">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          Beneficios
+        </p>
+        {summary.length === 0 ? (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Activa al menos una recompensa.
+          </p>
+        ) : (
+          <ul className="mt-1.5 space-y-1 text-xs text-foreground">
+            {summary.map((line, i) => (
+              <li key={`${line}-${i}`}>• {line}</li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

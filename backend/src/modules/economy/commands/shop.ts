@@ -1,12 +1,19 @@
-import type { ChatInputCommandInteraction } from "discord.js";
+import type { AttachmentBuilder, ChatInputCommandInteraction } from "discord.js";
 import { EmbedBuilder } from "discord.js";
-import {
-  ECONOMY_SHOP_REWARD_LABELS,
-  type EconomyShopRewardType,
-} from "@adobos/shared";
+import { summarizeShopRewards } from "@adobos/shared";
+import { resolveEmbedMedia } from "../../../lib/embedMedia.js";
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
 import { getEconomyConfig } from "../service.js";
 import { listShopItems } from "../shopService.js";
+
+function isImageIcon(icon: string): boolean {
+  const s = icon.trim();
+  return (
+    s.startsWith("/uploads/") ||
+    s.startsWith("http://") ||
+    s.startsWith("https://")
+  );
+}
 
 /**
  * /shop — lista el catálogo habilitado de la tienda.
@@ -47,16 +54,15 @@ export async function handleShopCommand(
   }
 
   const currency = economy.currencyName || "monedas";
-  const embeds = items.slice(0, 10).map((item) => {
-    const stockLabel =
-      item.stock === null ? "∞" : String(item.stock);
-    const typeLabel =
-      ECONOMY_SHOP_REWARD_LABELS[item.rewardType as EconomyShopRewardType] ??
-      item.rewardType;
+  const files: AttachmentBuilder[] = [];
+  const embeds = items.slice(0, 10).map((item, index) => {
+    const stockLabel = item.stock === null ? "∞" : String(item.stock);
+    const summary = summarizeShopRewards(item.rewards);
+    const rewards =
+      summary.length > 0 ? summary.map((s) => `• ${s}`).join("\n") : "—";
 
-    return new EmbedBuilder()
+    const embed = new EmbedBuilder()
       .setColor(0xe11d48)
-      .setTitle(`${item.icon} ${item.name}`)
       .setDescription(item.description || "Sin descripción.")
       .addFields(
         {
@@ -65,22 +71,45 @@ export async function handleShopCommand(
           inline: true,
         },
         { name: "Stock", value: stockLabel, inline: true },
-        { name: "Tipo", value: typeLabel, inline: true },
+        {
+          name: "Beneficios",
+          value: rewards.slice(0, 1024),
+          inline: false,
+        },
         {
           name: "Comprar",
           value: `\`/buy item:${item.id}\``,
           inline: false,
         },
       );
+
+    const icon = (item.icon || "🛒").trim();
+    if (isImageIcon(icon)) {
+      embed.setTitle(item.name.slice(0, 256));
+      try {
+        const resolved = resolveEmbedMedia(
+          icon,
+          "icon",
+          `shop-icon-${index}`,
+        );
+        if (resolved.url) embed.setThumbnail(resolved.url);
+        if (resolved.file) files.push(resolved.file);
+      } catch {
+        /* ícono ilegible: título sin thumbnail */
+      }
+    } else {
+      embed.setTitle(`${icon} ${item.name}`.slice(0, 256));
+    }
+
+    return embed;
   });
 
   const extra =
-    items.length > 10
-      ? `\n_…y ${items.length - 10} ítems más._`
-      : "";
+    items.length > 10 ? `\n_…y ${items.length - 10} ítems más._` : "";
 
   await interaction.editReply({
     content: `🛒 **Tienda de ${interaction.guild.name}**${extra}`,
     embeds,
+    files,
   });
 }

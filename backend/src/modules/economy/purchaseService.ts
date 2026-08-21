@@ -1,12 +1,9 @@
 import type {
   EconomyPurchaseStatus,
   EconomyShopItem,
-  EconomyShopRewardConfigCustomRole,
-  EconomyShopRewardConfigManual,
-  EconomyShopRewardConfigMultiplier,
-  EconomyShopRewardConfigPrivateChannel,
-  EconomyShopRewardConfigRoleAssign,
+  EconomyShopRewards,
 } from "@adobos/shared";
+import { applyShopNameTemplate, durationToMinutes } from "@adobos/shared";
 import {
   ChannelType,
   EmbedBuilder,
@@ -18,6 +15,7 @@ import {
 import { and, eq } from "drizzle-orm";
 import { getDb } from "../../db/client.js";
 import {
+  economyOwnedChannels,
   economyOwnedRoles,
   economyPurchases,
   economyShopItems,
@@ -80,9 +78,7 @@ function debitFunds(
   const fromWallet = Math.min(wallet, remaining);
   wallet -= fromWallet;
   remaining -= fromWallet;
-  if (remaining > 0) {
-    bank -= remaining;
-  }
+  if (remaining > 0) bank -= remaining;
 
   getDb()
     .update(userEconomy)
@@ -95,11 +91,7 @@ function debitFunds(
   return { wallet, bank };
 }
 
-function refundFunds(
-  guildId: string,
-  userId: string,
-  amount: number,
-): void {
+function refundFunds(guildId: string, userId: string, amount: number): void {
   const current = ensureUserEconomy(guildId, userId);
   getDb()
     .update(userEconomy)
@@ -113,226 +105,288 @@ function refundFunds(
     .run();
 }
 
-async function fulfillReward(
+async function ensurePrivateCategory(guild: Guild): Promise<string> {
+  const existing = guild.channels.cache.find(
+    (ch) =>
+      ch.type === ChannelType.GuildCategory &&
+      ch.name === PRIVATE_CATEGORY_NAME,
+  );
+  if (existing) return existing.id;
+  const created = await guild.channels.create({
+    name: PRIVATE_CATEGORY_NAME,
+    type: ChannelType.GuildCategory,
+    reason: "Categoría de zonas privadas (tienda)",
+  });
+  return created.id;
+}
+
+type RewardResult = { pending?: boolean; meta: Record<string, unknown> };
+
+async function fulfillRole(
   guild: Guild,
   member: GuildMember,
   item: EconomyShopItem,
   purchaseId: string,
-): Promise<{ status: EconomyPurchaseStatus; metadata: Record<string, unknown> }> {
-  switch (item.rewardType) {
-    case "ROLE_ASSIGN": {
-      const cfg = item.rewardConfig as EconomyShopRewardConfigRoleAssign;
-      const role = await guild.roles.fetch(cfg.roleId).catch(() => null);
-      if (!role) {
-        throw new EconomyError(
-          "El rol configurado ya no existe.",
-          400,
-          "ROLE_MISSING",
-        );
-      }
-      await member.roles.add(role, `Tienda: ${item.name}`);
-      return { status: "fulfilled", metadata: { roleId: role.id } };
-    }
+): Promise<RewardResult> {
+  const cfg = item.rewards.roleConfig;
+  const role = await guild.roles.fetch(cfg.roleId).catch(() => null);
+  if (!role) {
+    throw new EconomyError(
+      "El rol configurado ya no existe.",
+      400,
+      "ROLE_MISSING",
+    );
+  }
+  await member.roles.add(role, `Tienda: ${item.name}`);
 
-    case "CUSTOM_ROLE": {
-      const cfg = item.rewardConfig as EconomyShopRewardConfigCustomRole;
-      const roleName = `${member.displayName}`.slice(0, 90) || "Rol custom";
-      const role = await guild.roles.create({
-        name: roleName,
-        permissions: [],
-        reason: `Tienda: ${item.name} (${member.user.tag})`,
-      });
+  let expiresAt: Date | null = null;
+  if (cfg.temporary) {
+    expiresAt = new Date(
+      Date.now() +
+        durationToMinutes(cfg.durationValue, cfg.durationUnit) * 60_000,
+    );
+  }
 
-      if (cfg.forceHierarchyBase) {
-        try {
-          await role.setPosition(1, {
-            reason: "Jerarquía base sobre @everyone",
-          });
-        } catch (error) {
-          console.warn(
-            "[adobos] shop CUSTOM_ROLE: no se pudo reposicionar el rol:",
-            error,
-          );
-        }
-      }
+  getDb()
+    .insert(economyOwnedRoles)
+    .values({
+      id: crypto.randomUUID(),
+      guildId: guild.id,
+      userId: member.id,
+      roleId: role.id,
+      itemId: item.id,
+      purchaseId,
+      expiresAt,
+      deleteRoleOnExpire: false,
+      createdAt: new Date(),
+    })
+    .run();
 
-      await member.roles.add(role, `Tienda: ${item.name}`);
+  return {
+    meta: {
+      type: "role",
+      roleId: role.id,
+      temporary: cfg.temporary,
+      expiresAt: expiresAt?.toISOString() ?? null,
+    },
+  };
+}
 
-      getDb()
-        .insert(economyOwnedRoles)
-        .values({
-          id: crypto.randomUUID(),
-          guildId: guild.id,
-          userId: member.id,
-          roleId: role.id,
-          itemId: item.id,
-          purchaseId,
-          createdAt: new Date(),
-        })
-        .run();
+async function fulfillChannel(
+  guild: Guild,
+  member: GuildMember,
+  item: EconomyShopItem,
+  purchaseId: string,
+): Promise<RewardResult> {
+  const cfg = item.rewards.channelConfig;
+  const vars = {
+    username: member.user.username,
+    displayname: member.displayName,
+    userid: member.id,
+  };
+  const name =
+    applyShopNameTemplate(cfg.nameTemplate, vars)
+      .toLowerCase()
+      .replace(/[^a-z0-9-_]/g, "-")
+      .replace(/-+/g, "-")
+      .slice(0, 100) || `privado-${member.id.slice(-4)}`;
 
-      return {
-        status: "fulfilled",
-        metadata: { roleId: role.id, forceHierarchyBase: cfg.forceHierarchyBase },
-      };
-    }
+  let parentId = cfg.categoryId;
+  if (!parentId) parentId = await ensurePrivateCategory(guild);
 
-    case "PRIVATE_CHANNEL": {
-      const cfg = item.rewardConfig as EconomyShopRewardConfigPrivateChannel;
-      let parentId = cfg.categoryId;
-
-      if (!parentId) {
-        const existing = guild.channels.cache.find(
-          (ch) =>
-            ch.type === ChannelType.GuildCategory &&
-            ch.name === PRIVATE_CATEGORY_NAME,
-        );
-        if (existing) {
-          parentId = existing.id;
-        } else {
-          const created = await guild.channels.create({
-            name: PRIVATE_CATEGORY_NAME,
-            type: ChannelType.GuildCategory,
-            reason: "Categoría de zonas privadas (tienda)",
-          });
-          parentId = created.id;
-        }
-      }
-
-      const slug = member.user.username
-        .toLowerCase()
-        .replace(/[^a-z0-9-_]/g, "")
-        .slice(0, 20);
-      const channel = await guild.channels.create({
-        name: `privado-${slug || member.id.slice(-4)}`.slice(0, 100),
-        type: ChannelType.GuildText,
-        parent: parentId,
-        permissionOverwrites: [
-          {
-            id: guild.id,
-            deny: [PermissionFlagsBits.ViewChannel],
-          },
-          {
-            id: member.id,
-            allow: [
-              PermissionFlagsBits.ViewChannel,
-              PermissionFlagsBits.SendMessages,
-              PermissionFlagsBits.ManageMessages,
-              PermissionFlagsBits.ReadMessageHistory,
-            ],
-          },
+  const channel = await guild.channels.create({
+    name,
+    type: ChannelType.GuildText,
+    parent: parentId,
+    permissionOverwrites: [
+      { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+      {
+        id: member.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory,
         ],
-        reason: `Tienda: ${item.name}`,
-      });
+      },
+    ],
+    reason: `Tienda: ${item.name}`,
+  });
 
-      return {
-        status: "fulfilled",
-        metadata: { channelId: channel.id, categoryId: parentId },
-      };
-    }
+  let expiresAt: Date | null = null;
+  if (cfg.temporary) {
+    expiresAt = new Date(
+      Date.now() +
+        durationToMinutes(cfg.durationValue, cfg.durationUnit) * 60_000,
+    );
+  }
 
-    case "MULTIPLIER_BOOST": {
-      const cfg = item.rewardConfig as EconomyShopRewardConfigMultiplier;
-      if (cfg.module === "xp") {
-        const levels = getLevelsConfig(guild.id);
-        if (!levels.enabled) {
-          throw new EconomyError(
-            "El módulo de Rangos y XP está desactivado. No se puede comprar este boost.",
-            400,
-            "XP_INACTIVE",
-          );
-        }
-      }
+  getDb()
+    .insert(economyOwnedChannels)
+    .values({
+      id: crypto.randomUUID(),
+      guildId: guild.id,
+      userId: member.id,
+      channelId: channel.id,
+      itemId: item.id,
+      purchaseId,
+      expiresAt,
+      createdAt: new Date(),
+    })
+    .run();
 
-      const expiresAt = new Date(
-        Date.now() + cfg.durationMinutes * 60_000,
-      );
-      // Guardamos multiplier * 100 para soportar decimales (2.5 → 250).
-      const stored = Math.round(cfg.multiplier * 100);
-      getDb()
-        .insert(economyUserBoosts)
-        .values({
-          id: crypto.randomUUID(),
-          guildId: guild.id,
-          userId: member.id,
-          module: cfg.module,
-          multiplier: stored,
-          expiresAt,
-          purchaseId,
-          createdAt: new Date(),
-        })
-        .run();
+  return {
+    meta: {
+      type: "channel",
+      channelId: channel.id,
+      categoryId: parentId,
+      temporary: cfg.temporary,
+      expiresAt: expiresAt?.toISOString() ?? null,
+    },
+  };
+}
 
-      return {
-        status: "fulfilled",
-        metadata: {
-          module: cfg.module,
-          multiplier: cfg.multiplier,
-          durationMinutes: cfg.durationMinutes,
-          expiresAt: expiresAt.toISOString(),
-        },
-      };
-    }
-
-    case "MANUAL_FULFILLMENT": {
-      const cfg = item.rewardConfig as EconomyShopRewardConfigManual;
-      const channel = (await guild.channels
-        .fetch(cfg.logChannelId)
-        .catch(() => null)) as TextChannel | null;
-      if (!channel || !channel.isTextBased()) {
-        throw new EconomyError(
-          "El canal de logs de canje no es válido.",
-          400,
-          "LOG_CHANNEL_MISSING",
-        );
-      }
-
-      const embed = new EmbedBuilder()
-        .setColor(0xf59e0b)
-        .setTitle("🎫 Nueva Orden de Compra")
-        .setDescription(
-          `**${member.displayName}** (<@${member.id}>) compró **${item.name}**.`,
-        )
-        .addFields(
-          {
-            name: "Ítem",
-            value: `${item.icon} ${item.name}\n${item.description || "—"}`,
-            inline: false,
-          },
-          {
-            name: "Precio pagado",
-            value: `\`${item.price}\``,
-            inline: true,
-          },
-          {
-            name: "Compra ID",
-            value: `\`${purchaseId}\``,
-            inline: true,
-          },
-        )
-        .setTimestamp(new Date());
-
-      await channel.send({
-        content: `<@&${cfg.pingRoleId}>`,
-        embeds: [embed],
-        allowedMentions: { roles: [cfg.pingRoleId] },
-      });
-
-      return {
-        status: "pending",
-        metadata: {
-          logChannelId: cfg.logChannelId,
-          pingRoleId: cfg.pingRoleId,
-        },
-      };
-    }
-
-    default:
+async function fulfillBoost(
+  guild: Guild,
+  member: GuildMember,
+  item: EconomyShopItem,
+  purchaseId: string,
+): Promise<RewardResult> {
+  const cfg = item.rewards.boostConfig;
+  if (cfg.module === "xp") {
+    const levels = getLevelsConfig(guild.id);
+    if (!levels.enabled) {
       throw new EconomyError(
-        "Tipo de recompensa no soportado.",
+        "El módulo de Rangos y XP está desactivado. No se puede aplicar este boost.",
         400,
-        "INVALID_TYPE",
+        "XP_INACTIVE",
       );
+    }
+  }
+
+  let expiresAt: Date | null = null;
+  if (cfg.temporary) {
+    expiresAt = new Date(
+      Date.now() +
+        durationToMinutes(cfg.durationValue, cfg.durationUnit) * 60_000,
+    );
+  }
+
+  getDb()
+    .insert(economyUserBoosts)
+    .values({
+      id: crypto.randomUUID(),
+      guildId: guild.id,
+      userId: member.id,
+      module: cfg.module,
+      multiplier: Math.round(cfg.multiplier * 100),
+      expiresAt,
+      purchaseId,
+      createdAt: new Date(),
+    })
+    .run();
+
+  return {
+    meta: {
+      type: "boost",
+      module: cfg.module,
+      multiplier: cfg.multiplier,
+      temporary: cfg.temporary,
+      expiresAt: expiresAt?.toISOString() ?? null,
+    },
+  };
+}
+
+async function fulfillManual(
+  guild: Guild,
+  member: GuildMember,
+  item: EconomyShopItem,
+  purchaseId: string,
+): Promise<RewardResult> {
+  const cfg = item.rewards.manualConfig;
+  const channel = (await guild.channels
+    .fetch(cfg.logChannelId)
+    .catch(() => null)) as TextChannel | null;
+  if (!channel || !channel.isTextBased()) {
+    throw new EconomyError(
+      "El canal de logs del ticket no es válido.",
+      400,
+      "LOG_CHANNEL_MISSING",
+    );
+  }
+
+  const embed = new EmbedBuilder()
+    .setColor(0xf59e0b)
+    .setTitle("🎫 Nueva Orden de Compra")
+    .setDescription(
+      `**${member.displayName}** (<@${member.id}>) compró **${item.name}**.`,
+    )
+    .addFields(
+      {
+        name: "Instrucciones para staff",
+        value: cfg.staffInstructions || "—",
+      },
+      {
+        name: "Precio pagado",
+        value: `\`${item.price}\``,
+        inline: true,
+      },
+      {
+        name: "Compra ID",
+        value: `\`${purchaseId}\``,
+        inline: true,
+      },
+    )
+    .setTimestamp(new Date());
+
+  const message = await channel.send({
+    content: `<@&${cfg.pingRoleId}>`,
+    embeds: [embed],
+    allowedMentions: { roles: [cfg.pingRoleId] },
+  });
+
+  let threadId: string | null = null;
+  if (
+    message &&
+    "startThread" in message &&
+    typeof message.startThread === "function"
+  ) {
+    try {
+      const thread = await message.startThread({
+        name: `Orden ${item.name}`.slice(0, 100),
+        autoArchiveDuration: 1440,
+        reason: `Seguimiento compra ${purchaseId}`,
+      });
+      threadId = thread.id;
+      await thread.send({
+        content: `Seguimiento de entrega para <@${member.id}>. Marcad cuando esté listo.`,
+      });
+    } catch (error) {
+      console.warn("[adobos] shop MANUAL_TICKET thread:", error);
+    }
+  }
+
+  return {
+    pending: true,
+    meta: {
+      type: "manual",
+      logChannelId: cfg.logChannelId,
+      pingRoleId: cfg.pingRoleId,
+      messageId: message.id,
+      threadId,
+    },
+  };
+}
+
+function preflightRewards(guildId: string, rewards: EconomyShopRewards): void {
+  if (rewards.hasBoost && rewards.boostConfig.module === "xp") {
+    const levels = getLevelsConfig(guildId);
+    if (!levels.enabled) {
+      throw new EconomyError(
+        "El módulo de Rangos y XP está desactivado. No se puede comprar este ítem.",
+        400,
+        "XP_INACTIVE",
+      );
+    }
   }
 }
 
@@ -346,7 +400,7 @@ export interface PurchaseResult {
 }
 
 /**
- * Compra un ítem: valida economía activa, saldo, stock, aplica recompensa.
+ * Compra un ítem y ejecuta las recompensas con Switch activo.
  */
 export async function purchaseShopItem(
   guild: Guild,
@@ -370,32 +424,36 @@ export async function purchaseShopItem(
     throw new EconomyError("Sin stock disponible.", 400, "OUT_OF_STOCK");
   }
 
-  // Pre-check XP boost before debiting
-  if (item.rewardType === "MULTIPLIER_BOOST") {
-    const cfg = item.rewardConfig as EconomyShopRewardConfigMultiplier;
-    if (cfg.module === "xp") {
-      const levels = getLevelsConfig(guild.id);
-      if (!levels.enabled) {
-        throw new EconomyError(
-          "El módulo de Rangos y XP está desactivado. No se puede comprar este boost.",
-          400,
-          "XP_INACTIVE",
-        );
-      }
-    }
-  }
+  preflightRewards(guild.id, item.rewards);
 
   const balances = debitFunds(guild.id, member.id, item.price);
   decrementShopStock(item.id, guild.id);
 
   const purchaseId = crypto.randomUUID();
-  let status: EconomyPurchaseStatus = "fulfilled";
-  let metadata: Record<string, unknown> = {};
+  const results: Record<string, unknown>[] = [];
+  let anyPending = false;
 
   try {
-    const result = await fulfillReward(guild, member, item, purchaseId);
-    status = result.status;
-    metadata = result.metadata;
+    const tasks: Array<() => Promise<RewardResult>> = [];
+    if (item.rewards.hasRole) {
+      tasks.push(() => fulfillRole(guild, member, item, purchaseId));
+    }
+    if (item.rewards.hasChannel) {
+      tasks.push(() => fulfillChannel(guild, member, item, purchaseId));
+    }
+    if (item.rewards.hasBoost) {
+      tasks.push(() => fulfillBoost(guild, member, item, purchaseId));
+    }
+    if (item.rewards.hasManual) {
+      tasks.push(() => fulfillManual(guild, member, item, purchaseId));
+    }
+
+    // Orden fijo del sistema; promesas en paralelo cuando hay varias.
+    const settled = await Promise.all(tasks.map((fn) => fn()));
+    for (const result of settled) {
+      results.push(result.meta);
+      if (result.pending) anyPending = true;
+    }
   } catch (error) {
     refundFunds(guild.id, member.id, item.price);
     if (item.stock !== null) {
@@ -425,6 +483,7 @@ export async function purchaseShopItem(
         status: "failed",
         metadata: JSON.stringify({
           error: error instanceof Error ? error.message : "unknown",
+          results,
         }),
         createdAt: new Date(),
       })
@@ -432,6 +491,9 @@ export async function purchaseShopItem(
 
     throw error;
   }
+
+  const status: EconomyPurchaseStatus = anyPending ? "pending" : "fulfilled";
+  const metadata = { rewards: results };
 
   getDb()
     .insert(economyPurchases)

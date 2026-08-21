@@ -797,8 +797,14 @@ export const economyShopItems = sqliteTable(
     icon: text("icon").notNull().default("🛒"),
     /** null = infinito (almacenado como NULL). */
     stock: integer("stock"),
-    rewardType: text("reward_type").notNull(),
-    rewardConfig: text("reward_config").notNull().default("{}"),
+    /** EconomyShopRewards JSON (Smart Toggles). */
+    rewards: text("rewards").notNull().default("{}"),
+    /** @deprecated Secuencia Shortcuts; se migra al leer. */
+    actionSequence: text("action_sequence").default("[]"),
+    /** @deprecated Legacy single-reward; se migra al leer. */
+    rewardType: text("reward_type"),
+    /** @deprecated */
+    rewardConfig: text("reward_config").default("{}"),
     enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
@@ -855,7 +861,8 @@ export const economyUserBoosts = sqliteTable(
     userId: text("user_id").notNull(),
     module: text("module").notNull(),
     multiplier: integer("multiplier").notNull(),
-    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    /** null = boost permanente. */
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
     purchaseId: text("purchase_id"),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
@@ -886,6 +893,15 @@ export const economyOwnedRoles = sqliteTable(
     roleId: text("role_id").notNull(),
     itemId: text("item_id"),
     purchaseId: text("purchase_id"),
+    /** null = permanente. */
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
+    /**
+     * true = borrar el rol de Discord al expirar (creado por la tienda);
+     * false = solo quitarlo del miembro (rol existente temporal).
+     */
+    deleteRoleOnExpire: integer("delete_role_on_expire", { mode: "boolean" })
+      .notNull()
+      .default(false),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
       .$defaultFn(() => new Date()),
@@ -896,6 +912,33 @@ export const economyOwnedRoles = sqliteTable(
 );
 
 export type EconomyOwnedRoleRow = typeof economyOwnedRoles.$inferSelect;
+
+/**
+ * Canales creados por la tienda (temporales o permanentes).
+ */
+export const economyOwnedChannels = sqliteTable(
+  "economy_owned_channels",
+  {
+    id: text("id").primaryKey(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    channelId: text("channel_id").notNull(),
+    itemId: text("item_id"),
+    purchaseId: text("purchase_id"),
+    /** null = permanente. */
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index("economy_owned_channels_user_idx").on(table.guildId, table.userId),
+  ],
+);
+
+export type EconomyOwnedChannelRow = typeof economyOwnedChannels.$inferSelect;
 
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [

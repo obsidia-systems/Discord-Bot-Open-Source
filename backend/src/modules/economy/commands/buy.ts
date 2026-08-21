@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import { EmbedBuilder } from "discord.js";
+import { resolveEmbedMedia } from "../../../lib/embedMedia.js";
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
 import { EconomyError, getEconomyConfig } from "../service.js";
 import { purchaseShopItem } from "../purchaseService.js";
@@ -53,11 +54,20 @@ export async function handleBuyCommand(
         ? "\n\nEl staff ha sido notificado para completar tu pedido."
         : "";
 
+    const icon = (result.item.icon || "").trim();
+    const isImage =
+      icon.startsWith("/uploads/") ||
+      icon.startsWith("http://") ||
+      icon.startsWith("https://");
+    const itemLabel = isImage
+      ? `**${result.item.name}**`
+      : `**${icon} ${result.item.name}**`.trim();
+
     const embed = new EmbedBuilder()
       .setColor(0x57f287)
       .setTitle("Compra realizada")
       .setDescription(
-        `Compraste **${result.item.icon} ${result.item.name}** por **${result.item.price.toLocaleString("es-MX")}** ${currency}.${statusNote}`,
+        `Compraste ${itemLabel} por **${result.item.price.toLocaleString("es-MX")}** ${currency}.${statusNote}`,
       )
       .addFields(
         {
@@ -74,7 +84,18 @@ export async function handleBuyCommand(
       .setFooter({ text: `ID compra: ${result.purchaseId}` })
       .setTimestamp(new Date());
 
-    await interaction.editReply({ embeds: [embed] });
+    const files = [];
+    if (isImage) {
+      try {
+        const resolved = resolveEmbedMedia(icon, "icon", "buy-icon");
+        if (resolved.url) embed.setThumbnail(resolved.url);
+        if (resolved.file) files.push(resolved.file);
+      } catch {
+        /* sin thumbnail */
+      }
+    }
+
+    await interaction.editReply({ embeds: [embed], files });
   } catch (error) {
     const message =
       error instanceof EconomyError

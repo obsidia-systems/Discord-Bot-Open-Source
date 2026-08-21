@@ -728,8 +728,10 @@ function ensureCoreTables(database: Database.Database): void {
       price INTEGER NOT NULL DEFAULT 0,
       icon TEXT NOT NULL DEFAULT '🛒',
       stock INTEGER,
-      reward_type TEXT NOT NULL,
-      reward_config TEXT NOT NULL DEFAULT '{}',
+      rewards TEXT NOT NULL DEFAULT '{}',
+      action_sequence TEXT DEFAULT '[]',
+      reward_type TEXT,
+      reward_config TEXT DEFAULT '{}',
       enabled INTEGER NOT NULL DEFAULT 1,
       sort_order INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL,
@@ -756,7 +758,7 @@ function ensureCoreTables(database: Database.Database): void {
       user_id TEXT NOT NULL,
       module TEXT NOT NULL,
       multiplier INTEGER NOT NULL,
-      expires_at INTEGER NOT NULL,
+      expires_at INTEGER,
       purchase_id TEXT,
       created_at INTEGER NOT NULL,
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
@@ -769,10 +771,154 @@ function ensureCoreTables(database: Database.Database): void {
       role_id TEXT NOT NULL,
       item_id TEXT,
       purchase_id TEXT,
+      expires_at INTEGER,
+      delete_role_on_expire INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS economy_owned_channels (
+      id TEXT PRIMARY KEY NOT NULL,
+      guild_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      item_id TEXT,
+      purchase_id TEXT,
+      expires_at INTEGER,
       created_at INTEGER NOT NULL,
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
     );
   `);
+
+  try {
+    let shopCols = database
+      .prepare(`PRAGMA table_info(economy_shop_items)`)
+      .all() as Array<{ name: string; notnull: number }>;
+    if (
+      shopCols.length > 0 &&
+      !shopCols.some((c) => c.name === "action_sequence")
+    ) {
+      database.exec(
+        `ALTER TABLE economy_shop_items ADD COLUMN action_sequence TEXT DEFAULT '[]'`,
+      );
+    }
+    if (shopCols.length > 0 && !shopCols.some((c) => c.name === "rewards")) {
+      database.exec(
+        `ALTER TABLE economy_shop_items ADD COLUMN rewards TEXT NOT NULL DEFAULT '{}'`,
+      );
+    }
+
+    // Legacy 0037: reward_type era NOT NULL; Smart Toggles inserta NULL.
+    shopCols = database
+      .prepare(`PRAGMA table_info(economy_shop_items)`)
+      .all() as Array<{ name: string; notnull: number }>;
+    const rewardTypeCol = shopCols.find((c) => c.name === "reward_type");
+    if (rewardTypeCol?.notnull === 1) {
+      database.exec(`
+        PRAGMA foreign_keys=OFF;
+        DROP TABLE IF EXISTS __economy_shop_items_new;
+        CREATE TABLE __economy_shop_items_new (
+          id TEXT PRIMARY KEY NOT NULL,
+          guild_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
+          price INTEGER NOT NULL DEFAULT 0,
+          icon TEXT NOT NULL DEFAULT '🛒',
+          stock INTEGER,
+          rewards TEXT NOT NULL DEFAULT '{}',
+          action_sequence TEXT DEFAULT '[]',
+          reward_type TEXT,
+          reward_config TEXT DEFAULT '{}',
+          enabled INTEGER NOT NULL DEFAULT 1,
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+        );
+        INSERT OR IGNORE INTO __economy_shop_items_new (
+          id, guild_id, name, description, price, icon, stock,
+          rewards, action_sequence, reward_type, reward_config,
+          enabled, sort_order, created_at, updated_at
+        )
+        SELECT
+          id, guild_id, name, description, price, icon, stock,
+          COALESCE(rewards, '{}'),
+          COALESCE(action_sequence, '[]'),
+          reward_type,
+          COALESCE(reward_config, '{}'),
+          enabled, sort_order, created_at, updated_at
+        FROM economy_shop_items;
+        DROP TABLE economy_shop_items;
+        ALTER TABLE __economy_shop_items_new RENAME TO economy_shop_items;
+        CREATE INDEX IF NOT EXISTS economy_shop_items_guild_idx
+          ON economy_shop_items (guild_id);
+        PRAGMA foreign_keys=ON;
+      `);
+    }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    const ownedCols = database
+      .prepare(`PRAGMA table_info(economy_owned_roles)`)
+      .all() as Array<{ name: string }>;
+    if (
+      ownedCols.length > 0 &&
+      !ownedCols.some((c) => c.name === "expires_at")
+    ) {
+      database.exec(
+        `ALTER TABLE economy_owned_roles ADD COLUMN expires_at INTEGER`,
+      );
+    }
+    if (
+      ownedCols.length > 0 &&
+      !ownedCols.some((c) => c.name === "delete_role_on_expire")
+    ) {
+      database.exec(
+        `ALTER TABLE economy_owned_roles ADD COLUMN delete_role_on_expire INTEGER NOT NULL DEFAULT 0`,
+      );
+    }
+  } catch {
+    /* ignore */
+  }
+
+  // Boosts permanentes: expires_at nullable (legacy era NOT NULL).
+  try {
+    const boostCols = database
+      .prepare(`PRAGMA table_info(economy_user_boosts)`)
+      .all() as Array<{ name: string; notnull: number }>;
+    const expiresCol = boostCols.find((c) => c.name === "expires_at");
+    if (expiresCol?.notnull === 1) {
+      database.exec(`
+        PRAGMA foreign_keys=OFF;
+        DROP TABLE IF EXISTS __economy_user_boosts_new;
+        CREATE TABLE __economy_user_boosts_new (
+          id TEXT PRIMARY KEY NOT NULL,
+          guild_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          module TEXT NOT NULL,
+          multiplier INTEGER NOT NULL,
+          expires_at INTEGER,
+          purchase_id TEXT,
+          created_at INTEGER NOT NULL,
+          FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+        );
+        INSERT OR IGNORE INTO __economy_user_boosts_new (
+          id, guild_id, user_id, module, multiplier, expires_at, purchase_id, created_at
+        )
+        SELECT id, guild_id, user_id, module, multiplier, expires_at, purchase_id, created_at
+        FROM economy_user_boosts;
+        DROP TABLE economy_user_boosts;
+        ALTER TABLE __economy_user_boosts_new RENAME TO economy_user_boosts;
+        CREATE INDEX IF NOT EXISTS economy_user_boosts_lookup_idx
+          ON economy_user_boosts (guild_id, user_id, module);
+        PRAGMA foreign_keys=ON;
+      `);
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 export function initDatabase(): AppDatabase {

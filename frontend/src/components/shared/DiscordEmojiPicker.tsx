@@ -77,6 +77,14 @@ export function DiscordEmojiPicker({
     setOpen(false);
   }
 
+  const mentionMatch = value?.mention
+    ? /^<(a)?:([\w~]+):(\d+)>$/.exec(value.mention)
+    : null;
+  const mentionCdn = mentionMatch
+    ? `https://cdn.discordapp.com/emojis/${mentionMatch[3]}.${mentionMatch[1] === "a" ? "gif" : "png"}?size=32`
+    : null;
+  const buttonImage = value?.imageUrl || mentionCdn;
+
   return (
     <>
       <Button
@@ -88,8 +96,8 @@ export function DiscordEmojiPicker({
         aria-label={value ? "Cambiar emoji" : "Elegir emoji"}
         onClick={() => setOpen(true)}
       >
-        {value?.imageUrl ? (
-          <img src={value.imageUrl} alt="" className="size-5" />
+        {buttonImage ? (
+          <img src={buttonImage} alt="" className="size-5" />
         ) : value?.display && !value.display.startsWith("<") ? (
           <span className="text-base leading-none">{value.display}</span>
         ) : (

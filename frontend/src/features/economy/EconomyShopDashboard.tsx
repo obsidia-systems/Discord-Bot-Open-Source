@@ -1,21 +1,14 @@
 import type {
   EconomyShopItem,
-  EconomyShopRewardConfig,
-  EconomyShopRewardConfigCustomRole,
-  EconomyShopRewardConfigManual,
-  EconomyShopRewardConfigMultiplier,
-  EconomyShopRewardConfigPrivateChannel,
-  EconomyShopRewardConfigRoleAssign,
-  EconomyShopRewardType,
+  EconomyShopRewards,
   GuildChannelAsset,
   GuildEmojiAsset,
   GuildRoleAsset,
 } from "@adobos/shared";
 import {
-  ECONOMY_SHOP_REWARD_LABELS,
-  ECONOMY_SHOP_REWARD_TYPES,
   defaultEconomyShopItemDraft,
-  defaultShopRewardConfig,
+  defaultShopRewards,
+  summarizeShopRewards,
 } from "@adobos/shared";
 import {
   createShopItem,
@@ -23,7 +16,6 @@ import {
   fetchEconomyConfig,
   fetchGuildAssets,
   fetchShopItems,
-  resolvePublicAssetUrl,
   updateShopItem,
   uploadImageFile,
 } from "@/lib/api";
@@ -54,21 +46,27 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ToastBanner } from "@/components/ui/toast";
+import { cn } from "@/lib/utils";
 import {
   ImagePlus,
   Loader2,
+  MessageSquareWarning,
   Pencil,
   Plus,
   Save,
+  Shield,
   Store,
   Trash2,
+  TrendingUp,
+  Lock,
+  type LucideIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { EconomyShopItemPreview } from "./EconomyShopItemPreview";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { EconomyShopItemPreview, ShopItemIcon } from "./EconomyShopItemPreview";
 
 type MainTab = "list" | "builder";
+type BuilderTab = "appearance" | "rewards";
 
-/** Discord ChannelType.GuildText / GuildCategory */
 const CHANNEL_TEXT = 0;
 const CHANNEL_CATEGORY = 4;
 
@@ -98,13 +96,15 @@ function selectionFromIcon(
   if (!s || isImageIcon(s)) return null;
   const mention = /^<(a)?:([\w~]+):(\d+)>$/.exec(s);
   if (mention) {
+    const animated = Boolean(mention[1]);
     const id = mention[3]!;
     const emoji = emojis.find((e) => e.id === id);
+    const cdn = `https://cdn.discordapp.com/emojis/${id}.${animated ? "gif" : "png"}?size=64`;
     return {
       emojiKey: `custom:${id}`,
       display: emoji?.mention ?? s,
       mention: emoji?.mention ?? s,
-      imageUrl: emoji?.url,
+      imageUrl: emoji?.url ?? cdn,
     };
   }
   return { emojiKey: `unicode:${s}`, display: s };
@@ -120,8 +120,13 @@ function emptyDraft(): DraftItem {
   return defaultEconomyShopItemDraft();
 }
 
+function countActiveRewards(rewards: EconomyShopRewards): number {
+  return summarizeShopRewards(rewards).length;
+}
+
 export function EconomyShopDashboard() {
   const [mainTab, setMainTab] = useState<MainTab>("list");
+  const [builderTab, setBuilderTab] = useState<BuilderTab>("appearance");
   const [items, setItems] = useState<EconomyShopItem[]>([]);
   const [draft, setDraft] = useState<DraftItem>(() => emptyDraft());
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -203,6 +208,7 @@ export function EconomyShopDashboard() {
     setEditingId(null);
     setDraft(emptyDraft());
     setStockUnlimited(true);
+    setBuilderTab("appearance");
     setMainTab("builder");
   }
 
@@ -216,12 +222,12 @@ export function EconomyShopDashboard() {
       price: item.price,
       icon: item.icon,
       stock: item.stock,
-      rewardType: item.rewardType,
-      rewardConfig: item.rewardConfig,
+      rewards: item.rewards ?? defaultShopRewards(),
       enabled: item.enabled,
       sortOrder: item.sortOrder,
     });
     setStockUnlimited(item.stock === null);
+    setBuilderTab("appearance");
     setMainTab("builder");
   }
 
@@ -229,18 +235,10 @@ export function EconomyShopDashboard() {
     setDraft((d) => ({ ...d, ...patch }));
   }
 
-  function setRewardType(rewardType: EconomyShopRewardType): void {
+  function patchRewards(patch: Partial<EconomyShopRewards>): void {
     setDraft((d) => ({
       ...d,
-      rewardType,
-      rewardConfig: defaultShopRewardConfig(rewardType),
-    }));
-  }
-
-  function patchRewardConfig(patch: Partial<EconomyShopRewardConfig>): void {
-    setDraft((d) => ({
-      ...d,
-      rewardConfig: { ...d.rewardConfig, ...patch } as EconomyShopRewardConfig,
+      rewards: { ...d.rewards, ...patch },
     }));
   }
 
@@ -254,8 +252,7 @@ export function EconomyShopDashboard() {
         price: draft.price,
         icon: draft.icon,
         stock: stockUnlimited ? null : (draft.stock ?? 0),
-        rewardType: draft.rewardType,
-        rewardConfig: draft.rewardConfig,
+        rewards: draft.rewards,
         enabled: draft.enabled,
         sortOrder: draft.sortOrder,
       };
@@ -295,7 +292,9 @@ export function EconomyShopDashboard() {
     }
   }
 
-  async function handleIconUpload(file: File | null | undefined): Promise<void> {
+  async function handleIconUpload(
+    file: File | null | undefined,
+  ): Promise<void> {
     if (!file) return;
     setUploadingIcon(true);
     try {
@@ -324,12 +323,7 @@ export function EconomyShopDashboard() {
     );
   }
 
-  const rewardCfg = draft.rewardConfig;
-  const roleAssign = rewardCfg as EconomyShopRewardConfigRoleAssign;
-  const customRole = rewardCfg as EconomyShopRewardConfigCustomRole;
-  const privateCh = rewardCfg as EconomyShopRewardConfigPrivateChannel;
-  const multiplier = rewardCfg as EconomyShopRewardConfigMultiplier;
-  const manual = rewardCfg as EconomyShopRewardConfigManual;
+  const { rewards } = draft;
 
   return (
     <div className="space-y-6">
@@ -343,324 +337,298 @@ export function EconomyShopDashboard() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="min-w-0 space-y-4 lg:col-span-2">
-          <Tabs>
-            <TabsList className="grid h-auto w-full grid-cols-2 gap-1">
-              <TabsTrigger
-                active={mainTab === "list"}
-                onClick={() => setMainTab("list")}
-              >
-                Items de la Tienda
-              </TabsTrigger>
-              <TabsTrigger
-                active={mainTab === "builder"}
-                onClick={() => {
-                  if (mainTab !== "builder") openCreate();
-                  else setMainTab("builder");
-                }}
-              >
-                Crear/Editar Item
-              </TabsTrigger>
-            </TabsList>
-
-            {mainTab === "list" ? (
-              <TabsContent>
-                <Card>
-                  <CardHeader className="pb-3">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <CardTitle className="flex items-center gap-2 text-base">
-                          <Store className="size-4 text-primary" />
-                          Catálogo ({items.length})
-                        </CardTitle>
-                        <CardDescription>
-                          Ítems disponibles con /shop y /buy.
-                        </CardDescription>
-                      </div>
-                      <Button type="button" size="sm" onClick={openCreate}>
-                        <Plus className="size-4" />
-                        Nuevo ítem
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {items.length === 0 ? (
-                      <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center">
-                        <p className="text-sm text-muted-foreground">
-                          Todavía no hay ítems. Crea el primero.
+          {mainTab === "list" ? (
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Store className="size-4 text-primary" />
+                      Catálogo ({items.length})
+                    </CardTitle>
+                    <CardDescription>
+                      Ítems canjeables con /shop y /buy.
+                    </CardDescription>
+                  </div>
+                  <Button type="button" size="sm" onClick={openCreate}>
+                    <Plus className="size-4" />
+                    Nuevo ítem
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {items.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      Todavía no hay ítems. Crea el primero.
+                    </p>
+                    <Button
+                      type="button"
+                      className="mt-4"
+                      onClick={openCreate}
+                    >
+                      <Plus className="size-4" />
+                      Crear ítem
+                    </Button>
+                  </div>
+                ) : (
+                  items.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex flex-wrap items-center gap-3 rounded-lg border border-border/70 bg-muted/10 px-3 py-3"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="flex min-w-0 items-center gap-2 truncate text-sm font-medium">
+                            <ShopItemIcon
+                              icon={item.icon}
+                              className="size-5 shrink-0"
+                            />
+                            <span className="truncate">{item.name}</span>
+                          </p>
+                          {!item.enabled ? (
+                            <Badge className="normal-case tracking-normal opacity-70">
+                              Pausado
+                            </Badge>
+                          ) : null}
+                          <Badge className="normal-case tracking-normal">
+                            {countActiveRewards(item.rewards)} beneficio
+                            {countActiveRewards(item.rewards) === 1
+                              ? ""
+                              : "s"}
+                          </Badge>
+                        </div>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {item.price.toLocaleString("es-MX")} {currencyName} ·
+                          Stock {item.stock === null ? "∞" : item.stock}
                         </p>
+                      </div>
+                      <div className="flex gap-2">
                         <Button
                           type="button"
-                          className="mt-4"
-                          onClick={openCreate}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openEdit(item)}
                         >
-                          <Plus className="size-4" />
-                          Crear ítem
+                          <Pencil className="size-3.5" />
+                          Editar
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="text-muted-foreground hover:text-destructive"
+                          aria-label="Eliminar"
+                          onClick={() => void handleDelete(item.id)}
+                        >
+                          <Trash2 className="size-4" />
                         </Button>
                       </div>
-                    ) : (
-                      items.map((item) => (
-                        <div
-                          key={item.id}
-                          className="flex flex-wrap items-center gap-3 rounded-lg border border-border/70 bg-muted/10 px-3 py-3"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="truncate text-sm font-medium">
-                                {item.icon} {item.name}
-                              </p>
-                              {!item.enabled ? (
-                                <Badge className="normal-case tracking-normal opacity-70">
-                                  Pausado
-                                </Badge>
-                              ) : null}
-                              <Badge className="normal-case tracking-normal">
-                                {
-                                  ECONOMY_SHOP_REWARD_LABELS[
-                                    item.rewardType
-                                  ]
-                                }
-                              </Badge>
-                            </div>
-                            <p className="mt-0.5 text-xs text-muted-foreground">
-                              {item.price.toLocaleString("es-MX")}{" "}
-                              {currencyName} · Stock{" "}
-                              {item.stock === null ? "∞" : item.stock}
-                            </p>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <Tabs>
+              <TabsList className="grid h-auto w-full grid-cols-2 gap-1">
+                <TabsTrigger
+                  active={builderTab === "appearance"}
+                  onClick={() => setBuilderTab("appearance")}
+                >
+                  1. Apariencia
+                </TabsTrigger>
+                <TabsTrigger
+                  active={builderTab === "rewards"}
+                  onClick={() => setBuilderTab("rewards")}
+                >
+                  2. Recompensas
+                </TabsTrigger>
+              </TabsList>
+
+              {builderTab === "appearance" ? (
+                <TabsContent>
+                  <div className="space-y-4">
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base">
+                          Apariencia en /shop
+                        </CardTitle>
+                        <CardDescription>
+                          {editingId
+                            ? "Editando ítem existente."
+                            : "Creando un ítem nuevo."}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="item-name">Nombre</Label>
+                            <Input
+                              id="item-name"
+                              value={draft.name}
+                              onChange={(e) =>
+                                patchDraft({ name: e.target.value })
+                              }
+                              placeholder="VIP Semanal"
+                            />
                           </div>
-                          <div className="flex gap-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="item-price">Precio</Label>
+                            <Input
+                              id="item-price"
+                              type="number"
+                              min={0}
+                              value={draft.price}
+                              onChange={(e) =>
+                                patchDraft({
+                                  price: Number(e.target.value) || 0,
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="item-desc">Descripción</Label>
+                          <Textarea
+                            id="item-desc"
+                            value={draft.description}
+                            onChange={(e) =>
+                              patchDraft({ description: e.target.value })
+                            }
+                            rows={3}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Emoji o icono</Label>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex size-10 items-center justify-center rounded-md border border-border bg-muted/40">
+                              <ShopItemIcon
+                                icon={draft.icon || "🛒"}
+                                className="size-6"
+                              />
+                            </div>
+                            <DiscordEmojiPicker
+                              serverEmojis={emojis}
+                              value={selectionFromIcon(draft.icon, emojis)}
+                              onSelect={(sel) =>
+                                patchDraft({ icon: iconFromSelection(sel) })
+                              }
+                              disabled={uploadingIcon}
+                            />
                             <Button
                               type="button"
                               variant="outline"
                               size="sm"
-                              onClick={() => openEdit(item)}
+                              className="h-9"
+                              disabled={uploadingIcon}
+                              onClick={() => iconFileRef.current?.click()}
                             >
-                              <Pencil className="size-3.5" />
-                              Editar
+                              {uploadingIcon ? (
+                                <Loader2 className="size-4 animate-spin" />
+                              ) : (
+                                <ImagePlus className="size-4" />
+                              )}
+                              Subir imagen
                             </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="text-muted-foreground hover:text-destructive"
-                              aria-label="Eliminar"
-                              onClick={() => void handleDelete(item.id)}
-                            >
-                              <Trash2 className="size-4" />
-                            </Button>
+                            <input
+                              ref={iconFileRef}
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp,image/gif"
+                              className="hidden"
+                              onChange={(e) =>
+                                void handleIconUpload(e.target.files?.[0])
+                              }
+                            />
                           </div>
                         </div>
-                      ))
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            ) : null}
-
-            {mainTab === "builder" ? (
-              <TabsContent>
-                <div className="space-y-4">
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">
-                        Información Base
-                      </CardTitle>
-                      <CardDescription>
-                        {editingId
-                          ? "Editando ítem existente."
-                          : "Creando un ítem nuevo."}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label htmlFor="item-name">Nombre</Label>
-                          <Input
-                            id="item-name"
-                            value={draft.name}
-                            onChange={(e) =>
-                              patchDraft({ name: e.target.value })
-                            }
-                            placeholder="VIP Semanal"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="item-price">Precio</Label>
-                          <Input
-                            id="item-price"
-                            type="number"
-                            min={0}
-                            value={draft.price}
-                            onChange={(e) =>
-                              patchDraft({
-                                price: Number(e.target.value) || 0,
-                              })
-                            }
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="item-desc">Descripción</Label>
-                        <Textarea
-                          id="item-desc"
-                          value={draft.description}
-                          onChange={(e) =>
-                            patchDraft({ description: e.target.value })
-                          }
-                          rows={3}
-                          placeholder="Qué recibe el comprador…"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Imagen / Icono</Label>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="flex size-10 items-center justify-center rounded-md border border-border bg-muted/40">
-                            {isImageIcon(draft.icon) ? (
-                              <img
-                                src={resolvePublicAssetUrl(draft.icon)}
-                                alt=""
-                                className="size-6 object-contain"
-                              />
-                            ) : (
-                              <span className="text-lg leading-none">
-                                {draft.icon || "🛒"}
-                              </span>
-                            )}
+                        <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-3">
+                          <div>
+                            <p className="text-sm font-medium">Stock infinito</p>
+                            <p className="text-xs text-muted-foreground">
+                              Sin límite de compras.
+                            </p>
                           </div>
-                          <DiscordEmojiPicker
-                            serverEmojis={emojis}
-                            value={selectionFromIcon(draft.icon, emojis)}
-                            onSelect={(sel) =>
-                              patchDraft({ icon: iconFromSelection(sel) })
-                            }
-                            disabled={uploadingIcon}
+                          <Switch
+                            checked={stockUnlimited}
+                            onCheckedChange={(next) => {
+                              setStockUnlimited(next);
+                              if (next) patchDraft({ stock: null });
+                              else patchDraft({ stock: draft.stock ?? 10 });
+                            }}
                           />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-9"
-                            disabled={uploadingIcon}
-                            onClick={() => iconFileRef.current?.click()}
-                          >
-                            {uploadingIcon ? (
-                              <Loader2 className="size-4 animate-spin" />
-                            ) : (
-                              <ImagePlus className="size-4" />
-                            )}
-                            Subir imagen
-                          </Button>
-                          <input
-                            ref={iconFileRef}
-                            type="file"
-                            accept="image/png,image/jpeg,image/webp,image/gif"
-                            className="hidden"
-                            onChange={(e) =>
-                              void handleIconUpload(e.target.files?.[0])
+                        </div>
+                        {!stockUnlimited ? (
+                          <div className="space-y-2">
+                            <Label htmlFor="item-stock">Límite de stock</Label>
+                            <Input
+                              id="item-stock"
+                              type="number"
+                              min={0}
+                              value={draft.stock ?? 0}
+                              onChange={(e) =>
+                                patchDraft({
+                                  stock: Number(e.target.value) || 0,
+                                })
+                              }
+                            />
+                          </div>
+                        ) : null}
+                        <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-3">
+                          <div>
+                            <p className="text-sm font-medium">Ítem activo</p>
+                            <p className="text-xs text-muted-foreground">
+                              Visible en /shop si está activo.
+                            </p>
+                          </div>
+                          <Switch
+                            checked={draft.enabled}
+                            onCheckedChange={(enabled) =>
+                              patchDraft({ enabled })
                             }
                           />
                         </div>
-                      </div>
-                      <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-3">
-                        <div>
-                          <p className="text-sm font-medium">Ítem activo</p>
-                          <p className="text-xs text-muted-foreground">
-                            Visible en /shop si está activo.
-                          </p>
-                        </div>
-                        <Switch
-                          checked={draft.enabled}
-                          onCheckedChange={(enabled) =>
-                            patchDraft({ enabled })
-                          }
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
+                      </CardContent>
+                    </Card>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setBuilderTab("rewards")}
+                    >
+                      Continuar a recompensas →
+                    </Button>
+                  </div>
+                </TabsContent>
+              ) : null}
 
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Inventario</CardTitle>
-                      <CardDescription>
-                        Deja el stock ilimitado o define una cantidad finita.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-3">
-                        <div>
-                          <p className="text-sm font-medium">Stock infinito</p>
-                          <p className="text-xs text-muted-foreground">
-                            Sin límite de compras.
-                          </p>
-                        </div>
-                        <Switch
-                          checked={stockUnlimited}
-                          onCheckedChange={(next) => {
-                            setStockUnlimited(next);
-                            if (next) patchDraft({ stock: null });
-                            else patchDraft({ stock: draft.stock ?? 10 });
-                          }}
-                        />
-                      </div>
-                      {!stockUnlimited ? (
+              {builderTab === "rewards" ? (
+                <TabsContent>
+                  <div className="space-y-3">
+                    <RewardToggleCard
+                      icon={Shield}
+                      title="Asignación de Rol"
+                      description="Otorga un rol existente al comprador."
+                      enabled={rewards.hasRole}
+                      onEnabledChange={(hasRole) => patchRewards({ hasRole })}
+                    >
+                      <div className="space-y-4">
                         <div className="space-y-2">
-                          <Label htmlFor="item-stock">Stock disponible</Label>
-                          <Input
-                            id="item-stock"
-                            type="number"
-                            min={0}
-                            value={draft.stock ?? 0}
-                            onChange={(e) =>
-                              patchDraft({
-                                stock: Number(e.target.value) || 0,
-                              })
-                            }
-                          />
-                        </div>
-                      ) : null}
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">
-                        Tipo de Recompensa
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="space-y-2">
-                        <Label>Tipo</Label>
-                        <Select
-                          value={draft.rewardType}
-                          onValueChange={(v) =>
-                            setRewardType(v as EconomyShopRewardType)
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {ECONOMY_SHOP_REWARD_TYPES.map((type) => (
-                              <SelectItem key={type} value={type}>
-                                {ECONOMY_SHOP_REWARD_LABELS[type]}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {draft.rewardType === "ROLE_ASSIGN" ? (
-                        <div className="space-y-2">
-                          <Label>Rol a asignar</Label>
+                          <Label>Rol</Label>
                           <Select
-                            value={roleAssign.roleId || undefined}
+                            value={rewards.roleConfig.roleId || undefined}
                             onValueChange={(roleId) =>
-                              patchRewardConfig({ roleId })
+                              patchRewards({
+                                roleConfig: {
+                                  ...rewards.roleConfig,
+                                  roleId,
+                                },
+                              })
                             }
                           >
                             <SelectTrigger>
                               {(() => {
                                 const selected = assignableRoles.find(
-                                  (r) => r.id === roleAssign.roleId,
+                                  (r) => r.id === rewards.roleConfig.roleId,
                                 );
                                 return selected ? (
                                   <span className="flex min-w-0 items-center gap-2">
@@ -690,44 +658,125 @@ export function EconomyShopDashboard() {
                             </SelectContent>
                           </Select>
                         </div>
-                      ) : null}
-
-                      {draft.rewardType === "CUSTOM_ROLE" ? (
                         <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-3">
                           <div>
                             <p className="text-sm font-medium">
-                              Forzar base de jerarquía
+                              ¿Es un rol temporal?
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              Coloca el rol justo encima de @everyone.
+                              Se retirará del miembro al expirar.
                             </p>
                           </div>
                           <Switch
-                            checked={customRole.forceHierarchyBase}
-                            onCheckedChange={(forceHierarchyBase) =>
-                              patchRewardConfig({ forceHierarchyBase })
+                            checked={rewards.roleConfig.temporary}
+                            onCheckedChange={(temporary) =>
+                              patchRewards({
+                                roleConfig: {
+                                  ...rewards.roleConfig,
+                                  temporary,
+                                },
+                              })
                             }
                           />
                         </div>
-                      ) : null}
+                        {rewards.roleConfig.temporary ? (
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-2">
+                              <Label>Duración</Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                value={rewards.roleConfig.durationValue}
+                                onChange={(e) =>
+                                  patchRewards({
+                                    roleConfig: {
+                                      ...rewards.roleConfig,
+                                      durationValue:
+                                        Number(e.target.value) || 1,
+                                    },
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Unidad</Label>
+                              <Select
+                                value={rewards.roleConfig.durationUnit}
+                                onValueChange={(durationUnit) =>
+                                  patchRewards({
+                                    roleConfig: {
+                                      ...rewards.roleConfig,
+                                      durationUnit:
+                                        durationUnit === "days"
+                                          ? "days"
+                                          : "hours",
+                                    },
+                                  })
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="hours">Horas</SelectItem>
+                                  <SelectItem value="days">Días</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </RewardToggleCard>
 
-                      {draft.rewardType === "PRIVATE_CHANNEL" ? (
+                    <RewardToggleCard
+                      icon={Lock}
+                      title="Canal Privado"
+                      description="Crea un canal de texto solo para el comprador."
+                      enabled={rewards.hasChannel}
+                      onEnabledChange={(hasChannel) =>
+                        patchRewards({ hasChannel })
+                      }
+                    >
+                      <div className="space-y-4">
                         <div className="space-y-2">
-                          <Label>Categoría (opcional)</Label>
+                          <Label>Nombre del canal</Label>
+                          <Input
+                            value={rewards.channelConfig.nameTemplate}
+                            onChange={(e) =>
+                              patchRewards({
+                                channelConfig: {
+                                  ...rewards.channelConfig,
+                                  nameTemplate: e.target.value,
+                                },
+                              })
+                            }
+                            placeholder="privado-{username}"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Variables: {"{username}"}, {"{displayname}"}
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Categoría</Label>
                           <Select
-                            value={privateCh.categoryId ?? "__auto__"}
+                            value={
+                              rewards.channelConfig.categoryId ?? "__auto__"
+                            }
                             onValueChange={(v) =>
-                              patchRewardConfig({
-                                categoryId: v === "__auto__" ? null : v,
+                              patchRewards({
+                                channelConfig: {
+                                  ...rewards.channelConfig,
+                                  categoryId: v === "__auto__" ? null : v,
+                                },
                               })
                             }
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder="Zonas Privadas (auto)" />
+                              <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="__auto__">
-                                Zonas Privadas (crear/usar automática)
+                                Zonas Privadas (auto)
                               </SelectItem>
                               {categoryChannels.map((ch) => (
                                 <SelectItem key={ch.id} value={ch.id}>
@@ -737,18 +786,98 @@ export function EconomyShopDashboard() {
                             </SelectContent>
                           </Select>
                         </div>
-                      ) : null}
+                        <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-3">
+                          <div>
+                            <p className="text-sm font-medium">
+                              ¿Es un canal temporal?
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Se eliminará al expirar.
+                            </p>
+                          </div>
+                          <Switch
+                            checked={rewards.channelConfig.temporary}
+                            onCheckedChange={(temporary) =>
+                              patchRewards({
+                                channelConfig: {
+                                  ...rewards.channelConfig,
+                                  temporary,
+                                },
+                              })
+                            }
+                          />
+                        </div>
+                        {rewards.channelConfig.temporary ? (
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-2">
+                              <Label>Duración</Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                value={rewards.channelConfig.durationValue}
+                                onChange={(e) =>
+                                  patchRewards({
+                                    channelConfig: {
+                                      ...rewards.channelConfig,
+                                      durationValue:
+                                        Number(e.target.value) || 1,
+                                    },
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Unidad</Label>
+                              <Select
+                                value={rewards.channelConfig.durationUnit}
+                                onValueChange={(durationUnit) =>
+                                  patchRewards({
+                                    channelConfig: {
+                                      ...rewards.channelConfig,
+                                      durationUnit:
+                                        durationUnit === "days"
+                                          ? "days"
+                                          : "hours",
+                                    },
+                                  })
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="hours">Horas</SelectItem>
+                                  <SelectItem value="days">Días</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </RewardToggleCard>
 
-                      {draft.rewardType === "MULTIPLIER_BOOST" ? (
-                        <div className="grid gap-4 sm:grid-cols-3">
+                    <RewardToggleCard
+                      icon={TrendingUp}
+                      title="Multiplicadores"
+                      description="Boost de XP o economía (puede ser temporal)."
+                      enabled={rewards.hasBoost}
+                      onEnabledChange={(hasBoost) =>
+                        patchRewards({ hasBoost })
+                      }
+                    >
+                      <div className="space-y-4">
+                        <div className="grid gap-4 sm:grid-cols-2">
                           <div className="space-y-2">
-                            <Label>Módulo</Label>
+                            <Label>Tipo</Label>
                             <Select
-                              value={multiplier.module}
+                              value={rewards.boostConfig.module}
                               onValueChange={(module) =>
-                                patchRewardConfig({
-                                  module:
-                                    module === "economy" ? "economy" : "xp",
+                                patchRewards({
+                                  boostConfig: {
+                                    ...rewards.boostConfig,
+                                    module:
+                                      module === "economy" ? "economy" : "xp",
+                                  },
                                 })
                               }
                             >
@@ -757,51 +886,138 @@ export function EconomyShopDashboard() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="xp">XP</SelectItem>
-                                <SelectItem value="economy">
-                                  Economía
-                                </SelectItem>
+                                <SelectItem value="economy">Economía</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
                           <div className="space-y-2">
-                            <Label>Multiplicador</Label>
+                            <Label>Factor</Label>
                             <Input
                               type="number"
                               min={1}
                               step={0.1}
-                              value={multiplier.multiplier}
+                              value={rewards.boostConfig.multiplier}
                               onChange={(e) =>
-                                patchRewardConfig({
-                                  multiplier: Number(e.target.value) || 1,
-                                })
-                              }
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Duración (min)</Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              value={multiplier.durationMinutes}
-                              onChange={(e) =>
-                                patchRewardConfig({
-                                  durationMinutes:
-                                    Number(e.target.value) || 1,
+                                patchRewards({
+                                  boostConfig: {
+                                    ...rewards.boostConfig,
+                                    multiplier: Number(e.target.value) || 1,
+                                  },
                                 })
                               }
                             />
                           </div>
                         </div>
-                      ) : null}
+                        <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-3">
+                          <div>
+                            <p className="text-sm font-medium">
+                              ¿Es un boost temporal?
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Si no, el multiplicador permanece activo.
+                            </p>
+                          </div>
+                          <Switch
+                            checked={rewards.boostConfig.temporary}
+                            onCheckedChange={(temporary) =>
+                              patchRewards({
+                                boostConfig: {
+                                  ...rewards.boostConfig,
+                                  temporary,
+                                },
+                              })
+                            }
+                          />
+                        </div>
+                        {rewards.boostConfig.temporary ? (
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-2">
+                              <Label>Duración</Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                value={rewards.boostConfig.durationValue}
+                                onChange={(e) =>
+                                  patchRewards({
+                                    boostConfig: {
+                                      ...rewards.boostConfig,
+                                      durationValue:
+                                        Number(e.target.value) || 1,
+                                    },
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Unidad</Label>
+                              <Select
+                                value={rewards.boostConfig.durationUnit}
+                                onValueChange={(durationUnit) =>
+                                  patchRewards({
+                                    boostConfig: {
+                                      ...rewards.boostConfig,
+                                      durationUnit:
+                                        durationUnit === "days"
+                                          ? "days"
+                                          : "hours",
+                                    },
+                                  })
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="hours">Horas</SelectItem>
+                                  <SelectItem value="days">Días</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </RewardToggleCard>
 
-                      {draft.rewardType === "MANUAL_FULFILLMENT" ? (
+                    <RewardToggleCard
+                      icon={MessageSquareWarning}
+                      title="Entrega Manual (Staff)"
+                      description="Notifica al staff para recompensas externas."
+                      enabled={rewards.hasManual}
+                      onEnabledChange={(hasManual) =>
+                        patchRewards({ hasManual })
+                      }
+                    >
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label>Instrucciones</Label>
+                          <Textarea
+                            value={rewards.manualConfig.staffInstructions}
+                            onChange={(e) =>
+                              patchRewards({
+                                manualConfig: {
+                                  ...rewards.manualConfig,
+                                  staffInstructions: e.target.value,
+                                },
+                              })
+                            }
+                            rows={3}
+                            placeholder="Dar 100k en Minecraft…"
+                          />
+                        </div>
                         <div className="grid gap-4 sm:grid-cols-2">
                           <div className="space-y-2">
                             <Label>Canal de logs</Label>
                             <Select
-                              value={manual.logChannelId || undefined}
+                              value={
+                                rewards.manualConfig.logChannelId || undefined
+                              }
                               onValueChange={(logChannelId) =>
-                                patchRewardConfig({ logChannelId })
+                                patchRewards({
+                                  manualConfig: {
+                                    ...rewards.manualConfig,
+                                    logChannelId,
+                                  },
+                                })
                               }
                             >
                               <SelectTrigger>
@@ -817,17 +1033,25 @@ export function EconomyShopDashboard() {
                             </Select>
                           </div>
                           <div className="space-y-2">
-                            <Label>Rol a etiquetar</Label>
+                            <Label>Rol del staff</Label>
                             <Select
-                              value={manual.pingRoleId || undefined}
+                              value={
+                                rewards.manualConfig.pingRoleId || undefined
+                              }
                               onValueChange={(pingRoleId) =>
-                                patchRewardConfig({ pingRoleId })
+                                patchRewards({
+                                  manualConfig: {
+                                    ...rewards.manualConfig,
+                                    pingRoleId,
+                                  },
+                                })
                               }
                             >
                               <SelectTrigger>
                                 {(() => {
                                   const selected = assignableRoles.find(
-                                    (r) => r.id === manual.pingRoleId,
+                                    (r) =>
+                                      r.id === rewards.manualConfig.pingRoleId,
                                   );
                                   return selected ? (
                                     <span className="flex min-w-0 items-center gap-2">
@@ -839,7 +1063,7 @@ export function EconomyShopDashboard() {
                                       </span>
                                     </span>
                                   ) : (
-                                    <SelectValue placeholder="Staff de entrega" />
+                                    <SelectValue placeholder="@Staff" />
                                   );
                                 })()}
                               </SelectTrigger>
@@ -858,20 +1082,20 @@ export function EconomyShopDashboard() {
                             </Select>
                           </div>
                         </div>
-                      ) : null}
-                    </CardContent>
-                  </Card>
-                </div>
-              </TabsContent>
-            ) : null}
-          </Tabs>
+                      </div>
+                    </RewardToggleCard>
+                  </div>
+                </TabsContent>
+              ) : null}
+            </Tabs>
+          )}
         </div>
 
         <Card className="sticky top-4 self-start">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Vista previa</CardTitle>
             <CardDescription>
-              Así se verá el ítem en el embed de /shop.
+              Embed de /shop y beneficios activos.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -882,7 +1106,7 @@ export function EconomyShopDashboard() {
                 price: draft.price,
                 icon: draft.icon,
                 stock: stockUnlimited ? null : (draft.stock ?? 0),
-                rewardType: draft.rewardType,
+                rewards: draft.rewards,
               }}
               currencyName={currencyName}
             />
@@ -911,11 +1135,7 @@ export function EconomyShopDashboard() {
                 </Button>
               </>
             ) : (
-              <Button
-                type="button"
-                className="w-full"
-                onClick={openCreate}
-              >
+              <Button type="button" className="w-full" onClick={openCreate}>
                 <Plus className="size-4" />
                 Nuevo ítem
               </Button>
@@ -924,5 +1144,56 @@ export function EconomyShopDashboard() {
         </Card>
       </div>
     </div>
+  );
+}
+
+function RewardToggleCard({
+  icon: Icon,
+  title,
+  description,
+  enabled,
+  onEnabledChange,
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  enabled: boolean;
+  onEnabledChange: (value: boolean) => void;
+  children: ReactNode;
+}) {
+  return (
+    <Card className={cn(enabled && "border-primary/40")}>
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Icon className="size-4 shrink-0 text-primary" aria-hidden />
+              {title}
+            </CardTitle>
+            <CardDescription>{description}</CardDescription>
+          </div>
+          <Switch
+            checked={enabled}
+            onCheckedChange={onEnabledChange}
+            aria-label={`Activar ${title}`}
+          />
+        </div>
+      </CardHeader>
+      <div
+        className={cn(
+          "grid transition-[grid-template-rows] duration-300 ease-out",
+          enabled ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+        )}
+      >
+        <div className="overflow-hidden">
+          {enabled ? (
+            <CardContent className="border-t border-border pt-4">
+              {children}
+            </CardContent>
+          ) : null}
+        </div>
+      </div>
+    </Card>
   );
 }

@@ -1,17 +1,15 @@
 import type {
   CreateEconomyShopItemRequest,
   EconomyShopItem,
-  EconomyShopRewardConfig,
-  EconomyShopRewardType,
+  EconomyShopRewards,
   UpdateEconomyShopItemRequest,
 } from "@adobos/shared";
 import {
   clampNonNegInt,
-  clampShopDurationMinutes,
   clampShopMultiplier,
   clampShopPrice,
-  defaultShopRewardConfig,
-  isEconomyShopRewardType,
+  defaultShopRewards,
+  rewardsFromActionSequence,
 } from "@adobos/shared";
 import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "../../db/client.js";
@@ -49,17 +47,201 @@ function ensureGuildRow(guildId: string): void {
   }
 }
 
-function parseConfig(raw: string): EconomyShopRewardConfig {
+function newId(): string {
+  return crypto.randomUUID();
+}
+
+function legacySingleToRewards(
+  rewardType: string | null | undefined,
+  rewardConfigRaw: string | null | undefined,
+): EconomyShopRewards {
+  const rewards = defaultShopRewards();
+  if (!rewardType) return rewards;
+  let cfg: Record<string, unknown> = {};
   try {
-    return JSON.parse(raw) as EconomyShopRewardConfig;
+    cfg = rewardConfigRaw
+      ? (JSON.parse(rewardConfigRaw) as Record<string, unknown>)
+      : {};
   } catch {
-    return defaultShopRewardConfig("ROLE_ASSIGN");
+    cfg = {};
+  }
+
+  switch (rewardType) {
+    case "ROLE_ASSIGN":
+      rewards.hasRole = true;
+      rewards.roleConfig.roleId =
+        typeof cfg.roleId === "string" ? cfg.roleId : "";
+      break;
+    case "CUSTOM_ROLE":
+      rewards.hasRole = true;
+      break;
+    case "PRIVATE_CHANNEL":
+      rewards.hasChannel = true;
+      rewards.channelConfig.categoryId =
+        typeof cfg.categoryId === "string" ? cfg.categoryId : null;
+      break;
+    case "MULTIPLIER_BOOST":
+      rewards.hasBoost = true;
+      rewards.boostConfig.module =
+        cfg.module === "economy" ? "economy" : "xp";
+      rewards.boostConfig.multiplier = clampShopMultiplier(
+        Number(cfg.multiplier ?? 2),
+      );
+      break;
+    case "MANUAL_FULFILLMENT":
+      rewards.hasManual = true;
+      rewards.manualConfig.logChannelId =
+        typeof cfg.logChannelId === "string" ? cfg.logChannelId : "";
+      rewards.manualConfig.pingRoleId =
+        typeof cfg.pingRoleId === "string" ? cfg.pingRoleId : "";
+      break;
+  }
+  return rewards;
+}
+
+export function sanitizeShopRewards(raw: unknown): EconomyShopRewards {
+  const base = defaultShopRewards();
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return base;
+  const row = raw as Record<string, unknown>;
+
+  const roleCfg =
+    row.roleConfig && typeof row.roleConfig === "object"
+      ? (row.roleConfig as Record<string, unknown>)
+      : {};
+  const channelCfg =
+    row.channelConfig && typeof row.channelConfig === "object"
+      ? (row.channelConfig as Record<string, unknown>)
+      : {};
+  const boostCfg =
+    row.boostConfig && typeof row.boostConfig === "object"
+      ? (row.boostConfig as Record<string, unknown>)
+      : {};
+  const manualCfg =
+    row.manualConfig && typeof row.manualConfig === "object"
+      ? (row.manualConfig as Record<string, unknown>)
+      : {};
+
+  return {
+    hasRole: Boolean(row.hasRole),
+    roleConfig: {
+      roleId: typeof roleCfg.roleId === "string" ? roleCfg.roleId.trim() : "",
+      temporary: Boolean(roleCfg.temporary),
+      durationValue: Math.max(
+        1,
+        clampNonNegInt(Number(roleCfg.durationValue), 24),
+      ),
+      durationUnit: roleCfg.durationUnit === "days" ? "days" : "hours",
+    },
+    hasChannel: Boolean(row.hasChannel),
+    channelConfig: {
+      nameTemplate:
+        typeof channelCfg.nameTemplate === "string" &&
+        channelCfg.nameTemplate.trim()
+          ? channelCfg.nameTemplate.trim().slice(0, 100)
+          : "privado-{username}",
+      categoryId:
+        typeof channelCfg.categoryId === "string" &&
+        channelCfg.categoryId.trim()
+          ? channelCfg.categoryId.trim()
+          : null,
+      temporary: Boolean(channelCfg.temporary),
+      durationValue: Math.max(
+        1,
+        clampNonNegInt(Number(channelCfg.durationValue), 24),
+      ),
+      durationUnit: channelCfg.durationUnit === "days" ? "days" : "hours",
+    },
+    hasBoost: Boolean(row.hasBoost),
+    boostConfig: {
+      module: boostCfg.module === "economy" ? "economy" : "xp",
+      multiplier: clampShopMultiplier(Number(boostCfg.multiplier ?? 2)),
+      temporary: boostCfg.temporary !== false,
+      durationValue: Math.max(
+        1,
+        clampNonNegInt(Number(boostCfg.durationValue), 24),
+      ),
+      durationUnit: boostCfg.durationUnit === "days" ? "days" : "hours",
+    },
+    hasManual: Boolean(row.hasManual),
+    manualConfig: {
+      staffInstructions:
+        typeof manualCfg.staffInstructions === "string"
+          ? manualCfg.staffInstructions.trim().slice(0, 1000)
+          : "",
+      logChannelId:
+        typeof manualCfg.logChannelId === "string"
+          ? manualCfg.logChannelId.trim()
+          : "",
+      pingRoleId:
+        typeof manualCfg.pingRoleId === "string"
+          ? manualCfg.pingRoleId.trim()
+          : "",
+    },
+  };
+}
+
+function validateRewards(rewards: EconomyShopRewards): void {
+  if (rewards.hasRole && !rewards.roleConfig.roleId) {
+    throw new EconomyError(
+      "Activa Asignación de Rol: selecciona un rol.",
+      400,
+      "INVALID_REWARDS",
+    );
+  }
+  if (rewards.hasManual) {
+    if (!rewards.manualConfig.logChannelId || !rewards.manualConfig.pingRoleId) {
+      throw new EconomyError(
+        "Entrega Manual: canal de logs y rol de staff son obligatorios.",
+        400,
+        "INVALID_REWARDS",
+      );
+    }
+  }
+  const any =
+    rewards.hasRole ||
+    rewards.hasChannel ||
+    rewards.hasBoost ||
+    rewards.hasManual;
+  if (!any) {
+    throw new EconomyError(
+      "Activa al menos una recompensa.",
+      400,
+      "NO_REWARDS",
+    );
   }
 }
 
-function rowToItem(
+function parseRewards(
   row: typeof economyShopItems.$inferSelect,
-): EconomyShopItem {
+): EconomyShopRewards {
+  try {
+    const parsed = JSON.parse(row.rewards || "{}") as unknown;
+    const rewards = sanitizeShopRewards(parsed);
+    if (
+      rewards.hasRole ||
+      rewards.hasChannel ||
+      rewards.hasBoost ||
+      rewards.hasManual
+    ) {
+      return rewards;
+    }
+  } catch {
+    /* fallthrough */
+  }
+
+  try {
+    const seq = JSON.parse(row.actionSequence || "[]") as unknown;
+    if (Array.isArray(seq) && seq.length > 0) {
+      return sanitizeShopRewards(rewardsFromActionSequence(seq));
+    }
+  } catch {
+    /* fallthrough */
+  }
+
+  return legacySingleToRewards(row.rewardType, row.rewardConfig);
+}
+
+function rowToItem(row: typeof economyShopItems.$inferSelect): EconomyShopItem {
   return {
     id: row.id,
     guildId: row.guildId,
@@ -68,82 +250,12 @@ function rowToItem(
     price: row.price,
     icon: row.icon,
     stock: row.stock ?? null,
-    rewardType: row.rewardType as EconomyShopRewardType,
-    rewardConfig: parseConfig(row.rewardConfig),
+    rewards: parseRewards(row),
     enabled: row.enabled,
     sortOrder: row.sortOrder,
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),
   };
-}
-
-function sanitizeRewardConfig(
-  type: EconomyShopRewardType,
-  raw: unknown,
-): EconomyShopRewardConfig {
-  const base = defaultShopRewardConfig(type);
-  if (!raw || typeof raw !== "object") return base;
-  const cfg = raw as Record<string, unknown>;
-
-  switch (type) {
-    case "ROLE_ASSIGN":
-      return {
-        roleId: typeof cfg.roleId === "string" ? cfg.roleId.trim() : "",
-      };
-    case "CUSTOM_ROLE":
-      return {
-        forceHierarchyBase:
-          typeof cfg.forceHierarchyBase === "boolean"
-            ? cfg.forceHierarchyBase
-            : true,
-      };
-    case "PRIVATE_CHANNEL":
-      return {
-        categoryId:
-          typeof cfg.categoryId === "string" && cfg.categoryId.trim()
-            ? cfg.categoryId.trim()
-            : null,
-      };
-    case "MULTIPLIER_BOOST":
-      return {
-        module: cfg.module === "economy" ? "economy" : "xp",
-        multiplier: clampShopMultiplier(Number(cfg.multiplier)),
-        durationMinutes: clampShopDurationMinutes(Number(cfg.durationMinutes)),
-      };
-    case "MANUAL_FULFILLMENT":
-      return {
-        logChannelId:
-          typeof cfg.logChannelId === "string" ? cfg.logChannelId.trim() : "",
-        pingRoleId:
-          typeof cfg.pingRoleId === "string" ? cfg.pingRoleId.trim() : "",
-      };
-  }
-}
-
-function validateRewardConfig(
-  type: EconomyShopRewardType,
-  config: EconomyShopRewardConfig,
-): void {
-  if (type === "ROLE_ASSIGN") {
-    const c = config as { roleId?: string };
-    if (!c.roleId) {
-      throw new EconomyError(
-        "Selecciona un rol para ROLE_ASSIGN.",
-        400,
-        "INVALID_REWARD_CONFIG",
-      );
-    }
-  }
-  if (type === "MANUAL_FULFILLMENT") {
-    const c = config as { logChannelId?: string; pingRoleId?: string };
-    if (!c.logChannelId || !c.pingRoleId) {
-      throw new EconomyError(
-        "Canje manual requiere canal de logs y rol a etiquetar.",
-        400,
-        "INVALID_REWARD_CONFIG",
-      );
-    }
-  }
 }
 
 export function listShopItems(
@@ -188,22 +300,16 @@ export function createShopItem(
   const guildId = resolveGuildId(input.guildId);
   ensureGuildRow(guildId);
 
-  if (!isEconomyShopRewardType(input.rewardType)) {
-    throw new EconomyError("Tipo de recompensa inválido.", 400, "INVALID_TYPE");
-  }
   const name = (input.name ?? "").trim().slice(0, 100);
   if (!name) {
     throw new EconomyError("El nombre del ítem es obligatorio.", 400, "NO_NAME");
   }
 
-  const rewardConfig = sanitizeRewardConfig(
-    input.rewardType,
-    input.rewardConfig,
-  );
-  validateRewardConfig(input.rewardType, rewardConfig);
+  const rewards = sanitizeShopRewards(input.rewards);
+  validateRewards(rewards);
 
   const now = new Date();
-  const id = crypto.randomUUID();
+  const id = newId();
   const stock =
     input.stock === null || input.stock === undefined
       ? null
@@ -219,8 +325,10 @@ export function createShopItem(
       price: clampShopPrice(Number(input.price)),
       icon: (input.icon ?? "🛒").trim().slice(0, 512) || "🛒",
       stock,
-      rewardType: input.rewardType,
-      rewardConfig: JSON.stringify(rewardConfig),
+      rewards: JSON.stringify(rewards),
+      actionSequence: "[]",
+      rewardType: null,
+      rewardConfig: "{}",
       enabled: input.enabled !== false,
       sortOrder: clampNonNegInt(Number(input.sortOrder ?? 0)),
       createdAt: now,
@@ -245,14 +353,11 @@ export function updateShopItem(
     throw new EconomyError("Ítem no encontrado.", 404, "NOT_FOUND");
   }
 
-  const rewardType = isEconomyShopRewardType(input.rewardType)
-    ? input.rewardType
-    : current.rewardType;
-  const rewardConfig = sanitizeRewardConfig(
-    rewardType,
-    input.rewardConfig ?? current.rewardConfig,
-  );
-  validateRewardConfig(rewardType, rewardConfig);
+  const rewards =
+    input.rewards !== undefined
+      ? sanitizeShopRewards(input.rewards)
+      : current.rewards;
+  validateRewards(rewards);
 
   const name =
     typeof input.name === "string"
@@ -286,8 +391,10 @@ export function updateShopItem(
           ? input.icon.trim().slice(0, 512) || "🛒"
           : current.icon,
       stock,
-      rewardType,
-      rewardConfig: JSON.stringify(rewardConfig),
+      rewards: JSON.stringify(rewards),
+      actionSequence: "[]",
+      rewardType: null,
+      rewardConfig: "{}",
       enabled:
         typeof input.enabled === "boolean" ? input.enabled : current.enabled,
       sortOrder:
@@ -325,7 +432,6 @@ export function deleteShopItem(itemId: string, guildId?: string): void {
     .run();
 }
 
-/** Decrementa stock si no es infinito. */
 export function decrementShopStock(itemId: string, guildId: string): void {
   const row = getDb()
     .select()
