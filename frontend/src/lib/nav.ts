@@ -252,12 +252,6 @@ export const dashboardNav: NavCategoryConfig[] = [
         blurb: "Anuncios y recordatorios en horario.",
       },
       {
-        label: "Comandos Generales",
-        href: "/dashboard/general/commands",
-        icon: Terminal,
-        blurb: "Activa o restringe los slash commands nativos.",
-      },
-      {
         label: "Comandos Custom",
         href: "/dashboard/automation/custom-commands",
         icon: Terminal,
