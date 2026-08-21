@@ -1,5 +1,11 @@
 import type { AdobosModule } from "../../core/modules/types.js";
 import { economyRoutes } from "./api/routes.js";
+import { handleBuyButton } from "./commands/buy.js";
+import {
+  BUY_BUTTON_PREFIX,
+  SHOP_PAGE_PREFIX,
+  handleShopPageButton,
+} from "./commands/shop.js";
 import { startShopExpirationSweeper } from "./shopExpiration.js";
 
 /** Módulo Economía — banco, ingresos, saldos y leaderboard. */
@@ -8,6 +14,12 @@ export const economyModule: AdobosModule = {
   name: "Economía",
   register(ctx) {
     ctx.route("/api/economy", economyRoutes(ctx.client));
+    ctx.button(BUY_BUTTON_PREFIX, (interaction) =>
+      handleBuyButton(interaction),
+    );
+    ctx.button(SHOP_PAGE_PREFIX, (interaction) =>
+      handleShopPageButton(interaction),
+    );
     ctx.once("ready", () => {
       startShopExpirationSweeper(ctx.client);
       console.log("[adobos] economy: sweeper de grants temporales activo");

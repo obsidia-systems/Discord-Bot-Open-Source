@@ -1,4 +1,5 @@
 import type {
+  AutocompleteInteraction,
   ButtonInteraction,
   ChatInputCommandInteraction,
   Client,
@@ -13,7 +14,7 @@ import {
 
 /**
  * Despacha interacciones a handlers registrados por módulos
- * (slash commands + botones + modal submits).
+ * (slash commands + autocomplete + botones + modal submits).
  */
 export function registerInteractionRouter(
   client: Client,
@@ -29,6 +30,10 @@ async function onInteractionCreate(
   registry: ModuleRegistry,
 ): Promise<void> {
   try {
+    if (interaction.isAutocomplete()) {
+      await handleAutocomplete(interaction);
+      return;
+    }
     if (interaction.isChatInputCommand()) {
       await handleChatInput(interaction, registry);
       return;
@@ -53,6 +58,33 @@ async function onInteractionCreate(
           ephemeral: true,
         })
         .catch(() => undefined);
+    }
+  }
+}
+
+async function handleAutocomplete(
+  interaction: AutocompleteInteraction,
+): Promise<void> {
+  try {
+    const { getSystemCommandDefinition } = await import("@adobos/shared");
+    if (!getSystemCommandDefinition(interaction.commandName)) {
+      await interaction.respond([]);
+      return;
+    }
+
+    if (interaction.commandName === "buy") {
+      const { handleBuyAutocomplete } = await import(
+        "../../modules/economy/commands/buy.js"
+      );
+      await handleBuyAutocomplete(interaction);
+      return;
+    }
+
+    await interaction.respond([]);
+  } catch (error) {
+    console.warn("[adobos] autocomplete falló:", error);
+    if (!interaction.responded) {
+      await interaction.respond([]).catch(() => undefined);
     }
   }
 }

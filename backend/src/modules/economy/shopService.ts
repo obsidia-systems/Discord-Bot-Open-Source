@@ -294,6 +294,29 @@ export function getShopItem(
   return row ? rowToItem(row) : null;
 }
 
+/** Nombres activos únicos (case-insensitive) por guild. */
+function assertUniqueActiveName(
+  guildId: string,
+  name: string,
+  excludeItemId?: string,
+): void {
+  const normalized = name.trim().toLowerCase();
+  if (!normalized) return;
+
+  const clash = listShopItems(guildId, { enabledOnly: true }).find(
+    (item) =>
+      item.id !== excludeItemId &&
+      item.name.trim().toLowerCase() === normalized,
+  );
+  if (clash) {
+    throw new EconomyError(
+      "Ya existe un ítem activo con este nombre. Por favor, elige otro.",
+      400,
+      "DUPLICATE_NAME",
+    );
+  }
+}
+
 export function createShopItem(
   input: CreateEconomyShopItemRequest,
 ): EconomyShopItem {
@@ -307,6 +330,11 @@ export function createShopItem(
 
   const rewards = sanitizeShopRewards(input.rewards);
   validateRewards(rewards);
+
+  const enabled = input.enabled !== false;
+  if (enabled) {
+    assertUniqueActiveName(guildId, name);
+  }
 
   const now = new Date();
   const id = newId();
@@ -329,7 +357,7 @@ export function createShopItem(
       actionSequence: "[]",
       rewardType: null,
       rewardConfig: "{}",
-      enabled: input.enabled !== false,
+      enabled,
       sortOrder: clampNonNegInt(Number(input.sortOrder ?? 0)),
       createdAt: now,
       updatedAt: now,
@@ -367,6 +395,12 @@ export function updateShopItem(
     throw new EconomyError("El nombre del ítem es obligatorio.", 400, "NO_NAME");
   }
 
+  const enabled =
+    typeof input.enabled === "boolean" ? input.enabled : current.enabled;
+  if (enabled) {
+    assertUniqueActiveName(guildId, name, itemId);
+  }
+
   let stock = current.stock;
   if (input.stock !== undefined) {
     stock =
@@ -395,8 +429,7 @@ export function updateShopItem(
       actionSequence: "[]",
       rewardType: null,
       rewardConfig: "{}",
-      enabled:
-        typeof input.enabled === "boolean" ? input.enabled : current.enabled,
+      enabled,
       sortOrder:
         typeof input.sortOrder === "number"
           ? clampNonNegInt(input.sortOrder)

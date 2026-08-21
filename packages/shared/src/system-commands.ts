@@ -35,6 +35,8 @@ export interface SystemCommandOption {
   description?: string;
   minValue?: number;
   maxValue?: number;
+  /** Discord: habilita sugerencias al escribir (STRING / INTEGER / NUMBER). */
+  autocomplete?: boolean;
 }
 
 export interface SystemCommandDefinition {
@@ -136,7 +138,10 @@ function opt(
   type: SystemCommandParamType,
   required: boolean,
   description: string,
-  extra?: Pick<SystemCommandOption, "minValue" | "maxValue">,
+  extra?: Pick<
+    SystemCommandOption,
+    "minValue" | "maxValue" | "autocomplete"
+  >,
 ): SystemCommandOption {
   return { name, type, required, description, ...extra };
 }
@@ -454,7 +459,9 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     category: "economy",
     defaultEnabled: true,
     options: [
-      opt("item", "STRING", true, "ID del ítem (aparece en /shop)."),
+      opt("item", "STRING", true, "Nombre del ítem (escribe para buscar).", {
+        autocomplete: true,
+      }),
     ],
     supportsEphemeral: true,
     defaultEphemeral: true,
@@ -554,6 +561,7 @@ export function toDiscordSlashCommandBody(def: SystemCommandDefinition): {
     name: string;
     description: string;
     required?: boolean;
+    autocomplete?: boolean;
     min_value?: number;
     max_value?: number;
   }>;
@@ -565,6 +573,7 @@ export function toDiscordSlashCommandBody(def: SystemCommandDefinition): {
     name: o.name,
     description: (o.description ?? o.name).slice(0, 100),
     required: o.required,
+    ...(o.autocomplete ? { autocomplete: true } : {}),
     ...(o.minValue !== undefined ? { min_value: o.minValue } : {}),
     ...(o.maxValue !== undefined ? { max_value: o.maxValue } : {}),
   }));
