@@ -116,9 +116,13 @@ export function EconomyJobsDashboard() {
 
   const assignableRoles = useMemo(
     () =>
-      roles.filter(
-        (r) => !r.managed && r.name !== "@everyone" && r.id !== "0",
-      ),
+      roles
+        .filter(
+          (r) =>
+            r.name !== "@everyone" &&
+            (!r.managed || r.premiumSubscriber),
+        )
+        .sort((a, b) => b.position - a.position),
     [roles],
   );
 
