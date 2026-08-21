@@ -184,19 +184,55 @@ export function defaultLevelsConfig(guildId = ""): LevelsConfig {
   };
 }
 
-/** Nivel a partir de XP total: floor(0.1 * sqrt(totalXp)). */
-export function levelFromXp(totalXp: number): number {
-  const xp = Math.max(0, Math.floor(Number(totalXp) || 0));
-  return Math.floor(0.1 * Math.sqrt(xp));
+/**
+ * XP necesaria para subir del nivel `n` al `n + 1` (fórmula tipo Mee6).
+ * `5 * n² + 50 * n + 100`
+ */
+export function xpToAdvanceFromLevel(level: number): number {
+  const n = Math.max(0, Math.floor(Number(level) || 0));
+  return 5 * n * n + 50 * n + 100;
 }
 
 /**
- * XP mínima para alcanzar un nivel L (inverso de levelFromXp).
- * level = floor(0.1 * sqrt(xp)) ⇒ xp >= (L * 10)^2
+ * XP total exacta con la que inicia un nivel (suma acumulada).
+ * Nivel 0 → 0.
  */
+export function calculateBaseXPForLevel(level: number): number {
+  const n = Math.max(0, Math.floor(Number(level) || 0));
+  if (n <= 0) return 0;
+  // Σ_{i=0}^{n-1} (5i² + 50i + 100)
+  return (
+    Math.floor((5 * n * (n - 1) * (2 * n - 1)) / 6) +
+    25 * n * (n - 1) +
+    100 * n
+  );
+}
+
+/** Nivel correspondiente a una XP total. */
+export function calculateLevel(totalXP: number): number {
+  const xp = Math.max(0, Math.floor(Number(totalXP) || 0));
+  let lo = 0;
+  let hi = 32;
+  while (calculateBaseXPForLevel(hi) <= xp) {
+    hi *= 2;
+    if (hi > 1_000_000) break;
+  }
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi + 1) / 2);
+    if (calculateBaseXPForLevel(mid) <= xp) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
+}
+
+/** @deprecated Preferir `calculateLevel`. */
+export function levelFromXp(totalXp: number): number {
+  return calculateLevel(totalXp);
+}
+
+/** @deprecated Preferir `calculateBaseXPForLevel`. */
 export function xpForLevel(level: number): number {
-  const l = Math.max(0, Math.floor(Number(level) || 0));
-  return (l * 10) ** 2;
+  return calculateBaseXPForLevel(level);
 }
 
 export function normalizeLevelUpFormat(_value?: unknown): LevelsLevelUpFormat {

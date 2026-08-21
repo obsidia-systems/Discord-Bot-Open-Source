@@ -3,6 +3,11 @@ import { getSystemCommandDefinition } from "@adobos/shared";
 import { handleRankCommand } from "../../levels/commands/rank.js";
 import { handleLeaderboardCommand } from "../../levels/commands/leaderboard.js";
 import {
+  handleGiveXpCommand,
+  handleRemoveXpCommand,
+  handleSetLevelCommand,
+} from "../../levels/commands/admin.js";
+import {
   handleBanCommand,
   handleKickCommand,
   handleTimeoutCommand,
@@ -55,9 +60,9 @@ export const DEFAULT_COMMAND_HANDLERS: Record<string, DefaultCommandHandler> = {
   // Rangos y XP
   rank: handleRankCommand,
   leaderboard: handleLeaderboardCommand,
-  givexp: (i) => stubCommand(i, "Rangos y XP"),
-  removexp: (i) => stubCommand(i, "Rangos y XP"),
-  setlevel: (i) => stubCommand(i, "Rangos y XP"),
+  givexp: handleGiveXpCommand,
+  removexp: handleRemoveXpCommand,
+  setlevel: handleSetLevelCommand,
 
   // Economía
   balance: handleBalanceCommand,

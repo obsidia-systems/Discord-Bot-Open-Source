@@ -42,6 +42,7 @@ function memberHasModPermission(
     case "givexp":
     case "removexp":
     case "setlevel":
+      return perms.has(PermissionFlagsBits.Administrator);
     case "addmoney":
     case "removemoney":
       return (

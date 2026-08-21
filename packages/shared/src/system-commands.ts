@@ -611,12 +611,20 @@ export function toDiscordSlashCommandBody(def: SystemCommandDefinition): {
 export type SystemCommandDiscordPermPreset =
   | "public"
   | "moderation"
-  | "manage_guild";
+  | "manage_guild"
+  | "administrator";
 
 export function resolveDiscordPermPreset(
   def: SystemCommandDefinition,
 ): SystemCommandDiscordPermPreset {
   if (!def.requiresAdminByDefault) return "public";
+  if (
+    def.name === "givexp" ||
+    def.name === "removexp" ||
+    def.name === "setlevel"
+  ) {
+    return "administrator";
+  }
   if (def.category === "moderation") return "moderation";
   return "manage_guild";
 }

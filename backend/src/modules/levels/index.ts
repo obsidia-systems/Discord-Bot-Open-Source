@@ -28,6 +28,8 @@ export {
   invalidateLevelsConfigCache,
   updateLevelsConfig,
   addUserXp,
+  deductUserXp,
+  setUserLevel,
   getUserRankStats,
   listLeaderboardRows,
 } from "./service.js";

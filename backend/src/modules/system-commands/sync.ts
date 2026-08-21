@@ -46,6 +46,8 @@ function defaultMemberPermissionsFor(
       );
     case "manage_guild":
       return String(PermissionFlagsBits.ManageGuild);
+    case "administrator":
+      return String(PermissionFlagsBits.Administrator);
     default:
       return null;
   }

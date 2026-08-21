@@ -14,8 +14,9 @@ import {
   DEFAULT_LEVEL_UP_EMBED_COLOR,
   DEFAULT_LEVEL_UP_EMBED_TITLE,
   DEFAULT_LEVEL_UP_MESSAGE,
+  calculateBaseXPForLevel,
+  calculateLevel,
   defaultLevelsConfig,
-  levelFromXp,
   normalizeEmbedColor,
   normalizeLevelUpFormat,
   xpForLevel,
@@ -557,9 +558,9 @@ export function addUserXp(
     .get();
 
   const previousXp = existing?.xp ?? 0;
-  const previousLevel = existing?.level ?? levelFromXp(previousXp);
+  const previousLevel = existing?.level ?? calculateLevel(previousXp);
   const xp = previousXp + gained;
-  const newLevel = levelFromXp(xp);
+  const newLevel = calculateLevel(xp);
 
   if (existing) {
     getDb()
@@ -598,9 +599,9 @@ export function deductUserXp(
     .get();
 
   const previousXp = existing?.xp ?? 0;
-  const previousLevel = existing?.level ?? levelFromXp(previousXp);
+  const previousLevel = existing?.level ?? calculateLevel(previousXp);
   const xp = Math.max(0, previousXp - lost);
-  const newLevel = levelFromXp(xp);
+  const newLevel = calculateLevel(xp);
 
   if (existing) {
     getDb()
@@ -623,6 +624,47 @@ export function deductUserXp(
     gained: -Math.min(lost, previousXp),
     leveledUp: false,
   };
+}
+
+export interface SetLevelResult {
+  xp: number;
+  level: number;
+  previousXp: number;
+  previousLevel: number;
+}
+
+/** Fija el nivel y la XP base exacta de ese nivel. */
+export function setUserLevel(
+  guildId: string,
+  userId: string,
+  level: number,
+): SetLevelResult {
+  const nextLevel = Math.max(0, Math.floor(level));
+  const xp = calculateBaseXPForLevel(nextLevel);
+
+  const existing = getDb()
+    .select()
+    .from(userXp)
+    .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)))
+    .get();
+
+  const previousXp = existing?.xp ?? 0;
+  const previousLevel = existing?.level ?? calculateLevel(previousXp);
+
+  if (existing) {
+    getDb()
+      .update(userXp)
+      .set({ xp, level: nextLevel })
+      .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)))
+      .run();
+  } else {
+    getDb()
+      .insert(userXp)
+      .values({ guildId, userId, xp, level: nextLevel })
+      .run();
+  }
+
+  return { xp, level: nextLevel, previousXp, previousLevel };
 }
 
 /** ¿El usuario tiene XP congelada ahora? */
