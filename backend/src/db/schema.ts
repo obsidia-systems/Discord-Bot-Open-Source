@@ -1,4 +1,5 @@
 import {
+  index,
   integer,
   primaryKey,
   real,
@@ -779,6 +780,122 @@ export const economyIncome = sqliteTable("economy_income", {
 
 export type EconomyIncomeRow = typeof economyIncome.$inferSelect;
 export type NewEconomyIncomeRow = typeof economyIncome.$inferInsert;
+
+/**
+ * Catálogo de la tienda del servidor (`/shop`, `/buy`).
+ */
+export const economyShopItems = sqliteTable(
+  "economy_shop_items",
+  {
+    id: text("id").primaryKey(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description").notNull().default(""),
+    price: integer("price").notNull().default(0),
+    icon: text("icon").notNull().default("🛒"),
+    /** null = infinito (almacenado como NULL). */
+    stock: integer("stock"),
+    rewardType: text("reward_type").notNull(),
+    rewardConfig: text("reward_config").notNull().default("{}"),
+    enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [index("economy_shop_items_guild_idx").on(table.guildId)],
+);
+
+export type EconomyShopItemRow = typeof economyShopItems.$inferSelect;
+export type NewEconomyShopItemRow = typeof economyShopItems.$inferInsert;
+
+/**
+ * Historial de compras de la tienda.
+ */
+export const economyPurchases = sqliteTable(
+  "economy_purchases",
+  {
+    id: text("id").primaryKey(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    itemId: text("item_id").notNull(),
+    itemName: text("item_name").notNull(),
+    pricePaid: integer("price_paid").notNull(),
+    status: text("status").notNull().default("fulfilled"),
+    metadata: text("metadata").notNull().default("{}"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index("economy_purchases_guild_user_idx").on(table.guildId, table.userId),
+  ],
+);
+
+export type EconomyPurchaseRow = typeof economyPurchases.$inferSelect;
+export type NewEconomyPurchaseRow = typeof economyPurchases.$inferInsert;
+
+/**
+ * Boosts temporales comprados (XP / economía).
+ */
+export const economyUserBoosts = sqliteTable(
+  "economy_user_boosts",
+  {
+    id: text("id").primaryKey(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    module: text("module").notNull(),
+    multiplier: integer("multiplier").notNull(),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    purchaseId: text("purchase_id"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index("economy_user_boosts_lookup_idx").on(
+      table.guildId,
+      table.userId,
+      table.module,
+    ),
+  ],
+);
+
+export type EconomyUserBoostRow = typeof economyUserBoosts.$inferSelect;
+
+/**
+ * Roles custom creados por la tienda (para /myrole).
+ */
+export const economyOwnedRoles = sqliteTable(
+  "economy_owned_roles",
+  {
+    id: text("id").primaryKey(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    roleId: text("role_id").notNull(),
+    itemId: text("item_id"),
+    purchaseId: text("purchase_id"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index("economy_owned_roles_user_idx").on(table.guildId, table.userId),
+  ],
+);
+
+export type EconomyOwnedRoleRow = typeof economyOwnedRoles.$inferSelect;
 
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [

@@ -260,6 +260,13 @@
       "when": 1786580000000,
       "tag": "0036_economy_income",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1786590000000,
+      "tag": "0037_economy_shop",
+      "breakpoints": true
     }
   ]
 }

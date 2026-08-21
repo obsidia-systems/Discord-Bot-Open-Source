@@ -103,6 +103,10 @@ export {
   adjustEconomyFunds,
   fetchEconomyIncomeConfig,
   saveEconomyIncomeConfig,
+  fetchShopItems,
+  createShopItem,
+  updateShopItem,
+  deleteShopItem,
 } from "./api/economy";
 
 export {

@@ -7,6 +7,8 @@ import {
   handleKickCommand,
   handleTimeoutCommand,
 } from "../../moderation/commands/slash.js";
+import { handleBuyCommand } from "../../economy/commands/buy.js";
+import { handleShopCommand } from "../../economy/commands/shop.js";
 import {
   handlePingCommand,
   handleServerInfoCommand,
@@ -55,7 +57,8 @@ export const DEFAULT_COMMAND_HANDLERS: Record<string, DefaultCommandHandler> = {
   pay: handleEconomyStub,
   addmoney: handleEconomyStub,
   removemoney: handleEconomyStub,
-  shop: handleEconomyStub,
+  shop: handleShopCommand,
+  buy: handleBuyCommand,
 
   // Utilidades
   userinfo: handleUserInfoCommand,

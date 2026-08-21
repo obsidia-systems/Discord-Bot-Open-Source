@@ -448,6 +448,18 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     defaultEphemeral: false,
     requiresAdminByDefault: false,
   },
+  {
+    name: "buy",
+    description: "Compra un ítem de la tienda del servidor.",
+    category: "economy",
+    defaultEnabled: true,
+    options: [
+      opt("item", "STRING", true, "ID del ítem (aparece en /shop)."),
+    ],
+    supportsEphemeral: true,
+    defaultEphemeral: true,
+    requiresAdminByDefault: false,
+  },
 
   // ── Utilidades ──────────────────────────────────────────────
   {

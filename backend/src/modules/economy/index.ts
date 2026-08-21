@@ -23,3 +23,13 @@ export {
   getEconomyIncomeConfig,
   updateEconomyIncomeConfig,
 } from "./incomeService.js";
+
+export {
+  createShopItem,
+  deleteShopItem,
+  getShopItem,
+  listShopItems,
+  updateShopItem,
+} from "./shopService.js";
+
+export { purchaseShopItem } from "./purchaseService.js";

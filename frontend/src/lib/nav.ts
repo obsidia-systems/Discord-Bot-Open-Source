@@ -287,7 +287,6 @@ export const dashboardNav: NavCategoryConfig[] = [
         label: "Tienda",
         href: "/dashboard/economy/shop",
         icon: Store,
-        soon: true,
         blurb: "Ítems y roles canjeables.",
       },
       {

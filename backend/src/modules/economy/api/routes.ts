@@ -3,10 +3,12 @@ import type { Client } from "discord.js";
 import type {
   AdjustEconomyFundsRequest,
   ApiErrorBody,
+  CreateEconomyShopItemRequest,
   EconomyLeaderboardEntry,
   EconomyLeaderboardResponse,
   UpdateEconomyConfigRequest,
   UpdateEconomyIncomeRequest,
+  UpdateEconomyShopItemRequest,
 } from "@adobos/shared";
 import { resolveMembersBatch } from "../../../lib/discordMember.js";
 import {
@@ -21,6 +23,12 @@ import {
   listEconomyLeaderboardRows,
   updateEconomyConfig,
 } from "../service.js";
+import {
+  createShopItem,
+  deleteShopItem,
+  listShopItems,
+  updateShopItem,
+} from "../shopService.js";
 
 function handleError(error: unknown, res: import("express").Response): void {
   if (error instanceof EconomyError) {
@@ -128,6 +136,54 @@ export function economyRoutes(bot: Client): Router {
         guildId: resolveGuildId(req) ?? body.guildId,
       });
       res.json({ config });
+    } catch (error) {
+      handleError(error, res);
+    }
+  });
+
+  /** GET /api/economy/shop/items */
+  router.get("/shop/items", (req, res) => {
+    try {
+      const items = listShopItems(resolveGuildId(req));
+      res.json({ items });
+    } catch (error) {
+      handleError(error, res);
+    }
+  });
+
+  /** POST /api/economy/shop/items */
+  router.post("/shop/items", (req, res) => {
+    try {
+      const body = req.body as CreateEconomyShopItemRequest;
+      const item = createShopItem({
+        ...body,
+        guildId: resolveGuildId(req) ?? body.guildId,
+      });
+      res.status(201).json({ item });
+    } catch (error) {
+      handleError(error, res);
+    }
+  });
+
+  /** PUT /api/economy/shop/items/:id */
+  router.put("/shop/items/:id", (req, res) => {
+    try {
+      const body = req.body as UpdateEconomyShopItemRequest;
+      const item = updateShopItem(req.params.id, {
+        ...body,
+        guildId: resolveGuildId(req) ?? body.guildId,
+      });
+      res.json({ item });
+    } catch (error) {
+      handleError(error, res);
+    }
+  });
+
+  /** DELETE /api/economy/shop/items/:id */
+  router.delete("/shop/items/:id", (req, res) => {
+    try {
+      deleteShopItem(req.params.id, resolveGuildId(req));
+      res.json({ ok: true });
     } catch (error) {
       handleError(error, res);
     }

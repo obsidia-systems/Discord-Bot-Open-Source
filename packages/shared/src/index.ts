@@ -21,5 +21,6 @@ export * from "./custom-commands.js";
 export * from "./system-commands.js";
 export * from "./levels.js";
 export * from "./economy.js";
+export * from "./economy-shop.js";
 export * from "./roles-builder.js";
 

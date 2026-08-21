@@ -1,8 +1,11 @@
 ---
-import ComingSoon from "../../../components/shared/ComingSoon.astro";
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { EconomyShopDashboard } from "../../../features/economy";
 ---
 
-<ComingSoon
+<DashboardLayout
   title="Tienda"
-  description="Catálogo de ítems y roles canjeables con la moneda del servidor."
-/>
+  description="Catálogo de ítems canjeables con la moneda del servidor."
+>
+  <EconomyShopDashboard client:load />
+</DashboardLayout>

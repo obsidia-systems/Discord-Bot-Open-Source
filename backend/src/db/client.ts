@@ -719,6 +719,59 @@ function ensureCoreTables(database: Database.Database): void {
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS economy_shop_items (
+      id TEXT PRIMARY KEY NOT NULL,
+      guild_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      price INTEGER NOT NULL DEFAULT 0,
+      icon TEXT NOT NULL DEFAULT '🛒',
+      stock INTEGER,
+      reward_type TEXT NOT NULL,
+      reward_config TEXT NOT NULL DEFAULT '{}',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS economy_purchases (
+      id TEXT PRIMARY KEY NOT NULL,
+      guild_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      item_id TEXT NOT NULL,
+      item_name TEXT NOT NULL,
+      price_paid INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'fulfilled',
+      metadata TEXT NOT NULL DEFAULT '{}',
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS economy_user_boosts (
+      id TEXT PRIMARY KEY NOT NULL,
+      guild_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      module TEXT NOT NULL,
+      multiplier INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      purchase_id TEXT,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS economy_owned_roles (
+      id TEXT PRIMARY KEY NOT NULL,
+      guild_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      role_id TEXT NOT NULL,
+      item_id TEXT,
+      purchase_id TEXT,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
   `);
 }
 

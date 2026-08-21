@@ -1,13 +1,18 @@
 import type {
   AdjustEconomyFundsRequest,
   AdjustEconomyFundsResponse,
+  CreateEconomyShopItemRequest,
   EconomyConfig,
   EconomyConfigResponse,
   EconomyIncomeConfig,
   EconomyIncomeConfigResponse,
   EconomyLeaderboardResponse,
+  EconomyShopItem,
+  EconomyShopItemResponse,
+  EconomyShopItemsResponse,
   UpdateEconomyConfigRequest,
   UpdateEconomyIncomeRequest,
+  UpdateEconomyShopItemRequest,
 } from "@adobos/shared";
 import { API_BASE, readApiError } from "./client";
 
@@ -95,4 +100,65 @@ export async function saveEconomyIncomeConfig(
   }
   const body = (await response.json()) as EconomyIncomeConfigResponse;
   return body.config;
+}
+
+export async function fetchShopItems(): Promise<EconomyShopItem[]> {
+  const response = await fetch(`${API_BASE}/api/economy/shop/items`);
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(response, "No se pudieron cargar los ítems."),
+    );
+  }
+  const body = (await response.json()) as EconomyShopItemsResponse;
+  return body.items;
+}
+
+export async function createShopItem(
+  input: CreateEconomyShopItemRequest,
+): Promise<EconomyShopItem> {
+  const response = await fetch(`${API_BASE}/api/economy/shop/items`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(response, "No se pudo crear el ítem."),
+    );
+  }
+  const body = (await response.json()) as EconomyShopItemResponse;
+  return body.item;
+}
+
+export async function updateShopItem(
+  id: string,
+  input: UpdateEconomyShopItemRequest,
+): Promise<EconomyShopItem> {
+  const response = await fetch(
+    `${API_BASE}/api/economy/shop/items/${encodeURIComponent(id)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(response, "No se pudo actualizar el ítem."),
+    );
+  }
+  const body = (await response.json()) as EconomyShopItemResponse;
+  return body.item;
+}
+
+export async function deleteShopItem(id: string): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/api/economy/shop/items/${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+  );
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(response, "No se pudo eliminar el ítem."),
+    );
+  }
 }
