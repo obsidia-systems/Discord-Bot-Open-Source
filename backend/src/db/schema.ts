@@ -744,6 +744,10 @@ export const userEconomy = sqliteTable(
     dailyStreak: integer("daily_streak").notNull().default(0),
     /** Última reclamación de /daily (ms). null = nunca. */
     lastDailyAt: integer("last_daily_at", { mode: "timestamp_ms" }),
+    /** Última reclamación de /weekly. */
+    lastWeeklyAt: integer("last_weekly_at", { mode: "timestamp_ms" }),
+    /** Última reclamación de /monthly. */
+    lastMonthlyAt: integer("last_monthly_at", { mode: "timestamp_ms" }),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .notNull()
       .$defaultFn(() => new Date()),

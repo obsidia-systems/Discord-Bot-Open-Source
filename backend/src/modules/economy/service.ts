@@ -195,6 +195,8 @@ function getOrCreateUserEconomy(
   bank: number;
   dailyStreak: number;
   lastDailyAt: Date | null;
+  lastWeeklyAt: Date | null;
+  lastMonthlyAt: Date | null;
 } {
   const existing = getDb()
     .select()
@@ -209,6 +211,8 @@ function getOrCreateUserEconomy(
       bank: existing.bank,
       dailyStreak: existing.dailyStreak ?? 0,
       lastDailyAt: existing.lastDailyAt ?? null,
+      lastWeeklyAt: existing.lastWeeklyAt ?? null,
+      lastMonthlyAt: existing.lastMonthlyAt ?? null,
     };
   }
 
@@ -224,10 +228,19 @@ function getOrCreateUserEconomy(
       bank: 0,
       dailyStreak: 0,
       lastDailyAt: null,
+      lastWeeklyAt: null,
+      lastMonthlyAt: null,
       updatedAt: now,
     })
     .run();
-  return { wallet, bank: 0, dailyStreak: 0, lastDailyAt: null };
+  return {
+    wallet,
+    bank: 0,
+    dailyStreak: 0,
+    lastDailyAt: null,
+    lastWeeklyAt: null,
+    lastMonthlyAt: null,
+  };
 }
 
 export function getUserEconomyBalance(
@@ -262,6 +275,8 @@ export function creditWallet(
       bank,
       dailyStreak: current.dailyStreak,
       lastDailyAt: current.lastDailyAt,
+      lastWeeklyAt: current.lastWeeklyAt,
+      lastMonthlyAt: current.lastMonthlyAt,
       updatedAt: now,
     })
     .onConflictDoUpdate({
@@ -372,47 +387,77 @@ export function transferWalletPay(
   };
 }
 
-export type ClaimDailyResult = {
+export type FixedIncomeType = "daily" | "weekly" | "monthly";
+
+export type ClaimFixedIncomeResult = {
+  type: FixedIncomeType;
   amount: number;
   streak: number;
   base: number;
   bonus: number;
+  bonusPercent: number;
   wallet: number;
   bank: number;
 };
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 
-export function claimDailyReward(
+const FIXED_INCOME_COOLDOWN_MS: Record<FixedIncomeType, number> = {
+  daily: 24 * HOUR_MS,
+  weekly: 7 * 24 * HOUR_MS,
+  monthly: 30 * 24 * HOUR_MS,
+};
+
+/**
+ * Reclama /daily, /weekly o /monthly (DRY).
+ * Solo `daily` aplica sistema de rachas.
+ */
+export function claimFixedIncome(
   guildId: string,
   userId: string,
-  dailyPay: number,
+  type: FixedIncomeType,
+  basePay: number,
   streakEnabled: boolean,
   streakBonusPercent: number,
-): ClaimDailyResult {
+): ClaimFixedIncomeResult {
   const current = getOrCreateUserEconomy(guildId, userId);
   const now = Date.now();
-  const last = current.lastDailyAt?.getTime() ?? null;
+  const cooldownMs = FIXED_INCOME_COOLDOWN_MS[type];
 
-  if (last !== null && now - last < DAY_MS) {
-    const remaining = DAY_MS - (now - last);
+  const lastAt =
+    type === "daily"
+      ? current.lastDailyAt
+      : type === "weekly"
+        ? current.lastWeeklyAt
+        : current.lastMonthlyAt;
+  const last = lastAt?.getTime() ?? null;
+
+  if (last !== null && now - last < cooldownMs) {
     throw new EconomyError(
-      `Vuelve en ${formatRemaining(remaining)}.`,
+      `Vuelve en ${formatRemaining(cooldownMs - (now - last))}.`,
       400,
-      "DAILY_COOLDOWN",
+      `${type.toUpperCase()}_COOLDOWN`,
     );
   }
 
-  let streak = 1;
-  if (last !== null && streakEnabled && now - last < 2 * DAY_MS) {
-    streak = current.dailyStreak + 1;
+  let streak = current.dailyStreak;
+  let bonusPercent = 0;
+  let bonus = 0;
+  const base = Math.max(0, Math.floor(basePay));
+
+  if (type === "daily") {
+    streak = 1;
+    if (last !== null && streakEnabled && now - last < 2 * DAY_MS) {
+      streak = current.dailyStreak + 1;
+    }
+    if (streakEnabled && streak > 0) {
+      // Alineado con el panel: racha xN → +(N * bonus%) .
+      bonusPercent = streak * streakBonusPercent;
+      bonus = Math.floor((base * bonusPercent) / 100);
+    }
   }
 
-  const base = Math.max(0, Math.floor(dailyPay));
-  const bonus =
-    streakEnabled && streak > 1
-      ? Math.floor((base * streakBonusPercent * (streak - 1)) / 100)
-      : 0;
   const amount = base + bonus;
   const wallet = current.wallet + amount;
   const bank = current.bank;
@@ -423,8 +468,11 @@ export function claimDailyReward(
     .set({
       wallet,
       bank,
-      dailyStreak: streak,
-      lastDailyAt: claimedAt,
+      ...(type === "daily"
+        ? { dailyStreak: streak, lastDailyAt: claimedAt }
+        : type === "weekly"
+          ? { lastWeeklyAt: claimedAt }
+          : { lastMonthlyAt: claimedAt }),
       updatedAt: claimedAt,
     })
     .where(
@@ -432,17 +480,56 @@ export function claimDailyReward(
     )
     .run();
 
-  return { amount, streak, base, bonus, wallet, bank };
+  return {
+    type,
+    amount,
+    streak: type === "daily" ? streak : 0,
+    base,
+    bonus,
+    bonusPercent,
+    wallet,
+    bank,
+  };
+}
+
+/** @deprecated Usar `claimFixedIncome(..., "daily", ...)`. */
+export function claimDailyReward(
+  guildId: string,
+  userId: string,
+  dailyPay: number,
+  streakEnabled: boolean,
+  streakBonusPercent: number,
+): ClaimFixedIncomeResult {
+  return claimFixedIncome(
+    guildId,
+    userId,
+    "daily",
+    dailyPay,
+    streakEnabled,
+    streakBonusPercent,
+  );
 }
 
 export function formatRemaining(ms: number): string {
   const totalSec = Math.max(1, Math.ceil(ms / 1000));
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  if (h > 0) return `${h}h ${m}m ${s}s`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
+  const days = Math.floor(totalSec / 86_400);
+  const hours = Math.floor((totalSec % 86_400) / 3600);
+  const minutes = Math.floor((totalSec % 3600) / 60);
+  const seconds = totalSec % 60;
+
+  const parts: string[] = [];
+  if (days > 0) {
+    parts.push(`${days} día${days === 1 ? "" : "s"}`);
+    if (hours > 0) parts.push(`${hours} hora${hours === 1 ? "" : "s"}`);
+    return parts.join(" y ");
+  }
+  if (hours > 0) {
+    parts.push(`${hours} hora${hours === 1 ? "" : "s"}`);
+    if (minutes > 0) parts.push(`${minutes} min`);
+    return parts.join(" y ");
+  }
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
 }
 
 export function adjustEconomyFunds(

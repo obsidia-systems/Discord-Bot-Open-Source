@@ -10,13 +10,14 @@ import { getEconomyIncomeConfig } from "../incomeService.js";
 import {
   EconomyError,
   adjustEconomyFunds,
-  claimDailyReward,
+  claimFixedIncome,
   creditWallet,
   debitWallet,
   getEconomyConfig,
   getUserEconomyBalance,
   listEconomyLeaderboardRows,
   transferWalletPay,
+  type FixedIncomeType,
 } from "../service.js";
 
 function randomInt(min: number, max: number): number {
@@ -161,10 +162,11 @@ export async function handlePayCommand(
 }
 
 /**
- * /daily
+ * Handler compartido /daily · /weekly · /monthly.
  */
-export async function handleDailyCommand(
+async function handleFixedIncome(
   interaction: ChatInputCommandInteraction,
+  incomeType: FixedIncomeType,
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
@@ -180,39 +182,79 @@ export async function handleDailyCommand(
   try {
     const economy = getEconomyConfig(interaction.guildId);
     const income = getEconomyIncomeConfig(interaction.guildId);
-    const result = claimDailyReward(
+    const basePay =
+      incomeType === "daily"
+        ? income.dailyPay
+        : incomeType === "weekly"
+          ? income.weeklyPay
+          : income.monthlyPay;
+
+    const result = claimFixedIncome(
       interaction.guildId,
       interaction.user.id,
-      income.dailyPay,
+      incomeType,
+      basePay,
       income.streakEnabled,
       income.streakBonusPercent,
     );
-    const currency = economy.currencyName || "monedas";
 
-    const streakLine = income.streakEnabled
-      ? `\nRacha: **${result.streak}** día${result.streak === 1 ? "" : "s"}` +
-        (result.bonus > 0
-          ? ` (+${result.bonus.toLocaleString("es-MX")} bonus)`
-          : "")
-      : "";
+    const currency = economy.currencyName || "monedas";
+    const symbol = economy.currencySymbol?.trim() || "";
+    const currencyLabel = symbol ? `${currency} (${symbol})` : currency;
+
+    const titles: Record<FixedIncomeType, string> = {
+      daily: "Recompensa diaria",
+      weekly: "Recompensa semanal",
+      monthly: "Recompensa mensual",
+    };
+    const footers: Record<FixedIncomeType, string> = {
+      daily: "Vuelve en 24 horas.",
+      weekly: "Vuelve en 7 días.",
+      monthly: "Vuelve en 30 días.",
+    };
+
+    let description = `Has reclamado **${result.amount.toLocaleString("es-MX")}** ${currencyLabel}.`;
+    if (incomeType === "daily" && income.streakEnabled) {
+      description += `\n🔥 Racha x${result.streak} → +${result.bonusPercent}% bonus`;
+    }
+    description += `\nTambién disponibles: \`/weekly\` (${income.weeklyPay.toLocaleString("es-MX")}) · \`/monthly\` (${income.monthlyPay.toLocaleString("es-MX")})`;
 
     const embed = new EmbedBuilder()
       .setColor(0xfbbf24)
-      .setTitle("Recompensa diaria")
-      .setDescription(
-        `Recibiste **${result.amount.toLocaleString("es-MX")}** ${currency}.${streakLine}`,
-      )
+      .setTitle(titles[incomeType])
+      .setDescription(description)
       .addFields({
         name: "Cartera",
         value: `\`${result.wallet.toLocaleString("es-MX")}\``,
         inline: true,
       })
-      .setFooter({ text: "Vuelve en 24 horas." });
+      .setFooter({ text: footers[incomeType] });
 
     await interaction.editReply({ embeds: [embed] });
   } catch (error) {
     await replyEconomyError(interaction, error, true);
   }
+}
+
+/** /daily */
+export async function handleDailyCommand(
+  interaction: ChatInputCommandInteraction,
+): Promise<void> {
+  await handleFixedIncome(interaction, "daily");
+}
+
+/** /weekly */
+export async function handleWeeklyCommand(
+  interaction: ChatInputCommandInteraction,
+): Promise<void> {
+  await handleFixedIncome(interaction, "weekly");
+}
+
+/** /monthly */
+export async function handleMonthlyCommand(
+  interaction: ChatInputCommandInteraction,
+): Promise<void> {
+  await handleFixedIncome(interaction, "monthly");
 }
 
 /**

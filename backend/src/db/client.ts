@@ -703,6 +703,8 @@ function ensureCoreTables(database: Database.Database): void {
       bank INTEGER NOT NULL DEFAULT 0,
       daily_streak INTEGER NOT NULL DEFAULT 0,
       last_daily_at INTEGER,
+      last_weekly_at INTEGER,
+      last_monthly_at INTEGER,
       updated_at INTEGER NOT NULL,
       PRIMARY KEY (guild_id, user_id),
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
@@ -948,6 +950,22 @@ function ensureCoreTables(database: Database.Database): void {
       !userEcoCols.some((c) => c.name === "last_daily_at")
     ) {
       database.exec(`ALTER TABLE user_economy ADD COLUMN last_daily_at INTEGER`);
+    }
+    if (
+      userEcoCols.length > 0 &&
+      !userEcoCols.some((c) => c.name === "last_weekly_at")
+    ) {
+      database.exec(
+        `ALTER TABLE user_economy ADD COLUMN last_weekly_at INTEGER`,
+      );
+    }
+    if (
+      userEcoCols.length > 0 &&
+      !userEcoCols.some((c) => c.name === "last_monthly_at")
+    ) {
+      database.exec(
+        `ALTER TABLE user_economy ADD COLUMN last_monthly_at INTEGER`,
+      );
     }
   } catch {
     /* ignore */

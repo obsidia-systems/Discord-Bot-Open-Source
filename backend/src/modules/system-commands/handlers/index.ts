@@ -19,8 +19,10 @@ import {
   handleBaltopCommand,
   handleCrimeCommand,
   handleDailyCommand,
+  handleMonthlyCommand,
   handlePayCommand,
   handleRemoveMoneyCommand,
+  handleWeeklyCommand,
   handleWorkCommand,
 } from "../../economy/commands/income.js";
 import { handleShopCommand } from "../../economy/commands/shop.js";
@@ -69,6 +71,8 @@ export const DEFAULT_COMMAND_HANDLERS: Record<string, DefaultCommandHandler> = {
   work: handleWorkCommand,
   crime: handleCrimeCommand,
   daily: handleDailyCommand,
+  weekly: handleWeeklyCommand,
+  monthly: handleMonthlyCommand,
   pay: handlePayCommand,
   baltop: handleBaltopCommand,
   addmoney: handleAddMoneyCommand,
