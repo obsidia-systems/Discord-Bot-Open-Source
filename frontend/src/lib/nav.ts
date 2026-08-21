@@ -252,7 +252,13 @@ export const dashboardNav: NavCategoryConfig[] = [
         blurb: "Anuncios y recordatorios en horario.",
       },
       {
-        label: "Comandos custom",
+        label: "Comandos Generales",
+        href: "/dashboard/general/commands",
+        icon: Terminal,
+        blurb: "Activa o restringe los slash commands nativos.",
+      },
+      {
+        label: "Comandos Custom",
         href: "/dashboard/automation/custom-commands",
         icon: Terminal,
         blurb: "Respuestas y slash commands propios.",
@@ -273,10 +279,9 @@ export const dashboardNav: NavCategoryConfig[] = [
       },
       {
         label: "Ingresos y Trabajos",
-        href: "/dashboard/economy/income",
+        href: "/dashboard/economy/jobs",
         icon: Briefcase,
-        soon: true,
-        blurb: "Work, daily y fuentes de ingreso.",
+        blurb: "Work, daily, crímenes y salarios por rol.",
       },
       {
         label: "Tienda",

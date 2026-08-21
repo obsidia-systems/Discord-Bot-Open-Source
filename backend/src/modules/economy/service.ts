@@ -101,7 +101,8 @@ export function updateEconomyConfig(
         : current.currencyName,
     currencySymbol:
       typeof input.currencySymbol === "string" && input.currencySymbol.trim()
-        ? input.currencySymbol.trim().slice(0, 64)
+        ? // Unicode, `<:name:id>` o ruta `/uploads/...` (imagen de moneda).
+          input.currencySymbol.trim().slice(0, 512)
         : current.currencySymbol,
     startBalance:
       typeof input.startBalance === "number"

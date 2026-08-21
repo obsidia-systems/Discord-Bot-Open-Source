@@ -6,8 +6,13 @@ import type {
   EconomyLeaderboardEntry,
   EconomyLeaderboardResponse,
   UpdateEconomyConfigRequest,
+  UpdateEconomyIncomeRequest,
 } from "@adobos/shared";
 import { resolveMembersBatch } from "../../../lib/discordMember.js";
+import {
+  getEconomyIncomeConfig,
+  updateEconomyIncomeConfig,
+} from "../incomeService.js";
 import {
   EconomyError,
   adjustEconomyFunds,
@@ -95,6 +100,30 @@ export function economyRoutes(bot: Client): Router {
     try {
       const body = req.body as UpdateEconomyConfigRequest;
       const config = updateEconomyConfig({
+        ...body,
+        guildId: resolveGuildId(req) ?? body.guildId,
+      });
+      res.json({ config });
+    } catch (error) {
+      handleError(error, res);
+    }
+  });
+
+  /** GET /api/economy/income */
+  router.get("/income", (req, res) => {
+    try {
+      const config = getEconomyIncomeConfig(resolveGuildId(req));
+      res.json({ config });
+    } catch (error) {
+      handleError(error, res);
+    }
+  });
+
+  /** PUT /api/economy/income */
+  router.put("/income", (req, res) => {
+    try {
+      const body = req.body as UpdateEconomyIncomeRequest;
+      const config = updateEconomyIncomeConfig({
         ...body,
         guildId: resolveGuildId(req) ?? body.guildId,
       });

@@ -3,8 +3,11 @@ import type {
   AdjustEconomyFundsResponse,
   EconomyConfig,
   EconomyConfigResponse,
+  EconomyIncomeConfig,
+  EconomyIncomeConfigResponse,
   EconomyLeaderboardResponse,
   UpdateEconomyConfigRequest,
+  UpdateEconomyIncomeRequest,
 } from "@adobos/shared";
 import { API_BASE, readApiError } from "./client";
 
@@ -64,4 +67,32 @@ export async function adjustEconomyFunds(
     );
   }
   return response.json() as Promise<AdjustEconomyFundsResponse>;
+}
+
+export async function fetchEconomyIncomeConfig(): Promise<EconomyIncomeConfig> {
+  const response = await fetch(`${API_BASE}/api/economy/income`);
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(response, "No se pudo cargar ingresos y trabajos."),
+    );
+  }
+  const body = (await response.json()) as EconomyIncomeConfigResponse;
+  return body.config;
+}
+
+export async function saveEconomyIncomeConfig(
+  input: UpdateEconomyIncomeRequest,
+): Promise<EconomyIncomeConfig> {
+  const response = await fetch(`${API_BASE}/api/economy/income`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(response, "No se pudo guardar ingresos y trabajos."),
+    );
+  }
+  const body = (await response.json()) as EconomyIncomeConfigResponse;
+  return body.config;
 }

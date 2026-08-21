@@ -705,6 +705,20 @@ function ensureCoreTables(database: Database.Database): void {
       PRIMARY KEY (guild_id, user_id),
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS economy_income (
+      guild_id TEXT PRIMARY KEY NOT NULL,
+      daily_pay INTEGER NOT NULL DEFAULT 100,
+      weekly_pay INTEGER NOT NULL DEFAULT 500,
+      monthly_pay INTEGER NOT NULL DEFAULT 2000,
+      streak_enabled INTEGER NOT NULL DEFAULT 0,
+      streak_bonus_percent INTEGER NOT NULL DEFAULT 5,
+      role_salaries TEXT NOT NULL DEFAULT '[]',
+      jobs TEXT NOT NULL DEFAULT '[]',
+      crimes TEXT NOT NULL DEFAULT '[]',
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
   `);
 }
 

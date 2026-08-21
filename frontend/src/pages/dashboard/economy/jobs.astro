@@ -1,0 +1,11 @@
+---
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { EconomyJobsDashboard } from "../../../features/economy";
+---
+
+<DashboardLayout
+  title="Ingresos y Trabajos"
+  description="Recompensas fijas, empleos de /work y crímenes de /crime."
+>
+  <EconomyJobsDashboard client:load />
+</DashboardLayout>

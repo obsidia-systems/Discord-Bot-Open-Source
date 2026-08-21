@@ -101,6 +101,8 @@ export {
   saveEconomyConfig,
   fetchEconomyLeaderboard,
   adjustEconomyFunds,
+  fetchEconomyIncomeConfig,
+  saveEconomyIncomeConfig,
 } from "./api/economy";
 
 export {

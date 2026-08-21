@@ -1,0 +1,264 @@
+import type {
+  EconomyCrime,
+  EconomyIncomeConfig,
+  EconomyJob,
+  EconomyRoleSalary,
+  UpdateEconomyIncomeRequest,
+} from "@adobos/shared";
+import {
+  clampNonNegInt,
+  clampPercent,
+  defaultEconomyIncomeConfig,
+  normalizeMinMax,
+} from "@adobos/shared";
+import { eq } from "drizzle-orm";
+import { getDb } from "../../db/client.js";
+import { economyIncome, guildSettings } from "../../db/schema.js";
+import { EconomyError } from "./service.js";
+
+function resolveGuildId(guildId?: string): string {
+  const id = (guildId ?? process.env.DISCORD_GUILD_ID ?? "").trim();
+  if (!id) {
+    throw new EconomyError(
+      "Falta DISCORD_GUILD_ID (o guildId).",
+      400,
+      "MISSING_GUILD_ID",
+    );
+  }
+  return id;
+}
+
+function ensureGuildRow(guildId: string): void {
+  const existing = getDb()
+    .select({ guildId: guildSettings.guildId })
+    .from(guildSettings)
+    .where(eq(guildSettings.guildId, guildId))
+    .get();
+  if (!existing) {
+    getDb()
+      .insert(guildSettings)
+      .values({
+        guildId,
+        prefix: "!",
+        welcomeEnabled: false,
+        updatedAt: new Date(),
+      })
+      .run();
+  }
+}
+
+function parseJsonArray<T>(raw: string | null | undefined, fallback: T[]): T[] {
+  if (!raw) return fallback;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? (parsed as T[]) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function newId(): string {
+  return crypto.randomUUID();
+}
+
+function sanitizeRoleSalaries(raw: unknown): EconomyRoleSalary[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item): EconomyRoleSalary | null => {
+      if (!item || typeof item !== "object") return null;
+      const row = item as Record<string, unknown>;
+      const roleId = typeof row.roleId === "string" ? row.roleId.trim() : "";
+      if (!roleId) return null;
+      const frequency =
+        row.frequency === "weekly" ? ("weekly" as const) : ("daily" as const);
+      return {
+        id:
+          typeof row.id === "string" && row.id.trim()
+            ? row.id.trim()
+            : newId(),
+        roleId,
+        amount: clampNonNegInt(Number(row.amount)),
+        frequency,
+      };
+    })
+    .filter((x): x is EconomyRoleSalary => x !== null)
+    .slice(0, 50);
+}
+
+function sanitizeJobs(raw: unknown): EconomyJob[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item): EconomyJob | null => {
+      if (!item || typeof item !== "object") return null;
+      const row = item as Record<string, unknown>;
+      const name =
+        typeof row.name === "string" ? row.name.trim().slice(0, 64) : "";
+      if (!name) return null;
+      const pay = normalizeMinMax(Number(row.minPay), Number(row.maxPay));
+      const successMessage =
+        typeof row.successMessage === "string" && row.successMessage.trim()
+          ? row.successMessage.trim().slice(0, 500)
+          : "Trabajaste de {job} y ganaste {payout} {currency}.";
+      return {
+        id:
+          typeof row.id === "string" && row.id.trim()
+            ? row.id.trim()
+            : newId(),
+        name,
+        minPay: pay.min,
+        maxPay: pay.max,
+        cooldownMinutes: Math.min(
+          10080,
+          Math.max(1, clampNonNegInt(Number(row.cooldownMinutes), 60)),
+        ),
+        successMessage,
+      };
+    })
+    .filter((x): x is EconomyJob => x !== null)
+    .slice(0, 40);
+}
+
+function sanitizeCrimes(raw: unknown): EconomyCrime[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item): EconomyCrime | null => {
+      if (!item || typeof item !== "object") return null;
+      const row = item as Record<string, unknown>;
+      const name =
+        typeof row.name === "string" ? row.name.trim().slice(0, 64) : "";
+      if (!name) return null;
+      const reward = normalizeMinMax(
+        Number(row.minReward),
+        Number(row.maxReward),
+      );
+      const fine = normalizeMinMax(Number(row.minFine), Number(row.maxFine));
+      const successMessage =
+        typeof row.successMessage === "string" && row.successMessage.trim()
+          ? row.successMessage.trim().slice(0, 500)
+          : "¡Éxito! Completaste «{crime}» y escapaste con {payout} {currency}.";
+      const failMessage =
+        typeof row.failMessage === "string" && row.failMessage.trim()
+          ? row.failMessage.trim().slice(0, 500)
+          : "Te atraparon en «{crime}». Multa de {fine} {currency}.";
+      return {
+        id:
+          typeof row.id === "string" && row.id.trim()
+            ? row.id.trim()
+            : newId(),
+        name,
+        successChance: clampPercent(Number(row.successChance)),
+        minReward: reward.min,
+        maxReward: reward.max,
+        minFine: fine.min,
+        maxFine: fine.max,
+        successMessage,
+        failMessage,
+      };
+    })
+    .filter((x): x is EconomyCrime => x !== null)
+    .slice(0, 40);
+}
+
+function rowToConfig(
+  guildId: string,
+  row: typeof economyIncome.$inferSelect | undefined,
+): EconomyIncomeConfig {
+  if (!row) return defaultEconomyIncomeConfig(guildId);
+  return {
+    guildId: row.guildId,
+    dailyPay: row.dailyPay,
+    weeklyPay: row.weeklyPay,
+    monthlyPay: row.monthlyPay,
+    streakEnabled: row.streakEnabled,
+    streakBonusPercent: row.streakBonusPercent,
+    roleSalaries: sanitizeRoleSalaries(
+      parseJsonArray(row.roleSalaries, []),
+    ),
+    jobs: sanitizeJobs(parseJsonArray(row.jobs, [])),
+    crimes: sanitizeCrimes(parseJsonArray(row.crimes, [])),
+  };
+}
+
+export function getEconomyIncomeConfig(guildId?: string): EconomyIncomeConfig {
+  const id = resolveGuildId(guildId);
+  const row = getDb()
+    .select()
+    .from(economyIncome)
+    .where(eq(economyIncome.guildId, id))
+    .get();
+  return rowToConfig(id, row);
+}
+
+export function updateEconomyIncomeConfig(
+  input: UpdateEconomyIncomeRequest,
+): EconomyIncomeConfig {
+  const id = resolveGuildId(input.guildId);
+  ensureGuildRow(id);
+  const current = getEconomyIncomeConfig(id);
+
+  const next: EconomyIncomeConfig = {
+    guildId: id,
+    dailyPay:
+      typeof input.dailyPay === "number"
+        ? clampNonNegInt(input.dailyPay)
+        : current.dailyPay,
+    weeklyPay:
+      typeof input.weeklyPay === "number"
+        ? clampNonNegInt(input.weeklyPay)
+        : current.weeklyPay,
+    monthlyPay:
+      typeof input.monthlyPay === "number"
+        ? clampNonNegInt(input.monthlyPay)
+        : current.monthlyPay,
+    streakEnabled:
+      typeof input.streakEnabled === "boolean"
+        ? input.streakEnabled
+        : current.streakEnabled,
+    streakBonusPercent:
+      typeof input.streakBonusPercent === "number"
+        ? clampPercent(input.streakBonusPercent)
+        : current.streakBonusPercent,
+    roleSalaries:
+      input.roleSalaries !== undefined
+        ? sanitizeRoleSalaries(input.roleSalaries)
+        : current.roleSalaries,
+    jobs: input.jobs !== undefined ? sanitizeJobs(input.jobs) : current.jobs,
+    crimes:
+      input.crimes !== undefined
+        ? sanitizeCrimes(input.crimes)
+        : current.crimes,
+  };
+
+  const now = new Date();
+  getDb()
+    .insert(economyIncome)
+    .values({
+      guildId: id,
+      dailyPay: next.dailyPay,
+      weeklyPay: next.weeklyPay,
+      monthlyPay: next.monthlyPay,
+      streakEnabled: next.streakEnabled,
+      streakBonusPercent: next.streakBonusPercent,
+      roleSalaries: JSON.stringify(next.roleSalaries),
+      jobs: JSON.stringify(next.jobs),
+      crimes: JSON.stringify(next.crimes),
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: economyIncome.guildId,
+      set: {
+        dailyPay: next.dailyPay,
+        weeklyPay: next.weeklyPay,
+        monthlyPay: next.monthlyPay,
+        streakEnabled: next.streakEnabled,
+        streakBonusPercent: next.streakBonusPercent,
+        roleSalaries: JSON.stringify(next.roleSalaries),
+        jobs: JSON.stringify(next.jobs),
+        crimes: JSON.stringify(next.crimes),
+        updatedAt: now,
+      },
+    })
+    .run();
+
+  return next;
+}

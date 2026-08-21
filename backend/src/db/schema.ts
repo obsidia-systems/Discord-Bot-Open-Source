@@ -751,6 +751,35 @@ export const userEconomy = sqliteTable(
 export type UserEconomyRow = typeof userEconomy.$inferSelect;
 export type NewUserEconomyRow = typeof userEconomy.$inferInsert;
 
+/**
+ * Config de ingresos: daily/weekly/monthly, rachas, salarios por rol,
+ * trabajos (`/work`) y crímenes (`/crime`) — arrays JSON.
+ */
+export const economyIncome = sqliteTable("economy_income", {
+  guildId: text("guild_id")
+    .primaryKey()
+    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+  dailyPay: integer("daily_pay").notNull().default(100),
+  weeklyPay: integer("weekly_pay").notNull().default(500),
+  monthlyPay: integer("monthly_pay").notNull().default(2000),
+  streakEnabled: integer("streak_enabled", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  streakBonusPercent: integer("streak_bonus_percent").notNull().default(5),
+  /** EconomyRoleSalary[] */
+  roleSalaries: text("role_salaries").notNull().default("[]"),
+  /** EconomyJob[] */
+  jobs: text("jobs").notNull().default("[]"),
+  /** EconomyCrime[] */
+  crimes: text("crimes").notNull().default("[]"),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export type EconomyIncomeRow = typeof economyIncome.$inferSelect;
+export type NewEconomyIncomeRow = typeof economyIncome.$inferInsert;
+
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [
   "minecraft",
