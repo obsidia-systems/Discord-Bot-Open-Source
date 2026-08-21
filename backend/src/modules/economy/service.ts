@@ -255,6 +255,120 @@ export function getUserEconomyBalance(
   };
 }
 
+export type BankTransferResult = {
+  moved: number;
+  wallet: number;
+  bank: number;
+  total: number;
+};
+
+/**
+ * Parsea `cantidad` de slash STRING: "all"/"todo" → null (todo),
+ * número entero ≥ 1, o error.
+ */
+export function parseBankAmountInput(raw: string): number | "all" {
+  const value = raw.trim().toLowerCase();
+  if (!value) {
+    throw new EconomyError(
+      "Indica una cantidad (número o `all`/`todo`).",
+      400,
+      "INVALID_AMOUNT",
+    );
+  }
+  if (value === "all" || value === "todo" || value === "max") {
+    return "all";
+  }
+  const cleaned = value.replace(/[,\s_]/g, "");
+  const n = Number(cleaned);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1) {
+    throw new EconomyError(
+      "Cantidad inválida. Usa un entero ≥ 1, o `all`/`todo`.",
+      400,
+      "INVALID_AMOUNT",
+    );
+  }
+  return Math.floor(n);
+}
+
+/** Cartera → banco (síncrono: validar + actualizar). */
+export function depositToBank(
+  guildId: string,
+  userId: string,
+  amountOrAll: number | "all",
+): BankTransferResult {
+  const current = getOrCreateUserEconomy(guildId, userId);
+  const moved =
+    amountOrAll === "all" ? current.wallet : Math.floor(amountOrAll);
+
+  if (moved < 1) {
+    throw new EconomyError(
+      "No tienes dinero en la cartera para depositar.",
+      400,
+      "EMPTY_WALLET",
+    );
+  }
+  if (current.wallet < moved) {
+    throw new EconomyError(
+      `Saldo insuficiente en cartera (tienes ${current.wallet}).`,
+      400,
+      "INSUFFICIENT_FUNDS",
+    );
+  }
+
+  const wallet = current.wallet - moved;
+  const bank = current.bank + moved;
+  const now = new Date();
+
+  getDb()
+    .update(userEconomy)
+    .set({ wallet, bank, updatedAt: now })
+    .where(
+      and(eq(userEconomy.guildId, guildId), eq(userEconomy.userId, userId)),
+    )
+    .run();
+
+  return { moved, wallet, bank, total: wallet + bank };
+}
+
+/** Banco → cartera (síncrono: validar + actualizar). */
+export function withdrawFromBank(
+  guildId: string,
+  userId: string,
+  amountOrAll: number | "all",
+): BankTransferResult {
+  const current = getOrCreateUserEconomy(guildId, userId);
+  const moved = amountOrAll === "all" ? current.bank : Math.floor(amountOrAll);
+
+  if (moved < 1) {
+    throw new EconomyError(
+      "No tienes dinero en el banco para retirar.",
+      400,
+      "EMPTY_BANK",
+    );
+  }
+  if (current.bank < moved) {
+    throw new EconomyError(
+      `Saldo insuficiente en el banco (tienes ${current.bank}).`,
+      400,
+      "INSUFFICIENT_FUNDS",
+    );
+  }
+
+  const wallet = current.wallet + moved;
+  const bank = current.bank - moved;
+  const now = new Date();
+
+  getDb()
+    .update(userEconomy)
+    .set({ wallet, bank, updatedAt: now })
+    .where(
+      and(eq(userEconomy.guildId, guildId), eq(userEconomy.userId, userId)),
+    )
+    .run();
+
+  return { moved, wallet, bank, total: wallet + bank };
+}
+
 /** Suma a la cartera (nunca negativo). */
 export function creditWallet(
   guildId: string,

@@ -13,10 +13,13 @@ import {
   claimFixedIncome,
   creditWallet,
   debitWallet,
+  depositToBank,
   getEconomyConfig,
   getUserEconomyBalance,
   listEconomyLeaderboardRows,
+  parseBankAmountInput,
   transferWalletPay,
+  withdrawFromBank,
   type FixedIncomeType,
 } from "../service.js";
 
@@ -98,6 +101,124 @@ export async function handleBalanceCommand(
     .setTimestamp(new Date());
 
   await interaction.reply({ embeds: [embed], ephemeral });
+}
+
+/**
+ * /deposit cantidad — cartera → banco.
+ */
+export async function handleDepositCommand(
+  interaction: ChatInputCommandInteraction,
+): Promise<void> {
+  if (!interaction.guildId || !interaction.guild) {
+    await interaction.reply({
+      content: "Este comando solo funciona en un servidor.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const ephemeral = consumeInteractionEphemeral(interaction.id, true);
+  await interaction.deferReply({ ephemeral });
+
+  try {
+    const raw = interaction.options.getString("cantidad", true);
+    const amount = parseBankAmountInput(raw);
+    const result = depositToBank(
+      interaction.guildId,
+      interaction.user.id,
+      amount,
+    );
+    const economy = getEconomyConfig(interaction.guildId);
+    const currency = economy.currencyName || "monedas";
+
+    const embed = new EmbedBuilder()
+      .setColor(0x57f287)
+      .setTitle("Depósito realizado")
+      .setDescription(
+        `Guardaste **${result.moved.toLocaleString("es-MX")}** ${currency} en el banco.`,
+      )
+      .addFields(
+        {
+          name: "Cartera",
+          value: `\`${result.wallet.toLocaleString("es-MX")}\``,
+          inline: true,
+        },
+        {
+          name: "Banco",
+          value: `\`${result.bank.toLocaleString("es-MX")}\``,
+          inline: true,
+        },
+        {
+          name: "Patrimonio",
+          value: `\`${result.total.toLocaleString("es-MX")}\``,
+          inline: true,
+        },
+      )
+      .setTimestamp(new Date());
+
+    await interaction.editReply({ embeds: [embed] });
+  } catch (error) {
+    await replyEconomyError(interaction, error, true);
+  }
+}
+
+/**
+ * /withdraw cantidad — banco → cartera.
+ */
+export async function handleWithdrawCommand(
+  interaction: ChatInputCommandInteraction,
+): Promise<void> {
+  if (!interaction.guildId || !interaction.guild) {
+    await interaction.reply({
+      content: "Este comando solo funciona en un servidor.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const ephemeral = consumeInteractionEphemeral(interaction.id, true);
+  await interaction.deferReply({ ephemeral });
+
+  try {
+    const raw = interaction.options.getString("cantidad", true);
+    const amount = parseBankAmountInput(raw);
+    const result = withdrawFromBank(
+      interaction.guildId,
+      interaction.user.id,
+      amount,
+    );
+    const economy = getEconomyConfig(interaction.guildId);
+    const currency = economy.currencyName || "monedas";
+
+    const embed = new EmbedBuilder()
+      .setColor(0x3b82f6)
+      .setTitle("Retiro realizado")
+      .setDescription(
+        `Retiraste **${result.moved.toLocaleString("es-MX")}** ${currency} del banco.`,
+      )
+      .addFields(
+        {
+          name: "Cartera",
+          value: `\`${result.wallet.toLocaleString("es-MX")}\``,
+          inline: true,
+        },
+        {
+          name: "Banco",
+          value: `\`${result.bank.toLocaleString("es-MX")}\``,
+          inline: true,
+        },
+        {
+          name: "Patrimonio",
+          value: `\`${result.total.toLocaleString("es-MX")}\``,
+          inline: true,
+        },
+      )
+      .setTimestamp(new Date());
+
+    await interaction.editReply({ embeds: [embed] });
+  } catch (error) {
+    await replyEconomyError(interaction, error, true);
+  }
 }
 
 /**

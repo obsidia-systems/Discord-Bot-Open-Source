@@ -383,6 +383,40 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     requiresAdminByDefault: false,
   },
   {
+    name: "deposit",
+    description: "Guarda dinero de tu cartera en el banco (zona segura).",
+    category: "economy",
+    defaultEnabled: true,
+    options: [
+      opt(
+        "cantidad",
+        "STRING",
+        true,
+        "Cantidad a depositar, o `all`/`todo` para vaciar la cartera.",
+      ),
+    ],
+    supportsEphemeral: true,
+    defaultEphemeral: true,
+    requiresAdminByDefault: false,
+  },
+  {
+    name: "withdraw",
+    description: "Saca dinero del banco hacia tu cartera.",
+    category: "economy",
+    defaultEnabled: true,
+    options: [
+      opt(
+        "cantidad",
+        "STRING",
+        true,
+        "Cantidad a retirar, o `all`/`todo` para vaciar el banco.",
+      ),
+    ],
+    supportsEphemeral: true,
+    defaultEphemeral: true,
+    requiresAdminByDefault: false,
+  },
+  {
     name: "work",
     description: "Trabaja para ganar dinero aleatorio (con cooldown).",
     category: "economy",
