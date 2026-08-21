@@ -128,7 +128,7 @@ export async function handleBuyCommand(
   const economy = getEconomyConfig(interaction.guildId);
   if (!economy.isActive) {
     await interaction.reply({
-      content: "La economía está pausada en este servidor.",
+      content: "⛔ La economía está desactivada en este servidor.",
       ephemeral: true,
     });
     return;
@@ -183,7 +183,7 @@ export async function handleBuyButton(
   const economy = getEconomyConfig(interaction.guildId);
   if (!economy.isActive) {
     await interaction.reply({
-      content: "La economía está pausada en este servidor.",
+      content: "⛔ La economía está desactivada en este servidor.",
       ephemeral: true,
     });
     return;

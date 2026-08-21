@@ -8,7 +8,18 @@ import {
   handleTimeoutCommand,
 } from "../../moderation/commands/slash.js";
 import { handleBuyCommand } from "../../economy/commands/buy.js";
+import {
+  handleAddMoneyCommand,
+  handleBalanceCommand,
+  handleBaltopCommand,
+  handleCrimeCommand,
+  handleDailyCommand,
+  handlePayCommand,
+  handleRemoveMoneyCommand,
+  handleWorkCommand,
+} from "../../economy/commands/income.js";
 import { handleShopCommand } from "../../economy/commands/shop.js";
+import { getEconomyConfig } from "../../economy/service.js";
 import {
   handlePingCommand,
   handleServerInfoCommand,
@@ -16,7 +27,6 @@ import {
 import { stubCommand } from "./stub.js";
 import {
   handleAvatarCommand,
-  handleEconomyStub,
   handleHelpCommand,
   handleUserInfoCommand,
 } from "./utilities.js";
@@ -27,7 +37,6 @@ export type DefaultCommandHandler = (
 
 /**
  * Mapa Command Pattern: nombre del slash → handler.
- * Stubs listos para rellenar; los que ya existen delegan a su módulo.
  */
 export const DEFAULT_COMMAND_HANDLERS: Record<string, DefaultCommandHandler> = {
   // Moderación
@@ -51,12 +60,14 @@ export const DEFAULT_COMMAND_HANDLERS: Record<string, DefaultCommandHandler> = {
   setlevel: (i) => stubCommand(i, "Rangos y XP"),
 
   // Economía
-  balance: handleEconomyStub,
-  work: handleEconomyStub,
-  daily: handleEconomyStub,
-  pay: handleEconomyStub,
-  addmoney: handleEconomyStub,
-  removemoney: handleEconomyStub,
+  balance: handleBalanceCommand,
+  work: handleWorkCommand,
+  crime: handleCrimeCommand,
+  daily: handleDailyCommand,
+  pay: handlePayCommand,
+  baltop: handleBaltopCommand,
+  addmoney: handleAddMoneyCommand,
+  removemoney: handleRemoveMoneyCommand,
   shop: handleShopCommand,
   buy: handleBuyCommand,
 
@@ -78,10 +89,20 @@ export async function dispatchDefaultCommand(
   const def = getSystemCommandDefinition(interaction.commandName);
   if (!def) return false;
 
+  if (def.category === "economy" && interaction.guildId) {
+    const economy = getEconomyConfig(interaction.guildId);
+    if (!economy.isActive) {
+      await interaction.reply({
+        content: "⛔ La economía está desactivada en este servidor.",
+        ephemeral: true,
+      });
+      return true;
+    }
+  }
+
   const handler =
     DEFAULT_COMMAND_HANDLERS[interaction.commandName] ??
-    ((i: ChatInputCommandInteraction) =>
-      stubCommand(i, def.category));
+    ((i: ChatInputCommandInteraction) => stubCommand(i, def.category));
 
   await handler(interaction);
   return true;

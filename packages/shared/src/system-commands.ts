@@ -393,6 +393,16 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     requiresAdminByDefault: false,
   },
   {
+    name: "crime",
+    description: "Intenta un crimen: riesgo de multa o recompensa.",
+    category: "economy",
+    defaultEnabled: true,
+    options: [],
+    supportsEphemeral: false,
+    defaultEphemeral: false,
+    requiresAdminByDefault: false,
+  },
+  {
     name: "daily",
     description: "Recompensa diaria de dinero.",
     category: "economy",
@@ -415,6 +425,16 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     ],
     supportsEphemeral: false,
     defaultEphemeral: false,
+    requiresAdminByDefault: false,
+  },
+  {
+    name: "baltop",
+    description: "Muestra el top de riqueza del servidor.",
+    category: "economy",
+    defaultEnabled: true,
+    options: [],
+    supportsEphemeral: true,
+    defaultEphemeral: true,
     requiresAdminByDefault: false,
   },
   {

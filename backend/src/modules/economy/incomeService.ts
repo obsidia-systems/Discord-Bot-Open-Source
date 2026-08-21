@@ -151,6 +151,10 @@ function sanitizeCrimes(raw: unknown): EconomyCrime[] {
         maxReward: reward.max,
         minFine: fine.min,
         maxFine: fine.max,
+        cooldownMinutes: Math.min(
+          10080,
+          Math.max(1, clampNonNegInt(Number(row.cooldownMinutes), 60)),
+        ),
         successMessage,
         failMessage,
       };

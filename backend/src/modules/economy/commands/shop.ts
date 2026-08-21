@@ -150,7 +150,7 @@ export async function handleShopCommand(
   const economy = getEconomyConfig(interaction.guildId);
   if (!economy.isActive) {
     await interaction.reply({
-      content: "La economía está pausada en este servidor.",
+      content: "⛔ La economía está desactivada en este servidor.",
       ephemeral: true,
     });
     return;
@@ -190,7 +190,7 @@ export async function handleShopPageButton(
   const economy = getEconomyConfig(interaction.guildId);
   if (!economy.isActive) {
     await interaction.update({
-      content: "La economía está pausada en este servidor.",
+      content: "⛔ La economía está desactivada en este servidor.",
       embeds: [],
       components: [],
     });

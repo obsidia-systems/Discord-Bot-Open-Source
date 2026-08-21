@@ -111,6 +111,8 @@ export interface EconomyCrime {
   maxReward: number;
   minFine: number;
   maxFine: number;
+  /** Cooldown del crimen en minutos. */
+  cooldownMinutes: number;
   /** Placeholders: `{crime}`, `{payout}`, `{fine}`, `{currency}`. */
   successMessage: string;
   failMessage: string;
@@ -161,6 +163,7 @@ export function defaultEconomyCrime(
     maxReward: partial?.maxReward ?? 400,
     minFine: partial?.minFine ?? 50,
     maxFine: partial?.maxFine ?? 200,
+    cooldownMinutes: partial?.cooldownMinutes ?? 60,
     successMessage:
       partial?.successMessage ??
       "¡Éxito! Completaste «{crime}» y escapaste con {payout} {currency}.",

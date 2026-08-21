@@ -740,6 +740,10 @@ export const userEconomy = sqliteTable(
     userId: text("user_id").notNull(),
     wallet: integer("wallet").notNull().default(0),
     bank: integer("bank").notNull().default(0),
+    /** Racha de /daily. */
+    dailyStreak: integer("daily_streak").notNull().default(0),
+    /** Última reclamación de /daily (ms). null = nunca. */
+    lastDailyAt: integer("last_daily_at", { mode: "timestamp_ms" }),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .notNull()
       .$defaultFn(() => new Date()),
@@ -751,6 +755,29 @@ export const userEconomy = sqliteTable(
 
 export type UserEconomyRow = typeof userEconomy.$inferSelect;
 export type NewUserEconomyRow = typeof userEconomy.$inferInsert;
+
+/**
+ * Cooldowns de comandos de economía (`work`, `crime`, etc.).
+ */
+export const economyCooldowns = sqliteTable(
+  "economy_cooldowns",
+  {
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    /** Clave: `work` | `crime` | … */
+    commandKey: text("command_key").notNull(),
+    availableAt: integer("available_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.guildId, table.userId, table.commandKey],
+    }),
+  ],
+);
+
+export type EconomyCooldownRow = typeof economyCooldowns.$inferSelect;
 
 /**
  * Config de ingresos: daily/weekly/monthly, rachas, salarios por rol,

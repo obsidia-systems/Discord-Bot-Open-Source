@@ -701,8 +701,19 @@ function ensureCoreTables(database: Database.Database): void {
       user_id TEXT NOT NULL,
       wallet INTEGER NOT NULL DEFAULT 0,
       bank INTEGER NOT NULL DEFAULT 0,
+      daily_streak INTEGER NOT NULL DEFAULT 0,
+      last_daily_at INTEGER,
       updated_at INTEGER NOT NULL,
       PRIMARY KEY (guild_id, user_id),
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS economy_cooldowns (
+      guild_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      command_key TEXT NOT NULL,
+      available_at INTEGER NOT NULL,
+      PRIMARY KEY (guild_id, user_id, command_key),
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
     );
 
@@ -915,6 +926,28 @@ function ensureCoreTables(database: Database.Database): void {
           ON economy_user_boosts (guild_id, user_id, module);
         PRAGMA foreign_keys=ON;
       `);
+    }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    const userEcoCols = database
+      .prepare(`PRAGMA table_info(user_economy)`)
+      .all() as Array<{ name: string }>;
+    if (
+      userEcoCols.length > 0 &&
+      !userEcoCols.some((c) => c.name === "daily_streak")
+    ) {
+      database.exec(
+        `ALTER TABLE user_economy ADD COLUMN daily_streak INTEGER NOT NULL DEFAULT 0`,
+      );
+    }
+    if (
+      userEcoCols.length > 0 &&
+      !userEcoCols.some((c) => c.name === "last_daily_at")
+    ) {
+      database.exec(`ALTER TABLE user_economy ADD COLUMN last_daily_at INTEGER`);
     }
   } catch {
     /* ignore */
