@@ -6,12 +6,15 @@ import type {
   EconomyConfigResponse,
   EconomyIncomeConfig,
   EconomyIncomeConfigResponse,
+  EconomyCasinoConfig,
+  EconomyCasinoConfigResponse,
   EconomyLeaderboardResponse,
   EconomyShopItem,
   EconomyShopItemResponse,
   EconomyShopItemsResponse,
   UpdateEconomyConfigRequest,
   UpdateEconomyIncomeRequest,
+  UpdateEconomyCasinoRequest,
   UpdateEconomyShopItemRequest,
 } from "@adobos/shared";
 import { API_BASE, readApiError } from "./client";
@@ -99,6 +102,34 @@ export async function saveEconomyIncomeConfig(
     );
   }
   const body = (await response.json()) as EconomyIncomeConfigResponse;
+  return body.config;
+}
+
+export async function fetchEconomyCasinoConfig(): Promise<EconomyCasinoConfig> {
+  const response = await fetch(`${API_BASE}/api/economy/casino`);
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(response, "No se pudo cargar el casino."),
+    );
+  }
+  const body = (await response.json()) as EconomyCasinoConfigResponse;
+  return body.config;
+}
+
+export async function saveEconomyCasinoConfig(
+  input: UpdateEconomyCasinoRequest,
+): Promise<EconomyCasinoConfig> {
+  const response = await fetch(`${API_BASE}/api/economy/casino`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(response, "No se pudo guardar el casino."),
+    );
+  }
+  const body = (await response.json()) as EconomyCasinoConfigResponse;
   return body.config;
 }
 

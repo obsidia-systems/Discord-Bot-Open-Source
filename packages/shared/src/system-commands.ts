@@ -541,6 +541,42 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     defaultEphemeral: true,
     requiresAdminByDefault: false,
   },
+  {
+    name: "coinflip",
+    description: "Apuesta a cara o cruz.",
+    category: "economy",
+    defaultEnabled: true,
+    options: [
+      opt("cantidad", "INTEGER", true, "Cantidad a apostar.", { minValue: 1 }),
+    ],
+    supportsEphemeral: false,
+    defaultEphemeral: false,
+    requiresAdminByDefault: false,
+  },
+  {
+    name: "roulette",
+    description: "Apuesta en la ruleta del casino.",
+    category: "economy",
+    defaultEnabled: true,
+    options: [
+      opt("cantidad", "INTEGER", true, "Cantidad a apostar.", { minValue: 1 }),
+    ],
+    supportsEphemeral: false,
+    defaultEphemeral: false,
+    requiresAdminByDefault: false,
+  },
+  {
+    name: "blackjack",
+    description: "Juega una mano de blackjack.",
+    category: "economy",
+    defaultEnabled: true,
+    options: [
+      opt("cantidad", "INTEGER", true, "Cantidad a apostar.", { minValue: 1 }),
+    ],
+    supportsEphemeral: false,
+    defaultEphemeral: false,
+    requiresAdminByDefault: false,
+  },
 
   // ── Utilidades ──────────────────────────────────────────────
   {

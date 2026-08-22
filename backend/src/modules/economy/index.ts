@@ -42,6 +42,12 @@ export {
 } from "./incomeService.js";
 
 export {
+  assertCasinoBetAllowed,
+  getEconomyCasinoConfig,
+  updateEconomyCasinoConfig,
+} from "./casinoService.js";
+
+export {
   createShopItem,
   deleteShopItem,
   getShopItem,

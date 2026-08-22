@@ -287,7 +287,6 @@ export const dashboardNav: NavCategoryConfig[] = [
         label: "Casino",
         href: "/dashboard/economy/casino",
         icon: Dices,
-        soon: true,
         blurb: "Juegos de azar y apuestas.",
       },
     ],

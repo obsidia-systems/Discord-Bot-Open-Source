@@ -8,9 +8,14 @@ import type {
   EconomyLeaderboardResponse,
   UpdateEconomyConfigRequest,
   UpdateEconomyIncomeRequest,
+  UpdateEconomyCasinoRequest,
   UpdateEconomyShopItemRequest,
 } from "@adobos/shared";
 import { resolveMembersBatch } from "../../../lib/discordMember.js";
+import {
+  getEconomyCasinoConfig,
+  updateEconomyCasinoConfig,
+} from "../casinoService.js";
 import {
   getEconomyIncomeConfig,
   updateEconomyIncomeConfig,
@@ -132,6 +137,30 @@ export function economyRoutes(bot: Client): Router {
     try {
       const body = req.body as UpdateEconomyIncomeRequest;
       const config = updateEconomyIncomeConfig({
+        ...body,
+        guildId: resolveGuildId(req) ?? body.guildId,
+      });
+      res.json({ config });
+    } catch (error) {
+      handleError(error, res);
+    }
+  });
+
+  /** GET /api/economy/casino */
+  router.get("/casino", (req, res) => {
+    try {
+      const config = getEconomyCasinoConfig(resolveGuildId(req));
+      res.json({ config });
+    } catch (error) {
+      handleError(error, res);
+    }
+  });
+
+  /** PUT /api/economy/casino */
+  router.put("/casino", (req, res) => {
+    try {
+      const body = req.body as UpdateEconomyCasinoRequest;
+      const config = updateEconomyCasinoConfig({
         ...body,
         guildId: resolveGuildId(req) ?? body.guildId,
       });

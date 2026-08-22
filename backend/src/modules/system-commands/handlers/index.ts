@@ -14,6 +14,11 @@ import {
 } from "../../moderation/commands/slash.js";
 import { handleBuyCommand } from "../../economy/commands/buy.js";
 import {
+  handleBlackjackCommand,
+  handleCoinflipCommand,
+  handleRouletteCommand,
+} from "../../economy/commands/casino.js";
+import {
   handleAddMoneyCommand,
   handleBalanceCommand,
   handleBaltopCommand,
@@ -83,6 +88,9 @@ export const DEFAULT_COMMAND_HANDLERS: Record<string, DefaultCommandHandler> = {
   removemoney: handleRemoveMoneyCommand,
   shop: handleShopCommand,
   buy: handleBuyCommand,
+  coinflip: handleCoinflipCommand,
+  roulette: handleRouletteCommand,
+  blackjack: handleBlackjackCommand,
 
   // Utilidades
   userinfo: handleUserInfoCommand,

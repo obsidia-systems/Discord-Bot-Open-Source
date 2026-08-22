@@ -103,6 +103,8 @@ export {
   adjustEconomyFunds,
   fetchEconomyIncomeConfig,
   saveEconomyIncomeConfig,
+  fetchEconomyCasinoConfig,
+  saveEconomyCasinoConfig,
   fetchShopItems,
   createShopItem,
   updateShopItem,

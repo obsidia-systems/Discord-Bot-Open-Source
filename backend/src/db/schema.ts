@@ -971,6 +971,30 @@ export const economyOwnedChannels = sqliteTable(
 
 export type EconomyOwnedChannelRow = typeof economyOwnedChannels.$inferSelect;
 
+/**
+ * Config del Casino por guild (límites globales + reglas por juego).
+ */
+export const economyCasino = sqliteTable("economy_casino", {
+  guildId: text("guild_id")
+    .primaryKey()
+    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(false),
+  minBet: integer("min_bet").notNull().default(10),
+  maxBet: integer("max_bet").notNull().default(10_000),
+  /** EconomyCasinoCoinflipConfig JSON. */
+  coinflip: text("coinflip").notNull().default("{}"),
+  /** EconomyCasinoRouletteConfig JSON. */
+  roulette: text("roulette").notNull().default("{}"),
+  /** EconomyCasinoBlackjackConfig JSON. */
+  blackjack: text("blackjack").notNull().default("{}"),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export type EconomyCasinoRow = typeof economyCasino.$inferSelect;
+export type NewEconomyCasinoRow = typeof economyCasino.$inferInsert;
+
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [
   "minecraft",

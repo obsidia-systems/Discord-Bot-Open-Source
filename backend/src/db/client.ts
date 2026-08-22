@@ -801,6 +801,18 @@ function ensureCoreTables(database: Database.Database): void {
       created_at INTEGER NOT NULL,
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS economy_casino (
+      guild_id TEXT PRIMARY KEY NOT NULL,
+      is_active INTEGER NOT NULL DEFAULT 0,
+      min_bet INTEGER NOT NULL DEFAULT 10,
+      max_bet INTEGER NOT NULL DEFAULT 10000,
+      coinflip TEXT NOT NULL DEFAULT '{}',
+      roulette TEXT NOT NULL DEFAULT '{}',
+      blackjack TEXT NOT NULL DEFAULT '{}',
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
   `);
 
   try {

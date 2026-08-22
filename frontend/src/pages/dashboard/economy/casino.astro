@@ -1,8 +1,11 @@
 ---
-import ComingSoon from "../../../components/shared/ComingSoon.astro";
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { EconomyCasinoDashboard } from "../../../features/economy";
 ---
 
-<ComingSoon
+<DashboardLayout
   title="Casino"
-  description="Juegos de azar, apuestas y límites de riesgo."
-/>
+  description="Coinflip, ruleta y blackjack: límites, multiplicadores y mensajes."
+>
+  <EconomyCasinoDashboard client:load />
+</DashboardLayout>
