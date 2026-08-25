@@ -42,7 +42,19 @@ export function setCooldownMinutes(
   minutes: number,
 ): void {
   const mins = Math.max(1, Math.floor(minutes));
-  const availableAt = new Date(Date.now() + mins * 60_000);
+  setCooldownMs(guildId, userId, commandKey, mins * 60_000);
+}
+
+/** Cooldown en milisegundos (mín. 0 = disponible de inmediato). */
+export function setCooldownMs(
+  guildId: string,
+  userId: string,
+  commandKey: string,
+  ms: number,
+): void {
+  const delay = Math.max(0, Math.floor(ms));
+  if (delay === 0) return;
+  const availableAt = new Date(Date.now() + delay);
   getDb()
     .insert(economyCooldowns)
     .values({

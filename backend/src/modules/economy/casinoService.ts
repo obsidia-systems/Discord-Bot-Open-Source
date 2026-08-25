@@ -7,7 +7,9 @@ import type {
 } from "@adobos/shared";
 import {
   clampCasinoBet,
+  clampCasinoDeckCount,
   clampCasinoMultiplier,
+  clampCasinoSeconds,
   defaultCasinoBlackjack,
   defaultCasinoCoinflip,
   defaultCasinoRoulette,
@@ -71,6 +73,14 @@ function sanitizeCoinflip(raw: unknown): EconomyCasinoCoinflipConfig {
       typeof row.winMessage === "string" && row.winMessage.trim()
         ? row.winMessage.trim().slice(0, 500)
         : base.winMessage,
+    allowDoubleOrNothing:
+      typeof row.allowDoubleOrNothing === "boolean"
+        ? row.allowDoubleOrNothing
+        : base.allowDoubleOrNothing,
+    cooldownSeconds: clampCasinoSeconds(
+      Number(row.cooldownSeconds),
+      base.cooldownSeconds,
+    ),
   };
 }
 
@@ -91,6 +101,14 @@ function sanitizeRoulette(raw: unknown): EconomyCasinoRouletteConfig {
       Number(row.numberMultiplier),
       base.numberMultiplier,
     ),
+    bettingTimeSeconds: clampCasinoSeconds(
+      Number(row.bettingTimeSeconds),
+      base.bettingTimeSeconds,
+    ),
+    showNumberHistory:
+      typeof row.showNumberHistory === "boolean"
+        ? row.showNumberHistory
+        : base.showNumberHistory,
   };
 }
 
@@ -107,6 +125,11 @@ function sanitizeBlackjack(raw: unknown): EconomyCasinoBlackjackConfig {
       Number(row.blackjackMultiplier),
       base.blackjackMultiplier,
     ),
+    deckCount: clampCasinoDeckCount(row.deckCount, base.deckCount),
+    standOnSoft17:
+      typeof row.standOnSoft17 === "boolean"
+        ? row.standOnSoft17
+        : base.standOnSoft17,
   };
 }
 

@@ -2,6 +2,10 @@ import type { AdobosModule } from "../../core/modules/types.js";
 import { economyRoutes } from "./api/routes.js";
 import { handleBuyButton } from "./commands/buy.js";
 import {
+  BJ_BUTTON_PREFIX,
+  handleBlackjackButton,
+} from "./commands/casino.js";
+import {
   BUY_BUTTON_PREFIX,
   SHOP_PAGE_PREFIX,
   handleShopPageButton,
@@ -19,6 +23,9 @@ export const economyModule: AdobosModule = {
     );
     ctx.button(SHOP_PAGE_PREFIX, (interaction) =>
       handleShopPageButton(interaction),
+    );
+    ctx.button(BJ_BUTTON_PREFIX, (interaction) =>
+      handleBlackjackButton(interaction),
     );
     ctx.once("ready", () => {
       startShopExpirationSweeper(ctx.client);

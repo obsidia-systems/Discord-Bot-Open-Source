@@ -423,6 +423,47 @@ export function debitWallet(
   return { wallet, bank, taken };
 }
 
+/**
+ * Descuenta exactamente `amount` de la cartera o lanza si no hay saldo.
+ * Transacción SQLite para evitar condiciones de carrera simples.
+ */
+export function debitWalletStrict(
+  guildId: string,
+  userId: string,
+  amount: number,
+): { wallet: number; bank: number } {
+  const qty = Math.floor(amount);
+  if (!Number.isFinite(qty) || qty < 1) {
+    throw new EconomyError(
+      "La cantidad debe ser un entero ≥ 1.",
+      400,
+      "INVALID_AMOUNT",
+    );
+  }
+
+  return getDb().transaction(() => {
+    const current = getOrCreateUserEconomy(guildId, userId);
+    if (current.wallet < qty) {
+      throw new EconomyError(
+        `Saldo insuficiente en cartera (tienes ${current.wallet.toLocaleString("es-MX")}).`,
+        400,
+        "INSUFFICIENT_FUNDS",
+      );
+    }
+    const wallet = current.wallet - qty;
+    const bank = current.bank;
+    const now = new Date();
+    getDb()
+      .update(userEconomy)
+      .set({ wallet, bank, updatedAt: now })
+      .where(
+        and(eq(userEconomy.guildId, guildId), eq(userEconomy.userId, userId)),
+      )
+      .run();
+    return { wallet, bank };
+  });
+}
+
 export function transferWalletPay(
   guildId: string,
   fromUserId: string,

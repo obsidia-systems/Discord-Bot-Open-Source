@@ -37,6 +37,8 @@ export interface SystemCommandOption {
   maxValue?: number;
   /** Discord: habilita sugerencias al escribir (STRING / INTEGER / NUMBER). */
   autocomplete?: boolean;
+  /** Opciones fijas (STRING / INTEGER / NUMBER). Máx. 25. */
+  choices?: Array<{ name: string; value: string | number }>;
 }
 
 export interface SystemCommandDefinition {
@@ -140,7 +142,7 @@ function opt(
   description: string,
   extra?: Pick<
     SystemCommandOption,
-    "minValue" | "maxValue" | "autocomplete"
+    "minValue" | "maxValue" | "autocomplete" | "choices"
   >,
 ): SystemCommandOption {
   return { name, type, required, description, ...extra };
@@ -547,7 +549,13 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     category: "economy",
     defaultEnabled: true,
     options: [
-      opt("cantidad", "INTEGER", true, "Cantidad a apostar.", { minValue: 1 }),
+      opt("apuesta", "INTEGER", true, "Cantidad a apostar.", { minValue: 1 }),
+      opt("lado", "STRING", true, "Cara o cruz.", {
+        choices: [
+          { name: "Cara", value: "cara" },
+          { name: "Cruz", value: "cruz" },
+        ],
+      }),
     ],
     supportsEphemeral: false,
     defaultEphemeral: false,
@@ -559,7 +567,19 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     category: "economy",
     defaultEnabled: true,
     options: [
-      opt("cantidad", "INTEGER", true, "Cantidad a apostar.", { minValue: 1 }),
+      opt("apuesta", "INTEGER", true, "Cantidad a apostar.", { minValue: 1 }),
+      opt("tipo", "STRING", true, "Tipo de apuesta.", {
+        choices: [
+          { name: "Rojo", value: "rojo" },
+          { name: "Negro", value: "negro" },
+          { name: "Verde", value: "verde" },
+          { name: "Número exacto", value: "numero" },
+        ],
+      }),
+      opt("valor_numero", "INTEGER", false, "Número (0–36) si tipo = numero.", {
+        minValue: 0,
+        maxValue: 36,
+      }),
     ],
     supportsEphemeral: false,
     defaultEphemeral: false,
@@ -571,7 +591,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     category: "economy",
     defaultEnabled: true,
     options: [
-      opt("cantidad", "INTEGER", true, "Cantidad a apostar.", { minValue: 1 }),
+      opt("apuesta", "INTEGER", true, "Cantidad a apostar.", { minValue: 1 }),
     ],
     supportsEphemeral: false,
     defaultEphemeral: false,
@@ -674,6 +694,7 @@ export function toDiscordSlashCommandBody(def: SystemCommandDefinition): {
     autocomplete?: boolean;
     min_value?: number;
     max_value?: number;
+    choices?: Array<{ name: string; value: string | number }>;
   }>;
   /** Discord bitfield string, o `null` = visible para todos. */
   default_member_permissions?: string | null;
@@ -686,6 +707,14 @@ export function toDiscordSlashCommandBody(def: SystemCommandDefinition): {
     ...(o.autocomplete ? { autocomplete: true } : {}),
     ...(o.minValue !== undefined ? { min_value: o.minValue } : {}),
     ...(o.maxValue !== undefined ? { max_value: o.maxValue } : {}),
+    ...(o.choices?.length
+      ? {
+          choices: o.choices.slice(0, 25).map((c) => ({
+            name: c.name.slice(0, 100),
+            value: c.value,
+          })),
+        }
+      : {}),
   }));
   return {
     name: def.name,
