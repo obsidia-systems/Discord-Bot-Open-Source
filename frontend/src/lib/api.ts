@@ -116,3 +116,5 @@ export {
   createGuildRole,
   updateRolePositions,
 } from "./api/roles-builder";
+
+export { fetchPokemonConfig, savePokemonConfig } from "./api/pokemon";

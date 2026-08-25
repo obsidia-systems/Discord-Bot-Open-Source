@@ -1,0 +1,99 @@
+import type { ChatInputCommandInteraction } from "discord.js";
+import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
+import {
+  PokemonError,
+  assertPokemonCommandAllowed,
+} from "../service.js";
+
+/**
+ * Stub compartido de comandos Pokémon.
+ * Valida plugin activo, toggle del comando, canal permitido y anti-sniping.
+ */
+export async function handlePokemonStubCommand(
+  interaction: ChatInputCommandInteraction,
+): Promise<void> {
+  if (!interaction.guildId) {
+    await interaction.reply({
+      content: "Este comando solo funciona en un servidor.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const commandName = interaction.commandName;
+  let forceEphemeral = false;
+
+  try {
+    const config = assertPokemonCommandAllowed(
+      interaction.guildId,
+      commandName,
+      interaction.channelId,
+    );
+    forceEphemeral = config.forceEphemeral;
+  } catch (error) {
+    const message =
+      error instanceof PokemonError
+        ? error.message
+        : "No se pudo validar el comando Pokémon.";
+    await interaction.reply({ content: `❌ ${message}`, ephemeral: true });
+    return;
+  }
+
+  const pokemon = interaction.options.getString("pokemon");
+  const ephemeral = forceEphemeral
+    ? true
+    : consumeInteractionEphemeral(interaction.id, false);
+
+  await interaction.reply({
+    content: [
+      `🚧 \`/${commandName}\` está registrado. Lógica pendiente.`,
+      pokemon ? `Consulta: **${pokemon}**` : null,
+      "Fuentes previstas: PokéAPI + datos competitivos (Smogon).",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    ephemeral,
+  });
+}
+
+export async function handlePokeinfoCommand(
+  interaction: ChatInputCommandInteraction,
+): Promise<void> {
+  await handlePokemonStubCommand(interaction);
+}
+
+export async function handleTeambuilderCommand(
+  interaction: ChatInputCommandInteraction,
+): Promise<void> {
+  await handlePokemonStubCommand(interaction);
+}
+
+export async function handleWeaknessCommand(
+  interaction: ChatInputCommandInteraction,
+): Promise<void> {
+  await handlePokemonStubCommand(interaction);
+}
+
+export async function handleBreedingCommand(
+  interaction: ChatInputCommandInteraction,
+): Promise<void> {
+  await handlePokemonStubCommand(interaction);
+}
+
+export async function handleLocationCommand(
+  interaction: ChatInputCommandInteraction,
+): Promise<void> {
+  await handlePokemonStubCommand(interaction);
+}
+
+export async function handleCountersCommand(
+  interaction: ChatInputCommandInteraction,
+): Promise<void> {
+  await handlePokemonStubCommand(interaction);
+}
+
+export async function handleSandwichCommand(
+  interaction: ChatInputCommandInteraction,
+): Promise<void> {
+  await handlePokemonStubCommand(interaction);
+}

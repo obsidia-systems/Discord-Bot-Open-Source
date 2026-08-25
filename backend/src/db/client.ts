@@ -813,6 +813,19 @@ function ensureCoreTables(database: Database.Database): void {
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS plugin_pokemon_config (
+      guild_id TEXT PRIMARY KEY NOT NULL,
+      is_active INTEGER NOT NULL DEFAULT 0,
+      default_generation INTEGER NOT NULL DEFAULT 9,
+      language TEXT NOT NULL DEFAULT 'es',
+      embed_color TEXT NOT NULL DEFAULT '#EF4444',
+      force_ephemeral INTEGER NOT NULL DEFAULT 0,
+      allowed_channels TEXT NOT NULL DEFAULT '[]',
+      commands TEXT NOT NULL DEFAULT '{}',
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
+    );
   `);
 
   try {

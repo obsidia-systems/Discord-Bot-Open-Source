@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils";
 import {
   CircleDollarSign,
   ClipboardList,
+  Egg,
   Eye,
   Gavel,
   Loader2,
@@ -55,6 +56,7 @@ const CATEGORY_FILTERS: Array<{ id: CategoryFilter; label: string }> = [
   { id: "moderation", label: SYSTEM_COMMAND_CATEGORY_LABELS.moderation },
   { id: "levels", label: SYSTEM_COMMAND_CATEGORY_LABELS.levels },
   { id: "economy", label: SYSTEM_COMMAND_CATEGORY_LABELS.economy },
+  { id: "pokemon", label: SYSTEM_COMMAND_CATEGORY_LABELS.pokemon },
   { id: "utilities", label: SYSTEM_COMMAND_CATEGORY_LABELS.utilities },
 ];
 
@@ -80,6 +82,11 @@ const CATEGORY_STYLES: Record<
     badge:
       "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30",
     icon: ClipboardList,
+  },
+  pokemon: {
+    badge:
+      "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30",
+    icon: Egg,
   },
   utilities: {
     badge: "bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30",

@@ -995,6 +995,32 @@ export const economyCasino = sqliteTable("economy_casino", {
 export type EconomyCasinoRow = typeof economyCasino.$inferSelect;
 export type NewEconomyCasinoRow = typeof economyCasino.$inferInsert;
 
+/**
+ * Config del plugin Pokémon por guild.
+ */
+export const pluginPokemonConfig = sqliteTable("plugin_pokemon_config", {
+  guildId: text("guild_id")
+    .primaryKey()
+    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(false),
+  defaultGeneration: integer("default_generation").notNull().default(9),
+  language: text("language").notNull().default("es"),
+  embedColor: text("embed_color").notNull().default("#EF4444"),
+  forceEphemeral: integer("force_ephemeral", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  /** string[] JSON — lista blanca de canales. */
+  allowedChannels: text("allowed_channels").notNull().default("[]"),
+  /** PokemonCommandsEnabled JSON. */
+  commands: text("commands").notNull().default("{}"),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export type PluginPokemonConfigRow = typeof pluginPokemonConfig.$inferSelect;
+export type NewPluginPokemonConfigRow = typeof pluginPokemonConfig.$inferInsert;
+
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [
   "minecraft",
@@ -1002,4 +1028,5 @@ export const DEFAULT_PLUGIN_NAMES = [
   "valorant",
   "gachas",
   "alerts",
+  "pokemon",
 ] as const;
