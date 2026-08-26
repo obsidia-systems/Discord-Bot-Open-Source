@@ -277,7 +277,13 @@ export function PokemonDashboard() {
                       </div>
 
                       <div className="space-y-2 sm:col-span-2">
-                        <Label htmlFor="poke-color">Color de embeds</Label>
+                        <Label htmlFor="poke-color">
+                          Color de embeds (fallback)
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Se usa si no se puede detectar el color del tipo
+                          primario.
+                        </p>
                         <div className="flex items-center gap-3">
                           <Input
                             id="poke-color"
@@ -329,7 +335,8 @@ export function PokemonDashboard() {
                             Forzar respuestas efímeras
                           </Label>
                           <p className="text-xs text-muted-foreground">
-                            Útil en canales públicos competitivos.
+                            Anti-sniping: solo el autor ve la respuesta
+                            (recomendado ON).
                           </p>
                         </div>
                         <Switch
@@ -431,7 +438,7 @@ export function PokemonDashboard() {
               ) : (
                 <Save className="size-4" />
               )}
-              Guardar Configuración de Pokémon
+              Guardar Configuración
             </Button>
           </div>
         </div>

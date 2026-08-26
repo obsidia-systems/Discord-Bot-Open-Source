@@ -5,8 +5,10 @@ import {
   assertPokemonCommandAllowed,
 } from "../service.js";
 
+export { handlePokeinfoCommand } from "./pokeinfo.js";
+
 /**
- * Stub compartido de comandos Pokémon.
+ * Stub compartido de comandos Pokémon pendientes.
  * Valida plugin activo, toggle del comando, canal permitido y anti-sniping.
  */
 export async function handlePokemonStubCommand(
@@ -21,7 +23,7 @@ export async function handlePokemonStubCommand(
   }
 
   const commandName = interaction.commandName;
-  let forceEphemeral = false;
+  let forceEphemeral = true;
 
   try {
     const config = assertPokemonCommandAllowed(
@@ -42,7 +44,7 @@ export async function handlePokemonStubCommand(
   const pokemon = interaction.options.getString("pokemon");
   const ephemeral = forceEphemeral
     ? true
-    : consumeInteractionEphemeral(interaction.id, false);
+    : consumeInteractionEphemeral(interaction.id, true);
 
   await interaction.reply({
     content: [
@@ -54,12 +56,6 @@ export async function handlePokemonStubCommand(
       .join("\n"),
     ephemeral,
   });
-}
-
-export async function handlePokeinfoCommand(
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
-  await handlePokemonStubCommand(interaction);
 }
 
 export async function handleTeambuilderCommand(

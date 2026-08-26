@@ -31,13 +31,13 @@ export function PokemonStatusMonitor({
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <StatusRow
-          label="Plugin"
+          label="Módulo"
           value={config.isActive ? "Activo" : "Inactivo"}
           tone={config.isActive ? "ok" : "off"}
         />
         <StatusRow
-          label="Modo sigilo"
-          value={config.forceEphemeral ? "Encendido" : "Apagado"}
+          label="Modo Sigilo"
+          value={config.forceEphemeral ? "ON" : "OFF"}
           tone={config.forceEphemeral ? "warn" : "muted"}
         />
         <StatusRow label="Generación" value={`Gen ${config.defaultGeneration}`} />

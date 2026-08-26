@@ -820,7 +820,7 @@ function ensureCoreTables(database: Database.Database): void {
       default_generation INTEGER NOT NULL DEFAULT 9,
       language TEXT NOT NULL DEFAULT 'es',
       embed_color TEXT NOT NULL DEFAULT '#EF4444',
-      force_ephemeral INTEGER NOT NULL DEFAULT 0,
+      force_ephemeral INTEGER NOT NULL DEFAULT 1,
       allowed_channels TEXT NOT NULL DEFAULT '[]',
       commands TEXT NOT NULL DEFAULT '{}',
       updated_at INTEGER NOT NULL,

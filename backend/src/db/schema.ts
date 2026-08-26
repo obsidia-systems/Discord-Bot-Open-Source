@@ -1008,7 +1008,7 @@ export const pluginPokemonConfig = sqliteTable("plugin_pokemon_config", {
   embedColor: text("embed_color").notNull().default("#EF4444"),
   forceEphemeral: integer("force_ephemeral", { mode: "boolean" })
     .notNull()
-    .default(false),
+    .default(true),
   /** string[] JSON — lista blanca de canales. */
   allowedChannels: text("allowed_channels").notNull().default("[]"),
   /** PokemonCommandsEnabled JSON. */

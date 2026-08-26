@@ -68,7 +68,7 @@ export function defaultPokemonConfig(guildId = ""): PokemonConfig {
     defaultGeneration: 9,
     language: "es",
     embedColor: "#EF4444",
-    forceEphemeral: false,
+    forceEphemeral: true,
     allowedChannels: [],
     commands: defaultPokemonCommands(),
   };
