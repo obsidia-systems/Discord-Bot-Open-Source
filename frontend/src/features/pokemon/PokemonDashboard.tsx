@@ -1,5 +1,6 @@
 import type {
   GuildChannelAsset,
+  GuildRoleAsset,
   PokemonCommandName,
   PokemonConfig,
   PokemonGeneration,
@@ -16,6 +17,7 @@ import {
   savePokemonConfig,
 } from "@/lib/api";
 import { ChannelMultiSelect } from "@/components/shared/ChannelMultiSelect";
+import { RoleMultiSelect } from "@/components/shared/RoleMultiSelect";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -55,6 +57,7 @@ export function PokemonDashboard() {
   const [config, setConfig] = useState<PokemonConfig>(defaultPokemonConfig());
   const [savedFingerprint, setSavedFingerprint] = useState("");
   const [channels, setChannels] = useState<GuildChannelAsset[]>([]);
+  const [roles, setRoles] = useState<GuildRoleAsset[]>([]);
   const [toast, setToast] = useState<{
     variant: "success" | "error";
     message: string;
@@ -90,6 +93,7 @@ export function PokemonDashboard() {
         setConfig(pokemon);
         setSavedFingerprint(fingerprint(pokemon));
         setChannels(assets?.channels ?? []);
+        setRoles(assets?.roles ?? []);
       } catch (error) {
         if (!cancelled) {
           setToast({
@@ -120,6 +124,7 @@ export function PokemonDashboard() {
         embedColor: config.embedColor,
         forceEphemeral: config.forceEphemeral,
         allowedChannels: config.allowedChannels,
+        allowedRoles: config.allowedRoles,
         commands: config.commands,
       });
       setConfig(next);
@@ -350,6 +355,34 @@ export function PokemonDashboard() {
                           }
                         />
                       </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">
+                        Roles permitidos
+                      </CardTitle>
+                      <CardDescription>
+                        Lista blanca. Vacía = cualquiera del servidor puede usar
+                        los comandos del módulo.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <RoleMultiSelect
+                        id="poke-roles"
+                        label="Roles"
+                        placeholder="Seleccionar roles…"
+                        roles={roles}
+                        value={config.allowedRoles}
+                        onChange={(next) =>
+                          setConfig((c) => ({
+                            ...c,
+                            allowedRoles: next,
+                          }))
+                        }
+                        emptyHint="Sin roles cargados. Comprueba que el bot esté en el servidor."
+                      />
                     </CardContent>
                   </Card>
 

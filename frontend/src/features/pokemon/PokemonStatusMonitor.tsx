@@ -57,6 +57,14 @@ export function PokemonStatusMonitor({
           </span>
         </div>
         <StatusRow
+          label="Roles"
+          value={
+            config.allowedRoles.length === 0
+              ? "Everyone"
+              : `${config.allowedRoles.length} en lista blanca`
+          }
+        />
+        <StatusRow
           label="Canales"
           value={
             config.allowedChannels.length === 0

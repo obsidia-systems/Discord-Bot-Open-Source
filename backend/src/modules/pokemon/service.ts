@@ -10,6 +10,7 @@ import {
   normalizePokemonEmbedColor,
   normalizePokemonGeneration,
   normalizePokemonLanguage,
+  normalizePokemonRoleIds,
   POKEMON_COMMAND_NAMES,
 } from "@adobos/shared";
 import { eq } from "drizzle-orm";
@@ -95,6 +96,7 @@ function rowToConfig(
     allowedChannels: normalizePokemonChannelIds(
       parseJsonArray(row.allowedChannels),
     ),
+    allowedRoles: normalizePokemonRoleIds(parseJsonArray(row.allowedRoles)),
     commands: normalizePokemonCommands(parseJsonObject(row.commands)),
   };
 }
@@ -140,6 +142,10 @@ export function updatePokemonConfig(
       input.allowedChannels !== undefined
         ? normalizePokemonChannelIds(input.allowedChannels)
         : current.allowedChannels,
+    allowedRoles:
+      input.allowedRoles !== undefined
+        ? normalizePokemonRoleIds(input.allowedRoles)
+        : current.allowedRoles,
     commands: normalizePokemonCommands({
       ...current.commands,
       ...(input.commands ?? {}),
@@ -157,6 +163,7 @@ export function updatePokemonConfig(
       embedColor: next.embedColor,
       forceEphemeral: next.forceEphemeral,
       allowedChannels: JSON.stringify(next.allowedChannels),
+      allowedRoles: JSON.stringify(next.allowedRoles),
       commands: JSON.stringify(next.commands),
       updatedAt: now,
     })
@@ -169,6 +176,7 @@ export function updatePokemonConfig(
         embedColor: next.embedColor,
         forceEphemeral: next.forceEphemeral,
         allowedChannels: JSON.stringify(next.allowedChannels),
+        allowedRoles: JSON.stringify(next.allowedRoles),
         commands: JSON.stringify(next.commands),
         updatedAt: now,
       },
@@ -178,11 +186,22 @@ export function updatePokemonConfig(
   return next;
 }
 
-/** Valida plugin activo, comando habilitado y canal permitido. */
+export interface PokemonAccessContext {
+  /** Role IDs del miembro que ejecuta el comando. */
+  memberRoleIds?: string[];
+  /** Administrators de Discord siempre pasan la lista de roles. */
+  isAdministrator?: boolean;
+}
+
+/**
+ * Valida plugin activo, comando habilitado, canal y roles permitidos.
+ * `allowedRoles` vacío = cualquiera del servidor.
+ */
 export function assertPokemonCommandAllowed(
   guildId: string,
   commandName: string,
   channelId: string | null,
+  access: PokemonAccessContext = {},
 ): PokemonConfig {
   const config = getPokemonConfig(guildId);
   if (!config.isActive) {
@@ -193,9 +212,7 @@ export function assertPokemonCommandAllowed(
     );
   }
 
-  if (
-    (POKEMON_COMMAND_NAMES as readonly string[]).includes(commandName)
-  ) {
+  if ((POKEMON_COMMAND_NAMES as readonly string[]).includes(commandName)) {
     const key = commandName as PokemonCommandName;
     if (!config.commands[key]) {
       throw new PokemonError(
@@ -216,6 +233,18 @@ export function assertPokemonCommandAllowed(
       400,
       "POKEMON_CHANNEL_DENIED",
     );
+  }
+
+  if (config.allowedRoles.length > 0 && !access.isAdministrator) {
+    const memberRoles = access.memberRoleIds ?? [];
+    const ok = config.allowedRoles.some((id) => memberRoles.includes(id));
+    if (!ok) {
+      throw new PokemonError(
+        "🚫 No tienes un rol permitido para usar comandos de Pokémon.",
+        403,
+        "POKEMON_ROLE_DENIED",
+      );
+    }
   }
 
   return config;

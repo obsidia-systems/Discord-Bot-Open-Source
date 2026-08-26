@@ -21,6 +21,7 @@ import {
   assertPokemonCommandAllowed,
   getPokemonConfig,
 } from "../service.js";
+import { pokemonAccessFromInteraction } from "../access.js";
 
 /**
  * Autocomplete de la opción `pokemon` (índice en memoria).
@@ -74,6 +75,7 @@ export async function handlePokeinfoCommand(
       interaction.guildId,
       "pokeinfo",
       interaction.channelId,
+      pokemonAccessFromInteraction(interaction),
     );
     forceEphemeral = config.forceEphemeral;
     fallbackColor = config.embedColor;

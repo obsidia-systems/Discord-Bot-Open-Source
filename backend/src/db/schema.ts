@@ -1011,6 +1011,8 @@ export const pluginPokemonConfig = sqliteTable("plugin_pokemon_config", {
     .default(true),
   /** string[] JSON — lista blanca de canales. */
   allowedChannels: text("allowed_channels").notNull().default("[]"),
+  /** string[] JSON — lista blanca de roles (vacía = everyone). */
+  allowedRoles: text("allowed_roles").notNull().default("[]"),
   /** PokemonCommandsEnabled JSON. */
   commands: text("commands").notNull().default("{}"),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" })

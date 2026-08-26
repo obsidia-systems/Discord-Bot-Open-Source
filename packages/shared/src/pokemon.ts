@@ -31,6 +31,11 @@ export interface PokemonConfig {
   forceEphemeral: boolean;
   /** Lista blanca de canales; vacía = todos. */
   allowedChannels: string[];
+  /**
+   * Lista blanca de roles; vacía = cualquiera del servidor puede usar
+   * los comandos del módulo (siempre que el plugin esté activo).
+   */
+  allowedRoles: string[];
   commands: PokemonCommandsEnabled;
 }
 
@@ -45,6 +50,7 @@ export type UpdatePokemonConfigRequest = Partial<{
   embedColor: string;
   forceEphemeral: boolean;
   allowedChannels: string[];
+  allowedRoles: string[];
   commands: Partial<PokemonCommandsEnabled>;
   guildId: string;
 }>;
@@ -70,6 +76,7 @@ export function defaultPokemonConfig(guildId = ""): PokemonConfig {
     embedColor: "#EF4444",
     forceEphemeral: true,
     allowedChannels: [],
+    allowedRoles: [],
     commands: defaultPokemonCommands(),
   };
 }
@@ -105,6 +112,15 @@ export function normalizePokemonEmbedColor(
 }
 
 export function normalizePokemonChannelIds(ids: unknown): string[] {
+  return normalizePokemonSnowflakeIds(ids);
+}
+
+/** Roles permitidos (mismos snowflakes Discord). */
+export function normalizePokemonRoleIds(ids: unknown): string[] {
+  return normalizePokemonSnowflakeIds(ids);
+}
+
+function normalizePokemonSnowflakeIds(ids: unknown): string[] {
   if (!Array.isArray(ids)) return [];
   const seen = new Set<string>();
   const out: string[] = [];

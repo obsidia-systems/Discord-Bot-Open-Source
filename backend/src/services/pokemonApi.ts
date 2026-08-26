@@ -53,24 +53,24 @@ export interface PokemonSpeciesData {
   names: Array<{ language: string; name: string }>;
 }
 
-/** Colores oficiales-ish por tipo (fallback si no hay tipo). */
+/** Colores de barra del embed según el tipo primario del Pokémon. */
 export const POKEMON_TYPE_COLORS: Record<string, string> = {
-  normal: "#A8A878",
-  fire: "#F08030",
-  water: "#6890F0",
-  electric: "#F8D030",
-  grass: "#78C850",
+  normal: "#A8A87E",
+  fire: "#F18030",
+  water: "#6990F0",
+  electric: "#F8D02F",
+  grass: "#78C851",
   ice: "#98D8D8",
   fighting: "#C03028",
   poison: "#A040A0",
   ground: "#E0C068",
   flying: "#A890F0",
-  psychic: "#F85888",
-  bug: "#A8B820",
+  psychic: "#F85988",
+  bug: "#A8B81F",
   rock: "#B8A038",
-  ghost: "#705898",
+  ghost: "#6F5898",
   dragon: "#7038F8",
-  dark: "#705848",
+  dark: "#6F5848",
   steel: "#B8B8D0",
   fairy: "#EE99AC",
 };

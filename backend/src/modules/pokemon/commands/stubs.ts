@@ -4,6 +4,7 @@ import {
   PokemonError,
   assertPokemonCommandAllowed,
 } from "../service.js";
+import { pokemonAccessFromInteraction } from "../access.js";
 
 export { handlePokeinfoCommand } from "./pokeinfo.js";
 
@@ -30,6 +31,7 @@ export async function handlePokemonStubCommand(
       interaction.guildId,
       commandName,
       interaction.channelId,
+      pokemonAccessFromInteraction(interaction),
     );
     forceEphemeral = config.forceEphemeral;
   } catch (error) {

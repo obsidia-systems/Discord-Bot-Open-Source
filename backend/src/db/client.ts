@@ -822,11 +822,31 @@ function ensureCoreTables(database: Database.Database): void {
       embed_color TEXT NOT NULL DEFAULT '#EF4444',
       force_ephemeral INTEGER NOT NULL DEFAULT 1,
       allowed_channels TEXT NOT NULL DEFAULT '[]',
+      allowed_roles TEXT NOT NULL DEFAULT '[]',
       commands TEXT NOT NULL DEFAULT '{}',
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
     );
   `);
+
+  try {
+    const pokeCols = database
+      .prepare(`PRAGMA table_info(plugin_pokemon_config)`)
+      .all() as Array<{ name: string }>;
+    if (
+      pokeCols.length > 0 &&
+      !pokeCols.some((c) => c.name === "allowed_roles")
+    ) {
+      database.exec(
+        `ALTER TABLE plugin_pokemon_config ADD COLUMN allowed_roles TEXT NOT NULL DEFAULT '[]'`,
+      );
+    }
+  } catch (error) {
+    console.warn(
+      "[adobos] migrate plugin_pokemon_config.allowed_roles:",
+      error,
+    );
+  }
 
   try {
     let shopCols = database
