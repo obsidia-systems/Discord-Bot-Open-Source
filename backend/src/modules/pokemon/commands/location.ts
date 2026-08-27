@@ -3,7 +3,7 @@ import { EmbedBuilder } from "discord.js";
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
 import {
   PokemonApiError,
-  formatEncountersDescription,
+  buildEncounterEmbedFields,
   getPokemonData,
   getPokemonEncounters,
   getPokemonSpecies,
@@ -17,7 +17,7 @@ import {
 import { pokemonAccessFromInteraction } from "../access.js";
 
 /**
- * /location pokemon — encuentros salvajes agrupados por juego.
+ * /location pokemon — encuentros salvajes agrupados por juego (fields).
  */
 export async function handleLocationCommand(
   interaction: ChatInputCommandInteraction,
@@ -69,25 +69,32 @@ export async function handleLocationCommand(
 
     let species = null;
     try {
-      species = await getPokemonSpecies(data.name);
+      species = await getPokemonSpecies(data.speciesName || data.name);
     } catch {
       /* nombre localizado opcional */
     }
 
     const displayName = resolveDisplayName(species, data.name, language);
     const color = getTypeColor(data.types[0], fallbackColor);
-    const description = formatEncountersDescription(encounters);
+    const fields = buildEncounterEmbedFields(encounters);
 
     const embed = new EmbedBuilder()
       .setColor(color)
       .setTitle(`Ubicaciones de ${displayName}`)
-      .setDescription(description)
       .setFooter({
         text:
           encounters.length === 0
             ? "PokéAPI · Sin encuentros salvajes"
             : `PokéAPI · ${encounters.length} versión(es) con encuentros`,
       });
+
+    if (encounters.length === 0) {
+      embed.setDescription(
+        "Este Pokémon no se encuentra de forma salvaje en la hierba.",
+      );
+    } else {
+      embed.addFields(fields);
+    }
 
     if (data.spriteUrl) {
       embed.setThumbnail(data.spriteUrl);

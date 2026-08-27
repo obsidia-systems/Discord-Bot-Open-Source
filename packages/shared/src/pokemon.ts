@@ -153,3 +153,100 @@ export const POKEMON_COMMAND_LABELS: Record<PokemonCommandName, string> = {
   counters: "/counters — Contadores competitivos",
   sandwich: "/sandwich — Sándwiches (SV)",
 };
+
+/** Values de la opción `/pokeinfo juego_formato`. */
+export const POKEINFO_FORMAT_VALUES = [
+  "gen1",
+  "gen2",
+  "gen3",
+  "gen4",
+  "gen5",
+  "gen6",
+  "gen7",
+  "gen8",
+  "gen9",
+  "natdex",
+] as const;
+
+export type PokeinfoFormatValue = (typeof POKEINFO_FORMAT_VALUES)[number];
+
+/** Choices Discord (name → value) para `juego_formato`. */
+export const POKEINFO_FORMAT_CHOICES: ReadonlyArray<{
+  name: string;
+  value: PokeinfoFormatValue;
+}> = [
+  { name: "Rojo/Azul (RB) - Gen 1", value: "gen1" },
+  { name: "Oro/Plata (GS) - Gen 2", value: "gen2" },
+  { name: "Rubí/Zafiro (RS) - Gen 3", value: "gen3" },
+  { name: "Diamante/Perla (DP) - Gen 4", value: "gen4" },
+  { name: "Blanco/Negro (BW) - Gen 5", value: "gen5" },
+  { name: "X/Y (XY) - Gen 6", value: "gen6" },
+  { name: "Sol/Luna (SM) - Gen 7", value: "gen7" },
+  { name: "Espada/Escudo (SS) - Gen 8", value: "gen8" },
+  { name: "Escarlata/Púrpura (SV) - Gen 9", value: "gen9" },
+  { name: "Champions / NatDex", value: "natdex" },
+];
+
+export interface ResolvedPokeinfoFormat {
+  /** Clave de la opción Discord (`gen9`, `natdex`, …). */
+  key: PokeinfoFormatValue | "default";
+  /** Generación PokéAPI / past_types (1–9). */
+  generation: number;
+  /** Etiqueta corta para footer. */
+  label: string;
+  /** Preferir stats National Dex (`gen9nationaldex`). */
+  useNatDex: boolean;
+  /** Formato de stats preferido en data.pkmn.cc (si aplica). */
+  preferredFormatId?: string;
+}
+
+/**
+ * Mapea `juego_formato` → generación + hint de meta Smogon/PS.
+ * Si `value` es null/undefined, usa `defaultGeneration` del panel.
+ */
+export function resolvePokeinfoFormat(
+  value: string | null | undefined,
+  defaultGeneration: number = 9,
+): ResolvedPokeinfoFormat {
+  const genDefault = Math.max(1, Math.min(9, Math.floor(defaultGeneration) || 9));
+  const key = (value ?? "").trim().toLowerCase();
+
+  if (!key) {
+    return {
+      key: "default",
+      generation: genDefault,
+      label: `Gen ${genDefault}`,
+      useNatDex: false,
+    };
+  }
+
+  if (key === "natdex") {
+    return {
+      key: "natdex",
+      generation: 9,
+      label: "NatDex",
+      useNatDex: true,
+      preferredFormatId: "gen9nationaldex",
+    };
+  }
+
+  const match = /^gen([1-9])$/.exec(key);
+  if (match) {
+    const generation = Number(match[1]);
+    const choice = POKEINFO_FORMAT_CHOICES.find((c) => c.value === key);
+    return {
+      key: key as PokeinfoFormatValue,
+      generation,
+      label: choice?.name ?? `Gen ${generation}`,
+      useNatDex: false,
+    };
+  }
+
+  return {
+    key: "default",
+    generation: genDefault,
+    label: `Gen ${genDefault}`,
+    useNatDex: false,
+  };
+}
+

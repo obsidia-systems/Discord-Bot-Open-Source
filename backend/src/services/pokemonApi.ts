@@ -538,11 +538,13 @@ export interface EvolutionLineEntry {
   methodLabel: string;
   isMega?: boolean;
   megaLabel?: string;
+  /** Línea compacta de muchas ramas (solo se usa methodLabel). */
+  isBranchList?: boolean;
 }
 
 export interface EvolutionLineSummary {
-  previous: EvolutionLineEntry[];
-  next: EvolutionLineEntry[];
+  /** Cadena completa desde la raíz (incluye Base / métodos / megas al final). */
+  stages: EvolutionLineEntry[];
 }
 
 const evolutionChainCache = new Map<
@@ -811,38 +813,8 @@ export function formatEvolutionMethodLabel(
   return `${core} (${uniqueNotes.join(", ")})`;
 }
 
-type ChainWalkHit = {
-  node: EvolutionChainNode;
-  parent: EvolutionChainNode | null;
-  /** Detalles del paso padre → este nodo. */
-  viaDetails: EvolutionDetailInfo[];
-};
-
-function findInEvolutionTree(
-  root: EvolutionChainNode,
-  speciesName: string,
-): ChainWalkHit | null {
-  const target = speciesName.toLowerCase();
-
-  const walk = (
-    node: EvolutionChainNode,
-    parent: EvolutionChainNode | null,
-    viaDetails: EvolutionDetailInfo[],
-  ): ChainWalkHit | null => {
-    if (node.speciesName === target) {
-      return { node, parent, viaDetails };
-    }
-    for (const child of node.evolvesTo) {
-      const hit = walk(child, node, child.details);
-      if (hit) return hit;
-    }
-    return null;
-  };
-
-  return walk(root, null, []);
-}
-
 function megaStoneLabel(_varietyName: string, language: "es" | "en"): string {
+  // Preparado para inyección futura de emoji de ítem: `${emoji} Megapiedra`
   return language === "es" ? "Megapiedra" : "Mega Stone";
 }
 
@@ -857,81 +829,186 @@ function formatMegaVarietyLabel(
   return `Mega-${base}`;
 }
 
+function collectMegaEntries(
+  varieties: PokemonVariety[] | undefined,
+  speciesName: string,
+  language: "es" | "en",
+): EvolutionLineEntry[] {
+  const megas = (varieties ?? []).filter((v) => /-mega($|-)/i.test(v.name));
+  return megas.map((mega) => ({
+    speciesName: mega.name,
+    methodLabel: megaStoneLabel(mega.name, language),
+    isMega: true,
+    megaLabel: formatMegaVarietyLabel(mega.name, speciesName),
+  }));
+}
+
+function findLinearLeaf(node: EvolutionChainNode): EvolutionChainNode {
+  let cur = node;
+  while (cur.evolvesTo.length === 1) {
+    cur = cur.evolvesTo[0]!;
+  }
+  return cur;
+}
+
+/** Megas indexadas por nombre de especie base. */
+export type MegaBySpecies = Map<string, EvolutionLineEntry[]>;
+
 /**
- * Resuelve pre-evoluciones, evoluciones siguientes y megas a partir de la cadena + varieties.
+ * Agrupa megas del Pokémon actual y de la etapa final (cadena lineal).
+ */
+export function buildMegaBySpeciesMap(
+  chain: EvolutionChainNode,
+  speciesName: string,
+  varieties: PokemonVariety[] | undefined,
+  language: "es" | "en" = "es",
+  finalStageVarieties?: PokemonVariety[],
+): MegaBySpecies {
+  const map: MegaBySpecies = new Map();
+  const add = (sp: string, vars: PokemonVariety[] | undefined) => {
+    const entries = collectMegaEntries(vars, sp, language);
+    if (entries.length === 0) return;
+    const key = sp.toLowerCase();
+    const existing = map.get(key) ?? [];
+    for (const e of entries) {
+      if (!existing.some((x) => x.speciesName === e.speciesName)) {
+        existing.push(e);
+      }
+    }
+    map.set(key, existing);
+  };
+
+  add(speciesName, varieties);
+  const leaf = findLinearLeaf(chain);
+  if (leaf.speciesName !== speciesName.toLowerCase()) {
+    add(leaf.speciesName, finalStageVarieties);
+  } else if (finalStageVarieties && finalStageVarieties !== varieties) {
+    add(leaf.speciesName, finalStageVarieties);
+  }
+
+  return map;
+}
+
+type TreeChild =
+  | { kind: "evo"; node: EvolutionChainNode }
+  | { kind: "mega"; entry: EvolutionLineEntry };
+
+/**
+ * Unidad de indentación: 3 NBSP.
+ * Discord colapsa espacios ASCII normales al inicio de línea en embeds;
+ * los no-break spaces se preservan y el árbol se ve anidado.
+ */
+const TREE_INDENT_UNIT = "\u00A0\u00A0\u00A0";
+
+/**
+ * Árbol ASCII de la cadena evolutiva (`├─` / `└─` + indent por `depth`).
+ *
+ * Ej. lineal:
+ * ```
+ * Dratini (Base)
+ * └─ Dragonair (Nivel 30)
+ *    └─ Dragonite (Nivel 55)
+ *       └─ <:mega…> Mega-Dragonite (Megapiedra)
+ * ```
+ */
+export function formatEvolutionAsciiTree(
+  chain: EvolutionChainNode,
+  language: "es" | "en" = "es",
+  megaEmoji = "<:mega_evolution:1542327306738208849>",
+  megasBySpecies: MegaBySpecies = new Map(),
+): string | null {
+  const lines: string[] = [];
+
+  const childrenOf = (node: EvolutionChainNode): TreeChild[] => [
+    ...node.evolvesTo.map((n): TreeChild => ({ kind: "evo", node: n })),
+    ...(megasBySpecies.get(node.speciesName) ?? []).map(
+      (entry): TreeChild => ({ kind: "mega", entry }),
+    ),
+  ];
+
+  const walk = (
+    node: EvolutionChainNode,
+    depth: number,
+    isLast: boolean,
+  ): void => {
+    if (depth === 0) {
+      lines.push(`${capitalizePokemonName(node.speciesName)} (Base)`);
+    } else {
+      const indent = TREE_INDENT_UNIT.repeat(depth - 1);
+      const branch = isLast ? "└─ " : "├─ ";
+      const method = formatEvolutionMethodLabel(node.details, language);
+      lines.push(
+        `${indent}${branch}${capitalizePokemonName(node.speciesName)} (${method})`,
+      );
+    }
+
+    const kids = childrenOf(node);
+    kids.forEach((kid, index) => {
+      const kidIsLast = index === kids.length - 1;
+      if (kid.kind === "mega") {
+        const megaDepth = depth + 1;
+        const indent = TREE_INDENT_UNIT.repeat(Math.max(0, megaDepth - 1));
+        const branch = kidIsLast ? "└─ " : "├─ ";
+        const label =
+          kid.entry.megaLabel ??
+          capitalizePokemonName(kid.entry.speciesName);
+        lines.push(
+          `${indent}${branch}${megaEmoji} ${label} (${kid.entry.methodLabel})`,
+        );
+        return;
+      }
+      walk(kid.node, depth + 1, kidIsLast);
+    });
+  };
+
+  walk(chain, 0, true);
+
+  if (lines.length === 0) return null;
+  return lines.join("\n").slice(0, 1024);
+}
+
+/**
+ * @deprecated Preferir `formatEvolutionAsciiTree` + `buildMegaBySpeciesMap`.
  */
 export function resolveEvolutionLine(
   chain: EvolutionChainNode,
   speciesName: string,
   varieties: PokemonVariety[] | undefined,
   language: "es" | "en" = "es",
+  finalStageVarieties?: PokemonVariety[],
 ): EvolutionLineSummary {
-  const hit = findInEvolutionTree(chain, speciesName);
-  const previous: EvolutionLineEntry[] = [];
-  const next: EvolutionLineEntry[] = [];
-
-  if (hit?.parent) {
-    previous.push({
-      speciesName: hit.parent.speciesName,
-      methodLabel: formatEvolutionMethodLabel(hit.viaDetails, language),
-    });
-  }
-
-  if (hit) {
-    for (const child of hit.node.evolvesTo) {
-      next.push({
-        speciesName: child.speciesName,
-        methodLabel: formatEvolutionMethodLabel(child.details, language),
-      });
-    }
-  }
-
-  const megas = (varieties ?? []).filter((v) =>
-    /-mega($|-)/i.test(v.name),
+  const megas = buildMegaBySpeciesMap(
+    chain,
+    speciesName,
+    varieties,
+    language,
+    finalStageVarieties,
   );
-  for (const mega of megas) {
-    next.push({
-      speciesName: mega.name,
-      methodLabel: megaStoneLabel(mega.name, language),
-      isMega: true,
-      megaLabel: formatMegaVarietyLabel(mega.name, speciesName),
-    });
-  }
-
-  return { previous, next };
+  const tree =
+    formatEvolutionAsciiTree(
+      chain,
+      language,
+      "<:mega_evolution:1542327306738208849>",
+      megas,
+    ) ?? "";
+  return {
+    stages: tree.split("\n").map((line) => ({
+      speciesName: line,
+      methodLabel: "",
+    })),
+  };
 }
 
 /**
- * Texto del field 🧬 Línea Evolutiva.
+ * @deprecated Preferir `formatEvolutionAsciiTree`.
  */
 export function formatEvolutionLineField(
   summary: EvolutionLineSummary,
-  language: "es" | "en" = "es",
-  megaEmoji = "<:mega_evolution:1542327306738208849>",
+  _language: "es" | "en" = "es",
+  _megaEmoji = "<:mega_evolution:1542327306738208849>",
 ): string | null {
-  const lines: string[] = [];
-  const prevWord = language === "es" ? "Anterior" : "Previous";
-  const nextWord = language === "es" ? "Siguiente" : "Next";
-
-  for (const entry of summary.previous) {
-    lines.push(
-      `${prevWord}: ${capitalizePokemonName(entry.speciesName)} (${entry.methodLabel})`,
-    );
-  }
-  for (const entry of summary.next) {
-    if (entry.isMega) {
-      lines.push(
-        `${nextWord}: ${megaEmoji} ${entry.megaLabel ?? capitalizePokemonName(entry.speciesName)} (${entry.methodLabel})`,
-      );
-    } else {
-      lines.push(
-        `${nextWord}: ${capitalizePokemonName(entry.speciesName)} (${entry.methodLabel})`,
-      );
-    }
-  }
-
-  if (lines.length === 0) return null;
-  return lines.join("\n").slice(0, 1024);
+  if (!summary.stages.length) return null;
+  return summary.stages.map((s) => s.speciesName).join("\n").slice(0, 1024);
 }
 
 /** Encuentro agrupado por versión de juego. */
@@ -991,12 +1068,42 @@ const encountersCache = new Map<
  * Formatea el slug de location-area (p. ej. `trophy-garden-area` → `Trophy Garden`).
  */
 export function formatLocationAreaLabel(slug: string): string {
-  return slug
-    .replace(/-area$/i, "")
-    .split("-")
+  const spaced = slug
+    .replace(/-/g, " ")
+    .split(/\s+/)
     .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
     .join(" ");
+  return dedupeLocationBaseName(spaced);
+}
+
+/**
+ * Elimina sufijos de sub-áreas y deja el nombre base del mapa.
+ * Ej: "Great Marsh Area 1" → "Great Marsh"
+ *     "Foo North Towards Bar" → "Foo"
+ */
+export function dedupeLocationBaseName(label: string): string {
+  let name = label.trim().replace(/\s+/g, " ");
+  if (!name) return name;
+
+  // Direcciones / "towards …"
+  name = name.replace(
+    /\s+(?:North|South|East|West)\s+Towards\b.*$/i,
+    "",
+  );
+  name = name.replace(/\s+Towards\b.*$/i, "");
+
+  // Variantes temporales / eventos en el mismo mapa
+  name = name.replace(/\s+(?:Before|After)\b.*$/i, "");
+
+  // "Area 1", "Area 2", "Area" al final o sueltos
+  name = name.replace(/\s+Area(?:\s+\d+)?$/i, "");
+  name = name.replace(/\s+Area\s+\d+\b/gi, "");
+
+  // Sufijos tipo "Section 1", "Zone 2", "Spot 3"
+  name = name.replace(/\s+(?:Section|Zone|Spot|Sector)\s+\d+$/i, "");
+
+  return name.replace(/\s+/g, " ").trim();
 }
 
 export function formatVersionLabel(versionSlug: string): string {
@@ -1015,7 +1122,8 @@ export async function getPokemonEncounters(
     throw new PokemonApiError("Nombre vacío.", 400, "POKEAPI_EMPTY");
   }
 
-  const cached = encountersCache.get(key);
+  const cacheKey = `v3:${key}`;
+  const cached = encountersCache.get(cacheKey);
   if (cached && Date.now() - cached.at < DETAIL_TTL_MS) {
     return cached.data;
   }
@@ -1030,13 +1138,14 @@ export async function getPokemonEncounters(
     }>
   >(`/pokemon/${encodeURIComponent(key)}/encounters`);
 
-  /** version → set de location labels */
+  /** version → set de location labels base (deduplicados) */
   const byVersion = new Map<string, Set<string>>();
 
   for (const entry of raw) {
     const areaSlug = entry.location_area?.name;
     if (!areaSlug) continue;
     const areaLabel = formatLocationAreaLabel(areaSlug);
+    if (!areaLabel) continue;
 
     for (const detail of entry.version_details ?? []) {
       const version = detail.version?.name;
@@ -1058,12 +1167,66 @@ export async function getPokemonEncounters(
     }))
     .sort((a, b) => a.versionLabel.localeCompare(b.versionLabel, "es"));
 
-  encountersCache.set(key, { at: Date.now(), data: grouped });
+  encountersCache.set(cacheKey, { at: Date.now(), data: grouped });
   return grouped;
 }
 
+/** Valor de un field de ubicaciones (máx. 1024). */
+export function formatEncounterFieldValue(
+  locations: string[],
+  maxLocations = 4,
+): string {
+  if (locations.length === 0) return "> —";
+
+  const visible = locations.slice(0, Math.max(1, maxLocations));
+  const extra = locations.length - visible.length;
+  let value = `> ${visible.join(", ")}`;
+  if (extra > 0) {
+    value += `\n*... y ${extra} zonas más*`;
+  }
+  if (value.length > 1024) {
+    value = `${value.slice(0, 1020)}…`;
+  }
+  return value;
+}
+
 /**
- * Construye el texto del embed de ubicaciones (respeta ~3900 chars).
+ * Fields del embed `/location` (1 por versión, máx. 25).
+ */
+export function buildEncounterEmbedFields(
+  groups: PokemonEncounterByVersion[],
+  options?: { maxLocationsPerVersion?: number; maxFields?: number },
+): Array<{ name: string; value: string; inline: boolean }> {
+  const maxLocs = options?.maxLocationsPerVersion ?? 4;
+  const maxFields = Math.min(options?.maxFields ?? 25, 25);
+  if (groups.length === 0) return [];
+
+  const fields: Array<{ name: string; value: string; inline: boolean }> = [];
+  const versionsToShow =
+    groups.length > maxFields ? groups.slice(0, maxFields - 1) : groups;
+
+  for (const group of versionsToShow) {
+    fields.push({
+      name: `🎮 ${group.versionLabel}`.slice(0, 256),
+      value: formatEncounterFieldValue(group.locations, maxLocs),
+      inline: false,
+    });
+  }
+
+  const omitted = groups.length - versionsToShow.length;
+  if (omitted > 0 && fields.length < maxFields) {
+    fields.push({
+      name: "🎮 Más versiones",
+      value: `*…y ${omitted} versión(es) más con encuentros.*`,
+      inline: false,
+    });
+  }
+
+  return fields;
+}
+
+/**
+ * @deprecated Preferir `buildEncounterEmbedFields` para el embed de `/location`.
  */
 export function formatEncountersDescription(
   groups: PokemonEncounterByVersion[],
@@ -1074,7 +1237,7 @@ export function formatEncountersDescription(
   }
 
   const maxVersions = options?.maxVersions ?? 20;
-  const maxLocs = options?.maxLocationsPerVersion ?? 8;
+  const maxLocs = options?.maxLocationsPerVersion ?? 4;
   const lines: string[] = [];
   let shown = 0;
 

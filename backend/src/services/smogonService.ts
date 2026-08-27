@@ -23,7 +23,9 @@ const CACHE_TTL_MS = 6 * 60 * 60_000;
 
 type CacheEntry<T> = { at: number; data: T };
 
-let pokedexCache: CacheEntry<Record<string, { tier?: string }>> | null = null;
+let pokedexCache: CacheEntry<
+  Record<string, { tier?: string; natDexTier?: string }>
+> | null = null;
 const formatsTierCache = new Map<number, CacheEntry<Map<string, string>>>();
 const statsCache = new Map<
   string,
@@ -151,11 +153,15 @@ async function fetchText(url: string): Promise<string> {
   return response.text();
 }
 
-async function getPokedexTiers(): Promise<Record<string, { tier?: string }>> {
+async function getPokedexTiers(): Promise<
+  Record<string, { tier?: string; natDexTier?: string }>
+> {
   if (pokedexCache && Date.now() - pokedexCache.at < CACHE_TTL_MS) {
     return pokedexCache.data;
   }
-  const data = await fetchJson<Record<string, { tier?: string }>>(PS_POKEDEX_URL);
+  const data = await fetchJson<
+    Record<string, { tier?: string; natDexTier?: string }>
+  >(PS_POKEDEX_URL);
   pokedexCache = { at: Date.now(), data };
   return data;
 }
@@ -174,27 +180,34 @@ function parseFormatsDataTs(source: string): Map<string, string> {
   return map;
 }
 
-async function getFormatsTiers(generation: number): Promise<Map<string, string>> {
+async function getFormatsTiers(
+  generation: number,
+  useNatDex = false,
+): Promise<Map<string, string>> {
   const gen = Math.max(1, Math.min(9, generation));
-  const cached = formatsTierCache.get(gen);
+  const cacheKey = useNatDex ? gen + 100 : gen;
+  const cached = formatsTierCache.get(cacheKey);
   if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
     return cached.data;
   }
 
-  if (gen >= 9) {
+  if (gen >= 9 || useNatDex) {
     const dex = await getPokedexTiers();
     const map = new Map<string, string>();
     for (const [id, entry] of Object.entries(dex)) {
-      if (entry?.tier) map.set(id.toLowerCase(), entry.tier);
+      const tier = useNatDex
+        ? entry?.natDexTier || entry?.tier
+        : entry?.tier;
+      if (tier) map.set(id.toLowerCase(), tier);
     }
-    formatsTierCache.set(gen, { at: Date.now(), data: map });
+    formatsTierCache.set(cacheKey, { at: Date.now(), data: map });
     return map;
   }
 
   const path = `${GITHUB_FORMATS_BASE}/mods/gen${gen}/formats-data.ts`;
   const source = await fetchText(path);
   const map = parseFormatsDataTs(source);
-  formatsTierCache.set(gen, { at: Date.now(), data: map });
+  formatsTierCache.set(cacheKey, { at: Date.now(), data: map });
   return map;
 }
 
@@ -302,16 +315,21 @@ function emptyMeta(tier = "Untiered"): CompetitiveMeta {
 export async function getCompetitiveData(
   pokemonName: string,
   generation = 9,
+  options?: {
+    preferredFormatId?: string;
+    useNatDex?: boolean;
+  },
 ): Promise<CompetitiveMeta> {
   const name = pokemonName.trim();
   if (!name) return emptyMeta();
 
   const gen = Math.max(1, Math.min(9, generation));
   const speciesId = toSpeciesId(name);
+  const useNatDex = Boolean(options?.useNatDex);
 
   let tier = "Untiered";
   try {
-    const tiers = await getFormatsTiers(gen);
+    const tiers = await getFormatsTiers(gen, useNatDex);
     tier = tiers.get(speciesId) ?? "Untiered";
   } catch {
     /* se intenta igual con stats OU */
@@ -326,9 +344,14 @@ export async function getCompetitiveData(
     };
   }
 
-  const primaryFormat = resolveStatsFormatId(tier, gen);
+  const primaryFormat = useNatDex
+    ? options?.preferredFormatId ?? `gen${gen}nationaldex`
+    : resolveStatsFormatId(tier, gen);
+
   const fallbackFormats = [
+    options?.preferredFormatId,
     primaryFormat,
+    useNatDex ? `gen${gen}nationaldex` : null,
     `gen${gen}ou`,
     `gen${gen}uu`,
     `gen${gen}ru`,
@@ -337,7 +360,8 @@ export async function getCompetitiveData(
     `gen${gen}zu`,
     `gen${gen}ubers`,
     `gen${gen}lc`,
-  ];
+  ].filter((f): f is string => Boolean(f));
+
   const tried = new Set<string>();
 
   for (const formatId of fallbackFormats) {
@@ -354,7 +378,7 @@ export async function getCompetitiveData(
     const natures = topNaturesFromSpreads(entry.spreads, 3).map(localizeNature);
 
     return {
-      tier,
+      tier: useNatDex && !tier.includes("National") ? `${tier} (NatDex)` : tier,
       items: items.length > 0 ? items : ["Sin datos"],
       natures: natures.length > 0 ? natures : ["Sin datos"],
       format: formatId,
@@ -371,10 +395,25 @@ export async function getCompetitiveData(
   };
 }
 
+export function formatCompetitiveBulletList(values: string[]): string {
+  const clean = values.filter(
+    (item) =>
+      item &&
+      item !== "—" &&
+      item.toLowerCase() !== "nothing" &&
+      item.toLowerCase() !== "sin datos",
+  );
+  if (clean.length === 0) return "• Sin datos";
+  // Prefijo listo para inyectar emoji de ítem: `• ${emoji} Nombre`
+  return clean.map((item) => `• ${item}`).join("\n");
+}
+
 export function formatCompetitiveMetaField(meta: CompetitiveMeta): string {
   return [
     `**Tier:** ${meta.tier}`,
-    `**Objetos:** ${meta.items.join(", ")}`,
-    `**Naturalezas:** ${meta.natures.join(", ")}`,
+    `**Objetos:**`,
+    formatCompetitiveBulletList(meta.items),
+    `**Naturalezas:**`,
+    formatCompetitiveBulletList(meta.natures),
   ].join("\n");
 }

@@ -1,5 +1,7 @@
 /** Catálogo central de slash commands nativos (única fuente de verdad UI + Discord). */
 
+import { POKEINFO_FORMAT_CHOICES } from "./pokemon.js";
+
 export type SystemCommandCategory =
   | "moderation"
   | "levels"
@@ -611,11 +613,22 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
         autocomplete: true,
       }),
       opt(
-        "generacion",
-        "INTEGER",
+        "juego_formato",
+        "STRING",
         false,
-        "Generación histórica (1–9). Vacío = actual / config del panel.",
-        { minValue: 1, maxValue: 9 },
+        "Juego / formato competitivo (vacío = gen por defecto del panel).",
+        {
+          choices: POKEINFO_FORMAT_CHOICES.map((c) => ({
+            name: c.name,
+            value: c.value,
+          })),
+        },
+      ),
+      opt(
+        "publico",
+        "BOOLEAN",
+        false,
+        "Mostrar el resultado a todos en el canal (Por defecto: Falso).",
       ),
     ],
     supportsEphemeral: true,
