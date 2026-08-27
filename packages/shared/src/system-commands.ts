@@ -686,6 +686,12 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
       opt("pokemon", "STRING", true, "Pokémon a consultar.", {
         autocomplete: true,
       }),
+      opt(
+        "publico",
+        "BOOLEAN",
+        false,
+        "Mostrar el resultado a todos en el canal (Por defecto: Falso).",
+      ),
     ],
     supportsEphemeral: true,
     defaultEphemeral: false,

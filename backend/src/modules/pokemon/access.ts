@@ -1,10 +1,20 @@
-import type { ChatInputCommandInteraction, GuildMember } from "discord.js";
+import type {
+  ButtonInteraction,
+  ChatInputCommandInteraction,
+  GuildMember,
+  StringSelectMenuInteraction,
+} from "discord.js";
 import { PermissionFlagsBits } from "discord.js";
 import type { PokemonAccessContext } from "./service.js";
 
+type PokemonGuildInteraction =
+  | ChatInputCommandInteraction
+  | ButtonInteraction
+  | StringSelectMenuInteraction;
+
 /** Extrae roles / admin del miembro para el guard del plugin. */
 export function pokemonAccessFromInteraction(
-  interaction: ChatInputCommandInteraction,
+  interaction: PokemonGuildInteraction,
 ): PokemonAccessContext {
   const member = interaction.member;
   if (!member || typeof member === "string" || !("roles" in member)) {
