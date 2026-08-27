@@ -24,11 +24,11 @@ export {
   updatePokemonConfig,
 } from "./service.js";
 
+export { handleLocationCommand } from "./commands/location.js";
+export { handlePokeinfoCommand } from "./commands/pokeinfo.js";
 export {
   handleBreedingCommand,
   handleCountersCommand,
-  handleLocationCommand,
-  handlePokeinfoCommand,
   handleSandwichCommand,
   handleTeambuilderCommand,
   handleWeaknessCommand,

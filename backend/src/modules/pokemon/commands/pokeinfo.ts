@@ -6,20 +6,33 @@ import { EmbedBuilder } from "discord.js";
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
 import {
   PokemonApiError,
+  buildSmogonPokemonUrl,
   formatAbilityLabel,
+  formatAlternativeForms,
+  formatCompetitiveMetaField,
+  formatEvolutionLineField,
+  formatPhysiqueLine,
+  formatStatsCodeBlock,
   formatTypeLabel,
+  getCompetitiveData,
+  getEvolutionChain,
   getPokemonData,
   getPokemonSpecies,
   getTypeColor,
   isPokemonCacheReady,
   resolveDisplayName,
+  resolveEvolutionLine,
+  resolvePokemonForGeneration,
   searchPokemonAutocomplete,
   warmPokemonAutocompleteCache,
 } from "../../../services/pokemonApi.js";
 import {
+  formatPokemonTypeWithEmoji,
+  POKEMON_UI_EMOJIS,
+} from "../../../utils/pokemonEmojis.js";
+import {
   PokemonError,
   assertPokemonCommandAllowed,
-  getPokemonConfig,
 } from "../service.js";
 import { pokemonAccessFromInteraction } from "../access.js";
 
@@ -49,7 +62,7 @@ export async function handlePokeinfoAutocomplete(
 }
 
 /**
- * /pokeinfo pokemon — ficha con tipos, habilidades y stats base.
+ * /pokeinfo pokemon [generacion] — ficha enriquecida.
  */
 export async function handlePokeinfoCommand(
   interaction: ChatInputCommandInteraction,
@@ -65,10 +78,12 @@ export async function handlePokeinfoCommand(
   const query = (interaction.options.getString("pokemon", true) ?? "")
     .trim()
     .toLowerCase();
+  const generationOpt = interaction.options.getInteger("generacion");
 
   let forceEphemeral = true;
   let fallbackColor = "#EF4444";
   let language: "es" | "en" = "es";
+  let defaultGeneration = 9;
 
   try {
     const config = assertPokemonCommandAllowed(
@@ -80,6 +95,7 @@ export async function handlePokeinfoCommand(
     forceEphemeral = config.forceEphemeral;
     fallbackColor = config.embedColor;
     language = config.language;
+    defaultGeneration = config.defaultGeneration;
   } catch (error) {
     const message =
       error instanceof PokemonError
@@ -89,6 +105,11 @@ export async function handlePokeinfoCommand(
     return;
   }
 
+  const generation =
+    generationOpt !== null && generationOpt !== undefined
+      ? Math.max(1, Math.min(9, generationOpt))
+      : defaultGeneration;
+
   const ephemeral = forceEphemeral
     ? true
     : consumeInteractionEphemeral(interaction.id, true);
@@ -97,26 +118,33 @@ export async function handlePokeinfoCommand(
 
   try {
     const data = await getPokemonData(query);
+    const snapshot = resolvePokemonForGeneration(data, generation);
+
     let species = null;
     try {
-      species = await getPokemonSpecies(data.name);
+      species = await getPokemonSpecies(data.speciesName || data.name);
     } catch {
-      /* nombre localizado opcional */
+      /* nombre / formas / evolución opcionales */
     }
 
     const displayName = resolveDisplayName(species, data.name, language);
-    const idPadded = String(data.id).padStart(3, "0");
-    const primaryType = data.types[0];
+    const idPadded = String(snapshot.id).padStart(3, "0");
+    const primaryType = snapshot.types[0];
     const color = getTypeColor(primaryType, fallbackColor);
+    const smogonUrl = buildSmogonPokemonUrl(snapshot.name, generation);
 
     const typesText =
-      data.types.length > 0
-        ? data.types.map((t) => formatTypeLabel(t, language)).join(" / ")
+      snapshot.types.length > 0
+        ? snapshot.types
+            .map((t) =>
+              formatPokemonTypeWithEmoji(t, formatTypeLabel(t, language)),
+            )
+            .join(" / ")
         : "—";
 
     const abilitiesText =
-      data.abilities.length > 0
-        ? data.abilities
+      snapshot.abilities.length > 0
+        ? snapshot.abilities
             .map((a) => {
               const label = formatAbilityLabel(a.name);
               return a.isHidden ? `${label} *(Oculta)*` : label;
@@ -124,31 +152,82 @@ export async function handlePokeinfoCommand(
             .join("\n")
         : "—";
 
-    const { stats } = data;
-    const statsText = [
-      `**HP** ${stats.hp}`,
-      `**Atk** ${stats.attack}`,
-      `**Def** ${stats.defense}`,
-      `**SpA** ${stats.specialAttack}`,
-      `**SpD** ${stats.specialDefense}`,
-      `**Spe** ${stats.speed}`,
-      `**BST** ${stats.bst}`,
-    ].join(" · ");
+    const physique = formatPhysiqueLine(snapshot.heightM, snapshot.weightKg);
+    const formsText = formatAlternativeForms(species, snapshot.name);
+    const competitive = await getCompetitiveData(snapshot.name, generation);
+
+    let evolutionLineText: string | null = null;
+    if (species?.evolutionChainUrl) {
+      try {
+        const chain = await getEvolutionChain(species.evolutionChainUrl);
+        const summary = resolveEvolutionLine(
+          chain,
+          species.name,
+          species.varieties,
+          language,
+        );
+        evolutionLineText = formatEvolutionLineField(
+          summary,
+          language,
+          POKEMON_UI_EMOJIS.mega_evolution,
+        );
+      } catch {
+        /* cadena evolutiva opcional */
+      }
+    }
 
     const embed = new EmbedBuilder()
       .setColor(color)
       .setTitle(`#${idPadded} — ${displayName}`)
+      .setURL(smogonUrl)
+      .setDescription(physique)
       .addFields(
-        { name: "🩸 Tipos", value: typesText, inline: true },
+        { name: "Tipos", value: typesText, inline: true },
         { name: "🛡️ Habilidades", value: abilitiesText, inline: true },
-        { name: "📊 Estadísticas Base", value: statsText, inline: false },
+        {
+          name: "📅 Generación",
+          value: `Gen ${generation}`,
+          inline: true,
+        },
+        {
+          name: "📊 Estadísticas Base",
+          value: formatStatsCodeBlock(snapshot.stats),
+          inline: false,
+        },
+        {
+          name: "⚔️ Meta Competitivo",
+          value: formatCompetitiveMetaField(competitive),
+          inline: true,
+        },
       )
       .setFooter({
-        text: `PokéAPI · Gen config: ${getPokemonConfig(interaction.guildId).defaultGeneration}`,
+        text: [
+          `PokéAPI · Gen ${generation}`,
+          generationOpt == null ? "(default panel)" : null,
+          competitive.format ? `Meta ${competitive.format}` : "Meta Smogon/PS",
+        ]
+          .filter(Boolean)
+          .join(" · "),
       });
 
-    if (data.spriteUrl) {
-      embed.setThumbnail(data.spriteUrl);
+    if (evolutionLineText) {
+      embed.addFields({
+        name: "🧬 Línea Evolutiva",
+        value: evolutionLineText,
+        inline: false,
+      });
+    }
+
+    if (formsText) {
+      embed.addFields({
+        name: "🧬 Formas Alternativas",
+        value: formsText,
+        inline: false,
+      });
+    }
+
+    if (snapshot.spriteUrl) {
+      embed.setThumbnail(snapshot.spriteUrl);
     }
 
     await interaction.editReply({ embeds: [embed] });

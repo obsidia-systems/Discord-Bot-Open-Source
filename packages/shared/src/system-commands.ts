@@ -610,6 +610,13 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
       opt("pokemon", "STRING", true, "Nombre o número del Pokémon.", {
         autocomplete: true,
       }),
+      opt(
+        "generacion",
+        "INTEGER",
+        false,
+        "Generación histórica (1–9). Vacío = actual / config del panel.",
+        { minValue: 1, maxValue: 9 },
+      ),
     ],
     supportsEphemeral: true,
     defaultEphemeral: false,

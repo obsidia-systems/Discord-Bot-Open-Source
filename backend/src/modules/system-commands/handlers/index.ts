@@ -34,11 +34,11 @@ import {
 } from "../../economy/commands/income.js";
 import { handleShopCommand } from "../../economy/commands/shop.js";
 import { getEconomyConfig } from "../../economy/service.js";
+import { handleLocationCommand } from "../../pokemon/commands/location.js";
+import { handlePokeinfoCommand } from "../../pokemon/commands/pokeinfo.js";
 import {
   handleBreedingCommand,
   handleCountersCommand,
-  handleLocationCommand,
-  handlePokeinfoCommand,
   handleSandwichCommand,
   handleTeambuilderCommand,
   handleWeaknessCommand,

@@ -37,20 +37,62 @@ export interface PokemonStatBlock {
   bst: number;
 }
 
+export interface PokemonPastTypesEntry {
+  /** Última generación en la que aplicaban estos tipos. */
+  throughGeneration: number;
+  types: string[];
+}
+
+export interface PokemonPastAbilitiesEntry {
+  throughGeneration: number;
+  abilities: PokemonAbilitySlot[];
+}
+
 export interface PokemonData {
   id: number;
   name: string;
+  /** Nombre de la especie base (sin mega/gmax); útil para species/evolution-chain. */
+  speciesName: string;
   types: string[];
   abilities: PokemonAbilitySlot[];
   stats: PokemonStatBlock;
   /** Preferir GIF Showdown; fallback a sprite oficial. */
   spriteUrl: string | null;
+  /** Altura en metros (PokéAPI decímetros / 10). */
+  heightM: number;
+  /** Peso en kg (PokéAPI hectogramos / 10). */
+  weightKg: number;
+  pastTypes: PokemonPastTypesEntry[];
+  pastAbilities: PokemonPastAbilitiesEntry[];
+}
+
+export interface PokemonVariety {
+  name: string;
+  isDefault: boolean;
 }
 
 export interface PokemonSpeciesData {
   id: number;
   name: string;
   names: Array<{ language: string; name: string }>;
+  varieties: PokemonVariety[];
+  /** API name de la pre-evolución, si existe. */
+  evolvesFromSpecies: string | null;
+  /** URL absoluta de `/evolution-chain/{id}/`. */
+  evolutionChainUrl: string | null;
+}
+
+/** Snapshot ya resuelto para una generación concreta. */
+export interface PokemonGenerationSnapshot {
+  generation: number;
+  types: string[];
+  abilities: PokemonAbilitySlot[];
+  stats: PokemonStatBlock;
+  spriteUrl: string | null;
+  id: number;
+  name: string;
+  heightM: number;
+  weightKg: number;
 }
 
 /** Colores de barra del embed según el tipo primario del Pokémon. */
@@ -226,19 +268,34 @@ function readStat(
   return stats.find((s) => s.stat.name === key)?.base_stat ?? 0;
 }
 
-function parsePokemonPayload(raw: Record<string, unknown>): PokemonData {
-  const id = Number(raw.id) || 0;
-  const name = String(raw.name ?? "");
-  const typesRaw = Array.isArray(raw.types) ? raw.types : [];
-  const types = typesRaw
+function generationNumberFromName(name: string): number {
+  const map: Record<string, number> = {
+    "generation-i": 1,
+    "generation-ii": 2,
+    "generation-iii": 3,
+    "generation-iv": 4,
+    "generation-v": 5,
+    "generation-vi": 6,
+    "generation-vii": 7,
+    "generation-viii": 8,
+    "generation-ix": 9,
+  };
+  return map[name.toLowerCase()] ?? 9;
+}
+
+function parseTypeSlots(
+  typesRaw: unknown[],
+): string[] {
+  return typesRaw
     .map((slot) => {
-      const s = slot as { type?: { name?: string }; slot?: number };
+      const s = slot as { type?: { name?: string } };
       return String(s.type?.name ?? "").toLowerCase();
     })
     .filter(Boolean);
+}
 
-  const abilitiesRaw = Array.isArray(raw.abilities) ? raw.abilities : [];
-  const abilities: PokemonAbilitySlot[] = abilitiesRaw.map((slot) => {
+function parseAbilitySlots(abilitiesRaw: unknown[]): PokemonAbilitySlot[] {
+  return abilitiesRaw.map((slot) => {
     const s = slot as {
       ability?: { name?: string };
       is_hidden?: boolean;
@@ -250,6 +307,15 @@ function parsePokemonPayload(raw: Record<string, unknown>): PokemonData {
       slot: Number(s.slot) || 0,
     };
   });
+}
+
+function parsePokemonPayload(raw: Record<string, unknown>): PokemonData {
+  const id = Number(raw.id) || 0;
+  const name = String(raw.name ?? "");
+  const types = parseTypeSlots(Array.isArray(raw.types) ? raw.types : []);
+  const abilities = parseAbilitySlots(
+    Array.isArray(raw.abilities) ? raw.abilities : [],
+  );
 
   const statsRaw = Array.isArray(raw.stats)
     ? (raw.stats as Array<{ base_stat: number; stat: { name: string } }>)
@@ -275,9 +341,46 @@ function parsePokemonPayload(raw: Record<string, unknown>): PokemonData {
     sprites.front_default ||
     null;
 
+  const pastTypesRaw = Array.isArray(raw.past_types) ? raw.past_types : [];
+  const pastTypes: PokemonPastTypesEntry[] = pastTypesRaw.map((entry) => {
+    const e = entry as {
+      generation?: { name?: string };
+      types?: unknown[];
+    };
+    return {
+      throughGeneration: generationNumberFromName(
+        String(e.generation?.name ?? "generation-ix"),
+      ),
+      types: parseTypeSlots(Array.isArray(e.types) ? e.types : []),
+    };
+  });
+
+  const pastAbilitiesRaw = Array.isArray(raw.past_abilities)
+    ? raw.past_abilities
+    : [];
+  const pastAbilities: PokemonPastAbilitiesEntry[] = pastAbilitiesRaw.map(
+    (entry) => {
+      const e = entry as {
+        generation?: { name?: string };
+        abilities?: unknown[];
+      };
+      return {
+        throughGeneration: generationNumberFromName(
+          String(e.generation?.name ?? "generation-ix"),
+        ),
+        abilities: parseAbilitySlots(
+          Array.isArray(e.abilities) ? e.abilities : [],
+        ),
+      };
+    },
+  );
+
   return {
     id,
     name,
+    speciesName: String(
+      (raw.species as { name?: string } | undefined)?.name ?? name,
+    ).toLowerCase(),
     types,
     abilities,
     stats: {
@@ -290,6 +393,44 @@ function parsePokemonPayload(raw: Record<string, unknown>): PokemonData {
       bst: hp + attack + defense + specialAttack + specialDefense + speed,
     },
     spriteUrl,
+    // PokéAPI: height en decímetros, weight en hectogramos.
+    heightM: Math.round((Number(raw.height) || 0) * 10) / 100,
+    weightKg: Math.round((Number(raw.weight) || 0) * 10) / 100,
+    pastTypes,
+    pastAbilities,
+  };
+}
+
+/**
+ * Resuelve tipos/habilidades según generación.
+ * `past_types[].throughGeneration` = última gen en la que aplicaban esos tipos.
+ */
+export function resolvePokemonForGeneration(
+  data: PokemonData,
+  generation: number,
+): PokemonGenerationSnapshot {
+  const gen = Math.max(1, Math.min(9, Math.floor(generation) || 9));
+
+  const pastType = data.pastTypes
+    .filter((p) => gen <= p.throughGeneration)
+    .sort((a, b) => a.throughGeneration - b.throughGeneration)[0];
+
+  const pastAbility = data.pastAbilities
+    .filter((p) => gen <= p.throughGeneration)
+    .sort((a, b) => a.throughGeneration - b.throughGeneration)[0];
+
+  return {
+    generation: gen,
+    id: data.id,
+    name: data.name,
+    types: pastType?.types?.length ? pastType.types : data.types,
+    abilities: pastAbility?.abilities?.length
+      ? pastAbility.abilities
+      : data.abilities,
+    stats: data.stats,
+    spriteUrl: data.spriteUrl,
+    heightM: data.heightM,
+    weightKg: data.weightKg,
   };
 }
 
@@ -332,6 +473,12 @@ export async function getPokemonSpecies(
     id: number;
     name: string;
     names?: Array<{ name: string; language: { name: string } }>;
+    evolves_from_species?: { name?: string } | null;
+    evolution_chain?: { url?: string } | null;
+    varieties?: Array<{
+      is_default?: boolean;
+      pokemon?: { name?: string };
+    }>;
   }>(`/pokemon-species/${encodeURIComponent(key)}`);
 
   const data: PokemonSpeciesData = {
@@ -341,10 +488,617 @@ export async function getPokemonSpecies(
       language: n.language.name,
       name: n.name,
     })),
+    varieties: (raw.varieties ?? []).map((v) => ({
+      name: String(v.pokemon?.name ?? ""),
+      isDefault: Boolean(v.is_default),
+    })),
+    evolvesFromSpecies: raw.evolves_from_species?.name
+      ? String(raw.evolves_from_species.name)
+      : null,
+    evolutionChainUrl: raw.evolution_chain?.url
+      ? String(raw.evolution_chain.url)
+      : null,
   };
   speciesCache.set(key, { at: Date.now(), data });
   speciesCache.set(String(data.id), { at: Date.now(), data });
   return data;
+}
+
+/** Detalle crudo de evolución (subset útil de PokéAPI). */
+export interface EvolutionDetailInfo {
+  trigger: string | null;
+  item: string | null;
+  heldItem: string | null;
+  minLevel: number | null;
+  minHappiness: number | null;
+  minAffection: number | null;
+  minBeauty: number | null;
+  timeOfDay: string | null;
+  location: string | null;
+  knownMove: string | null;
+  knownMoveType: string | null;
+  gender: number | null;
+  tradeSpecies: string | null;
+  needsOverworldRain: boolean;
+  turnUpsideDown: boolean;
+  relativePhysicalStats: number | null;
+  partySpecies: string | null;
+  partyType: string | null;
+}
+
+export interface EvolutionChainNode {
+  speciesName: string;
+  /** Condiciones para llegar a este nodo desde el padre (vacío en la raíz). */
+  details: EvolutionDetailInfo[];
+  evolvesTo: EvolutionChainNode[];
+}
+
+export interface EvolutionLineEntry {
+  speciesName: string;
+  methodLabel: string;
+  isMega?: boolean;
+  megaLabel?: string;
+}
+
+export interface EvolutionLineSummary {
+  previous: EvolutionLineEntry[];
+  next: EvolutionLineEntry[];
+}
+
+const evolutionChainCache = new Map<
+  string,
+  { at: number; data: EvolutionChainNode }
+>();
+
+function parseEvolutionDetail(raw: Record<string, unknown>): EvolutionDetailInfo {
+  const named = (v: unknown): string | null => {
+    if (!v || typeof v !== "object") return null;
+    const n = (v as { name?: string }).name;
+    return n ? String(n) : null;
+  };
+  const time = typeof raw.time_of_day === "string" ? raw.time_of_day.trim() : "";
+  return {
+    trigger: named(raw.trigger),
+    item: named(raw.item),
+    heldItem: named(raw.held_item),
+    minLevel:
+      typeof raw.min_level === "number" ? raw.min_level : null,
+    minHappiness:
+      typeof raw.min_happiness === "number" ? raw.min_happiness : null,
+    minAffection:
+      typeof raw.min_affection === "number" ? raw.min_affection : null,
+    minBeauty:
+      typeof raw.min_beauty === "number" ? raw.min_beauty : null,
+    timeOfDay: time || null,
+    location: named(raw.location),
+    knownMove: named(raw.known_move),
+    knownMoveType: named(raw.known_move_type),
+    gender: typeof raw.gender === "number" ? raw.gender : null,
+    tradeSpecies: named(raw.trade_species),
+    needsOverworldRain: Boolean(raw.needs_overworld_rain),
+    turnUpsideDown: Boolean(raw.turn_upside_down),
+    relativePhysicalStats:
+      typeof raw.relative_physical_stats === "number"
+        ? raw.relative_physical_stats
+        : null,
+    partySpecies: named(raw.party_species),
+    partyType: named(raw.party_type),
+  };
+}
+
+function parseEvolutionChainNode(raw: Record<string, unknown>): EvolutionChainNode {
+  const species = raw.species as { name?: string } | undefined;
+  const detailsRaw = Array.isArray(raw.evolution_details)
+    ? raw.evolution_details
+    : [];
+  const evolvesRaw = Array.isArray(raw.evolves_to) ? raw.evolves_to : [];
+  return {
+    speciesName: String(species?.name ?? "").toLowerCase(),
+    details: detailsRaw.map((d) =>
+      parseEvolutionDetail((d ?? {}) as Record<string, unknown>),
+    ),
+    evolvesTo: evolvesRaw.map((c) =>
+      parseEvolutionChainNode((c ?? {}) as Record<string, unknown>),
+    ),
+  };
+}
+
+/** Obtiene y cachea el árbol de `evolution-chain`. */
+export async function getEvolutionChain(
+  urlOrId: string,
+): Promise<EvolutionChainNode> {
+  const key = urlOrId.trim();
+  if (!key) {
+    throw new PokemonApiError("Cadena evolutiva vacía.", 400, "POKEAPI_EMPTY");
+  }
+
+  const cached = evolutionChainCache.get(key);
+  if (cached && Date.now() - cached.at < DETAIL_TTL_MS) {
+    return cached.data;
+  }
+
+  const path = key.startsWith("http")
+    ? key
+    : `/evolution-chain/${encodeURIComponent(key)}`;
+  const raw = await pokeFetch<{ chain?: Record<string, unknown> }>(path);
+  if (!raw.chain) {
+    throw new PokemonApiError(
+      "Cadena evolutiva inválida.",
+      502,
+      "POKEAPI_EVO_CHAIN",
+    );
+  }
+  const data = parseEvolutionChainNode(raw.chain);
+  evolutionChainCache.set(key, { at: Date.now(), data });
+  return data;
+}
+
+function slugToLabel(slug: string | null | undefined): string {
+  if (!slug) return "";
+  return capitalizePokemonName(slug.replace(/-/g, " "));
+}
+
+/** Piedras / objetos de evolución frecuentes (PokéAPI slug → ES). */
+const EVOLUTION_ITEM_ES: Record<string, string> = {
+  "thunder-stone": "Piedra Trueno",
+  "fire-stone": "Piedra Fuego",
+  "water-stone": "Piedra Agua",
+  "leaf-stone": "Piedra Hoja",
+  "moon-stone": "Piedra Lunar",
+  "sun-stone": "Piedra Solar",
+  "shiny-stone": "Piedra Día",
+  "dusk-stone": "Piedra Noche",
+  "dawn-stone": "Piedra Alba",
+  "ice-stone": "Piedra Hielo",
+  "oval-stone": "Piedra Oval",
+  "kings-rock": "Roca del Rey",
+  "metal-coat": "Revestimiento Metálico",
+  "dragon-scale": "Escama Dragón",
+  "upgrade": "Mejora",
+  "dubious-disc": "Disco Extraño",
+  "protector": "Protector",
+  "electirizer": "Electrizador",
+  "magmarizer": "Magmatizador",
+  "reaper-cloth": "Tela Terrible",
+  "razor-claw": "Garra Afilada",
+  "razor-fang": "Colmillo Afilado",
+  "prism-scale": "Escama Bella",
+  "sachet": "Saquito Fragante",
+  "whipped-dream": "Dulce de Nata",
+  "tart-apple": "Manzana Ácida",
+  "sweet-apple": "Manzana Dulce",
+  "cracked-pot": "Tetera Agrietada",
+  "chipped-pot": "Tetera Rota",
+  "galarica-cuff": "Brazal Galanuez",
+  "galarica-wreath": "Corona Galanuez",
+  "black-augurite": "Mineral Negro",
+  "peat-block": "Bloque de Turba",
+  "linking-cord": "Cable Unión",
+  "auspicious-armor": "Armadura Auspiciosa",
+  "malicious-armor": "Armadura Maldita",
+  "masterpiece-teacup": "Cuenco Exquisito",
+  "unremarkable-teacup": "Cuenco Mediocre",
+  "syrupy-apple": "Manzana Melosa",
+};
+
+function formatEvolutionItemLabel(
+  slug: string | null | undefined,
+  language: "es" | "en",
+): string {
+  if (!slug) return "";
+  if (language === "es") {
+    return EVOLUTION_ITEM_ES[slug.toLowerCase()] ?? slugToLabel(slug);
+  }
+  return slugToLabel(slug);
+}
+
+/**
+ * Traduce `evolution_details` a una etiqueta corta en español/inglés.
+ * Ej: `Nivel 20 (Día)`, `Piedra Trueno`, `Intercambio`.
+ */
+export function formatEvolutionMethodLabel(
+  details: EvolutionDetailInfo[],
+  language: "es" | "en" = "es",
+): string {
+  const detail = details[0];
+  if (!detail) return language === "es" ? "Desconocido" : "Unknown";
+
+  const notes: string[] = [];
+  const es = language === "es";
+
+  if (detail.timeOfDay === "day") notes.push(es ? "Día" : "Day");
+  if (detail.timeOfDay === "night") notes.push(es ? "Noche" : "Night");
+  if (detail.needsOverworldRain) notes.push(es ? "Lluvia" : "Rain");
+  if (detail.turnUpsideDown) notes.push(es ? "Consola invertida" : "Upside-down");
+  if (detail.location) notes.push(slugToLabel(detail.location));
+  if (detail.knownMove) {
+    notes.push(
+      es
+        ? `Mov. ${slugToLabel(detail.knownMove)}`
+        : `Move ${slugToLabel(detail.knownMove)}`,
+    );
+  }
+  if (detail.knownMoveType) {
+    notes.push(
+      es
+        ? `Tipo ${formatTypeLabel(detail.knownMoveType, language)}`
+        : `${formatTypeLabel(detail.knownMoveType, language)}-type move`,
+    );
+  }
+  if (detail.gender === 1) notes.push(es ? "♀" : "Female");
+  if (detail.gender === 2) notes.push(es ? "♂" : "Male");
+  if (detail.relativePhysicalStats === 1) {
+    notes.push(es ? "Atq > Def" : "Atk > Def");
+  } else if (detail.relativePhysicalStats === -1) {
+    notes.push(es ? "Atq < Def" : "Atk < Def");
+  } else if (detail.relativePhysicalStats === 0) {
+    notes.push(es ? "Atq = Def" : "Atk = Def");
+  }
+  if (detail.partySpecies) {
+    notes.push(
+      es
+        ? `En equipo: ${slugToLabel(detail.partySpecies)}`
+        : `Party: ${slugToLabel(detail.partySpecies)}`,
+    );
+  }
+  if (detail.partyType) {
+    notes.push(
+      es
+        ? `Tipo en equipo: ${formatTypeLabel(detail.partyType, language)}`
+        : `Party type: ${formatTypeLabel(detail.partyType, language)}`,
+    );
+  }
+  if (detail.tradeSpecies) {
+    notes.push(
+      es
+        ? `Por ${slugToLabel(detail.tradeSpecies)}`
+        : `For ${slugToLabel(detail.tradeSpecies)}`,
+    );
+  }
+
+  let core = "";
+  const trigger = detail.trigger ?? "";
+
+  if (detail.minLevel != null) {
+    core = es ? `Nivel ${detail.minLevel}` : `Level ${detail.minLevel}`;
+  } else if (detail.item) {
+    core = formatEvolutionItemLabel(detail.item, language);
+  } else if (trigger === "trade") {
+    core = detail.heldItem
+      ? es
+        ? `Intercambio (${formatEvolutionItemLabel(detail.heldItem, language)})`
+        : `Trade (${formatEvolutionItemLabel(detail.heldItem, language)})`
+      : es
+        ? "Intercambio"
+        : "Trade";
+  } else if (trigger === "use-item" && detail.item) {
+    core = formatEvolutionItemLabel(detail.item, language);
+  } else if (detail.minHappiness != null) {
+    core = es ? "Felicidad" : "Friendship";
+  } else if (detail.minAffection != null) {
+    core = es ? "Afecto" : "Affection";
+  } else if (detail.minBeauty != null) {
+    core = es ? "Belleza" : "Beauty";
+  } else if (trigger === "shed") {
+    core = es ? "Espacio libre en equipo" : "Empty party slot";
+  } else if (trigger === "spin") {
+    core = es ? "Girar" : "Spin";
+  } else if (trigger === "tower-of-darkness" || trigger === "tower-of-waters") {
+    core = slugToLabel(trigger);
+  } else if (trigger === "three-critical-hits") {
+    core = es ? "3 golpes críticos" : "3 critical hits";
+  } else if (trigger === "take-damage") {
+    core = es ? "Recibir daño" : "Take damage";
+  } else if (trigger === "other") {
+    core = es ? "Condición especial" : "Special condition";
+  } else if (trigger === "level-up") {
+    core = es ? "Subir de nivel" : "Level up";
+  } else {
+    core = slugToLabel(trigger) || (es ? "Desconocido" : "Unknown");
+  }
+
+  // Evitar duplicar "Felicidad" si ya está en notes vía time_of_day only
+  if (
+    detail.minHappiness != null &&
+    !core.toLowerCase().includes(es ? "felicidad" : "friend")
+  ) {
+    notes.unshift(es ? "Felicidad" : "Friendship");
+  }
+
+  const uniqueNotes = [...new Set(notes.filter(Boolean))];
+  if (uniqueNotes.length === 0) return core;
+  // Si el core ya es Felicidad y solo hay Día/Noche, "Felicidad (Día)"
+  return `${core} (${uniqueNotes.join(", ")})`;
+}
+
+type ChainWalkHit = {
+  node: EvolutionChainNode;
+  parent: EvolutionChainNode | null;
+  /** Detalles del paso padre → este nodo. */
+  viaDetails: EvolutionDetailInfo[];
+};
+
+function findInEvolutionTree(
+  root: EvolutionChainNode,
+  speciesName: string,
+): ChainWalkHit | null {
+  const target = speciesName.toLowerCase();
+
+  const walk = (
+    node: EvolutionChainNode,
+    parent: EvolutionChainNode | null,
+    viaDetails: EvolutionDetailInfo[],
+  ): ChainWalkHit | null => {
+    if (node.speciesName === target) {
+      return { node, parent, viaDetails };
+    }
+    for (const child of node.evolvesTo) {
+      const hit = walk(child, node, child.details);
+      if (hit) return hit;
+    }
+    return null;
+  };
+
+  return walk(root, null, []);
+}
+
+function megaStoneLabel(_varietyName: string, language: "es" | "en"): string {
+  return language === "es" ? "Megapiedra" : "Mega Stone";
+}
+
+function formatMegaVarietyLabel(
+  varietyName: string,
+  speciesName: string,
+): string {
+  const n = varietyName.toLowerCase();
+  const base = capitalizePokemonName(speciesName);
+  if (n.includes("-mega-x")) return `Mega-${base} X`;
+  if (n.includes("-mega-y")) return `Mega-${base} Y`;
+  return `Mega-${base}`;
+}
+
+/**
+ * Resuelve pre-evoluciones, evoluciones siguientes y megas a partir de la cadena + varieties.
+ */
+export function resolveEvolutionLine(
+  chain: EvolutionChainNode,
+  speciesName: string,
+  varieties: PokemonVariety[] | undefined,
+  language: "es" | "en" = "es",
+): EvolutionLineSummary {
+  const hit = findInEvolutionTree(chain, speciesName);
+  const previous: EvolutionLineEntry[] = [];
+  const next: EvolutionLineEntry[] = [];
+
+  if (hit?.parent) {
+    previous.push({
+      speciesName: hit.parent.speciesName,
+      methodLabel: formatEvolutionMethodLabel(hit.viaDetails, language),
+    });
+  }
+
+  if (hit) {
+    for (const child of hit.node.evolvesTo) {
+      next.push({
+        speciesName: child.speciesName,
+        methodLabel: formatEvolutionMethodLabel(child.details, language),
+      });
+    }
+  }
+
+  const megas = (varieties ?? []).filter((v) =>
+    /-mega($|-)/i.test(v.name),
+  );
+  for (const mega of megas) {
+    next.push({
+      speciesName: mega.name,
+      methodLabel: megaStoneLabel(mega.name, language),
+      isMega: true,
+      megaLabel: formatMegaVarietyLabel(mega.name, speciesName),
+    });
+  }
+
+  return { previous, next };
+}
+
+/**
+ * Texto del field 🧬 Línea Evolutiva.
+ */
+export function formatEvolutionLineField(
+  summary: EvolutionLineSummary,
+  language: "es" | "en" = "es",
+  megaEmoji = "<:mega_evolution:1542327306738208849>",
+): string | null {
+  const lines: string[] = [];
+  const prevWord = language === "es" ? "Anterior" : "Previous";
+  const nextWord = language === "es" ? "Siguiente" : "Next";
+
+  for (const entry of summary.previous) {
+    lines.push(
+      `${prevWord}: ${capitalizePokemonName(entry.speciesName)} (${entry.methodLabel})`,
+    );
+  }
+  for (const entry of summary.next) {
+    if (entry.isMega) {
+      lines.push(
+        `${nextWord}: ${megaEmoji} ${entry.megaLabel ?? capitalizePokemonName(entry.speciesName)} (${entry.methodLabel})`,
+      );
+    } else {
+      lines.push(
+        `${nextWord}: ${capitalizePokemonName(entry.speciesName)} (${entry.methodLabel})`,
+      );
+    }
+  }
+
+  if (lines.length === 0) return null;
+  return lines.join("\n").slice(0, 1024);
+}
+
+/** Encuentro agrupado por versión de juego. */
+export interface PokemonEncounterByVersion {
+  version: string;
+  versionLabel: string;
+  locations: string[];
+}
+
+/** Etiquetas legibles de versiones (PokéAPI slug → nombre de juego). */
+const VERSION_LABELS_ES: Record<string, string> = {
+  red: "Pokémon Rojo",
+  blue: "Pokémon Azul",
+  yellow: "Pokémon Amarillo",
+  gold: "Pokémon Oro",
+  silver: "Pokémon Plata",
+  crystal: "Pokémon Cristal",
+  ruby: "Pokémon Rubí",
+  sapphire: "Pokémon Zafiro",
+  emerald: "Pokémon Esmeralda",
+  firered: "Pokémon Rojo Fuego",
+  leafgreen: "Pokémon Verde Hoja",
+  diamond: "Pokémon Diamante",
+  pearl: "Pokémon Perla",
+  platinum: "Pokémon Platino",
+  heartgold: "Pokémon Oro HeartGold",
+  soulsilver: "Pokémon Plata SoulSilver",
+  black: "Pokémon Negro",
+  white: "Pokémon Blanco",
+  "black-2": "Pokémon Negro 2",
+  "white-2": "Pokémon Blanco 2",
+  x: "Pokémon X",
+  y: "Pokémon Y",
+  "omega-ruby": "Pokémon Rubí Omega",
+  "alpha-sapphire": "Pokémon Zafiro Alfa",
+  sun: "Pokémon Sol",
+  moon: "Pokémon Luna",
+  "ultra-sun": "Pokémon Ultra Sol",
+  "ultra-moon": "Pokémon Ultra Luna",
+  "lets-go-pikachu": "Pokémon Let's Go Pikachu",
+  "lets-go-eevee": "Pokémon Let's Go Eevee",
+  sword: "Pokémon Espada",
+  shield: "Pokémon Escudo",
+  "brilliant-diamond": "Pokémon Diamante Brillante",
+  "shining-pearl": "Pokémon Perla Reluciente",
+  "legends-arceus": "Leyendas Pokémon: Arceus",
+  scarlet: "Pokémon Escarlata",
+  violet: "Pokémon Púrpura",
+};
+
+const encountersCache = new Map<
+  string,
+  { at: number; data: PokemonEncounterByVersion[] }
+>();
+
+/**
+ * Formatea el slug de location-area (p. ej. `trophy-garden-area` → `Trophy Garden`).
+ */
+export function formatLocationAreaLabel(slug: string): string {
+  return slug
+    .replace(/-area$/i, "")
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+export function formatVersionLabel(versionSlug: string): string {
+  const key = versionSlug.toLowerCase();
+  return VERSION_LABELS_ES[key] ?? capitalizePokemonName(key.replace(/-/g, " "));
+}
+
+/**
+ * Consulta `GET /pokemon/{idOrName}/encounters` y agrupa ubicaciones por versión.
+ */
+export async function getPokemonEncounters(
+  idOrName: string,
+): Promise<PokemonEncounterByVersion[]> {
+  const key = idOrName.trim().toLowerCase();
+  if (!key) {
+    throw new PokemonApiError("Nombre vacío.", 400, "POKEAPI_EMPTY");
+  }
+
+  const cached = encountersCache.get(key);
+  if (cached && Date.now() - cached.at < DETAIL_TTL_MS) {
+    return cached.data;
+  }
+
+  const raw = await pokeFetch<
+    Array<{
+      location_area?: { name?: string };
+      version_details?: Array<{
+        version?: { name?: string };
+        max_chance?: number;
+      }>;
+    }>
+  >(`/pokemon/${encodeURIComponent(key)}/encounters`);
+
+  /** version → set de location labels */
+  const byVersion = new Map<string, Set<string>>();
+
+  for (const entry of raw) {
+    const areaSlug = entry.location_area?.name;
+    if (!areaSlug) continue;
+    const areaLabel = formatLocationAreaLabel(areaSlug);
+
+    for (const detail of entry.version_details ?? []) {
+      const version = detail.version?.name;
+      if (!version) continue;
+      let set = byVersion.get(version);
+      if (!set) {
+        set = new Set();
+        byVersion.set(version, set);
+      }
+      set.add(areaLabel);
+    }
+  }
+
+  const grouped: PokemonEncounterByVersion[] = [...byVersion.entries()]
+    .map(([version, locations]) => ({
+      version,
+      versionLabel: formatVersionLabel(version),
+      locations: [...locations].sort((a, b) => a.localeCompare(b, "es")),
+    }))
+    .sort((a, b) => a.versionLabel.localeCompare(b.versionLabel, "es"));
+
+  encountersCache.set(key, { at: Date.now(), data: grouped });
+  return grouped;
+}
+
+/**
+ * Construye el texto del embed de ubicaciones (respeta ~3900 chars).
+ */
+export function formatEncountersDescription(
+  groups: PokemonEncounterByVersion[],
+  options?: { maxVersions?: number; maxLocationsPerVersion?: number },
+): string {
+  if (groups.length === 0) {
+    return "Este Pokémon no se encuentra de forma salvaje en la hierba.";
+  }
+
+  const maxVersions = options?.maxVersions ?? 20;
+  const maxLocs = options?.maxLocationsPerVersion ?? 8;
+  const lines: string[] = [];
+  let shown = 0;
+
+  for (const group of groups) {
+    if (shown >= maxVersions) break;
+    const locs = group.locations;
+    const visible = locs.slice(0, maxLocs);
+    const extra = locs.length - visible.length;
+    const locText =
+      visible.join(", ") + (extra > 0 ? ` (+${extra} más)` : "");
+    lines.push(`**${group.versionLabel}:** ${locText}`);
+    shown += 1;
+  }
+
+  const omitted = groups.length - shown;
+  if (omitted > 0) {
+    lines.push(`\n_…y ${omitted} versión(es) más._`);
+  }
+
+  let text = lines.join("\n");
+  if (text.length > 3900) {
+    text = `${text.slice(0, 3890)}…`;
+  }
+  return text;
 }
 
 export function getTypeColor(
@@ -392,6 +1146,147 @@ export function resolveDisplayName(
     if (en) return en;
   }
   return capitalizePokemonName(fallbackApiName);
+}
+
+/** Slug de dex Smogon según generación. */
+export function smogonDexSlug(generation: number): string {
+  const map: Record<number, string> = {
+    1: "rb",
+    2: "gs",
+    3: "rs",
+    4: "dp",
+    5: "bw",
+    6: "xy",
+    7: "sm",
+    8: "ss",
+    9: "sv",
+  };
+  return map[generation] ?? "sv";
+}
+
+export function buildSmogonPokemonUrl(
+  apiName: string,
+  generation: number,
+): string {
+  const slug = apiName.trim().toLowerCase().replace(/\s+/g, "-");
+  return `https://www.smogon.com/dex/${smogonDexSlug(generation)}/pokemon/${encodeURIComponent(slug)}/`;
+}
+
+export function formatStatsCodeBlock(stats: PokemonStatBlock): string {
+  const pad = (label: string, value: number) =>
+    `${label.padEnd(4)}: ${String(value).padStart(3)}`;
+  return [
+    "```text",
+    `${pad("HP", stats.hp)}  | ${pad("SpA", stats.specialAttack)}`,
+    `${pad("Atk", stats.attack)}  | ${pad("SpD", stats.specialDefense)}`,
+    `${pad("Def", stats.defense)}  | ${pad("Spe", stats.speed)}`,
+    "-------------------",
+    `Total (BST) : ${stats.bst}`,
+    "```",
+  ].join("\n");
+}
+
+/** Etiquetas legibles de formas alternativas (gmax, regionales…). Sin megas. */
+export function formatAlternativeForms(
+  species: PokemonSpeciesData | null,
+  currentApiName: string,
+): string | null {
+  if (!species?.varieties?.length) return null;
+  const alts = species.varieties
+    .filter((v) => {
+      if (!v.name || v.isDefault || v.name === currentApiName) return false;
+      // Las megas van en Línea Evolutiva.
+      if (/-mega($|-)/i.test(v.name)) return false;
+      return true;
+    })
+    .map((v) => {
+      const n = v.name.toLowerCase();
+      if (n.includes("-gmax") || n.includes("-gigantamax")) return "Gigantamax";
+      if (n.includes("-alola")) return "Alola";
+      if (n.includes("-galar")) return "Galar";
+      if (n.includes("-hisui")) return "Hisui";
+      if (n.includes("-paldea")) return "Paldea";
+      if (n.includes("-therian")) return "Therian";
+      if (n.includes("-origin")) return "Origin";
+      if (n.includes("-crowned")) return "Crowned";
+      if (n.includes("-ash")) return "Ash";
+      return capitalizePokemonName(v.name.replace(`${species.name}-`, ""));
+    });
+
+  const unique = [...new Set(alts.filter(Boolean))];
+  if (unique.length === 0) return null;
+  return unique.join(", ");
+}
+
+export interface CompetitiveHints {
+  items: string[];
+  natures: string[];
+}
+
+export type { CompetitiveMeta } from "./smogonService.js";
+export {
+  formatCompetitiveMetaField,
+  getCompetitiveData,
+} from "./smogonService.js";
+
+import { getCompetitiveData } from "./smogonService.js";
+
+/**
+ * @deprecated Usar `getCompetitiveData` (async, datos reales Smogon/PS).
+ */
+export async function resolveCompetitiveMeta(
+  apiName: string,
+  generation: number,
+) {
+  return getCompetitiveData(apiName, generation);
+}
+
+/** @deprecated Preferir `getCompetitiveData`. */
+export async function tryFetchCompetitiveHints(
+  apiName: string,
+  generation: number,
+): Promise<CompetitiveHints | null> {
+  const meta = await getCompetitiveData(apiName, generation);
+  if (meta.items.length === 1 && meta.items[0] === "Sin datos") return null;
+  return { items: meta.items, natures: meta.natures };
+}
+
+export function formatCompetitiveHintsField(
+  hints: CompetitiveHints,
+): string {
+  const parts: string[] = [];
+  if (hints.items.length > 0) {
+    parts.push(`**Objetos:** ${hints.items.join(", ")}`);
+  }
+  if (hints.natures.length > 0) {
+    parts.push(`**Naturalezas:** ${hints.natures.join(", ")}`);
+  }
+  return parts.join("\n").slice(0, 1024);
+}
+
+export function formatPhysiqueLine(heightM: number, weightKg: number): string {
+  const h = heightM.toLocaleString("es-MX", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
+  const w = weightKg.toLocaleString("es-MX", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
+  return `📏 **${h} m** · ⚖️ **${w} kg**`;
+}
+
+export function formatPreEvolutionLabel(
+  species: PokemonSpeciesData | null,
+  language: "es" | "en",
+): string | null {
+  if (!species?.evolvesFromSpecies) return null;
+  const pre = species.evolvesFromSpecies;
+  const label =
+    language === "es"
+      ? `Pre-evolución: ${capitalizePokemonName(pre)}`
+      : `Pre-evolution: ${capitalizePokemonName(pre)}`;
+  return label;
 }
 
 export { POKEAPI_BASE };

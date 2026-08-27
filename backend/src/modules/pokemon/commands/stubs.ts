@@ -6,11 +6,10 @@ import {
 } from "../service.js";
 import { pokemonAccessFromInteraction } from "../access.js";
 
-export { handlePokeinfoCommand } from "./pokeinfo.js";
-
 /**
  * Stub compartido de comandos Pokémon pendientes.
  * Valida plugin activo, toggle del comando, canal permitido y anti-sniping.
+ * Nota: `/pokeinfo` y `/location` tienen handlers reales (no usar este stub).
  */
 export async function handlePokemonStubCommand(
   interaction: ChatInputCommandInteraction,
@@ -73,12 +72,6 @@ export async function handleWeaknessCommand(
 }
 
 export async function handleBreedingCommand(
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
-  await handlePokemonStubCommand(interaction);
-}
-
-export async function handleLocationCommand(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
   await handlePokemonStubCommand(interaction);
