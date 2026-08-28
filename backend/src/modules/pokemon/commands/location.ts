@@ -42,15 +42,18 @@ export interface LocationPage {
 }
 
 /**
- * customId: `loc_page_{ownerId}_{pokemonId}_{page}`
- * (page 0-index)
+ * customId: `loc_page_{ownerId}_{pokemonId}_{page}_{action}`
+ * `action` distingue botones aunque apunten a la misma página (-5 vs Anterior).
  */
+export type LocationPageAction = "m5" | "p1" | "n1" | "f5";
+
 export function buildLocationPageCustomId(
   ownerId: string,
   pokemonId: number,
   page: number,
+  action: LocationPageAction,
 ): string {
-  return `${LOCATION_PAGE_PREFIX}${ownerId}_${pokemonId}_${page}`;
+  return `${LOCATION_PAGE_PREFIX}${ownerId}_${pokemonId}_${page}_${action}`;
 }
 
 export function parseLocationPageCustomId(
@@ -59,11 +62,18 @@ export function parseLocationPageCustomId(
   if (!customId.startsWith(LOCATION_PAGE_PREFIX)) return null;
   const raw = customId.slice(LOCATION_PAGE_PREFIX.length);
   const parts = raw.split("_");
-  if (parts.length < 3) return null;
-  const page = Number(parts[parts.length - 1]);
-  const pokemonId = Number(parts[parts.length - 2]);
-  const ownerId = parts.slice(0, -2).join("_");
-  if (!ownerId || !Number.isFinite(pokemonId) || !Number.isFinite(page)) {
+  // ownerId puede contener `_`; últimos 3: pokemonId, page, action
+  if (parts.length < 4) return null;
+  const action = parts[parts.length - 1];
+  const page = Number(parts[parts.length - 2]);
+  const pokemonId = Number(parts[parts.length - 3]);
+  const ownerId = parts.slice(0, -3).join("_");
+  if (
+    !ownerId ||
+    !Number.isFinite(pokemonId) ||
+    !Number.isFinite(page) ||
+    !action
+  ) {
     return null;
   }
   return { ownerId, pokemonId, page: Math.trunc(page) };
@@ -259,6 +269,7 @@ export function buildLocationPageView(options: {
           options.ownerId,
           options.pokemonId,
           back5Page,
+          "m5",
         ),
       )
       .setLabel("⏪ -5")
@@ -270,6 +281,7 @@ export function buildLocationPageView(options: {
           options.ownerId,
           options.pokemonId,
           prevPage,
+          "p1",
         ),
       )
       .setLabel("◀ Anterior")
@@ -281,6 +293,7 @@ export function buildLocationPageView(options: {
           options.ownerId,
           options.pokemonId,
           nextPage,
+          "n1",
         ),
       )
       .setLabel("Siguiente ▶")
@@ -292,6 +305,7 @@ export function buildLocationPageView(options: {
           options.ownerId,
           options.pokemonId,
           fwd5Page,
+          "f5",
         ),
       )
       .setLabel("+5 ⏩")
