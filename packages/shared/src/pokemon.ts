@@ -6,6 +6,8 @@ export const POKEMON_COMMAND_NAMES = [
   "weakness",
   "breeding",
   "location",
+  "moveset",
+  "bestsets",
   "counters",
   "sandwich",
 ] as const;
@@ -62,6 +64,8 @@ export function defaultPokemonCommands(): PokemonCommandsEnabled {
     weakness: true,
     breeding: true,
     location: true,
+    moveset: true,
+    bestsets: true,
     counters: true,
     sandwich: true,
   };
@@ -150,6 +154,8 @@ export const POKEMON_COMMAND_LABELS: Record<PokemonCommandName, string> = {
   weakness: "/weakness — Debilidades y resistencias",
   breeding: "/breeding — Cría y egg groups",
   location: "/location — Ubicaciones / encounters",
+  moveset: "/moveset — Moveset por generación",
+  bestsets: "/bestsets — Sets competitivos Smogon (todos los formatos)",
   counters: "/counters — Contadores competitivos",
   sandwich: "/sandwich — Sándwiches (SV)",
 };

@@ -86,6 +86,8 @@ async function handleAutocomplete(
       interaction.commandName === "weakness" ||
       interaction.commandName === "breeding" ||
       interaction.commandName === "location" ||
+      interaction.commandName === "moveset" ||
+      interaction.commandName === "bestsets" ||
       interaction.commandName === "counters" ||
       interaction.commandName === "sandwich"
     ) {

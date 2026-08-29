@@ -698,6 +698,59 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     requiresAdminByDefault: false,
   },
   {
+    name: "moveset",
+    description: "Moveset del Pokémon filtrado por generación (Nivel / MT / Huevo).",
+    category: "pokemon",
+    defaultEnabled: true,
+    options: [
+      opt("pokemon", "STRING", true, "Nombre o número del Pokémon.", {
+        autocomplete: true,
+      }),
+      opt(
+        "juego_formato",
+        "STRING",
+        false,
+        "Generación / juego (vacío = gen por defecto del panel).",
+        {
+          choices: POKEINFO_FORMAT_CHOICES.map((c) => ({
+            name: c.name,
+            value: c.value,
+          })),
+        },
+      ),
+      opt(
+        "publico",
+        "BOOLEAN",
+        false,
+        "Mostrar el resultado a todos en el canal (Por defecto: Falso).",
+      ),
+    ],
+    supportsEphemeral: true,
+    defaultEphemeral: false,
+    requiresAdminByDefault: false,
+  },
+  {
+    name: "bestsets",
+    description:
+      "Sets competitivos Smogon del Pokémon (todos los formatos de la generación).",
+    category: "pokemon",
+    defaultEnabled: true,
+    options: [
+      opt("pokemon", "STRING", true, "Nombre o número del Pokémon.", {
+        autocomplete: true,
+      }),
+      opt(
+        "publico",
+        "BOOLEAN",
+        false,
+        "Mostrar el resultado a todos en el canal (Por defecto: Falso).",
+      ),
+    ],
+    supportsEphemeral: true,
+    defaultEphemeral: false,
+    requiresAdminByDefault: false,
+  },
+  {
     name: "counters",
     description: "Contadores competitivos sugeridos.",
     category: "pokemon",

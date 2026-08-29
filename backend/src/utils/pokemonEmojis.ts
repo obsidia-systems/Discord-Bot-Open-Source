@@ -39,6 +39,17 @@ export function getPokemonTypeEmoji(typeName: string): string | null {
   return POKEMON_TYPES_EMOJIS[key] ?? null;
 }
 
+/** Emoji de clase de daño PokéAPI (`physical` / `special` / `status`). */
+export function getMoveDamageClassEmoji(
+  damageClass: string | null | undefined,
+): string {
+  const key = (damageClass ?? "").toLowerCase();
+  if (key === "physical") return POKEMON_UI_EMOJIS.move_physical;
+  if (key === "special") return POKEMON_UI_EMOJIS.move_special;
+  if (key === "status") return POKEMON_UI_EMOJIS.move_status;
+  return POKEMON_UI_EMOJIS.move_status;
+}
+
 /**
  * Etiqueta de tipo con emoji delante cuando exista.
  * Ej: `<:Fantasmatype:…> Fantasma`

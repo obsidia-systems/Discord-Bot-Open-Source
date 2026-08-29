@@ -2,11 +2,23 @@ import type { AdobosModule } from "../../core/modules/types.js";
 import { warmPokemonAutocompleteCache } from "../../services/pokemonApi.js";
 import { pokemonRoutes } from "./api/routes.js";
 import {
+  BESTSETS_JUMP_PREFIX,
+  BESTSETS_PAGE_PREFIX,
+  handleBestsetsJumpSelect,
+  handleBestsetsPageButton,
+} from "./commands/bestsets.js";
+import {
   LOCATION_JUMP_PREFIX,
   LOCATION_PAGE_PREFIX,
   handleLocationJumpSelect,
   handleLocationPageButton,
 } from "./commands/location.js";
+import {
+  MOVESET_FILTER_PREFIX,
+  MOVESET_PAGE_PREFIX,
+  handleMovesetFilterSelect,
+  handleMovesetPageButton,
+} from "./commands/moveset.js";
 
 /** Plugin Pokémon — helpers PokéAPI / Smogon. */
 export const pokemonModule: AdobosModule = {
@@ -17,11 +29,26 @@ export const pokemonModule: AdobosModule = {
     ctx.button(LOCATION_PAGE_PREFIX, (interaction) =>
       handleLocationPageButton(interaction),
     );
+    ctx.button(MOVESET_PAGE_PREFIX, (interaction) =>
+      handleMovesetPageButton(interaction),
+    );
+    ctx.button(BESTSETS_PAGE_PREFIX, (interaction) =>
+      handleBestsetsPageButton(interaction),
+    );
     // Select menus: mismo patrón que autoroles (no hay registry de selects).
     ctx.on("interactionCreate", (interaction) => {
       if (!interaction.isStringSelectMenu()) return;
-      if (!interaction.customId.startsWith(LOCATION_JUMP_PREFIX)) return;
-      void handleLocationJumpSelect(interaction);
+      if (interaction.customId.startsWith(LOCATION_JUMP_PREFIX)) {
+        void handleLocationJumpSelect(interaction);
+        return;
+      }
+      if (interaction.customId.startsWith(MOVESET_FILTER_PREFIX)) {
+        void handleMovesetFilterSelect(interaction);
+        return;
+      }
+      if (interaction.customId.startsWith(BESTSETS_JUMP_PREFIX)) {
+        void handleBestsetsJumpSelect(interaction);
+      }
     });
     ctx.once("ready", () => {
       void warmPokemonAutocompleteCache().catch((error) => {
@@ -40,12 +67,26 @@ export {
 } from "./service.js";
 
 export {
+  BESTSETS_JUMP_PREFIX,
+  BESTSETS_PAGE_PREFIX,
+  handleBestsetsCommand,
+  handleBestsetsJumpSelect,
+  handleBestsetsPageButton,
+} from "./commands/bestsets.js";
+export {
   LOCATION_JUMP_PREFIX,
   LOCATION_PAGE_PREFIX,
   handleLocationCommand,
   handleLocationJumpSelect,
   handleLocationPageButton,
 } from "./commands/location.js";
+export {
+  MOVESET_FILTER_PREFIX,
+  MOVESET_PAGE_PREFIX,
+  handleMovesetCommand,
+  handleMovesetFilterSelect,
+  handleMovesetPageButton,
+} from "./commands/moveset.js";
 export { handlePokeinfoCommand } from "./commands/pokeinfo.js";
 export {
   handleBreedingCommand,
