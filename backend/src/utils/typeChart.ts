@@ -297,3 +297,83 @@ export function calculateCoverage(attackTypes: string[]): OffensiveCoverage {
 
   return { superEffective, blindSpots };
 }
+
+/** Miembro del equipo con tipos defensivos resueltos. */
+export interface TeamSynergyMember {
+  /** Nombre legible para el reporte. */
+  name: string;
+  types: string[];
+}
+
+export interface TeamSynergyTypeHit {
+  type: PokemonTypeName;
+  /** Cuántos Pokémon reciben ×2 o ×4. */
+  weakCount: number;
+  weakMembers: string[];
+}
+
+export interface TeamSynergyImmunity {
+  type: PokemonTypeName;
+  immuneMembers: string[];
+}
+
+export interface TeamSynergyReport {
+  /** Tipos que golpean SE a ≥3 miembros (debilidad crítica). */
+  criticalWeaknesses: TeamSynergyTypeHit[];
+  /** Inmunidades (×0) presentes en el equipo. */
+  immunities: TeamSynergyImmunity[];
+  memberCount: number;
+}
+
+/**
+ * Análisis defensivo de sinergia de equipo (hasta 6 miembros).
+ * - Debilidad crítica: tipo atacante con SE (×2/×4) contra ≥3 Pokémon.
+ * - Inmunidades: tipos con al menos un ×0 en el equipo.
+ */
+export function analyzeTeamSynergy(
+  members: TeamSynergyMember[],
+): TeamSynergyReport {
+  const roster = members.filter((m) => m.types.length > 0);
+  const criticalWeaknesses: TeamSynergyTypeHit[] = [];
+  const immunities: TeamSynergyImmunity[] = [];
+
+  for (const attacker of POKEMON_TYPE_NAMES) {
+    const weakMembers: string[] = [];
+    const immuneMembers: string[] = [];
+
+    for (const member of roster) {
+      const matchup = calculateDefensiveMatchup(member.types);
+      if (matchup.x4.includes(attacker) || matchup.x2.includes(attacker)) {
+        weakMembers.push(member.name);
+      }
+      if (matchup.x0.includes(attacker)) {
+        immuneMembers.push(member.name);
+      }
+    }
+
+    if (weakMembers.length >= 3) {
+      criticalWeaknesses.push({
+        type: attacker,
+        weakCount: weakMembers.length,
+        weakMembers,
+      });
+    }
+    if (immuneMembers.length > 0) {
+      immunities.push({
+        type: attacker,
+        immuneMembers,
+      });
+    }
+  }
+
+  // Ordenar: más amenazas primero; inmunidades alfabéticas por tipo.
+  criticalWeaknesses.sort((a, b) => b.weakCount - a.weakCount);
+  immunities.sort((a, b) => a.type.localeCompare(b.type));
+
+  return {
+    criticalWeaknesses,
+    immunities,
+    memberCount: roster.length,
+  };
+}
+

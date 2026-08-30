@@ -6,7 +6,6 @@ import type {
   PokemonGeneration,
 } from "@adobos/shared";
 import {
-  POKEMON_COMMAND_LABELS,
   POKEMON_COMMAND_NAMES,
   POKEMON_GENERATIONS,
   defaultPokemonConfig,
@@ -41,6 +40,11 @@ import { ToastBanner } from "@/components/ui/toast";
 import { Loader2, Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { PokemonStatusMonitor } from "./PokemonStatusMonitor";
+import {
+  DEX_COMMAND_UI_DESCRIPTIONS,
+  DEX_COMMAND_UI_TITLES,
+  DEX_MODULE_LABEL,
+} from "./uiLabels";
 
 type TabId = "general" | "privacy" | "commands";
 
@@ -101,7 +105,7 @@ export function PokemonDashboard() {
             message:
               error instanceof Error
                 ? error.message
-                : "No se pudo cargar el plugin Pokémon.",
+                : `No se pudo cargar ${DEX_MODULE_LABEL}.`,
           });
         }
       } finally {
@@ -131,7 +135,7 @@ export function PokemonDashboard() {
       setSavedFingerprint(fingerprint(next));
       setToast({
         variant: "success",
-        message: "Configuración de Pokémon guardada.",
+        message: `Configuración de ${DEX_MODULE_LABEL} guardada.`,
       });
     } catch (error) {
       setToast({
@@ -139,7 +143,7 @@ export function PokemonDashboard() {
         message:
           error instanceof Error
             ? error.message
-            : "No se pudo guardar el plugin Pokémon.",
+            : `No se pudo guardar ${DEX_MODULE_LABEL}.`,
       });
     } finally {
       setSaving(false);
@@ -157,7 +161,7 @@ export function PokemonDashboard() {
     return (
       <div className="flex items-center justify-center gap-2 py-24 text-muted-foreground">
         <Loader2 className="size-5 animate-spin" />
-        Cargando plugin Pokémon…
+        Cargando {DEX_MODULE_LABEL}…
       </div>
     );
   }
@@ -202,7 +206,7 @@ export function PokemonDashboard() {
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">
-                        Activar Plugin Pokémon
+                        Activar {DEX_MODULE_LABEL}
                       </CardTitle>
                       <CardDescription>
                         Interruptor maestro. Si está apagado, los slash no
@@ -211,7 +215,7 @@ export function PokemonDashboard() {
                     </CardHeader>
                     <CardContent>
                       <div className="flex items-center justify-between gap-4">
-                        <Label htmlFor="poke-active">Plugin activo</Label>
+                        <Label htmlFor="poke-active">Módulo activo</Label>
                         <Switch
                           id="poke-active"
                           checked={config.isActive}
@@ -229,7 +233,8 @@ export function PokemonDashboard() {
                         Preferencias globales
                       </CardTitle>
                       <CardDescription>
-                        Generación, idioma de PokéAPI y color de embeds.
+                        Generación, idioma de la API de especies y color de
+                        embeds.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-4 sm:grid-cols-2">
@@ -422,10 +427,10 @@ export function PokemonDashboard() {
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base">
-                      Submódulos / comandos
+                      Herramientas del módulo
                     </CardTitle>
                     <CardDescription>
-                      Enciende o apaga cada slash de forma independiente.
+                      Enciende o apaga cada herramienta de forma independiente.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -435,11 +440,14 @@ export function PokemonDashboard() {
                         className="flex items-center justify-between gap-4 rounded-md border border-border/60 px-3 py-2.5"
                       >
                         <div>
-                          <Label htmlFor={`cmd-${name}`} className="font-medium">
-                            {POKEMON_COMMAND_LABELS[name]}
+                          <Label
+                            htmlFor={`cmd-${name}`}
+                            className="font-medium"
+                          >
+                            {DEX_COMMAND_UI_TITLES[name]}
                           </Label>
                           <p className="text-xs text-muted-foreground">
-                            Parámetro <code>pokemon</code> con autocomplete.
+                            {DEX_COMMAND_UI_DESCRIPTIONS[name]}
                           </p>
                         </div>
                         <Switch

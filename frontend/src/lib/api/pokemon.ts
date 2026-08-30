@@ -9,7 +9,7 @@ export async function fetchPokemonConfig(): Promise<PokemonConfig> {
   const response = await fetch(`${API_BASE}/api/pokemon/config`);
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudo cargar el plugin Pokémon."),
+      await readApiError(response, "No se pudo cargar Dex Competitivo."),
     );
   }
   const body = (await response.json()) as PokemonConfigResponse;
@@ -26,7 +26,7 @@ export async function savePokemonConfig(
   });
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudo guardar el plugin Pokémon."),
+      await readApiError(response, "No se pudo guardar Dex Competitivo."),
     );
   }
   const body = (await response.json()) as PokemonConfigResponse;

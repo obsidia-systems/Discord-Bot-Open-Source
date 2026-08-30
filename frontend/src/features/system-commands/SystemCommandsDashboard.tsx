@@ -14,6 +14,11 @@ import {
   fetchSystemCommands,
   saveSystemCommands,
 } from "@/lib/api";
+import {
+  DEX_MODULE_LABEL,
+  getDexCommandDescription,
+  getDexCommandTitle,
+} from "@/features/pokemon/uiLabels";
 import { ChannelMultiSelect } from "@/components/shared/ChannelMultiSelect";
 import { RoleMultiSelect } from "@/components/shared/RoleMultiSelect";
 import { Badge } from "@/components/ui/badge";
@@ -56,7 +61,7 @@ const CATEGORY_FILTERS: Array<{ id: CategoryFilter; label: string }> = [
   { id: "moderation", label: SYSTEM_COMMAND_CATEGORY_LABELS.moderation },
   { id: "levels", label: SYSTEM_COMMAND_CATEGORY_LABELS.levels },
   { id: "economy", label: SYSTEM_COMMAND_CATEGORY_LABELS.economy },
-  { id: "pokemon", label: SYSTEM_COMMAND_CATEGORY_LABELS.pokemon },
+  { id: "pokemon", label: DEX_MODULE_LABEL },
   { id: "utilities", label: SYSTEM_COMMAND_CATEGORY_LABELS.utilities },
 ];
 
@@ -186,12 +191,29 @@ export function SystemCommandsDashboard() {
     return commands.filter((cmd) => {
       if (category !== "all" && cmd.category !== category) return false;
       if (!q) return true;
+      const uiTitle = getDexCommandTitle(cmd.name)?.toLowerCase() ?? "";
+      const uiDesc = getDexCommandDescription(cmd.name)?.toLowerCase() ?? "";
       return (
         cmd.name.toLowerCase().includes(q) ||
-        cmd.description.toLowerCase().includes(q)
+        cmd.description.toLowerCase().includes(q) ||
+        uiTitle.includes(q) ||
+        uiDesc.includes(q)
       );
     });
   }, [commands, category, query]);
+
+  function categoryLabel(cat: SystemCommandCategory): string {
+    if (cat === "pokemon") return DEX_MODULE_LABEL;
+    return SYSTEM_COMMAND_CATEGORY_LABELS[cat];
+  }
+
+  function commandCardTitle(cmd: SystemCommandConfig): string {
+    return getDexCommandTitle(cmd.name) ?? `/${cmd.name}`;
+  }
+
+  function commandCardDescription(cmd: SystemCommandConfig): string {
+    return getDexCommandDescription(cmd.name) ?? cmd.description;
+  }
 
   function patchCommand(
     name: string,
@@ -234,7 +256,7 @@ export function SystemCommandsDashboard() {
     }));
     setToast({
       variant: "success",
-      message: `Cambios aplicados a ${SYSTEM_COMMAND_CATEGORY_LABELS[cat]}. Recuerda guardar.`,
+      message: `Cambios aplicados a ${categoryLabel(cat)}. Recuerda guardar.`,
     });
   }
 
@@ -329,7 +351,7 @@ export function SystemCommandsDashboard() {
         <Card className="mb-2 border-primary/20 bg-muted/30">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">
-              Acciones Masivas para {SYSTEM_COMMAND_CATEGORY_LABELS[category]}
+              Acciones Masivas para {categoryLabel(category)}
             </CardTitle>
             <CardDescription>
               Afecta solo los comandos de esta categoría en el estado local.
@@ -412,22 +434,34 @@ export function SystemCommandsDashboard() {
                         )}
                       >
                         <Icon className="size-3" />
-                        {SYSTEM_COMMAND_CATEGORY_LABELS[cmd.category]}
+                        {categoryLabel(cmd.category)}
                       </Badge>
-                      <CardTitle className="font-mono text-base">
-                        /{cmd.name}
+                      <CardTitle
+                        className={cn(
+                          "text-base",
+                          cmd.category === "pokemon"
+                            ? "font-sans"
+                            : "font-mono",
+                        )}
+                      >
+                        {commandCardTitle(cmd)}
                       </CardTitle>
+                      {cmd.category === "pokemon" ? (
+                        <p className="font-mono text-xs text-muted-foreground">
+                          /{cmd.name}
+                        </p>
+                      ) : null}
                     </div>
                     <Switch
                       checked={cmd.enabled}
                       onCheckedChange={(enabled) =>
                         patchCommand(cmd.name, { enabled })
                       }
-                      aria-label={`Activar /${cmd.name}`}
+                      aria-label={`Activar ${commandCardTitle(cmd)}`}
                     />
                   </div>
                   <CardDescription className="line-clamp-2 text-sm leading-relaxed">
-                    {cmd.description}
+                    {commandCardDescription(cmd)}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="mt-auto pt-4">
@@ -454,12 +488,18 @@ export function SystemCommandsDashboard() {
         }}
         title={
           configuring ? (
-            <span className="font-mono">/{configuring.name}</span>
+            configuring.category === "pokemon" ? (
+              <span>{commandCardTitle(configuring)}</span>
+            ) : (
+              <span className="font-mono">/{configuring.name}</span>
+            )
           ) : (
             "Comando"
           )
         }
-        description={configuring?.description}
+        description={
+          configuring ? commandCardDescription(configuring) : undefined
+        }
         footer={
           <Button
             type="button"

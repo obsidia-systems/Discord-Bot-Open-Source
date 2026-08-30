@@ -299,10 +299,10 @@ export const dashboardNav: NavCategoryConfig[] = [
     defaultCollapsed: true,
     items: [
       {
-        label: "Pokémon",
+        label: "Dex Competitivo",
         href: "/dashboard/plugins/pokemon",
         icon: Egg,
-        blurb: "PokéAPI, teambuilder y helpers competitivos.",
+        blurb: "Enciclopedia, laboratorio de equipos y análisis competitivo.",
       },
       {
         label: "Minecraft",

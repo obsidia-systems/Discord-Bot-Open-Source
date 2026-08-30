@@ -15,9 +15,12 @@ import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js"
 import {
   PokemonApiError,
   capitalizePokemonName,
+  formatTypeLabel,
   getPokemonData,
   getPokemonSpecies,
+  getTypeColor,
   resolveDisplayName,
+  resolvePokemonForGeneration,
 } from "../../../services/pokemonApi.js";
 import { getCoverageMovepoolOptions } from "../../../services/pokemonMoves.js";
 import {
@@ -35,6 +38,10 @@ import {
   type TeamData,
   type TeamSlotData,
 } from "../../../services/teambuilderState.js";
+import {
+  formatPokemonTypeWithEmoji,
+} from "../../../utils/pokemonEmojis.js";
+import { analyzeTeamSynergy } from "../../../utils/typeChart.js";
 import {
   PokemonError,
   assertPokemonCommandAllowed,
@@ -684,9 +691,116 @@ export async function handleTeambuilderSynergyButton(
     return;
   }
 
-  await interaction.reply({
-    content:
-      "📊 **Analizar Sinergia** llegará en una fase posterior del Teambuilder.",
-    ephemeral: true,
-  });
+  const team = getOrCreateTeam(ownerId);
+  if (isTeamEmpty(team)) {
+    await interaction.reply({
+      content: "❌ El equipo está vacío. Añade Pokémon con `/teambuilder add`.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+
+  const guildId = interaction.guildId;
+  const generation = guildId
+    ? getPokemonConfig(guildId).defaultGeneration
+    : 9;
+  const language = guildId
+    ? getPokemonConfig(guildId).language === "en"
+      ? "en"
+      : "es"
+    : "es";
+
+  try {
+    const members: Array<{ name: string; types: string[] }> = [];
+
+    for (const slot of team.slots) {
+      if (!slot) continue;
+      try {
+        const data = await getPokemonData(slot.species);
+        const snapshot = resolvePokemonForGeneration(data, generation);
+        const label = await resolveDisplayLabel(slot.species);
+        const types =
+          snapshot.types.length > 0 ? snapshot.types : data.types;
+        if (types.length === 0) continue;
+        members.push({ name: label, types });
+      } catch {
+        // especie inválida: omitir del análisis
+      }
+    }
+
+    if (members.length === 0) {
+      await interaction.editReply({
+        content: "❌ No se pudieron resolver los tipos del equipo.",
+      });
+      return;
+    }
+
+    const report = analyzeTeamSynergy(members);
+
+    const weaknessLines =
+      report.criticalWeaknesses.length === 0
+        ? ["✅ Excelente balance defensivo."]
+        : report.criticalWeaknesses.map((hit) => {
+            const typeLabel = formatTypeLabel(hit.type, language);
+            const withEmoji = formatPokemonTypeWithEmoji(hit.type, typeLabel);
+            return `${withEmoji} (${hit.weakCount} Pokémon débiles)`;
+          });
+
+    const immunityLines =
+      report.immunities.length === 0
+        ? ["— Ninguna inmunidad en el equipo."]
+        : report.immunities.map((imm) => {
+            const typeLabel = formatTypeLabel(imm.type, language);
+            const withEmoji = formatPokemonTypeWithEmoji(imm.type, typeLabel);
+            const names = imm.immuneMembers.join(", ");
+            return `${withEmoji} (Inmune: ${names})`;
+          });
+
+    const firstType = members[0]?.types[0] ?? "normal";
+    const color = getTypeColor(firstType);
+
+    const embed = new EmbedBuilder()
+      .setTitle("📊 Reporte de Sinergia")
+      .setDescription(
+        `Análisis defensivo de **${members.length}** Pokémon (Gen ${generation}).\n_Debilidad crítica = tipo SE contra ≥3 del equipo._`,
+      )
+      .setColor(color)
+      .addFields(
+        {
+          name: "🚨 Debilidades Compartidas",
+          value: weaknessLines.join("\n").slice(0, 1024),
+          inline: false,
+        },
+        {
+          name: "🛡️ Inmunidades Clave",
+          value: immunityLines.join("\n").slice(0, 1024),
+          inline: false,
+        },
+      )
+      .setFooter({
+        text: `Teambuilder · ${interaction.user.username}`,
+      })
+      .setTimestamp(new Date());
+
+    // Thumbnail del primer Pokémon del equipo.
+    const firstFilled = team.slots.find((s) => s != null);
+    if (firstFilled) {
+      try {
+        const data = await getPokemonData(firstFilled.species);
+        if (data.spriteUrl) embed.setThumbnail(data.spriteUrl);
+      } catch {
+        /* opcional */
+      }
+    }
+
+    await interaction.editReply({ embeds: [embed] });
+  } catch (error) {
+    const message =
+      error instanceof PokemonApiError
+        ? error.message
+        : "No se pudo analizar la sinergia del equipo.";
+    await interaction.editReply({ content: `❌ ${message}` });
+  }
 }
