@@ -23,6 +23,16 @@ import {
   handleMovesetFilterSelect,
   handleMovesetPageButton,
 } from "./commands/moveset.js";
+import {
+  TEAMBUILDER_ADV_PREFIX,
+  TEAMBUILDER_MOVES_PREFIX,
+  TEAMBUILDER_SLOT_PREFIX,
+  TEAMBUILDER_SYN_PREFIX,
+  handleTeambuilderAdvancedButton,
+  handleTeambuilderMovesSelect,
+  handleTeambuilderSlotSelect,
+  handleTeambuilderSynergyButton,
+} from "./commands/teambuilder.js";
 
 /** Plugin Pokémon — helpers PokéAPI / Smogon. */
 export const pokemonModule: AdobosModule = {
@@ -38,6 +48,12 @@ export const pokemonModule: AdobosModule = {
     );
     ctx.button(BESTSETS_PAGE_PREFIX, (interaction) =>
       handleBestsetsPageButton(interaction),
+    );
+    ctx.button(TEAMBUILDER_ADV_PREFIX, (interaction) =>
+      handleTeambuilderAdvancedButton(interaction),
+    );
+    ctx.button(TEAMBUILDER_SYN_PREFIX, (interaction) =>
+      handleTeambuilderSynergyButton(interaction),
     );
     // Select menus: mismo patrón que autoroles (no hay registry de selects).
     ctx.on("interactionCreate", (interaction) => {
@@ -56,6 +72,14 @@ export const pokemonModule: AdobosModule = {
       }
       if (interaction.customId.startsWith(COVERAGE_SELECT_PREFIX)) {
         void handleCoverageSelect(interaction);
+        return;
+      }
+      if (interaction.customId.startsWith(TEAMBUILDER_SLOT_PREFIX)) {
+        void handleTeambuilderSlotSelect(interaction);
+        return;
+      }
+      if (interaction.customId.startsWith(TEAMBUILDER_MOVES_PREFIX)) {
+        void handleTeambuilderMovesSelect(interaction);
       }
     });
     ctx.once("ready", () => {
@@ -104,7 +128,17 @@ export { handlePokeinfoCommand } from "./commands/pokeinfo.js";
 export { handleWeaknessCommand } from "./commands/weakness.js";
 export { handleCountersCommand } from "./commands/counters.js";
 export {
+  TEAMBUILDER_ADV_PREFIX,
+  TEAMBUILDER_MOVES_PREFIX,
+  TEAMBUILDER_SLOT_PREFIX,
+  TEAMBUILDER_SYN_PREFIX,
+  handleTeambuilderCommand,
+  handleTeambuilderAdvancedButton,
+  handleTeambuilderMovesSelect,
+  handleTeambuilderSlotSelect,
+  handleTeambuilderSynergyButton,
+} from "./commands/teambuilder.js";
+export {
   handleBreedingCommand,
   handleSandwichCommand,
-  handleTeambuilderCommand,
 } from "./commands/stubs.js";

@@ -18,10 +18,14 @@ export type SystemCommandParamType =
   | "NUMBER"
   | "BOOLEAN"
   | "CHANNEL"
-  | "ROLE";
+  | "ROLE"
+  | "SUB_COMMAND"
+  | "SUB_COMMAND_GROUP";
 
 /** Códigos ApplicationCommandOptionType de Discord. */
 export const DISCORD_OPTION_TYPE: Record<SystemCommandParamType, number> = {
+  SUB_COMMAND: 1,
+  SUB_COMMAND_GROUP: 2,
   STRING: 3,
   INTEGER: 4,
   BOOLEAN: 5,
@@ -42,6 +46,8 @@ export interface SystemCommandOption {
   autocomplete?: boolean;
   /** Opciones fijas (STRING / INTEGER / NUMBER). Máx. 25. */
   choices?: Array<{ name: string; value: string | number }>;
+  /** Opciones anidadas (SUB_COMMAND / SUB_COMMAND_GROUP). */
+  options?: SystemCommandOption[];
 }
 
 export interface SystemCommandDefinition {
@@ -125,12 +131,27 @@ export const SYSTEM_COMMAND_PARAM_TYPE_LABELS: Record<
   BOOLEAN: "Booleano",
   CHANNEL: "Canal",
   ROLE: "Rol",
+  SUB_COMMAND: "Subcomando",
+  SUB_COMMAND_GROUP: "Grupo",
 };
 
 /** Sintaxis tipo Discord: `/ban <usuario> [razon]`. */
 export function formatSystemCommandSyntax(
   def: Pick<SystemCommandDefinition, "name" | "options">,
 ): string {
+  const subs = def.options.filter((p) => p.type === "SUB_COMMAND");
+  if (subs.length > 0) {
+    const parts = subs.map((s) => {
+      const nested = (s.options ?? [])
+        .filter((o) => o.type !== "SUB_COMMAND" && o.type !== "SUB_COMMAND_GROUP")
+        .map((o) => (o.required ? `<${o.name}>` : `[${o.name}]`));
+      return nested.length > 0
+        ? `${s.name} ${nested.join(" ")}`
+        : s.name;
+    });
+    return `/${def.name} (${parts.join(" | ")})`;
+  }
+
   const parts = def.options.map((p) =>
     p.required ? `<${p.name}>` : `[${p.name}]`,
   );
@@ -146,10 +167,24 @@ function opt(
   description: string,
   extra?: Pick<
     SystemCommandOption,
-    "minValue" | "maxValue" | "autocomplete" | "choices"
+    "minValue" | "maxValue" | "autocomplete" | "choices" | "options"
   >,
 ): SystemCommandOption {
   return { name, type, required, description, ...extra };
+}
+
+function sub(
+  name: string,
+  description: string,
+  options: SystemCommandOption[] = [],
+): SystemCommandOption {
+  return {
+    name,
+    type: "SUB_COMMAND",
+    required: false,
+    description,
+    options,
+  };
 }
 
 /**
@@ -637,13 +672,55 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "teambuilder",
-    description: "Ayuda a armar un equipo competitivo.",
+    description: "Constructor interactivo de equipos (hasta 6 Pokémon).",
     category: "pokemon",
     defaultEnabled: true,
     options: [
-      opt("pokemon", "STRING", true, "Pokémon base del equipo.", {
-        autocomplete: true,
-      }),
+      sub("view", "Muestra el panel actual del equipo.", [
+        opt(
+          "publico",
+          "BOOLEAN",
+          false,
+          "Mostrar el panel a todos en el canal (Por defecto: Falso).",
+        ),
+      ]),
+      sub("add", "Añade un Pokémon al equipo.", [
+        opt("pokemon", "STRING", true, "Nombre o forma del Pokémon.", {
+          autocomplete: true,
+        }),
+        opt(
+          "publico",
+          "BOOLEAN",
+          false,
+          "Mostrar el panel a todos en el canal (Por defecto: Falso).",
+        ),
+      ]),
+      sub("remove", "Quita un Pokémon por número de slot.", [
+        opt("slot", "INTEGER", true, "Slot del equipo (1–6).", {
+          choices: [
+            { name: "Slot 1", value: 1 },
+            { name: "Slot 2", value: 2 },
+            { name: "Slot 3", value: 3 },
+            { name: "Slot 4", value: 4 },
+            { name: "Slot 5", value: 5 },
+            { name: "Slot 6", value: 6 },
+          ],
+        }),
+        opt(
+          "publico",
+          "BOOLEAN",
+          false,
+          "Mostrar el panel a todos en el canal (Por defecto: Falso).",
+        ),
+      ]),
+      sub("clear", "Vacía todo el equipo.", [
+        opt(
+          "publico",
+          "BOOLEAN",
+          false,
+          "Mostrar el panel a todos en el canal (Por defecto: Falso).",
+        ),
+      ]),
     ],
     supportsEphemeral: true,
     defaultEphemeral: false,
@@ -913,36 +990,42 @@ export function defaultSystemCommandPermission(
 export function toDiscordSlashCommandBody(def: SystemCommandDefinition): {
   name: string;
   description: string;
-  options?: Array<{
-    type: number;
-    name: string;
-    description: string;
-    required?: boolean;
-    autocomplete?: boolean;
-    min_value?: number;
-    max_value?: number;
-    choices?: Array<{ name: string; value: string | number }>;
-  }>;
+  options?: Array<Record<string, unknown>>;
   /** Discord bitfield string, o `null` = visible para todos. */
   default_member_permissions?: string | null;
 } {
-  const options = def.options.map((o) => ({
-    type: DISCORD_OPTION_TYPE[o.type],
-    name: o.name,
-    description: (o.description ?? o.name).slice(0, 100),
-    required: o.required,
-    ...(o.autocomplete ? { autocomplete: true } : {}),
-    ...(o.minValue !== undefined ? { min_value: o.minValue } : {}),
-    ...(o.maxValue !== undefined ? { max_value: o.maxValue } : {}),
-    ...(o.choices?.length
-      ? {
-          choices: o.choices.slice(0, 25).map((c) => ({
-            name: c.name.slice(0, 100),
-            value: c.value,
-          })),
-        }
-      : {}),
-  }));
+  const mapOption = (o: SystemCommandOption): Record<string, unknown> => {
+    const isSub =
+      o.type === "SUB_COMMAND" || o.type === "SUB_COMMAND_GROUP";
+    const base: Record<string, unknown> = {
+      type: DISCORD_OPTION_TYPE[o.type],
+      name: o.name,
+      description: (o.description ?? o.name).slice(0, 100),
+    };
+
+    if (isSub) {
+      const nested = (o.options ?? []).map(mapOption);
+      return nested.length ? { ...base, options: nested } : base;
+    }
+
+    return {
+      ...base,
+      required: o.required,
+      ...(o.autocomplete ? { autocomplete: true } : {}),
+      ...(o.minValue !== undefined ? { min_value: o.minValue } : {}),
+      ...(o.maxValue !== undefined ? { max_value: o.maxValue } : {}),
+      ...(o.choices?.length
+        ? {
+            choices: o.choices.slice(0, 25).map((c) => ({
+              name: c.name.slice(0, 100),
+              value: c.value,
+            })),
+          }
+        : {}),
+    };
+  };
+
+  const options = def.options.map(mapOption);
   return {
     name: def.name,
     description: def.description.slice(0, 100),

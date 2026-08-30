@@ -288,6 +288,13 @@
       "when": 1786620000000,
       "tag": "0040_economy_shop_rewards",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1786630000000,
+      "tag": "0041_user_teams",
+      "breakpoints": true
     }
   ]
 }

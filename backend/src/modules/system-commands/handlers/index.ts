@@ -44,8 +44,8 @@ import { handleWeaknessCommand } from "../../pokemon/commands/weakness.js";
 import {
   handleBreedingCommand,
   handleSandwichCommand,
-  handleTeambuilderCommand,
 } from "../../pokemon/commands/stubs.js";
+import { handleTeambuilderCommand } from "../../pokemon/commands/teambuilder.js";
 import {
   handlePingCommand,
   handleServerInfoCommand,

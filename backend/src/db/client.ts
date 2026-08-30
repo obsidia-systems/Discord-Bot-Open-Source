@@ -827,6 +827,12 @@ function ensureCoreTables(database: Database.Database): void {
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (guild_id) REFERENCES guild_settings(guild_id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS user_teams (
+      user_id TEXT PRIMARY KEY NOT NULL,
+      team_data TEXT NOT NULL DEFAULT '[]',
+      updated_at INTEGER NOT NULL
+    );
   `);
 
   try {

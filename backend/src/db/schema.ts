@@ -1023,6 +1023,22 @@ export const pluginPokemonConfig = sqliteTable("plugin_pokemon_config", {
 export type PluginPokemonConfigRow = typeof pluginPokemonConfig.$inferSelect;
 export type NewPluginPokemonConfigRow = typeof pluginPokemonConfig.$inferInsert;
 
+/**
+ * Equipo Teambuilder persistente por usuario Discord.
+ * `team_data`: JSON array de 6 slots `{ species, moves, item } | null`.
+ */
+export const userTeams = sqliteTable("user_teams", {
+  userId: text("user_id").primaryKey(),
+  /** TeamSlotData | null × 6, serializado JSON. */
+  teamData: text("team_data").notNull().default("[]"),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export type UserTeamsRow = typeof userTeams.$inferSelect;
+export type NewUserTeamsRow = typeof userTeams.$inferInsert;
+
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [
   "minecraft",
