@@ -35,6 +35,7 @@ import {
 import { handleShopCommand } from "../../economy/commands/shop.js";
 import { getEconomyConfig } from "../../economy/service.js";
 import { handleBestsetsCommand } from "../../pokemon/commands/bestsets.js";
+import { handleCoverageCommand } from "../../pokemon/commands/coverage.js";
 import { handleLocationCommand } from "../../pokemon/commands/location.js";
 import { handleMovesetCommand } from "../../pokemon/commands/moveset.js";
 import { handlePokeinfoCommand } from "../../pokemon/commands/pokeinfo.js";
@@ -107,6 +108,7 @@ export const DEFAULT_COMMAND_HANDLERS: Record<string, DefaultCommandHandler> = {
   pokeinfo: handlePokeinfoCommand,
   teambuilder: handleTeambuilderCommand,
   weakness: handleWeaknessCommand,
+  coverage: handleCoverageCommand,
   breeding: handleBreedingCommand,
   location: handleLocationCommand,
   moveset: handleMovesetCommand,

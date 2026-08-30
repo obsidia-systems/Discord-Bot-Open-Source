@@ -9,7 +9,7 @@ import { pokemonAccessFromInteraction } from "../access.js";
 /**
  * Stub compartido de comandos Pokémon pendientes.
  * Valida plugin activo, toggle del comando, canal permitido y anti-sniping.
- * Nota: `/pokeinfo`, `/location`, `/moveset`, `/bestsets` y `/weakness` tienen handlers reales (no usar este stub).
+ * Nota: `/pokeinfo`, `/location`, `/moveset`, `/bestsets`, `/weakness` y `/coverage` tienen handlers reales (no usar este stub).
  */
 export async function handlePokemonStubCommand(
   interaction: ChatInputCommandInteraction,

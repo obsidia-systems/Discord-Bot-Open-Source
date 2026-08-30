@@ -258,3 +258,42 @@ export function calculateDefensiveMatchup(
 
   return result;
 }
+
+export interface OffensiveCoverage {
+  /** Tipos que reciben al menos ×2 de algún ataque ofensivo. */
+  superEffective: PokemonTypeName[];
+  /** Tipos que resisten o inmunizan todo el asedio (mejor multiplicador < 1). */
+  blindSpots: PokemonTypeName[];
+}
+
+/**
+ * Cobertura ofensiva: tipos atacantes (solo Physical/Special).
+ * Para cada tipo defensor usa el mejor multiplicador entre los ataques.
+ */
+export function calculateCoverage(attackTypes: string[]): OffensiveCoverage {
+  const attackers = [
+    ...new Set(
+      attackTypes
+        .map((t) => t.trim().toLowerCase())
+        .filter(isPokemonTypeName),
+    ),
+  ];
+
+  const superEffective: PokemonTypeName[] = [];
+  const blindSpots: PokemonTypeName[] = [];
+
+  if (attackers.length === 0) {
+    return { superEffective, blindSpots: [...POKEMON_TYPE_NAMES] };
+  }
+
+  for (const defender of POKEMON_TYPE_NAMES) {
+    let best = 0;
+    for (const attacker of attackers) {
+      best = Math.max(best, effectiveness(attacker, defender));
+    }
+    if (best >= 2) superEffective.push(defender);
+    else if (best < 1) blindSpots.push(defender);
+  }
+
+  return { superEffective, blindSpots };
+}

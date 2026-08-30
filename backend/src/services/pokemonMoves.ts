@@ -341,3 +341,102 @@ export function getLearnsetCategoryMoves(
   if (category === "machine") return learnset.machine;
   return learnset.egg;
 }
+
+export interface CoverageMoveOption {
+  apiName: string;
+  displayName: string;
+  type: string;
+  damageClass: string;
+}
+
+/** Une level-up / MT / huevo sin duplicar por `apiName`. */
+export function flattenLearnsetMoves(
+  learnset: PokemonLearnset,
+): CoverageMoveOption[] {
+  const map = new Map<string, CoverageMoveOption>();
+  for (const move of [
+    ...learnset.levelUp,
+    ...learnset.machine,
+    ...learnset.egg,
+  ]) {
+    const key = move.apiName.toLowerCase();
+    if (map.has(key)) continue;
+    map.set(key, {
+      apiName: move.apiName,
+      displayName: move.displayName,
+      type: move.type,
+      damageClass: move.damageClass,
+    });
+  }
+  return [...map.values()];
+}
+
+const SELECT_MENU_MAX = 25;
+
+/**
+ * Movepool para el SelectMenu de `/coverage` (máx. 25).
+ * Si hay más, prioriza movimientos que aparecen en sets Smogon.
+ */
+export async function getCoverageMovepoolOptions(
+  nameOrId: string,
+  generation: number,
+  language: "es" | "en" = "es",
+): Promise<{
+  pokemonId: number;
+  pokemonName: string;
+  moves: CoverageMoveOption[];
+  truncated: boolean;
+  totalMoves: number;
+}> {
+  const learnset = await getPokemonLearnset(nameOrId, generation, language);
+  const all = flattenLearnsetMoves(learnset);
+  const totalMoves = all.length;
+
+  if (all.length <= SELECT_MENU_MAX) {
+    all.sort((a, b) => a.displayName.localeCompare(b.displayName, "es"));
+    return {
+      pokemonId: learnset.pokemonId,
+      pokemonName: learnset.pokemonName,
+      moves: all,
+      truncated: false,
+      totalMoves,
+    };
+  }
+
+  const { getPokemonAllCompetitiveSets } = await import("./smogonService.js");
+  let scores = new Map<string, number>();
+  try {
+    const competitive = await getPokemonAllCompetitiveSets(
+      learnset.pokemonName,
+      generation,
+      language,
+    );
+    for (const set of competitive.sets) {
+      for (const moveName of set.moves) {
+        const slug = toMoveApiSlug(moveName);
+        if (!slug) continue;
+        scores.set(slug, (scores.get(slug) ?? 0) + 1);
+      }
+    }
+  } catch {
+    scores = new Map();
+  }
+
+  const ranked = [...all].sort((a, b) => {
+    const sa = scores.get(a.apiName.toLowerCase()) ?? 0;
+    const sb = scores.get(b.apiName.toLowerCase()) ?? 0;
+    if (sb !== sa) return sb - sa;
+    const da = a.damageClass === "status" ? 0 : 1;
+    const db = b.damageClass === "status" ? 0 : 1;
+    if (db !== da) return db - da;
+    return a.displayName.localeCompare(b.displayName, "es");
+  });
+
+  return {
+    pokemonId: learnset.pokemonId,
+    pokemonName: learnset.pokemonName,
+    moves: ranked.slice(0, SELECT_MENU_MAX),
+    truncated: true,
+    totalMoves,
+  };
+}

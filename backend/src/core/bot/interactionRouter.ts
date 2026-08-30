@@ -84,6 +84,7 @@ async function handleAutocomplete(
       interaction.commandName === "pokeinfo" ||
       interaction.commandName === "teambuilder" ||
       interaction.commandName === "weakness" ||
+      interaction.commandName === "coverage" ||
       interaction.commandName === "breeding" ||
       interaction.commandName === "location" ||
       interaction.commandName === "moveset" ||

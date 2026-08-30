@@ -8,6 +8,10 @@ import {
   handleBestsetsPageButton,
 } from "./commands/bestsets.js";
 import {
+  COVERAGE_SELECT_PREFIX,
+  handleCoverageSelect,
+} from "./commands/coverage.js";
+import {
   LOCATION_JUMP_PREFIX,
   LOCATION_PAGE_PREFIX,
   handleLocationJumpSelect,
@@ -48,6 +52,10 @@ export const pokemonModule: AdobosModule = {
       }
       if (interaction.customId.startsWith(BESTSETS_JUMP_PREFIX)) {
         void handleBestsetsJumpSelect(interaction);
+        return;
+      }
+      if (interaction.customId.startsWith(COVERAGE_SELECT_PREFIX)) {
+        void handleCoverageSelect(interaction);
       }
     });
     ctx.once("ready", () => {
@@ -73,6 +81,11 @@ export {
   handleBestsetsJumpSelect,
   handleBestsetsPageButton,
 } from "./commands/bestsets.js";
+export {
+  COVERAGE_SELECT_PREFIX,
+  handleCoverageCommand,
+  handleCoverageSelect,
+} from "./commands/coverage.js";
 export {
   LOCATION_JUMP_PREFIX,
   LOCATION_PAGE_PREFIX,

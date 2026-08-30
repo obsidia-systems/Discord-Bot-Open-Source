@@ -682,6 +682,27 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     requiresAdminByDefault: false,
   },
   {
+    name: "coverage",
+    description:
+      "Analiza la cobertura ofensiva eligiendo hasta 4 ataques del movepool.",
+    category: "pokemon",
+    defaultEnabled: true,
+    options: [
+      opt("pokemon", "STRING", true, "Nombre o número del Pokémon.", {
+        autocomplete: true,
+      }),
+      opt(
+        "publico",
+        "BOOLEAN",
+        false,
+        "Mostrar el resultado a todos en el canal (Por defecto: Falso).",
+      ),
+    ],
+    supportsEphemeral: true,
+    defaultEphemeral: false,
+    requiresAdminByDefault: false,
+  },
+  {
     name: "breeding",
     description: "Información de cría y egg groups.",
     category: "pokemon",
