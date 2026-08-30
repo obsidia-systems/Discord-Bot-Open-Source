@@ -225,28 +225,50 @@ export function getPokemonIndex(): readonly PokemonListEntry[] {
 
 /**
  * Filtra el índice en memoria para autocomplete de Discord (máx. 25).
+ * Incluye formas alternativas (megas, regionales, gmax) ya presentes en PokéAPI
+ * y prioriza coincidencias de especie base + sus formas.
+ * Labels en estilo Showdown: `Staraptor-Mega`, `Raichu-Alola`.
  */
 export function searchPokemonAutocomplete(
   query: string,
   limit = 25,
 ): Array<{ name: string; value: string }> {
-  const q = query.trim().toLowerCase();
+  const q = query.trim().toLowerCase().replace(/\s+/g, "-");
   const max = Math.min(25, Math.max(1, limit));
   const source = speciesIndex;
 
   const matched = !q
-    ? source.slice(0, max)
-    : source.filter(
-        (entry) =>
-          entry.name.includes(q) || entry.name.startsWith(q),
-      );
+    ? source.slice(0, max * 3)
+    : source.filter((entry) => {
+        const n = entry.name;
+        if (n.includes(q) || n.startsWith(q)) return true;
+        // "mega staraptor" / "staraptor mega" → staraptor-mega
+        const compactQ = q.replace(/-/g, "");
+        const compactN = n.replace(/-/g, "");
+        if (compactN.includes(compactQ)) return true;
+        const parts = q.split("-").filter(Boolean);
+        if (parts.includes("mega") && parts.length > 1) {
+          const withoutMega = parts.filter((p) => p !== "mega").join("-");
+          if (withoutMega && n.startsWith(withoutMega) && n.includes("mega")) {
+            return true;
+          }
+        }
+        return false;
+      });
 
-  // Prioriza startsWith sobre includes
   const ranked = !q
     ? matched
     : [
-        ...matched.filter((e) => e.name.startsWith(q)),
-        ...matched.filter((e) => !e.name.startsWith(q) && e.name.includes(q)),
+        ...matched.filter((e) => e.name === q),
+        ...matched.filter((e) => e.name.startsWith(`${q}-`)),
+        ...matched.filter(
+          (e) => e.name.startsWith(q) && e.name !== q && !e.name.startsWith(`${q}-`),
+        ),
+        ...matched.filter(
+          (e) =>
+            !e.name.startsWith(q) &&
+            (e.name.includes(q) || e.name.replace(/-/g, "").includes(q.replace(/-/g, ""))),
+        ),
       ];
 
   const seen = new Set<string>();
@@ -254,6 +276,7 @@ export function searchPokemonAutocomplete(
   for (const entry of ranked) {
     if (seen.has(entry.name)) continue;
     seen.add(entry.name);
+    // Showdown-style label (PokéAPI slug → Staraptor-Mega)
     const label = capitalizePokemonName(entry.name);
     out.push({ name: label.slice(0, 100), value: entry.name.slice(0, 100) });
     if (out.length >= max) break;

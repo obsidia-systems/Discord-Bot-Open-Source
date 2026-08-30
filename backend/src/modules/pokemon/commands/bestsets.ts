@@ -14,6 +14,7 @@ import {
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
 import {
   PokemonApiError,
+  capitalizePokemonName,
   getPokemonData,
   getPokemonSpecies,
   getTypeColor,
@@ -25,6 +26,8 @@ import {
   type PokemonAllCompetitiveSets,
   formatCompetitiveEvs,
   getPokemonAllCompetitiveSets,
+  isMegaSpeciesName,
+  toSmogonSpeciesCandidates,
 } from "../../../services/smogonService.js";
 import {
   getMoveDamageClassEmoji,
@@ -145,6 +148,18 @@ function buildJumpPageWindow(
 function truncateLabel(text: string, max = 100): string {
   if (text.length <= max) return text;
   return `${text.slice(0, max - 1)}…`;
+}
+
+function resolveBestsetsDisplayName(
+  species: Awaited<ReturnType<typeof getPokemonSpecies>> | null,
+  apiName: string,
+  language: "es" | "en",
+): string {
+  // Formas Mega / regionales: preferir etiqueta Showdown (`Staraptor-Mega`).
+  if (isMegaSpeciesName(apiName) || /-(alola|galar|hisui|paldea|gmax)/i.test(apiName)) {
+    return toSmogonSpeciesCandidates(apiName)[0] ?? capitalizePokemonName(apiName);
+  }
+  return resolveDisplayName(species, apiName, language);
 }
 
 async function formatMovesField(
@@ -282,7 +297,7 @@ export async function buildBestsetsPageView(options: {
         },
       )
       .setFooter({
-        text: `Set ${safePage + 1} de ${total} • Gen ${payload.generation} ${set.formatName} • Smogon`,
+        text: `Set ${safePage + 1} de ${total} • ${set.formatName} • Smogon`,
       });
   }
 
@@ -402,7 +417,7 @@ async function updateBestsetsMessage(
       /* opcional */
     }
 
-    const displayName = resolveDisplayName(species, data.name, language);
+    const displayName = resolveBestsetsDisplayName(species, data.name, language);
     const color = getTypeColor(data.types[0], fallbackColor);
 
     const view = await buildBestsetsPageView({
@@ -500,7 +515,7 @@ export async function handleBestsetsCommand(
       /* opcional */
     }
 
-    const displayName = resolveDisplayName(species, data.name, language);
+    const displayName = resolveBestsetsDisplayName(species, data.name, language);
     const color = getTypeColor(data.types[0], fallbackColor);
 
     const view = await buildBestsetsPageView({

@@ -19,6 +19,12 @@ const PKMN_STATS_BASE = "https://data.pkmn.cc/stats";
 const GITHUB_FORMATS_BASE =
   "https://raw.githubusercontent.com/smogon/pokemon-showdown/master/data";
 
+/** Espejos de sets Smogon (data.pkmn.cc + GitHub Pages). */
+const SETS_MIRRORS = [
+  "https://data.pkmn.cc/sets",
+  "https://pkmn.github.io/smogon/data/sets",
+] as const;
+
 const CACHE_TTL_MS = 6 * 60 * 60_000;
 
 type CacheEntry<T> = { at: number; data: T };
@@ -111,6 +117,39 @@ function toSpeciesId(name: string): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "");
+}
+
+/**
+ * Normaliza nombres PokéAPI / Showdown a candidatos Smogon.
+ * `staraptor-mega` → `Staraptor-Mega`, `Charizard-Mega-X`, etc.
+ */
+export function toSmogonSpeciesCandidates(input: string): string[] {
+  const raw = input.trim().replace(/\s+/g, "-");
+  if (!raw) return [];
+  const lower = raw.toLowerCase();
+  const showdown = lower
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("-");
+  return [...new Set([showdown, raw, lower].filter(Boolean))];
+}
+
+/** ¿Es una forma Mega? (`Staraptor-Mega`, `charizard-mega-x`). */
+export function isMegaSpeciesName(name: string): boolean {
+  return /(^|-)mega(-|$)/i.test(name.trim().replace(/\s+/g, "-"));
+}
+
+/**
+ * Forma base competitiva: `Staraptor-Mega` → `Staraptor`,
+ * `Charizard-Mega-X` → `Charizard`.
+ */
+export function baseSpeciesNameFromForm(name: string): string {
+  return name
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-mega(-[xy])?$/i, "")
+    .replace(/-(gmax|alola|galar|hisui|paldea)$/i, "");
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -420,8 +459,6 @@ export function formatCompetitiveMetaField(meta: CompetitiveMeta): string {
 
 // ── Competitive sets (Smogon / data.pkmn.cc) ───────────────────────────────
 
-const PKMN_SETS_BASE = "https://data.pkmn.cc/sets";
-
 export interface CompetitiveSetEvs {
   hp?: number;
   atk?: number;
@@ -433,6 +470,8 @@ export interface CompetitiveSetEvs {
 
 export interface CompetitiveSet {
   name: string;
+  /** Forma exacta a la que pertenece el set (`Charizard-Mega-Y`). */
+  speciesName: string;
   /** Id completo data.pkmn.cc (`gen9vgc2025`). */
   formatId: string;
   /** Etiqueta corta para UI (`VGC 2025`). */
@@ -466,7 +505,7 @@ interface RawSmogonSet {
   item?: RawSlashField;
   ability?: RawSlashField;
   nature?: RawSlashField;
-  evs?: CompetitiveSetEvs;
+  evs?: CompetitiveSetEvs | CompetitiveSetEvs[];
 }
 
 type FormatSetsTable = Record<string, Record<string, RawSmogonSet>>;
@@ -474,7 +513,6 @@ type FormatSetsTable = Record<string, Record<string, RawSmogonSet>>;
 type GenSetsTable = Record<string, Record<string, Record<string, RawSmogonSet>>>;
 
 const setsCache = new Map<string, CacheEntry<FormatSetsTable>>();
-const genSetsCache = new Map<number, CacheEntry<GenSetsTable>>();
 const abilityNameCache = new Map<string, { at: number; es: string; en: string }>();
 
 /** Orden preferido al aplanar sets de una generación. */
@@ -493,6 +531,7 @@ const FORMAT_TIER_PRIORITY = [
   "nationaldexubers",
   "doublesou",
   "nationaldexdoubles",
+  "vgc2026",
   "vgc2025",
   "vgc2024",
   "vgc2023",
@@ -522,6 +561,7 @@ const FORMAT_TIER_LABELS: Record<string, string> = {
   vgc2025: "VGC 2025",
   vgc2024: "VGC 2024",
   vgc2023: "VGC 2023",
+  vgc2026: "VGC 2026",
   monotype: "Monotype",
   almostanyability: "AAA",
   balancedhackmons: "BH",
@@ -634,19 +674,25 @@ function findSpeciesSets(
   table: FormatSetsTable,
   apiName: string,
 ): { speciesName: string; sets: Record<string, RawSmogonSet> } | null {
-  const target = toSpeciesId(apiName);
+  const targets = new Set(
+    toSmogonSpeciesCandidates(apiName).map((c) => toSpeciesId(c)),
+  );
   for (const [key, value] of Object.entries(table)) {
-    if (toSpeciesId(key) === target) {
+    if (targets.has(toSpeciesId(key))) {
       return { speciesName: key, sets: value };
     }
   }
-  // Variantes: Charizard-Mega-X → Charizard
-  const base = target.replace(/(mega[xy]?|gmax|alola|galar|hisui|paldea)$/i, "");
-  if (base && base !== target) {
-    for (const [key, value] of Object.entries(table)) {
-      if (toSpeciesId(key) === base) {
-        return { speciesName: key, sets: value };
-      }
+  // Sin fallback a la forma base: Mega ≠ base.
+  return null;
+}
+
+async function fetchSetsResource<T>(fileName: string): Promise<T | null> {
+  const file = fileName.replace(/^\//, "");
+  for (const mirror of SETS_MIRRORS) {
+    try {
+      return await fetchJson<T>(`${mirror}/${encodeURIComponent(file)}`);
+    } catch {
+      /* siguiente espejo */
     }
   }
   return null;
@@ -660,9 +706,8 @@ async function getFormatSetsTable(formatId: string): Promise<FormatSetsTable | n
     return cached.data;
   }
   try {
-    const data = await fetchJson<FormatSetsTable>(
-      `${PKMN_SETS_BASE}/${encodeURIComponent(id)}.json`,
-    );
+    const data = await fetchSetsResource<FormatSetsTable>(`${id}.json`);
+    if (!data) return null;
     setsCache.set(id, { at: Date.now(), data });
     return data;
   } catch {
@@ -670,47 +715,229 @@ async function getFormatSetsTable(formatId: string): Promise<FormatSetsTable | n
   }
 }
 
-async function getGenerationSetsTable(
-  generation: number,
+/** Caché de tablas generation-style (species → tier → sets). */
+const namedGenTableCache = new Map<string, CacheEntry<GenSetsTable>>();
+
+async function getNamedGenSetsTable(
+  fileStem: string,
 ): Promise<GenSetsTable | null> {
-  const gen = Math.max(1, Math.min(9, Math.floor(generation) || 9));
-  const cached = genSetsCache.get(gen);
+  const stem = fileStem.trim().toLowerCase().replace(/\.json$/, "");
+  if (!stem) return null;
+  const cached = namedGenTableCache.get(stem);
   if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
     return cached.data;
   }
-  try {
-    const data = await fetchJson<GenSetsTable>(
-      `${PKMN_SETS_BASE}/gen${gen}.json`,
-    );
-    genSetsCache.set(gen, { at: Date.now(), data });
-    return data;
-  } catch {
-    return null;
-  }
+  const data = await fetchSetsResource<GenSetsTable>(`${stem}.json`);
+  if (!data) return null;
+  namedGenTableCache.set(stem, { at: Date.now(), data });
+  return data;
 }
 
 function findSpeciesInGenTable(
   table: GenSetsTable,
   apiName: string,
 ): { speciesName: string; byFormat: Record<string, Record<string, RawSmogonSet>> } | null {
-  const target = toSpeciesId(apiName);
+  const targets = new Set(
+    toSmogonSpeciesCandidates(apiName).map((c) => toSpeciesId(c)),
+  );
   for (const [key, value] of Object.entries(table)) {
-    if (toSpeciesId(key) === target) {
+    if (targets.has(toSpeciesId(key))) {
       return { speciesName: key, byFormat: value };
     }
   }
-  const base = target.replace(
-    /(mega[xy]?|gmax|alola|galar|hisui|paldea)$/i,
-    "",
-  );
-  if (base && base !== target) {
-    for (const [key, value] of Object.entries(table)) {
-      if (toSpeciesId(key) === base) {
-        return { speciesName: key, byFormat: value };
+  // Sin fallback Mega → base (evita sets de Staraptor cuando se pidió Staraptor-Mega).
+  return null;
+}
+
+/**
+ * En Champions (y similares) las Megas a veces viven bajo el nombre base
+ * (`Charizard` + Charizardite Y) en lugar de `Charizard-Mega-Y`.
+ * Tras el alias, hay que filtrar por megapiedra para no mezclar X/Y/base.
+ */
+function findSpeciesInGenTableWithMegaAlias(
+  table: GenSetsTable,
+  apiName: string,
+  allowBaseAliasForMega: boolean,
+): {
+  speciesName: string;
+  byFormat: Record<string, Record<string, RawSmogonSet>>;
+  /** true si se resolvió vía nombre base (requiere filtro de piedra). */
+  usedBaseAlias: boolean;
+} | null {
+  const exact = findSpeciesInGenTable(table, apiName);
+  if (exact) {
+    return { ...exact, usedBaseAlias: false };
+  }
+  if (!allowBaseAliasForMega || !isMegaSpeciesName(apiName)) return null;
+  const base = baseSpeciesNameFromForm(apiName);
+  if (!base || toSpeciesId(base) === toSpeciesId(apiName)) return null;
+  const aliased = findSpeciesInGenTable(table, base);
+  if (!aliased) return null;
+  return { ...aliased, usedBaseAlias: true };
+}
+
+/** Megapiedras irregulares por forma (id compacto → ids de ítem). */
+const MEGA_STONE_IDS_BY_FORM: Record<string, readonly string[]> = {
+  charizardmegax: ["charizarditex"],
+  charizardmegay: ["charizarditey"],
+  mewtwomegax: ["mewtwonitex"],
+  mewtwomegay: ["mewtwonitey"],
+  staraptormega: ["staraptite"],
+  blastoisemega: ["blastoisinite"],
+  alakazammega: ["alakazite"],
+  pinsirmega: ["pinsirite"],
+  aerodactylmega: ["aerodactylite"],
+  scizormega: ["scizorite"],
+  heracrossmega: ["heracronite"],
+  houndoommega: ["houndoominite"],
+  tyranitarmega: ["tyranitarite"],
+  blazikenmega: ["blazikenite"],
+  gardevoirmega: ["gardevoirite"],
+  mawilemega: ["mawilite"],
+  aggronmega: ["aggronite"],
+  medichammega: ["medichamite"],
+  manectricmega: ["manectite"],
+  banettemega: ["banettite"],
+  absolmega: ["absolite"],
+  gengarmega: ["gengarite"],
+  kangaskhanmega: ["kangaskhanite"],
+  gyaradosmega: ["gyaradosite"],
+  ampharosmega: ["ampharosite"],
+  lucariomega: ["lucarionite"],
+  abomasnowmega: ["abomasite"],
+  beedrillmega: ["beedrillite"],
+  pidgeotmega: ["pidgeotite"],
+  slowbromega: ["slowbronite"],
+  steelixmega: ["steelixite"],
+  sceptilemega: ["sceptilite"],
+  swampertmega: ["swampertite"],
+  sableyemega: ["sablenite"],
+  sharpedomega: ["sharpedonite"],
+  cameruptmega: ["cameruptite"],
+  altariamega: ["altarianite"],
+  glaliemega: ["glalitite"],
+  salamencemega: ["salamencite"],
+  metagrossmega: ["metagrossite"],
+  latiasmega: ["latiasite"],
+  latiosmega: ["latiosite"],
+  lopunnymega: ["lopunnite"],
+  gallademega: ["galladite"],
+  audinomega: ["audinite"],
+  dianciemega: ["diancite"],
+  venusaurmega: ["venusaurite"],
+};
+
+/** Todas las megapiedras conocidas de una especie base (para excluirlas en query base). */
+function megaStoneIdsForBaseSpecies(baseName: string): Set<string> {
+  const baseId = toSpeciesId(baseName);
+  const out = new Set<string>();
+  out.add(`${baseId}ite`);
+  out.add(`${baseId}itex`);
+  out.add(`${baseId}itey`);
+  for (const [formId, stones] of Object.entries(MEGA_STONE_IDS_BY_FORM)) {
+    if (!formId.startsWith(baseId) || !formId.includes("mega")) continue;
+    for (const s of stones) out.add(s);
+  }
+  return out;
+}
+
+/**
+ * Ids de megapiedra esperados para una forma Mega concreta.
+ * `Charizard-Mega-Y` → `charizarditey` (nunca X).
+ */
+export function expectedMegaStoneIds(speciesInput: string): string[] | null {
+  if (!isMegaSpeciesName(speciesInput)) return null;
+  const canonical = toSmogonSpeciesCandidates(speciesInput)[0] ?? speciesInput;
+  const formId = toSpeciesId(canonical);
+  const override = MEGA_STONE_IDS_BY_FORM[formId];
+  if (override) return [...override];
+
+  const xy = /mega([xy])$/.exec(formId);
+  const baseId = toSpeciesId(baseSpeciesNameFromForm(canonical));
+  if (xy) return [`${baseId}ite${xy[1]}`];
+  return [`${baseId}ite`];
+}
+
+function rawSetItemIds(raw: RawSmogonSet): string[] {
+  const value = raw.item;
+  const list = !value
+    ? []
+    : Array.isArray(value)
+      ? value
+      : [value];
+  return list
+    .filter((v): v is string => typeof v === "string" && Boolean(v.trim()))
+    .map((v) => toSpeciesId(v));
+}
+
+/** ¿El set usa la megapiedra de la forma pedida? (strict). */
+function setMatchesRequestedMegaForm(
+  raw: RawSmogonSet,
+  megaSpecies: string,
+): boolean {
+  const expected = expectedMegaStoneIds(megaSpecies);
+  if (!expected || expected.length === 0) return false;
+  const items = rawSetItemIds(raw);
+  if (items.length === 0) return false;
+  return items.some((id) => expected.includes(id));
+}
+
+/** ¿El set es claramente de una Mega (cualquier piedra de esa línea)? */
+function setUsesMegaStoneForBase(
+  raw: RawSmogonSet,
+  baseSpecies: string,
+): boolean {
+  const stones = megaStoneIdsForBaseSpecies(baseSpecies);
+  const items = rawSetItemIds(raw);
+  return items.some((id) => stones.has(id));
+}
+
+/**
+ * Filtra sets de un bucket base según la forma pedida.
+ * - Mega-Y: solo Charizardite Y
+ * - Base: excluye cualquier megapiedra de la línea
+ */
+function filterByFormatForRequestedForm(
+  byFormat: Record<string, Record<string, RawSmogonSet>>,
+  requestedForm: string,
+  options: { usedBaseAlias: boolean; exactKeyWasBase: boolean },
+): Record<string, Record<string, RawSmogonSet>> {
+  const requestingMega = isMegaSpeciesName(requestedForm);
+  const out: Record<string, Record<string, RawSmogonSet>> = {};
+
+  for (const [tier, sets] of Object.entries(byFormat)) {
+    const filtered: Record<string, RawSmogonSet> = {};
+    for (const [setName, raw] of Object.entries(sets)) {
+      if (requestingMega) {
+        // Solo si vinimos del alias base (Champions) o el set trae piedra:
+        // exigir megapiedra exacta de esa forma (Y ≠ X).
+        if (options.usedBaseAlias) {
+          if (!setMatchesRequestedMegaForm(raw, requestedForm)) continue;
+        } else if (setUsesMegaStoneForBase(raw, baseSpeciesNameFromForm(requestedForm))) {
+          // Clave exacta Mega pero set con piedra de otra variante
+          if (!setMatchesRequestedMegaForm(raw, requestedForm)) continue;
+        }
+      } else if (options.exactKeyWasBase || options.usedBaseAlias) {
+        // Forma base: excluir sets de Mega-X / Mega-Y / etc.
+        if (setUsesMegaStoneForBase(raw, requestedForm)) continue;
       }
+      filtered[setName] = raw;
+    }
+    if (Object.keys(filtered).length > 0) {
+      out[tier] = filtered;
     }
   }
-  return null;
+
+  return out;
+}
+
+function pickEvs(raw: RawSmogonSet["evs"]): CompetitiveSetEvs {
+  if (!raw) return {};
+  if (Array.isArray(raw)) {
+    const first = raw.find((e) => e && typeof e === "object") ?? {};
+    return first;
+  }
+  return raw;
 }
 
 async function buildCompetitiveSetFromRaw(
@@ -719,6 +946,7 @@ async function buildCompetitiveSetFromRaw(
   formatId: string,
   formatName: string,
   language: "es" | "en",
+  speciesName: string,
 ): Promise<CompetitiveSet> {
   const moveSlots = (raw.moves ?? []).slice(0, 4).map(pickMoveSlot);
   const itemEn = pickSlashPrimary(raw.item);
@@ -727,6 +955,7 @@ async function buildCompetitiveSetFromRaw(
 
   return {
     name: setName,
+    speciesName,
     formatId,
     formatName,
     item: itemEn ? localizeItem(itemEn) : "—",
@@ -736,7 +965,7 @@ async function buildCompetitiveSetFromRaw(
         ? localizeNature(natureEn)
         : natureEn
       : "—",
-    evs: raw.evs ?? {},
+    evs: pickEvs(raw.evs),
     moves: moveSlots.map((m) => m.primary).filter(Boolean),
     moveAlts: moveSlots.map((m) => m.alts),
   };
@@ -754,6 +983,115 @@ function sortFormatTiers(tiers: string[]): string[] {
   });
 }
 
+type SetsSource = {
+  /** Stem del JSON (`gen9`, `champions`, `gen7`). */
+  stem: string;
+  /** Prefijo de formatId (`gen9`, `champions`, `gen7`). */
+  formatPrefix: string;
+  /** Prefijo de etiqueta (`Gen 9`, `Champions`, `Gen 7`). */
+  labelPrefix: string;
+  /** Permitir alias Mega → base (Champions), con filtro de piedra. */
+  allowMegaBaseAlias: boolean;
+};
+
+function resolveSetsSources(
+  generation: number,
+  pokemonName: string,
+): SetsSource[] {
+  const gen = Math.max(1, Math.min(9, Math.floor(generation) || 9));
+  const sources: SetsSource[] = [
+    {
+      stem: `gen${gen}`,
+      formatPrefix: `gen${gen}`,
+      labelPrefix: `Gen ${gen}`,
+      allowMegaBaseAlias: false,
+    },
+  ];
+
+  if (gen >= 9) {
+    sources.push({
+      stem: "champions",
+      formatPrefix: "champions",
+      labelPrefix: "Champions",
+      allowMegaBaseAlias: true,
+    });
+  }
+
+  if (isMegaSpeciesName(pokemonName)) {
+    for (const megaGen of [7, 6] as const) {
+      if (megaGen === gen) continue;
+      if (sources.some((s) => s.stem === `gen${megaGen}`)) continue;
+      sources.push({
+        stem: `gen${megaGen}`,
+        formatPrefix: `gen${megaGen}`,
+        labelPrefix: `Gen ${megaGen}`,
+        allowMegaBaseAlias: false,
+      });
+    }
+  }
+
+  return sources;
+}
+
+async function appendSetsFromGenSource(
+  sets: CompetitiveSet[],
+  source: SetsSource,
+  pokemonName: string,
+  language: "es" | "en",
+): Promise<string | null> {
+  const table = await getNamedGenSetsTable(source.stem);
+  if (!table) return null;
+
+  const found = findSpeciesInGenTableWithMegaAlias(
+    table,
+    pokemonName,
+    source.allowMegaBaseAlias,
+  );
+  if (!found) return null;
+
+  const canonicalForm =
+    toSmogonSpeciesCandidates(pokemonName)[0] ?? pokemonName;
+  const exactKeyWasBase =
+    !found.usedBaseAlias &&
+    toSpeciesId(found.speciesName) === toSpeciesId(canonicalForm) &&
+    !isMegaSpeciesName(canonicalForm);
+
+  const byFormat = filterByFormatForRequestedForm(found.byFormat, canonicalForm, {
+    usedBaseAlias: found.usedBaseAlias,
+    exactKeyWasBase:
+      exactKeyWasBase ||
+      (!isMegaSpeciesName(canonicalForm) &&
+        toSpeciesId(found.speciesName) === toSpeciesId(canonicalForm)),
+  });
+
+  if (Object.keys(byFormat).length === 0) return null;
+
+  for (const tier of sortFormatTiers(Object.keys(byFormat))) {
+    const formatSets = byFormat[tier];
+    if (!formatSets) continue;
+    const formatId = `${source.formatPrefix}${tier}`;
+    const tierLabel = formatCompetitiveTierLabel(tier);
+    const formatName =
+      source.labelPrefix === tierLabel
+        ? tierLabel
+        : `${source.labelPrefix} ${tierLabel}`;
+    for (const [setName, raw] of Object.entries(formatSets)) {
+      sets.push(
+        await buildCompetitiveSetFromRaw(
+          setName,
+          raw,
+          formatId,
+          formatName,
+          language,
+          canonicalForm,
+        ),
+      );
+    }
+  }
+
+  return canonicalForm;
+}
+
 /**
  * Extrae los sets competitivos Smogon de un Pokémon en un formato (`gen9ou`, …).
  */
@@ -768,20 +1106,48 @@ export async function getPokemonCompetitiveSets(
     return { speciesName: "", formatId: format, sets: [] };
   }
 
-  const table = await getFormatSetsTable(format);
+  let table: FormatSetsTable | null = null;
+  try {
+    table = await getFormatSetsTable(format);
+  } catch {
+    table = null;
+  }
   if (!table) {
     return { speciesName: name, formatId: format, sets: [] };
   }
 
-  const found = findSpeciesSets(table, name);
+  const canonicalForm = toSmogonSpeciesCandidates(name)[0] ?? name;
+  let found = findSpeciesSets(table, name);
+  let usedBaseAlias = false;
+  if (
+    !found &&
+    isMegaSpeciesName(name) &&
+    format.startsWith("champions")
+  ) {
+    found = findSpeciesSets(table, baseSpeciesNameFromForm(name));
+    usedBaseAlias = Boolean(found);
+  }
   if (!found) {
-    return { speciesName: name, formatId: format, sets: [] };
+    return { speciesName: canonicalForm, formatId: format, sets: [] };
   }
 
-  const tier = format.replace(/^gen[1-9]/, "") || format;
+  const wrapped = filterByFormatForRequestedForm(
+    { _: found.sets },
+    canonicalForm,
+    {
+      usedBaseAlias,
+      exactKeyWasBase:
+        !isMegaSpeciesName(canonicalForm) &&
+        toSpeciesId(found.speciesName) === toSpeciesId(canonicalForm),
+    },
+  );
+  const filteredSets = wrapped._ ?? {};
+
+  const tier =
+    format.replace(/^gen[1-9]/, "").replace(/^champions/, "") || format;
   const formatName = formatCompetitiveTierLabel(tier);
   const sets: CompetitiveSet[] = [];
-  for (const [setName, raw] of Object.entries(found.sets)) {
+  for (const [setName, raw] of Object.entries(filteredSets)) {
     sets.push(
       await buildCompetitiveSetFromRaw(
         setName,
@@ -789,20 +1155,21 @@ export async function getPokemonCompetitiveSets(
         format,
         formatName,
         language,
+        canonicalForm,
       ),
     );
   }
 
   return {
-    speciesName: found.speciesName,
+    speciesName: canonicalForm,
     formatId: format,
     sets,
   };
 }
 
 /**
- * Todos los sets Smogon del Pokémon en la generación (todos los formatos con presencia).
- * Fuente: `https://data.pkmn.cc/sets/gen{N}.json`
+ * Todos los sets Smogon del Pokémon (gen del panel + Champions + gens Mega si aplica).
+ * Coincidencia estricta por forma; Champions alias base + filtro de megapiedra.
  */
 export async function getPokemonAllCompetitiveSets(
   pokemonName: string,
@@ -815,38 +1182,24 @@ export async function getPokemonAllCompetitiveSets(
     return { speciesName: "", generation: gen, sets: [] };
   }
 
-  const table = await getGenerationSetsTable(gen);
-  if (!table) {
-    return { speciesName: name, generation: gen, sets: [] };
-  }
-
-  const found = findSpeciesInGenTable(table, name);
-  if (!found) {
-    return { speciesName: name, generation: gen, sets: [] };
-  }
-
+  const canonicalForm = toSmogonSpeciesCandidates(name)[0] ?? name;
   const sets: CompetitiveSet[] = [];
-  for (const tier of sortFormatTiers(Object.keys(found.byFormat))) {
-    const formatSets = found.byFormat[tier];
-    if (!formatSets) continue;
-    const formatId = `gen${gen}${tier}`;
-    const formatName = formatCompetitiveTierLabel(tier);
-    for (const [setName, raw] of Object.entries(formatSets)) {
-      sets.push(
-        await buildCompetitiveSetFromRaw(
-          setName,
-          raw,
-          formatId,
-          formatName,
-          language,
-        ),
-      );
+
+  try {
+    for (const source of resolveSetsSources(gen, name)) {
+      await appendSetsFromGenSource(sets, source, name, language);
     }
+  } catch {
+    /* devolver lo acumulado */
   }
+
+  // Defensa final: solo sets etiquetados con la forma pedida.
+  const strictId = toSpeciesId(canonicalForm);
+  const allSets = sets.filter((s) => toSpeciesId(s.speciesName) === strictId);
 
   return {
-    speciesName: found.speciesName,
+    speciesName: canonicalForm,
     generation: gen,
-    sets,
+    sets: allSets,
   };
 }
