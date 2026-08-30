@@ -1,6 +1,6 @@
 /** Catálogo central de slash commands nativos (única fuente de verdad UI + Discord). */
 
-import { POKEINFO_FORMAT_CHOICES } from "./pokemon.js";
+import { POKEINFO_FORMAT_CHOICES, POKEMON_TYPE_CHOICES } from "./pokemon.js";
 
 export type SystemCommandCategory =
   | "moderation"
@@ -651,13 +651,31 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "weakness",
-    description: "Calcula debilidades y resistencias de tipos.",
+    description: "Calcula debilidades, resistencias e inmunidades defensivas.",
     category: "pokemon",
     defaultEnabled: true,
     options: [
-      opt("pokemon", "STRING", true, "Pokémon o tipo a consultar.", {
+      opt("pokemon", "STRING", true, "Nombre o número del Pokémon.", {
         autocomplete: true,
       }),
+      opt(
+        "teratipo",
+        "STRING",
+        false,
+        "Si se indica, calcula solo con este Teratipo (ignora tipos biológicos).",
+        {
+          choices: POKEMON_TYPE_CHOICES.map((c) => ({
+            name: c.name,
+            value: c.value,
+          })),
+        },
+      ),
+      opt(
+        "publico",
+        "BOOLEAN",
+        false,
+        "Mostrar el resultado a todos en el canal (Por defecto: Falso).",
+      ),
     ],
     supportsEphemeral: true,
     defaultEphemeral: false,

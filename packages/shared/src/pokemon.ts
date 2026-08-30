@@ -256,3 +256,52 @@ export function resolvePokeinfoFormat(
   };
 }
 
+/** Los 18 tipos elementales (valor = id PokéAPI / Showdown). */
+export const POKEMON_ELEMENTAL_TYPES = [
+  "normal",
+  "fire",
+  "water",
+  "electric",
+  "grass",
+  "ice",
+  "fighting",
+  "poison",
+  "ground",
+  "flying",
+  "psychic",
+  "bug",
+  "rock",
+  "ghost",
+  "dragon",
+  "dark",
+  "steel",
+  "fairy",
+] as const;
+
+export type PokemonElementalType = (typeof POKEMON_ELEMENTAL_TYPES)[number];
+
+/** Choices Discord para `teratipo` (y similares). */
+export const POKEMON_TYPE_CHOICES: ReadonlyArray<{
+  name: string;
+  value: PokemonElementalType;
+}> = [
+  { name: "Normal", value: "normal" },
+  { name: "Fuego", value: "fire" },
+  { name: "Agua", value: "water" },
+  { name: "Eléctrico", value: "electric" },
+  { name: "Planta", value: "grass" },
+  { name: "Hielo", value: "ice" },
+  { name: "Lucha", value: "fighting" },
+  { name: "Veneno", value: "poison" },
+  { name: "Tierra", value: "ground" },
+  { name: "Volador", value: "flying" },
+  { name: "Psíquico", value: "psychic" },
+  { name: "Bicho", value: "bug" },
+  { name: "Roca", value: "rock" },
+  { name: "Fantasma", value: "ghost" },
+  { name: "Dragón", value: "dragon" },
+  { name: "Siniestro", value: "dark" },
+  { name: "Acero", value: "steel" },
+  { name: "Hada", value: "fairy" },
+];
+

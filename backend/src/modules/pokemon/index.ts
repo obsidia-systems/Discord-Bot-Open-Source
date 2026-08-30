@@ -88,10 +88,10 @@ export {
   handleMovesetPageButton,
 } from "./commands/moveset.js";
 export { handlePokeinfoCommand } from "./commands/pokeinfo.js";
+export { handleWeaknessCommand } from "./commands/weakness.js";
 export {
   handleBreedingCommand,
   handleCountersCommand,
   handleSandwichCommand,
   handleTeambuilderCommand,
-  handleWeaknessCommand,
 } from "./commands/stubs.js";

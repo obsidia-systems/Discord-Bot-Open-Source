@@ -38,12 +38,12 @@ import { handleBestsetsCommand } from "../../pokemon/commands/bestsets.js";
 import { handleLocationCommand } from "../../pokemon/commands/location.js";
 import { handleMovesetCommand } from "../../pokemon/commands/moveset.js";
 import { handlePokeinfoCommand } from "../../pokemon/commands/pokeinfo.js";
+import { handleWeaknessCommand } from "../../pokemon/commands/weakness.js";
 import {
   handleBreedingCommand,
   handleCountersCommand,
   handleSandwichCommand,
   handleTeambuilderCommand,
-  handleWeaknessCommand,
 } from "../../pokemon/commands/stubs.js";
 import {
   handlePingCommand,
