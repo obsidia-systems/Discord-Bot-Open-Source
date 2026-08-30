@@ -791,13 +791,20 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "counters",
-    description: "Contadores competitivos sugeridos.",
+    description:
+      "Pokémon que estadísticamente vencen o frenan a esta especie (Smogon).",
     category: "pokemon",
     defaultEnabled: true,
     options: [
-      opt("pokemon", "STRING", true, "Pokémon a contrarrestar.", {
+      opt("pokemon", "STRING", true, "Pokémon a consultar.", {
         autocomplete: true,
       }),
+      opt(
+        "publico",
+        "BOOLEAN",
+        false,
+        "Mostrar el resultado a todos en el canal (Por defecto: Falso).",
+      ),
     ],
     supportsEphemeral: true,
     defaultEphemeral: false,

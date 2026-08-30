@@ -41,6 +41,8 @@ const statsCache = new Map<
 interface PokemonUsageEntry {
   items?: Record<string, number>;
   spreads?: Record<string, number>;
+  /** `[n, koed/n, switched/n]` — checks & counters Smogon. */
+  counters?: Record<string, [number, number, number] | number[]>;
 }
 
 /** Naturalezas EN → ES (Smogon usa inglés). */
@@ -293,9 +295,26 @@ function findUsageEntry(
   table: Record<string, PokemonUsageEntry>,
   apiName: string,
 ): PokemonUsageEntry | null {
-  const target = toSpeciesId(apiName);
+  const targets = new Set(
+    toSmogonSpeciesCandidates(apiName).map((c) => toSpeciesId(c)),
+  );
   for (const [key, value] of Object.entries(table)) {
-    if (toSpeciesId(key) === target) return value;
+    if (targets.has(toSpeciesId(key))) return value;
+  }
+  return null;
+}
+
+function findUsageEntryWithKey(
+  table: Record<string, PokemonUsageEntry>,
+  apiName: string,
+): { speciesName: string; entry: PokemonUsageEntry } | null {
+  const targets = new Set(
+    toSmogonSpeciesCandidates(apiName).map((c) => toSpeciesId(c)),
+  );
+  for (const [key, value] of Object.entries(table)) {
+    if (targets.has(toSpeciesId(key))) {
+      return { speciesName: key, entry: value };
+    }
   }
   return null;
 }
@@ -455,6 +474,213 @@ export function formatCompetitiveMetaField(meta: CompetitiveMeta): string {
     `**Naturalezas:**`,
     formatCompetitiveBulletList(meta.natures),
   ].join("\n");
+}
+
+// ── Checks & counters (usage stats) ────────────────────────────────────────
+
+export interface CompetitiveCounterEntry {
+  name: string;
+  /** Encuentros ponderados (n). */
+  encounters: number;
+  /** Fracción de KO (0–1). */
+  koRate: number;
+  /** Fracción de switch-out forzado (0–1). */
+  switchRate: number;
+  /**
+   * Puntuación de amenaza 0–100 ≈ (KO% + switch%) del matchup.
+   * Ordena la lista de peores amenazas.
+   */
+  score: number;
+}
+
+export interface PokemonCountersResult {
+  speciesName: string;
+  /** Id técnico (`gen9ou`). */
+  formatId: string;
+  /** Etiqueta legible (`Gen 9 OU`). */
+  formatLabel: string;
+  tier: string;
+  counters: CompetitiveCounterEntry[];
+}
+
+function parseCounterTuple(
+  raw: [number, number, number] | number[] | undefined,
+): { n: number; ko: number; sw: number } | null {
+  if (!raw || raw.length < 3) return null;
+  const n = Number(raw[0]);
+  const ko = Number(raw[1]);
+  const sw = Number(raw[2]);
+  if (![n, ko, sw].every((x) => Number.isFinite(x))) return null;
+  return { n, ko, sw };
+}
+
+/** `gen9ou` → `Gen 9 OU`; `gen9nationaldex` → `Gen 9 National Dex`. */
+export function formatStatsFormatLabel(formatId: string): string {
+  const id = formatId.trim().toLowerCase();
+  const m = /^gen([1-9])(.+)$/.exec(id);
+  if (!m) return formatId;
+  const gen = m[1]!;
+  const rest = m[2]!;
+  const known: Record<string, string> = {
+    ou: "OU",
+    uu: "UU",
+    ru: "RU",
+    nu: "NU",
+    pu: "PU",
+    zu: "ZU",
+    ubers: "Ubers",
+    lc: "LC",
+    nationaldex: "National Dex",
+    doublesou: "Doubles OU",
+    vgc2025: "VGC 2025",
+    vgc2024: "VGC 2024",
+    vgc2026: "VGC 2026",
+    monotype: "Monotype",
+  };
+  const label =
+    known[rest] ??
+    rest
+      .replace(/([a-z])([0-9])/g, "$1 $2")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  return `Gen ${gen} ${label}`;
+}
+
+/**
+ * Traduce el score 0–100 a un medidor visual de peligro.
+ * >80 Letal · >50 Amenaza Alta · >20 Check Sólido · ≤20 Manejable
+ */
+export function formatCounterThreatLabel(score: number): string {
+  const n = Math.round(Math.min(100, Math.max(0, score)));
+  if (n > 80) return `🔴 Letal (${n})`;
+  if (n > 50) return `🟠 Amenaza Alta (${n})`;
+  if (n > 20) return `🟡 Check Sólido (${n})`;
+  return `🟢 Manejable (${n})`;
+}
+
+/**
+ * Formatos a probar para counters: OU / NatDex primero, luego el resto.
+ * No arranca desde el tier real del mon (evita ZU irrelevante).
+ */
+function resolveCountersFormatPriority(
+  generation: number,
+  options?: {
+    preferredFormatId?: string;
+    useNatDex?: boolean;
+  },
+): string[] {
+  const gen = Math.max(1, Math.min(9, Math.floor(generation) || 9));
+  const useNatDex = Boolean(options?.useNatDex);
+
+  const primary = useNatDex
+    ? [
+        options?.preferredFormatId,
+        `gen${gen}nationaldex`,
+        `gen${gen}ou`,
+      ]
+    : [
+        options?.preferredFormatId,
+        `gen${gen}ou`,
+        `gen${gen}nationaldex`,
+        gen >= 9 ? `gen${gen}vgc2025` : null,
+        `gen${gen}doublesou`,
+      ];
+
+  const ladder = [
+    `gen${gen}uu`,
+    `gen${gen}ru`,
+    `gen${gen}nu`,
+    `gen${gen}pu`,
+    `gen${gen}zu`,
+    `gen${gen}ubers`,
+    `gen${gen}lc`,
+  ];
+
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const id of [...primary, ...ladder]) {
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+/**
+ * Top counters/checks desde stats Smogon (`data.pkmn.cc/stats/{format}.json`).
+ * Prioriza Gen N OU / National Dex; coincidencia estricta de forma.
+ */
+export async function getPokemonCounters(
+  pokemonName: string,
+  generation = 9,
+  options?: {
+    preferredFormatId?: string;
+    useNatDex?: boolean;
+    limit?: number;
+  },
+): Promise<PokemonCountersResult | null> {
+  const name = pokemonName.trim();
+  if (!name) return null;
+
+  const gen = Math.max(1, Math.min(9, Math.floor(generation) || 9));
+  const limit = Math.min(25, Math.max(1, options?.limit ?? 10));
+  const useNatDex = Boolean(options?.useNatDex);
+  const speciesId = toSpeciesId(
+    toSmogonSpeciesCandidates(name)[0] ?? name,
+  );
+
+  let tier = "Untiered";
+  try {
+    const tiers = await getFormatsTiers(gen, useNatDex);
+    tier = tiers.get(speciesId) ?? "Untiered";
+  } catch {
+    /* informativo para footer */
+  }
+
+  const formats = resolveCountersFormatPriority(gen, options);
+
+  for (const formatId of formats) {
+    const table = await getFormatUsage(formatId);
+    if (!table) continue;
+
+    const found = findUsageEntryWithKey(table, name);
+    if (!found?.entry.counters) continue;
+
+    const ranked: CompetitiveCounterEntry[] = [];
+    for (const [counterName, tuple] of Object.entries(found.entry.counters)) {
+      const parsed = parseCounterTuple(tuple);
+      if (!parsed || parsed.n <= 0) continue;
+      const score = Math.round(
+        Math.min(100, Math.max(0, (parsed.ko + parsed.sw) * 100)),
+      );
+      ranked.push({
+        name: counterName,
+        encounters: parsed.n,
+        koRate: parsed.ko,
+        switchRate: parsed.sw,
+        score,
+      });
+    }
+
+    ranked.sort(
+      (a, b) =>
+        b.score - a.score ||
+        b.encounters - a.encounters ||
+        a.name.localeCompare(b.name, "en"),
+    );
+
+    const top = ranked.slice(0, limit);
+    if (top.length === 0) continue;
+
+    return {
+      speciesName: found.speciesName,
+      formatId,
+      formatLabel: formatStatsFormatLabel(formatId),
+      tier,
+      counters: top,
+    };
+  }
+
+  return null;
 }
 
 // ── Competitive sets (Smogon / data.pkmn.cc) ───────────────────────────────

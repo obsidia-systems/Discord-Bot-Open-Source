@@ -102,9 +102,9 @@ export {
 } from "./commands/moveset.js";
 export { handlePokeinfoCommand } from "./commands/pokeinfo.js";
 export { handleWeaknessCommand } from "./commands/weakness.js";
+export { handleCountersCommand } from "./commands/counters.js";
 export {
   handleBreedingCommand,
-  handleCountersCommand,
   handleSandwichCommand,
   handleTeambuilderCommand,
 } from "./commands/stubs.js";

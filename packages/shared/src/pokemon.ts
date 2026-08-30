@@ -159,7 +159,7 @@ export const POKEMON_COMMAND_LABELS: Record<PokemonCommandName, string> = {
   location: "/location — Ubicaciones / encounters",
   moveset: "/moveset — Moveset por generación",
   bestsets: "/bestsets — Sets competitivos Smogon (todos los formatos)",
-  counters: "/counters — Contadores competitivos",
+  counters: "/counters — Amenazas / checks Smogon",
   sandwich: "/sandwich — Sándwiches (SV)",
 };
 

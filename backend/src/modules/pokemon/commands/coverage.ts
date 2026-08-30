@@ -255,7 +255,7 @@ function buildResultEmbed(options: {
         value: formatTypeColumn(
           coverage.blindSpots,
           options.language,
-          "✅ Nada resiste este set. Cobertura perfecta.",
+          "✅ Ningún tipo elemental tiene reducción de daño frente a todo este conjunto de movimientos.",
         ),
         inline: true,
       },
