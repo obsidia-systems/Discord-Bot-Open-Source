@@ -1,7 +1,8 @@
 import pino from "pino";
 
 const isProd = process.env.NODE_ENV === "production";
-const pretty = !isProd && process.stdout.isTTY;
+/** Pretty solo con LOG_PRETTY=1. En Compose (JSON) el transport de pino-pretty rompe el arranque. */
+const pretty = !isProd && process.env.LOG_PRETTY === "1";
 
 export const logger = pino({
   level: process.env.LOG_LEVEL ?? (isProd ? "info" : "debug"),

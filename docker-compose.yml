@@ -40,7 +40,7 @@ services:
       dockerfile: docker/Dockerfile.dev
     image: adobos-dev:local
     working_dir: /app
-    command: sh -c "pnpm install && pnpm --filter @adobos/shared build"
+    command: sh -c "pnpm install --frozen-lockfile && if [ ! -e backend/node_modules/pino ]; then echo '[adobos] node_modules incompleto, reinstalando…' && pnpm install --force; fi && pnpm --filter @adobos/shared build"
     volumes: *dev-volumes
     networks:
       - adobos
