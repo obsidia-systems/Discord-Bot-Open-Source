@@ -16,9 +16,6 @@ importers:
       '@napi-rs/canvas':
         specifier: ^1.0.5
         version: 1.0.5
-      better-sqlite3:
-        specifier: ^11.8.1
-        version: 11.10.0
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
@@ -33,10 +30,13 @@ importers:
         version: 16.6.1
       drizzle-orm:
         specifier: ^0.38.4
-        version: 0.38.4(@types/better-sqlite3@7.6.13)(@types/react@19.2.18)(better-sqlite3@11.10.0)(react@19.2.8)
+        version: 0.38.4(@types/better-sqlite3@7.6.13)(@types/react@19.2.18)(better-sqlite3@11.10.0)(postgres@3.4.9)(react@19.2.8)
       express:
         specifier: ^4.21.2
         version: 4.22.2
+      express-rate-limit:
+        specifier: ^8.7.0
+        version: 8.7.0(express@4.22.2)
       helmet:
         specifier: ^8.0.0
         version: 8.3.0
@@ -46,13 +46,13 @@ importers:
       node-cron:
         specifier: ^4.6.0
         version: 4.6.0
+      postgres:
+        specifier: ^3.4.5
+        version: 3.4.9
       zod:
         specifier: ^3.24.1
         version: 3.25.76
     devDependencies:
-      '@types/better-sqlite3':
-        specifier: ^7.6.12
-        version: 7.6.13
       '@types/cookie-parser':
         specifier: ^1.4.8
         version: 1.4.10(@types/express@5.0.6)
@@ -2633,6 +2633,12 @@ packages:
     resolution: {integrity: sha512-XYfuKMvj4O35f/pOXLObndIRvyQ+/+6AhODh+OKWj9S9498pHHn/IMszH+gt0fBCRWMNfk1ZSp5x3AifmnI2vg==}
     engines: {node: '>=6'}
 
+  express-rate-limit@8.7.0:
+    resolution: {integrity: sha512-hOwV7WOxXfjRpAM1DSJWZDXx3GhplwD8IfwuwvogD8i1Qnkgosw/H45s4ZnFAUHDAhPjlY9hLBvJhKmGMyY26g==}
+    engines: {node: '>= 16'}
+    peerDependencies:
+      express: '>= 4.11'
+
   express@4.22.2:
     resolution: {integrity: sha512-IuL+Elrou2ZvCFHs18/CIzy2Nzvo25nZ1/D2eIZlz7c+QUayAcYoiM2BthCjs+EBHVpjYjcuLDAiCWgeIX3X1Q==}
     engines: {node: '>= 0.10.0'}
@@ -2848,6 +2854,10 @@ packages:
 
   inline-style-parser@0.2.7:
     resolution: {integrity: sha512-Nb2ctOyNR8DqQoR0OwRG95uNWIC0C1lCgf5Naz5H6Ji72KZ8OcFZLz2P5sNgwlyoJ8Yif11oMuYs5pBQa86csA==}
+
+  ip-address@10.7.0:
+    resolution: {integrity: sha512-BGFsyJd5mpXp3rK6jIdADLNgpJUK1jnjzvYF8lK+VyDab9JAmqN0YOKDdP17HlgKb2+ehPgDc8EtnRLbGCAMhA==}
+    engines: {node: '>= 12'}
 
   ipaddr.js@1.9.1:
     resolution: {integrity: sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g==}
@@ -3388,6 +3398,10 @@ packages:
   postcss@8.5.26:
     resolution: {integrity: sha512-u82N74LFzG8ca+dD8puPnplTXoGH4fTPpVGuIbt36G3qvNlkvfD0lEAZSxaly3KX8TS/L1A1gsCEmvKmBcVbkQ==}
     engines: {node: ^10 || ^12 || >=14}
+
+  postgres@3.4.9:
+    resolution: {integrity: sha512-GD3qdB0x1z9xgFI6cdRD6xu2Sp2WCOEoe3mtnyB5Ee0XrrL5Pe+e4CCnJrRMnL1zYtRDZmQQVbvOttLnKDLnaw==}
+    engines: {node: '>=12'}
 
   prebuild-install@7.1.3:
     resolution: {integrity: sha512-8Mf2cbV7x1cXPUILADGI3wuhfqWvtiLA1iclTDbFRZkgRQS0NqsPZphna9V+HyTEadheuPmjaJMsbzKQFOzLug==}
@@ -5618,6 +5632,7 @@ snapshots:
   '@types/better-sqlite3@7.6.13':
     dependencies:
       '@types/node': 22.20.1
+    optional: true
 
   '@types/body-parser@1.19.6':
     dependencies:
@@ -5956,7 +5971,8 @@ snapshots:
 
   base-64@1.0.0: {}
 
-  base64-js@1.5.1: {}
+  base64-js@1.5.1:
+    optional: true
 
   baseline-browser-mapping@2.11.13: {}
 
@@ -5964,18 +5980,21 @@ snapshots:
     dependencies:
       bindings: 1.5.0
       prebuild-install: 7.1.3
+    optional: true
 
   binary-extensions@2.3.0: {}
 
   bindings@1.5.0:
     dependencies:
       file-uri-to-path: 1.0.0
+    optional: true
 
   bl@4.1.0:
     dependencies:
       buffer: 5.7.1
       inherits: 2.0.4
       readable-stream: 3.6.2
+    optional: true
 
   body-parser@1.20.6:
     dependencies:
@@ -6025,6 +6044,7 @@ snapshots:
     dependencies:
       base64-js: 1.5.1
       ieee754: 1.2.1
+    optional: true
 
   busboy@1.6.0:
     dependencies:
@@ -6080,7 +6100,8 @@ snapshots:
     dependencies:
       readdirp: 5.1.1
 
-  chownr@1.1.4: {}
+  chownr@1.1.4:
+    optional: true
 
   ci-info@4.4.0: {}
 
@@ -6192,8 +6213,10 @@ snapshots:
   decompress-response@6.0.0:
     dependencies:
       mimic-response: 3.1.0
+    optional: true
 
-  deep-extend@0.6.0: {}
+  deep-extend@0.6.0:
+    optional: true
 
   defu@6.1.7: {}
 
@@ -6205,7 +6228,8 @@ snapshots:
 
   destroy@1.2.0: {}
 
-  detect-libc@2.1.2: {}
+  detect-libc@2.1.2:
+    optional: true
 
   detect-node-es@1.1.0: {}
 
@@ -6276,11 +6300,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.38.4(@types/better-sqlite3@7.6.13)(@types/react@19.2.18)(better-sqlite3@11.10.0)(react@19.2.8):
+  drizzle-orm@0.38.4(@types/better-sqlite3@7.6.13)(@types/react@19.2.18)(better-sqlite3@11.10.0)(postgres@3.4.9)(react@19.2.8):
     optionalDependencies:
       '@types/better-sqlite3': 7.6.13
       '@types/react': 19.2.18
       better-sqlite3: 11.10.0
+      postgres: 3.4.9
       react: 19.2.8
 
   dset@3.1.4: {}
@@ -6314,6 +6339,7 @@ snapshots:
   end-of-stream@1.4.5:
     dependencies:
       once: 1.4.0
+    optional: true
 
   entities@4.5.0: {}
 
@@ -6494,7 +6520,16 @@ snapshots:
 
   eventemitter3@5.0.4: {}
 
-  expand-template@2.0.3: {}
+  expand-template@2.0.3:
+    optional: true
+
+  express-rate-limit@8.7.0(express@4.22.2):
+    dependencies:
+      debug: 4.4.3
+      express: 4.22.2
+      ip-address: 10.7.0
+    transitivePeerDependencies:
+      - supports-color
 
   express@4.22.2:
     dependencies:
@@ -6556,7 +6591,8 @@ snapshots:
 
   file-selector@4.1.0: {}
 
-  file-uri-to-path@1.0.0: {}
+  file-uri-to-path@1.0.0:
+    optional: true
 
   fill-range@7.1.1:
     dependencies:
@@ -6592,7 +6628,8 @@ snapshots:
 
   fresh@0.5.2: {}
 
-  fs-constants@1.0.0: {}
+  fs-constants@1.0.0:
+    optional: true
 
   fsevents@2.3.3:
     optional: true
@@ -6640,7 +6677,8 @@ snapshots:
     dependencies:
       resolve-pkg-maps: 1.0.0
 
-  github-from-package@0.0.0: {}
+  github-from-package@0.0.0:
+    optional: true
 
   github-slugger@2.0.0: {}
 
@@ -6807,15 +6845,19 @@ snapshots:
     dependencies:
       safer-buffer: 2.1.2
 
-  ieee754@1.2.1: {}
+  ieee754@1.2.1:
+    optional: true
 
   import-meta-resolve@4.2.0: {}
 
   inherits@2.0.4: {}
 
-  ini@1.3.8: {}
+  ini@1.3.8:
+    optional: true
 
   inline-style-parser@0.2.7: {}
+
+  ip-address@10.7.0: {}
 
   ipaddr.js@1.9.1: {}
 
@@ -7297,11 +7339,14 @@ snapshots:
 
   mime@1.6.0: {}
 
-  mimic-response@3.1.0: {}
+  mimic-response@3.1.0:
+    optional: true
 
-  minimist@1.2.8: {}
+  minimist@1.2.8:
+    optional: true
 
-  mkdirp-classic@0.5.3: {}
+  mkdirp-classic@0.5.3:
+    optional: true
 
   mrmime@2.0.1: {}
 
@@ -7326,7 +7371,8 @@ snapshots:
 
   nanoid@3.3.18: {}
 
-  napi-build-utils@2.0.0: {}
+  napi-build-utils@2.0.0:
+    optional: true
 
   negotiator@0.6.3: {}
 
@@ -7339,6 +7385,7 @@ snapshots:
   node-abi@3.94.0:
     dependencies:
       semver: 7.8.5
+    optional: true
 
   node-cron@4.6.0: {}
 
@@ -7375,6 +7422,7 @@ snapshots:
   once@1.4.0:
     dependencies:
       wrappy: 1.0.2
+    optional: true
 
   oniguruma-parser@0.12.2: {}
 
@@ -7486,6 +7534,8 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
+  postgres@3.4.9: {}
+
   prebuild-install@7.1.3:
     dependencies:
       detect-libc: 2.1.2
@@ -7500,6 +7550,7 @@ snapshots:
       simple-get: 4.0.1
       tar-fs: 2.1.5
       tunnel-agent: 0.6.0
+    optional: true
 
   prettier@3.9.6: {}
 
@@ -7521,6 +7572,7 @@ snapshots:
     dependencies:
       end-of-stream: 1.4.5
       once: 1.4.0
+    optional: true
 
   qs@6.15.3:
     dependencies:
@@ -7548,6 +7600,7 @@ snapshots:
       ini: 1.3.8
       minimist: 1.2.8
       strip-json-comments: 2.0.1
+    optional: true
 
   react-dom@19.2.8(react@19.2.8):
     dependencies:
@@ -7913,13 +7966,15 @@ snapshots:
       side-channel-map: 1.0.1
       side-channel-weakmap: 1.0.2
 
-  simple-concat@1.0.1: {}
+  simple-concat@1.0.1:
+    optional: true
 
   simple-get@4.0.1:
     dependencies:
       decompress-response: 6.0.0
       once: 1.4.0
       simple-concat: 1.0.1
+    optional: true
 
   sisteransi@1.0.5: {}
 
@@ -7974,7 +8029,8 @@ snapshots:
     dependencies:
       ansi-regex: 6.2.2
 
-  strip-json-comments@2.0.1: {}
+  strip-json-comments@2.0.1:
+    optional: true
 
   style-to-js@1.1.21:
     dependencies:
@@ -8042,6 +8098,7 @@ snapshots:
       mkdirp-classic: 0.5.3
       pump: 3.0.4
       tar-stream: 2.2.0
+    optional: true
 
   tar-stream@2.2.0:
     dependencies:
@@ -8050,6 +8107,7 @@ snapshots:
       fs-constants: 1.0.0
       inherits: 2.0.4
       readable-stream: 3.6.2
+    optional: true
 
   thenify-all@1.6.0:
     dependencies:
@@ -8099,6 +8157,7 @@ snapshots:
   tunnel-agent@0.6.0:
     dependencies:
       safe-buffer: 5.2.1
+    optional: true
 
   type-fest@4.41.0: {}
 
@@ -8387,7 +8446,8 @@ snapshots:
       string-width: 7.2.0
       strip-ansi: 7.2.0
 
-  wrappy@1.0.2: {}
+  wrappy@1.0.2:
+    optional: true
 
   ws@8.21.3: {}
 

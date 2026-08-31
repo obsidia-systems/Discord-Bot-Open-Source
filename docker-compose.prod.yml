@@ -5,12 +5,26 @@
 #   docker buildx build --platform linux/amd64 -t adobos-bot --load .
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: adobos-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: adobos
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-adobos}
+      POSTGRES_DB: adobos
+    volumes:
+      - adobos_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U adobos -d adobos"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   adobos-bot:
     build:
       context: .
       dockerfile: Dockerfile
-      # platforms:
-      #   - linux/amd64
     image: adobos-bot:latest
     container_name: adobos-bot
     restart: unless-stopped
@@ -22,7 +36,11 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3000
-      DATABASE_URL: file:/data/database.sqlite
+      DATABASE_URL: postgresql://adobos:${POSTGRES_PASSWORD:-adobos}@postgres:5432/adobos
+      DATA_DIR: /data
+    depends_on:
+      postgres:
+        condition: service_healthy
     volumes:
       - ./data:/data
     healthcheck:
@@ -37,3 +55,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
+
+volumes:
+  adobos_pgdata:

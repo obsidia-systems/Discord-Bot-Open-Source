@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
-# Multi-stage + buildx: deps nativas (better-sqlite3) se compilán en la etapa final
-# para TARGETPLATFORM (ARM64 local / AMD64 TrueNAS).
+# Multi-stage + buildx: canvas nativo se compila en TARGETPLATFORM
+# (ARM64 local / AMD64 TrueNAS). Postgres llega por DATABASE_URL.
 
 ARG NODE_VERSION=22
 
@@ -41,7 +41,7 @@ FROM base AS runner
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
-ENV DATABASE_URL=file:/data/database.sqlite
+ENV DATABASE_URL=postgresql://adobos:adobos@postgres:5432/adobos
 
 WORKDIR /app
 
@@ -49,11 +49,12 @@ COPY package.json pnpm-workspace.yaml .npmrc ./
 COPY packages/shared/package.json ./packages/shared/
 COPY backend/package.json ./backend/
 
-# Instala prod deps en la arquitectura destino (SQLite nativo correcto con buildx)
+# Instala prod deps en la arquitectura destino (canvas nativo correcto con buildx)
 RUN pnpm install --filter @adobos/backend... --prod --frozen-lockfile
 
 COPY --from=shared-build /app/packages/shared/dist ./packages/shared/dist
 COPY --from=backend-build /app/backend/dist ./backend/dist
+COPY --from=backend-build /app/backend/drizzle ./backend/drizzle
 COPY --from=backend-build /app/backend/assets ./backend/assets
 COPY --from=frontend-build /app/frontend/dist ./backend/public
 

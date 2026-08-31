@@ -25,7 +25,7 @@ línea de autenticación en el repo (`grep -riE "oauth|jwt|session|cookie"` → 
 | 0.8 | **Validación con zod en el borde HTTP.** `zod@^3.24.1` está en `backend/package.json` pero **no se importa en ningún archivo**. Los bodies se castean con `as` (`req.body as ModActionRequest`). | todos los `modules/*/api/routes.ts` | M | INFRA |
 | 0.9 | **Rate limiting** por IP + por usuario + por guild en la API, y por usuario en comandos costosos (canvas, leaderboards, Pokémon). | `core/http/`, `core/bot/interactionRouter.ts` | M | INFRA |
 | 0.10 | **Error handler centralizado + logging estructurado** (pino). Hoy cada módulo repite su propio `handleError` y usa `console.*`. | `core/http/`, 18 módulos | M | INFRA |
-| 0.11 | **Migración SQLite → Postgres o D1.** `better-sqlite3` es síncrono y un solo archivo; no sobrevive multi-instancia. Ver §6 del informe. | `db/client.ts`, `db/schema.ts`, `drizzle.config.ts` | L | INFRA |
+| 0.11 | **Migración SQLite → Postgres.** Hecho: `pgTable`, pool `postgres.js`, queries async, Compose `postgres:16`, migración inicial `0000_initial_postgres.sql`. SQLite ya no arranca. | `db/client.ts`, `db/schema.ts`, `drizzle.config.ts`, `docker-compose.yml` | L | INFRA |
 | 0.12 | **Stripe Billing + webhook con verificación de firma** (`stripe.webhooks.constructEvent`, raw body). | nuevo `modules/billing/` | L | INFRA |
 
 ---

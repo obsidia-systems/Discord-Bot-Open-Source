@@ -4,6 +4,24 @@
 # Producción (TrueNAS AMD64): ver docker-compose.prod.yml
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: adobos-postgres-dev
+    environment:
+      POSTGRES_USER: adobos
+      POSTGRES_PASSWORD: adobos
+      POSTGRES_DB: adobos
+    ports:
+      - "5432:5432"
+    volumes:
+      - adobos_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U adobos -d adobos"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
   adobos-bot:
     build:
       context: .
@@ -20,17 +38,16 @@ services:
       NODE_ENV: development
       HOST: 0.0.0.0
       PORT: 3000
-      # SQLite persistente fuera del bind-mount del código
-      DATABASE_URL: file:/data/database.sqlite
-      # File watching fiable con volumen montado desde macOS
+      DATABASE_URL: postgresql://adobos:adobos@postgres:5432/adobos
+      DATA_DIR: /data
       CHOKIDAR_USEPOLLING: "true"
       WATCHPACK_POLLING: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
     volumes:
-      # Código del monorepo → hot reload
       - .:/app
-      # Persistencia SQLite (no se pierde al reiniciar el contenedor)
       - ./data:/data
-      # node_modules Linux aislados del host (evita binarios Darwin vs musl)
       - adobos_node_modules:/app/node_modules
       - adobos_backend_modules:/app/backend/node_modules
       - adobos_frontend_modules:/app/frontend/node_modules
@@ -48,3 +65,4 @@ volumes:
   adobos_frontend_modules:
   adobos_shared_modules:
   adobos_pnpm_store:
+  adobos_pgdata:

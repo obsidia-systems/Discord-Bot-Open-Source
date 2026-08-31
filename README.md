@@ -18,7 +18,7 @@ El sistema adopta una arquitectura "Todo en Uno" (All-in-One) empaquetada en un 
 
 * **Entorno de Desarrollo:** Computadora local con arquitectura ARM64 (Mac M1) utilizando OrbStack para virtualización de contenedores ligera y de alto rendimiento.
 * **Entorno de Producción:** Despliegue en servidor TrueNAS SCALE con arquitectura AMD64 (x86_64).
-* **Estrategia de Compilación:** Uso de `docker buildx` para compilación cruzada (cross-compilation), asegurando que las dependencias nativas (como SQLite) se compilen correctamente para el procesador del entorno de producción.
+* **Estrategia de Compilación:** Uso de `docker buildx` para compilación cruzada (cross-compilation), asegurando que las dependencias nativas (canvas) se compilen correctamente para el procesador del entorno de producción.
 * **Orquestación:** Un único `Dockerfile` multi-etapa construirá el frontend estático y lo inyectará en el backend. Un único proceso de Node.js mantendrá vivo el WebSocket de Discord y servirá el panel de administración web simultáneamente.
 
 ---
@@ -32,8 +32,8 @@ El proyecto se construirá como un **Monorepo** utilizando `pnpm workspaces` (o 
 | **Lenguaje Base** | TypeScript | Tipado estricto, autocompletado y seguridad en toda la pila. |
 | **Bot Core** | Node.js + `discord.js` | El estándar de la industria para bots de Discord; robusto y documentado. |
 | **API / Web Server** | Express.js (o Fastify) | Servirá los endpoints para el panel web y los archivos estáticos. |
-| **Base de Datos** | SQLite | Archivo local ultrarrápido (`database.sqlite`), ideal para un solo contenedor. |
-| **ORM** | Drizzle ORM | Ligero, tipado y agnóstico (facilita migrar a PostgreSQL en el futuro). |
+| **Base de Datos** | PostgreSQL 16 | Servicio Compose; soporta varias instancias del bot contra el mismo store. |
+| **ORM** | Drizzle ORM | Ligero, tipado, dialecto `postgresql`. |
 | **Frontend Framework** | Astro | Velocidad extrema y generación estática para el panel de control. |
 | **UI Interactiva** | React + Tailwind CSS | Componentes dinámicos (Astro Islands) con diseño responsivo. |
 | **Librería de UI** | Shadcn UI + Lucide | Componentes prefabricados, accesibles y con estética moderna. |
@@ -72,10 +72,10 @@ El proyecto se construirá como un **Monorepo** utilizando `pnpm workspaces` (o 
 
 ### 5. Requerimientos No Funcionales
 
-1. **Baja Latencia de Datos:** Al utilizar SQLite montado localmente en el contenedor, las operaciones de base de datos deben ser de lectura/escritura casi instantánea.
+1. **Datos en Postgres:** El bot y el panel hablan con PostgreSQL (servicio Compose). Los uploads siguen en `DATA_DIR` (volumen `/data`).
 2. **Disponibilidad 24/7:** El sistema debe manejar reconexiones automáticas al WebSocket de Discord en caso de micro-cortes de red en el host TrueNAS.
 3. **Modularidad:** El código debe estar diseñado de forma que añadir o quitar un plugin (ej. el módulo de Minecraft) no afecte el funcionamiento del núcleo del bot.
-4. **Aislamiento de Datos:** La base de datos (`.sqlite`) debe estar mapeada a un volumen o *dataset* persistente en el host para evitar pérdida de datos al actualizar la imagen del contenedor.
+4. **Aislamiento de Datos:** Postgres y `DATA_DIR` van en volúmenes persistentes del host para no perder datos al actualizar la imagen.
 
 ---
 
@@ -85,7 +85,7 @@ adobos-bot/
 ├── backend/src/
 │   ├── core/                 # Kernel: Client, Express, ModuleRegistry
 │   ├── modules/              # Bloques Lego (welcome, messages, autoroles, …)
-│   ├── db/                   # SQLite + Drizzle (infra compartida)
+│   ├── db/                   # Postgres + Drizzle (infra compartida)
 │   └── lib/                  # Utilidades de infra (uploads paths, media)
 └── frontend/src/
     ├── pages/                # Thin routes Astro
@@ -120,9 +120,9 @@ adobos-bot/
 │       │   ├── commands/       # Comandos Slash (/chisme, /play)
 │       │   ├── events/         # Listeners (messageCreate, guildMemberAdd)
 │       │   └── utils/          # Helpers (Embed builders personalizados)
-│       └── db/                 # Base de Datos (SQLite)
+│       └── db/                 # Base de Datos (Postgres)
 │           ├── schema.ts       # Tablas (Usuarios, Economía, Logs) definidas en Drizzle
-│           └── index.ts        # Conexión a better-sqlite3
+│           └── client.ts       # Pool postgres.js + migraciones al arranque
 │
 └── frontend/                   # EL ROSTRO (Dashboard web)
     ├── package.json
