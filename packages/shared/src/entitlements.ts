@@ -28,7 +28,6 @@ export type FeatureKey =
   | "system-commands"
   | "levels"
   | "roles-builder"
-  | "pokemon"
   | "utilities"
   | "tickets"
   | "giveaways"
@@ -77,7 +76,6 @@ const FREE_FEATURES: readonly FeatureKey[] = [
   "system-commands",
   "levels",
   "roles-builder",
-  "pokemon",
   "utilities",
   "tickets",
   "giveaways",

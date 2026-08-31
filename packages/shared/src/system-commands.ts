@@ -1,14 +1,11 @@
 /** Catálogo central de slash commands nativos (única fuente de verdad UI + Discord). */
 
-import { POKEINFO_FORMAT_CHOICES } from "./pokemon.js";
-
 export type SystemCommandCategory =
   | "moderation"
   | "levels"
   | "economy"
   | "utilities"
-  | "forms"
-  | "pokemon";
+  | "forms";
 
 /** Tipo Discord de un parámetro slash. */
 export type SystemCommandParamType =
@@ -111,7 +108,6 @@ export const SYSTEM_COMMAND_CATEGORY_LABELS: Record<
   economy: "Economía",
   utilities: "Utilidades",
   forms: "Formularios",
-  pokemon: "Pokémon",
 };
 
 export const SYSTEM_COMMAND_PARAM_TYPE_LABELS: Record<
@@ -607,130 +603,6 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
       opt("apuesta", "INTEGER", true, "Cantidad a apostar.", { minValue: 1 }),
     ],
     supportsEphemeral: false,
-    defaultEphemeral: false,
-    requiresAdminByDefault: false,
-  },
-
-  // ── Pokémon ─────────────────────────────────────────────────
-  {
-    name: "pokeinfo",
-    description: "Muestra la ficha de un Pokémon (PokéAPI).",
-    category: "pokemon",
-    defaultEnabled: true,
-    options: [
-      opt("pokemon", "STRING", true, "Nombre o número del Pokémon.", {
-        autocomplete: true,
-      }),
-      opt(
-        "juego_formato",
-        "STRING",
-        false,
-        "Juego / formato competitivo (vacío = gen por defecto del panel).",
-        {
-          choices: POKEINFO_FORMAT_CHOICES.map((c) => ({
-            name: c.name,
-            value: c.value,
-          })),
-        },
-      ),
-      opt(
-        "publico",
-        "BOOLEAN",
-        false,
-        "Mostrar el resultado a todos en el canal (Por defecto: Falso).",
-      ),
-    ],
-    supportsEphemeral: true,
-    defaultEphemeral: false,
-    requiresAdminByDefault: false,
-  },
-  {
-    name: "teambuilder",
-    description: "Ayuda a armar un equipo competitivo.",
-    category: "pokemon",
-    defaultEnabled: true,
-    options: [
-      opt("pokemon", "STRING", true, "Pokémon base del equipo.", {
-        autocomplete: true,
-      }),
-    ],
-    supportsEphemeral: true,
-    defaultEphemeral: false,
-    requiresAdminByDefault: false,
-  },
-  {
-    name: "weakness",
-    description: "Calcula debilidades y resistencias de tipos.",
-    category: "pokemon",
-    defaultEnabled: true,
-    options: [
-      opt("pokemon", "STRING", true, "Pokémon o tipo a consultar.", {
-        autocomplete: true,
-      }),
-    ],
-    supportsEphemeral: true,
-    defaultEphemeral: false,
-    requiresAdminByDefault: false,
-  },
-  {
-    name: "breeding",
-    description: "Información de cría y egg groups.",
-    category: "pokemon",
-    defaultEnabled: true,
-    options: [
-      opt("pokemon", "STRING", true, "Pokémon a consultar.", {
-        autocomplete: true,
-      }),
-    ],
-    supportsEphemeral: true,
-    defaultEphemeral: false,
-    requiresAdminByDefault: false,
-  },
-  {
-    name: "location",
-    description: "Ubicaciones / encuentros del Pokémon.",
-    category: "pokemon",
-    defaultEnabled: true,
-    options: [
-      opt("pokemon", "STRING", true, "Pokémon a consultar.", {
-        autocomplete: true,
-      }),
-      opt(
-        "publico",
-        "BOOLEAN",
-        false,
-        "Mostrar el resultado a todos en el canal (Por defecto: Falso).",
-      ),
-    ],
-    supportsEphemeral: true,
-    defaultEphemeral: false,
-    requiresAdminByDefault: false,
-  },
-  {
-    name: "counters",
-    description: "Contadores competitivos sugeridos.",
-    category: "pokemon",
-    defaultEnabled: true,
-    options: [
-      opt("pokemon", "STRING", true, "Pokémon a contrarrestar.", {
-        autocomplete: true,
-      }),
-    ],
-    supportsEphemeral: true,
-    defaultEphemeral: false,
-    requiresAdminByDefault: false,
-  },
-  {
-    name: "sandwich",
-    description: "Recetas de sándwich (Scarlet/Violet).",
-    category: "pokemon",
-    defaultEnabled: true,
-    options: [
-      opt("pokemon", "STRING", true, "Pokémon / efecto a potenciar.", {
-        autocomplete: true,
-      }),
-    ],
-    supportsEphemeral: true,
     defaultEphemeral: false,
     requiresAdminByDefault: false,
   },

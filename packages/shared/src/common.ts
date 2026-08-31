@@ -5,6 +5,14 @@ export interface HealthResponse {
   timestamp: string;
 }
 
+/** Readiness: Postgres + Discord (Discord se omite si el proceso no es gateway). */
+export interface ReadyResponse {
+  status: "ok" | "degraded";
+  postgres: boolean;
+  discord: boolean | "skipped";
+  timestamp: string;
+}
+
 export interface GuildSummary {
   id: string;
   name: string;

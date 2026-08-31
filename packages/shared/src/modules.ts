@@ -15,7 +15,8 @@ export type ModuleId =
   | "custom-commands"
   | "system-commands"
   | "levels"
-  | "roles-builder";
+  | "roles-builder"
+  | "billing";
 
 export type PluginId = "minecraft" | "osu" | "valorant" | "gachas" | "alerts";
 
