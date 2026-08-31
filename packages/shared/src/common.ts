@@ -12,6 +12,25 @@ export interface GuildSummary {
   iconUrl: string | null;
 }
 
+export interface PanelMeUser {
+  id: string;
+  username: string;
+  globalName: string | null;
+  avatarUrl: string | null;
+}
+
+export interface PanelMeGuild {
+  id: string;
+  name: string;
+  iconUrl: string | null;
+  owner: boolean;
+}
+
+export interface MeResponse {
+  user: PanelMeUser;
+  guilds: PanelMeGuild[];
+}
+
 export interface ApiErrorBody {
   error: string;
   code?: string;
