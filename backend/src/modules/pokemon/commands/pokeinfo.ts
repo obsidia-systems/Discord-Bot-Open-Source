@@ -2,7 +2,6 @@ import type {
   AutocompleteInteraction,
   ChatInputCommandInteraction,
 } from "discord.js";
-import { EmbedBuilder } from "discord.js";
 import { resolvePokeinfoFormat } from "@adobos/shared";
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
 import {
@@ -27,6 +26,9 @@ import {
   warmPokemonAutocompleteCache,
 } from "../../../services/pokemonApi.js";
 import { formatCompetitiveBulletList } from "../../../services/smogonService.js";
+import {
+  createBasePokemonEmbed,
+} from "../../../utils/pokemonEmbed.js";
 import {
   formatPokemonTypeWithEmoji,
   POKEMON_UI_EMOJIS,
@@ -201,7 +203,15 @@ export async function handlePokeinfoCommand(
       }
     }
 
-    const embed = new EmbedBuilder()
+    const embed = createBasePokemonEmbed(
+      [
+        format.label,
+        format.key === "default" ? "(default panel)" : null,
+        competitive.format ? `Meta ${competitive.format}` : "Meta competitiva",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    )
       .setColor(color)
       .setTitle(`#${idPadded} — ${displayName}`)
       .setURL(smogonUrl)
@@ -229,16 +239,7 @@ export async function handlePokeinfoCommand(
           value: formatStatsCodeBlock(snapshot.stats),
           inline: false,
         },
-      )
-      .setFooter({
-        text: [
-          `PokéAPI · ${format.label}`,
-          format.key === "default" ? "(default panel)" : null,
-          competitive.format ? `Meta ${competitive.format}` : "Meta Smogon/PS",
-        ]
-          .filter(Boolean)
-          .join(" · "),
-      });
+      );
 
     if (evolutionLineText) {
       embed.addFields({

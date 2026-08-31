@@ -721,6 +721,28 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
           "Mostrar el panel a todos en el canal (Por defecto: Falso).",
         ),
       ]),
+      sub("moves", "Asigna hasta 4 movimientos a un slot del equipo.", [
+        opt("slot", "INTEGER", true, "Slot del equipo (1–6).", {
+          choices: [
+            { name: "Slot 1", value: 1 },
+            { name: "Slot 2", value: 2 },
+            { name: "Slot 3", value: 3 },
+            { name: "Slot 4", value: 4 },
+            { name: "Slot 5", value: 5 },
+            { name: "Slot 6", value: 6 },
+          ],
+        }),
+        opt("move1", "STRING", false, "Movimiento 1.", { autocomplete: true }),
+        opt("move2", "STRING", false, "Movimiento 2.", { autocomplete: true }),
+        opt("move3", "STRING", false, "Movimiento 3.", { autocomplete: true }),
+        opt("move4", "STRING", false, "Movimiento 4.", { autocomplete: true }),
+        opt(
+          "publico",
+          "BOOLEAN",
+          false,
+          "Mostrar el panel a todos en el canal (Por defecto: Falso).",
+        ),
+      ]),
     ],
     supportsEphemeral: true,
     defaultEphemeral: false,

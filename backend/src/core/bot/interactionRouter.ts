@@ -80,9 +80,16 @@ async function handleAutocomplete(
       return;
     }
 
+    if (interaction.commandName === "teambuilder") {
+      const { handleTeambuilderAutocomplete } = await import(
+        "../../modules/pokemon/commands/teambuilder.js"
+      );
+      await handleTeambuilderAutocomplete(interaction);
+      return;
+    }
+
     if (
       interaction.commandName === "pokeinfo" ||
-      interaction.commandName === "teambuilder" ||
       interaction.commandName === "weakness" ||
       interaction.commandName === "coverage" ||
       interaction.commandName === "breeding" ||

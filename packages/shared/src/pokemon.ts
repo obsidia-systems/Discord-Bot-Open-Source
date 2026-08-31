@@ -152,7 +152,7 @@ export function normalizePokemonCommands(
 
 export const POKEMON_COMMAND_LABELS: Record<PokemonCommandName, string> = {
   pokeinfo: "/pokeinfo — Ficha del Pokémon",
-  teambuilder: "/teambuilder view|add|remove|clear — Constructor de equipos",
+  teambuilder: "/teambuilder view|add|remove|clear|moves — Constructor de equipos",
   weakness: "/weakness — Debilidades y resistencias",
   coverage: "/coverage — Cobertura ofensiva de 4 ataques",
   breeding: "/breeding — Cría y egg groups",

@@ -1,15 +1,13 @@
 import type {
+  AutocompleteInteraction,
   ButtonInteraction,
   ChatInputCommandInteraction,
-  StringSelectMenuInteraction,
 } from "discord.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  EmbedBuilder,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
+  type EmbedBuilder,
 } from "discord.js";
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
 import {
@@ -19,17 +17,25 @@ import {
   getPokemonData,
   getPokemonSpecies,
   getTypeColor,
+  isPokemonCacheReady,
   resolveDisplayName,
   resolvePokemonForGeneration,
+  searchPokemonAutocomplete,
+  warmPokemonAutocompleteCache,
 } from "../../../services/pokemonApi.js";
-import { getCoverageMovepoolOptions } from "../../../services/pokemonMoves.js";
+import {
+  flattenLearnsetMoves,
+  getPokemonLearnset,
+  resolveMoveInfo,
+  searchMovepoolAutocomplete,
+  toMoveApiSlug,
+} from "../../../services/pokemonMoves.js";
 import {
   MAX_TEAM_SIZE,
   addPokemonToTeam,
   clearTeam,
   countFilledSlots,
   getOrCreateTeam,
-  getTeamMessageRef,
   isTeamEmpty,
   isTeamFull,
   removePokemonFromTeam,
@@ -40,7 +46,12 @@ import {
 } from "../../../services/teambuilderState.js";
 import {
   formatPokemonTypeWithEmoji,
+  getPokemonTypeEmoji,
 } from "../../../utils/pokemonEmojis.js";
+import {
+  createBasePokemonEmbed,
+  formatPokemonFooter,
+} from "../../../utils/pokemonEmbed.js";
 import { analyzeTeamSynergy } from "../../../utils/typeChart.js";
 import {
   PokemonError,
@@ -49,13 +60,10 @@ import {
 } from "../service.js";
 import { pokemonAccessFromInteraction } from "../access.js";
 
-export const TEAMBUILDER_ADV_PREFIX = "tb_adv_";
 export const TEAMBUILDER_SYN_PREFIX = "tb_syn_";
-export const TEAMBUILDER_SLOT_PREFIX = "tb_slot_";
-export const TEAMBUILDER_MOVES_PREFIX = "tb_moves_";
 
 function formatSpeciesLabel(species: string): string {
-  return capitalizePokemonName(species.replace(/-/g, " "));
+  return capitalizePokemonName(species);
 }
 
 async function resolveDisplayLabel(species: string): Promise<string> {
@@ -69,64 +77,102 @@ async function resolveDisplayLabel(species: string): Promise<string> {
       /-(mega|alola|galar|hisui|paldea|gmax|therian|incarnate|attack|defense|speed|origin|sky|blade|shield)/i.test(
         data.name,
       );
-    return isForm
-      ? capitalizePokemonName(data.name.replace(/-/g, " "))
-      : displayName;
+    // Formas: estilo Showdown (`Staraptor-Mega`).
+    return isForm ? capitalizePokemonName(data.name) : displayName;
   } catch {
     return formatSpeciesLabel(species);
   }
 }
 
-function formatMovesLine(moves: string[]): string {
-  if (moves.length === 0) return "";
-  return moves
-    .map((m) => `\`${capitalizePokemonName(m.replace(/-/g, " "))}\``)
-    .join(" · ");
+function formatTypeEmojis(types: string[]): string {
+  return types
+    .map((t) => getPokemonTypeEmoji(t))
+    .filter((e): e is string => Boolean(e))
+    .join(" ");
 }
 
-function buildSlotFieldValue(
+async function formatMovesBlock(
+  moves: string[],
+  language: "es" | "en",
+): Promise<string> {
+  if (moves.length === 0) return "";
+  const lines = await Promise.all(
+    moves.map(async (m) => {
+      try {
+        const info = await resolveMoveInfo(m, language);
+        return `> • ${info.displayName}`;
+      } catch {
+        return `> • ${capitalizePokemonName(m.replace(/-/g, " "))}`;
+      }
+    }),
+  );
+  return lines.join("\n");
+}
+
+async function buildSlotFieldValue(
   slot: TeamSlotData,
   displayName: string,
-): string {
-  const movesLine = formatMovesLine(slot.moves);
-  if (movesLine) {
-    return `**${displayName}**\n${movesLine}`;
-  }
-  return `**${displayName}**`;
+  language: "es" | "en",
+): Promise<string> {
+  const header = `**${displayName}**`;
+  const movesBlock = await formatMovesBlock(slot.moves, language);
+  if (movesBlock) return `${header}\n${movesBlock}`;
+  return header;
 }
 
 async function buildTeamEmbed(
   team: TeamData,
   username: string,
+  options?: { generation?: number; language?: "es" | "en" },
 ): Promise<EmbedBuilder> {
+  const generation = options?.generation ?? 9;
+  const language = options?.language ?? "es";
   const filled = countFilledSlots(team);
   const first = team.slots.find((s) => s != null) ?? null;
   const color = first ? 0x3b82f6 : 0x64748b;
 
-  const embed = new EmbedBuilder()
+  const embed = createBasePokemonEmbed()
     .setTitle(`📋 Teambuilder de ${username}`)
     .setDescription(
       [
         `Tu equipo actual (**${filled}/${MAX_TEAM_SIZE}**).`,
         "",
-        "`/teambuilder add` · `/teambuilder remove` · `/teambuilder clear`",
+        "`/teambuilder add` · `/teambuilder moves` · `/teambuilder remove` · `/teambuilder clear`",
       ].join("\n"),
     )
     .setColor(color)
     .setTimestamp(new Date());
 
-  const labels = await Promise.all(
-    team.slots.map(async (slot) =>
-      slot ? resolveDisplayLabel(slot.species) : null,
-    ),
+  const slotMeta = await Promise.all(
+    team.slots.map(async (slot) => {
+      if (!slot) return null;
+      try {
+        const data = await getPokemonData(slot.species);
+        const snapshot = resolvePokemonForGeneration(data, generation);
+        const label = await resolveDisplayLabel(slot.species);
+        const types =
+          snapshot.types.length > 0 ? snapshot.types : data.types;
+        return { label, types };
+      } catch {
+        return {
+          label: formatSpeciesLabel(slot.species),
+          types: [] as string[],
+        };
+      }
+    }),
   );
 
   for (let i = 0; i < MAX_TEAM_SIZE; i += 1) {
     const slot = team.slots[i];
-    if (slot && labels[i]) {
+    const meta = slotMeta[i];
+    if (slot && meta) {
+      const typeEmojis = formatTypeEmojis(meta.types);
+      const fieldName = typeEmojis
+        ? `Slot ${i + 1} ${typeEmojis}`
+        : `Slot ${i + 1}`;
       embed.addFields({
-        name: `Slot ${i + 1}`,
-        value: buildSlotFieldValue(slot, labels[i]!),
+        name: fieldName.slice(0, 256),
+        value: await buildSlotFieldValue(slot, meta.label, language),
         inline: true,
       });
     } else {
@@ -155,12 +201,6 @@ function buildPanelComponents(team: TeamData, ownerId: string) {
 
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`${TEAMBUILDER_ADV_PREFIX}${ownerId}`)
-        .setLabel("Modo Avanzado: Movimientos")
-        .setEmoji("⚙️")
-        .setStyle(ButtonStyle.Primary)
-        .setDisabled(empty),
       new ButtonBuilder()
         .setCustomId(`${TEAMBUILDER_SYN_PREFIX}${ownerId}`)
         .setLabel("Analizar Sinergia")
@@ -191,9 +231,18 @@ async function replyWithPanel(
 ): Promise<void> {
   const ephemeral = resolveEphemeral(interaction, forceEphemeral);
   const username = interaction.user.username;
-  const embed = await buildTeamEmbed(team, username);
+  const guildId = interaction.guildId;
+  const generation = guildId
+    ? getPokemonConfig(guildId).defaultGeneration
+    : 9;
+  const language = guildId
+    ? getPokemonConfig(guildId).language === "en"
+      ? "en"
+      : "es"
+    : "es";
+  const embed = await buildTeamEmbed(team, username, { generation, language });
   if (statusLine) {
-    embed.setFooter({ text: statusLine.slice(0, 2048) });
+    embed.setFooter({ text: formatPokemonFooter(statusLine) });
   }
 
   await interaction.reply({
@@ -214,43 +263,82 @@ async function replyWithPanel(
   }
 }
 
-async function editStoredPanel(
-  interaction: ButtonInteraction | StringSelectMenuInteraction,
-  team: TeamData,
-  username: string,
-): Promise<boolean> {
-  const embeds = [await buildTeamEmbed(team, username)];
-  const components = buildPanelComponents(team, team.userId);
-  const ref = getTeamMessageRef(team.userId);
-
-  if (ref) {
-    try {
-      const channel = await interaction.client.channels.fetch(ref.channelId);
-      if (channel && "messages" in channel) {
-        const msg = await channel.messages.fetch(ref.messageId);
-        await msg.edit({ embeds, components });
-        return true;
-      }
-    } catch {
-      // panel borrado / efímero
-    }
-  }
-
-  // Fallback: si el botón vive en el panel, actualizarlo.
-  if (interaction.isButton() && interaction.message) {
-    try {
-      await interaction.message.edit({ embeds, components });
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  return false;
+function normalizeMoveInput(raw: string | null): string | null {
+  if (!raw?.trim()) return null;
+  const slug = toMoveApiSlug(raw) || raw.trim().toLowerCase().replace(/\s+/g, "-");
+  return slug || null;
 }
 
 /**
- * `/teambuilder view|add|remove|clear` — panel + gestión por subcomandos.
+ * Autocomplete de `/teambuilder`: especie (`add`) o movimientos (`moves`).
+ */
+export async function handleTeambuilderAutocomplete(
+  interaction: AutocompleteInteraction,
+): Promise<void> {
+  const focused = interaction.options.getFocused(true);
+
+  if (focused.name === "pokemon") {
+    if (!isPokemonCacheReady()) {
+      try {
+        await warmPokemonAutocompleteCache();
+      } catch {
+        await interaction.respond([]);
+        return;
+      }
+    }
+    const choices = searchPokemonAutocomplete(String(focused.value ?? ""), 25);
+    await interaction.respond(choices);
+    return;
+  }
+
+  if (!/^move[1-4]$/.test(focused.name)) {
+    await interaction.respond([]);
+    return;
+  }
+
+  const slotNum = interaction.options.getInteger("slot");
+  if (slotNum == null || slotNum < 1 || slotNum > MAX_TEAM_SIZE) {
+    await interaction.respond([]);
+    return;
+  }
+
+  const team = getOrCreateTeam(interaction.user.id);
+  const slot = team.slots[slotNum - 1];
+  if (!slot) {
+    await interaction.respond([]);
+    return;
+  }
+
+  const guildId = interaction.guildId;
+  const generation = guildId
+    ? getPokemonConfig(guildId).defaultGeneration
+    : 9;
+  const language = guildId
+    ? getPokemonConfig(guildId).language === "en"
+      ? "en"
+      : "es"
+    : "es";
+
+  try {
+    const learnset = await getPokemonLearnset(
+      slot.species,
+      generation,
+      language,
+    );
+    const pool = flattenLearnsetMoves(learnset);
+    const choices = searchMovepoolAutocomplete(
+      pool,
+      String(focused.value ?? ""),
+      25,
+    );
+    await interaction.respond(choices);
+  } catch {
+    await interaction.respond([]);
+  }
+}
+
+/**
+ * `/teambuilder view|add|remove|clear|moves`
  */
 export async function handleTeambuilderCommand(
   interaction: ChatInputCommandInteraction,
@@ -311,7 +399,6 @@ export async function handleTeambuilderCommand(
         return;
       }
 
-      // Valida especie contra PokéAPI antes de persistir.
       const data = await getPokemonData(raw);
       const label = await resolveDisplayLabel(data.name);
       const updated = addPokemonToTeam(interaction.user.id, data.name);
@@ -368,9 +455,67 @@ export async function handleTeambuilderCommand(
       return;
     }
 
+    if (sub === "moves") {
+      const slotNum = interaction.options.getInteger("slot", true);
+      const index = slotNum - 1;
+      const team = getOrCreateTeam(interaction.user.id);
+
+      if (index < 0 || index >= MAX_TEAM_SIZE) {
+        await interaction.reply({
+          content: "❌ Slot inválido. Usa un número del 1 al 6.",
+          ephemeral: true,
+        });
+        return;
+      }
+
+      const target = team.slots[index];
+      if (!target) {
+        await interaction.reply({
+          content: `❌ El slot **${slotNum}** está vacío.`,
+          ephemeral: true,
+        });
+        return;
+      }
+
+      const rawMoves = [
+        interaction.options.getString("move1"),
+        interaction.options.getString("move2"),
+        interaction.options.getString("move3"),
+        interaction.options.getString("move4"),
+      ];
+
+      const seen = new Set<string>();
+      const moves: string[] = [];
+      for (const raw of rawMoves) {
+        const slug = normalizeMoveInput(raw);
+        if (!slug || seen.has(slug)) continue;
+        seen.add(slug);
+        moves.push(slug);
+      }
+
+      if (moves.length === 0) {
+        await interaction.reply({
+          content:
+            "❌ Indica al menos un movimiento (`move1`…`move4`). Usa el autocompletado para buscar en todo el movepool.",
+          ephemeral: true,
+        });
+        return;
+      }
+
+      const label = await resolveDisplayLabel(target.species);
+      const updated = setSlotMoves(interaction.user.id, index, moves);
+      await replyWithPanel(
+        interaction,
+        updated,
+        forceEphemeral,
+        `✅ Movimientos de ${label} (slot ${slotNum}) actualizados`,
+      );
+      return;
+    }
+
     await interaction.reply({
       content:
-        "❌ Subcomando no reconocido. Usa `view`, `add`, `remove` o `clear`.",
+        "❌ Subcomando no reconocido. Usa `view`, `add`, `remove`, `clear` o `moves`.",
       ephemeral: true,
     });
   } catch (error) {
@@ -412,269 +557,6 @@ function ownerFromPrefix(customId: string, prefix: string): string | null {
   if (!customId.startsWith(prefix)) return null;
   const ownerId = customId.slice(prefix.length);
   return ownerId || null;
-}
-
-/** `tb_moves_{ownerId}_{slotIndex}` */
-function parseMovesSelectCustomId(customId: string): {
-  ownerId: string;
-  slotIndex: number;
-} | null {
-  if (!customId.startsWith(TEAMBUILDER_MOVES_PREFIX)) return null;
-  const raw = customId.slice(TEAMBUILDER_MOVES_PREFIX.length);
-  const parts = raw.split("_");
-  if (parts.length < 2) return null;
-  const slotIndex = Number.parseInt(parts[parts.length - 1] ?? "", 10);
-  const ownerId = parts.slice(0, -1).join("_");
-  if (!ownerId || !Number.isFinite(slotIndex)) return null;
-  return { ownerId, slotIndex: Math.trunc(slotIndex) };
-}
-
-function truncate(text: string, max: number): string {
-  if (text.length <= max) return text;
-  return `${text.slice(0, max - 1)}…`;
-}
-
-/**
- * Botón → select de slot (efímero).
- */
-export async function handleTeambuilderAdvancedButton(
-  interaction: ButtonInteraction,
-): Promise<void> {
-  const ownerId = ownerFromPrefix(interaction.customId, TEAMBUILDER_ADV_PREFIX);
-  if (!ownerId) return;
-
-  if (interaction.user.id !== ownerId) {
-    await interaction.reply({
-      content: "❌ Solo quien abrió el Teambuilder puede usarlo.",
-      ephemeral: true,
-    });
-    return;
-  }
-
-  // Actualiza ref del panel si el botón está en el mensaje principal.
-  if (interaction.message) {
-    setTeamMessageRef(ownerId, {
-      channelId: interaction.message.channelId,
-      messageId: interaction.message.id,
-      guildId: interaction.guildId ?? undefined,
-    });
-  }
-
-  const team = getOrCreateTeam(ownerId);
-  if (isTeamEmpty(team)) {
-    await interaction.reply({
-      content: "❌ El equipo está vacío. Añade Pokémon con `/teambuilder add`.",
-      ephemeral: true,
-    });
-    return;
-  }
-
-  const options: StringSelectMenuOptionBuilder[] = [];
-  for (let i = 0; i < MAX_TEAM_SIZE; i += 1) {
-    const slot = team.slots[i];
-    if (!slot) continue;
-    const label = await resolveDisplayLabel(slot.species);
-    const movesHint =
-      slot.moves.length > 0 ? ` (${slot.moves.length}/4 movs)` : "";
-    options.push(
-      new StringSelectMenuOptionBuilder()
-        .setLabel(truncate(`Slot ${i + 1}: ${label}${movesHint}`, 100))
-        .setValue(String(i)),
-    );
-  }
-
-  if (options.length === 0) {
-    await interaction.reply({
-      content: "❌ No hay Pokémon configurables en el equipo.",
-      ephemeral: true,
-    });
-    return;
-  }
-
-  const select = new StringSelectMenuBuilder()
-    .setCustomId(`${TEAMBUILDER_SLOT_PREFIX}${ownerId}`)
-    .setPlaceholder("Elige un Pokémon del equipo")
-    .setMinValues(1)
-    .setMaxValues(1)
-    .addOptions(options);
-
-  await interaction.reply({
-    content: "⚙️ **Modo Avanzado:** selecciona el Pokémon para editar sus movimientos.",
-    components: [
-      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select),
-    ],
-    ephemeral: true,
-  });
-}
-
-/**
- * Select de slot → select múltiple de movimientos (máx. 4).
- */
-export async function handleTeambuilderSlotSelect(
-  interaction: StringSelectMenuInteraction,
-): Promise<void> {
-  const ownerId = ownerFromPrefix(
-    interaction.customId,
-    TEAMBUILDER_SLOT_PREFIX,
-  );
-  if (!ownerId) return;
-
-  if (interaction.user.id !== ownerId) {
-    await interaction.reply({
-      content: "❌ Solo quien abrió el Teambuilder puede usarlo.",
-      ephemeral: true,
-    });
-    return;
-  }
-
-  const slotIndex = Number.parseInt(interaction.values[0] ?? "", 10);
-  if (!Number.isFinite(slotIndex) || slotIndex < 0 || slotIndex >= MAX_TEAM_SIZE) {
-    await interaction.update({
-      content: "❌ Slot inválido.",
-      components: [],
-    });
-    return;
-  }
-
-  const team = getOrCreateTeam(ownerId);
-  const slot = team.slots[slotIndex];
-  if (!slot) {
-    await interaction.update({
-      content: "❌ Ese slot está vacío.",
-      components: [],
-    });
-    return;
-  }
-
-  await interaction.deferUpdate();
-
-  const guildId = interaction.guildId;
-  const generation = guildId
-    ? getPokemonConfig(guildId).defaultGeneration
-    : 9;
-  const language = guildId ? getPokemonConfig(guildId).language : "es";
-
-  try {
-    const pool = await getCoverageMovepoolOptions(
-      slot.species,
-      generation,
-      language === "en" ? "en" : "es",
-    );
-
-    // Preferir ofensivos; incluir estado si quedan huecos (útil en competitivo).
-    const damaging = pool.moves.filter((m) => m.damageClass !== "status");
-    const status = pool.moves.filter((m) => m.damageClass === "status");
-    const ordered = [...damaging, ...status].slice(0, 25);
-
-    if (ordered.length === 0) {
-      await interaction.editReply({
-        content: `❌ **${await resolveDisplayLabel(slot.species)}** no tiene movimientos en Gen ${generation}.`,
-        components: [],
-      });
-      return;
-    }
-
-    const label = await resolveDisplayLabel(slot.species);
-    const preselected = new Set(
-      slot.moves.map((m) => m.toLowerCase()).slice(0, 4),
-    );
-    let defaultBudget = Math.min(4, preselected.size, ordered.length);
-
-    const select = new StringSelectMenuBuilder()
-      .setCustomId(`${TEAMBUILDER_MOVES_PREFIX}${ownerId}_${slotIndex}`)
-      .setPlaceholder(`Elige 1–4 movimientos para ${label}`)
-      .setMinValues(1)
-      .setMaxValues(Math.min(4, ordered.length))
-      .addOptions(
-        ordered.map((m) => {
-          const isDefault =
-            defaultBudget > 0 && preselected.has(m.apiName.toLowerCase());
-          if (isDefault) defaultBudget -= 1;
-          return new StringSelectMenuOptionBuilder()
-            .setLabel(truncate(m.displayName, 100))
-            .setDescription(
-              truncate(
-                `${m.type} · ${m.damageClass === "status" ? "Estado" : m.damageClass === "physical" ? "Físico" : "Especial"}`,
-                100,
-              ),
-            )
-            .setValue(m.apiName.slice(0, 100))
-            .setDefault(isDefault);
-        }),
-      );
-
-    const hint = pool.truncated
-      ? ` (top 25 de ${pool.totalMoves} por uso competitivo)`
-      : "";
-
-    await interaction.editReply({
-      content: `⚙️ Movimientos de **${label}**${hint}. Selecciona hasta **4**:`,
-      components: [
-        new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select),
-      ],
-    });
-  } catch (error) {
-    const message =
-      error instanceof PokemonApiError
-        ? error.message
-        : "No se pudo cargar el movepool.";
-    await interaction.editReply({
-      content: `❌ ${message}`,
-      components: [],
-    });
-  }
-}
-
-/**
- * Select de movimientos → guarda en DB y refresca el panel.
- */
-export async function handleTeambuilderMovesSelect(
-  interaction: StringSelectMenuInteraction,
-): Promise<void> {
-  const parsed = parseMovesSelectCustomId(interaction.customId);
-  if (!parsed) return;
-
-  const { ownerId, slotIndex } = parsed;
-  if (interaction.user.id !== ownerId) {
-    await interaction.reply({
-      content: "❌ Solo quien abrió el Teambuilder puede usarlo.",
-      ephemeral: true,
-    });
-    return;
-  }
-
-  const moves = interaction.values.slice(0, 4);
-  if (moves.length === 0) {
-    await interaction.update({
-      content: "❌ Debes elegir al menos un movimiento.",
-      components: [],
-    });
-    return;
-  }
-
-  try {
-    const updated = setSlotMoves(ownerId, slotIndex, moves);
-    const slot = updated.slots[slotIndex];
-    const label = slot
-      ? await resolveDisplayLabel(slot.species)
-      : `Slot ${slotIndex + 1}`;
-
-    await editStoredPanel(interaction, updated, interaction.user.username);
-
-    await interaction.update({
-      content: `✅ Movimientos de **${label}** guardados:\n${formatMovesLine(moves) || "—"}`,
-      components: [],
-    });
-  } catch (error) {
-    const message =
-      error instanceof Error && error.message === "INVALID_SLOT"
-        ? "Ese slot ya no tiene Pokémon."
-        : "No se pudieron guardar los movimientos.";
-    await interaction.update({
-      content: `❌ ${message}`,
-      components: [],
-    });
-  }
 }
 
 export async function handleTeambuilderSynergyButton(
@@ -745,7 +627,7 @@ export async function handleTeambuilderSynergyButton(
         : report.criticalWeaknesses.map((hit) => {
             const typeLabel = formatTypeLabel(hit.type, language);
             const withEmoji = formatPokemonTypeWithEmoji(hit.type, typeLabel);
-            return `${withEmoji} (${hit.weakCount} Pokémon débiles)`;
+            return `${withEmoji} (Atraviesa a ${hit.weakCount} Pokémon)`;
           });
 
     const immunityLines =
@@ -761,30 +643,33 @@ export async function handleTeambuilderSynergyButton(
     const firstType = members[0]?.types[0] ?? "normal";
     const color = getTypeColor(firstType);
 
-    const embed = new EmbedBuilder()
+    const embed = createBasePokemonEmbed(
+      `Teambuilder · ${interaction.user.username}`,
+    )
       .setTitle("📊 Reporte de Sinergia")
       .setDescription(
-        `Análisis defensivo de **${members.length}** Pokémon (Gen ${generation}).\n_Debilidad crítica = tipo SE contra ≥3 del equipo._`,
+        "Análisis de coberturas cruzadas y vulnerabilidades del equipo.",
       )
       .setColor(color)
       .addFields(
         {
-          name: "🚨 Debilidades Compartidas",
+          name: "🚨 Amenazas Críticas",
           value: weaknessLines.join("\n").slice(0, 1024),
           inline: false,
         },
         {
-          name: "🛡️ Inmunidades Clave",
+          name: "\u200B",
+          value: "\u200B",
+          inline: false,
+        },
+        {
+          name: "🛡️ Muros e Inmunidades",
           value: immunityLines.join("\n").slice(0, 1024),
           inline: false,
         },
       )
-      .setFooter({
-        text: `Teambuilder · ${interaction.user.username}`,
-      })
       .setTimestamp(new Date());
 
-    // Thumbnail del primer Pokémon del equipo.
     const firstFilled = team.slots.find((s) => s != null);
     if (firstFilled) {
       try {

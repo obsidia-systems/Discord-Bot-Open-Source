@@ -235,6 +235,20 @@ export async function resolveMoveInfo(
 }
 
 /**
+ * Las formas Mega suelen no tener learnset propio en PokéAPI;
+ * se usan los movimientos de la especie base (ej. `staraptor-mega` → `staraptor`).
+ */
+export function resolveSpeciesForLearnset(nameOrId: string): string {
+  const key = nameOrId.trim().toLowerCase();
+  if (!key || /^\d+$/.test(key)) return key;
+  if (key.includes("-mega")) {
+    const base = key.split("-mega")[0]?.trim();
+    return base || key;
+  }
+  return key;
+}
+
+/**
  * Learnset del Pokémon filtrado por generación (level-up / MT / huevo).
  */
 export async function getPokemonLearnset(
@@ -243,7 +257,7 @@ export async function getPokemonLearnset(
   language: "es" | "en" = "es",
 ): Promise<PokemonLearnset> {
   const gen = Math.max(1, Math.min(9, Math.floor(generation) || 9));
-  const pokemon = await getPokemonData(nameOrId);
+  const pokemon = await getPokemonData(resolveSpeciesForLearnset(nameOrId));
   const cacheKey = `${pokemon.id}:g${gen}:${language}`;
   const cached = learnsetCache.get(cacheKey);
   if (cached && Date.now() - cached.at < DETAIL_TTL_MS) {
@@ -369,6 +383,50 @@ export function flattenLearnsetMoves(
     });
   }
   return [...map.values()];
+}
+
+/**
+ * Autocomplete de movimientos sobre el movepool completo (Discord máx. 25 resultados).
+ */
+export function searchMovepoolAutocomplete(
+  moves: CoverageMoveOption[],
+  query: string,
+  limit = 25,
+): Array<{ name: string; value: string }> {
+  const q = query.trim().toLowerCase().replace(/\s+/g, "-");
+  const max = Math.min(25, Math.max(1, limit));
+  const filtered = !q
+    ? [...moves]
+    : moves.filter((m) => {
+        const api = m.apiName.toLowerCase();
+        const label = m.displayName.toLowerCase();
+        const compactApi = api.replace(/-/g, "");
+        const compactQ = q.replace(/-/g, "");
+        return (
+          api.includes(q) ||
+          label.includes(q.replace(/-/g, " ")) ||
+          label.includes(q) ||
+          compactApi.includes(compactQ)
+        );
+      });
+
+  filtered.sort((a, b) => {
+    if (!q) return a.displayName.localeCompare(b.displayName, "es");
+    const aApi = a.apiName.toLowerCase();
+    const bApi = b.apiName.toLowerCase();
+    const aExact = aApi === q || a.displayName.toLowerCase() === q ? 0 : 1;
+    const bExact = bApi === q || b.displayName.toLowerCase() === q ? 0 : 1;
+    if (aExact !== bExact) return aExact - bExact;
+    const aStarts = aApi.startsWith(q) || a.displayName.toLowerCase().startsWith(q) ? 0 : 1;
+    const bStarts = bApi.startsWith(q) || b.displayName.toLowerCase().startsWith(q) ? 0 : 1;
+    if (aStarts !== bStarts) return aStarts - bStarts;
+    return a.displayName.localeCompare(b.displayName, "es");
+  });
+
+  return filtered.slice(0, max).map((m) => ({
+    name: m.displayName.slice(0, 100),
+    value: m.apiName.slice(0, 100),
+  }));
 }
 
 const SELECT_MENU_MAX = 25;

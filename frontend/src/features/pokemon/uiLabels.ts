@@ -28,7 +28,7 @@ export const DEX_COMMAND_UI_TITLES: Record<PokemonCommandName, string> = {
 /** Descripciones seguras para el listado de comandos del plugin. */
 export const DEX_COMMAND_UI_DESCRIPTIONS: Record<PokemonCommandName, string> = {
   pokeinfo: "Ficha enriquecida de una especie (tipos, stats, formas).",
-  teambuilder: "Arma y analiza un equipo de hasta 6 especies.",
+  teambuilder: "Arma equipos y asigna movimientos por slot.",
   weakness: "Debilidades, resistencias e inmunidades defensivas.",
   coverage: "Cobertura ofensiva con hasta 4 ataques.",
   breeding: "Grupos de huevo y opciones de cría.",

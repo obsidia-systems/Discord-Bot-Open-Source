@@ -26,6 +26,9 @@ import {
   assertPokemonCommandAllowed,
 } from "../service.js";
 import { pokemonAccessFromInteraction } from "../access.js";
+import {
+  createBasePokemonEmbed,
+} from "../../../utils/pokemonEmbed.js";
 
 /** Prefijo de botones de paginación `/location` (registry). */
 export const LOCATION_PAGE_PREFIX = "loc_page_";
@@ -234,13 +237,12 @@ export function buildLocationPageView(options: {
     formatLocationsBlock(current.locations),
   ].join("\n");
 
-  const embed = new EmbedBuilder()
+  const embed = createBasePokemonEmbed(
+    `Página ${safePage + 1} de ${totalPages}`,
+  )
     .setColor(options.color)
     .setTitle(`📍 Ubicaciones de ${options.displayName}`)
-    .setDescription(description.slice(0, 4096))
-    .setFooter({
-      text: `Página ${safePage + 1} de ${totalPages} • PokéAPI`,
-    });
+    .setDescription(description.slice(0, 4096));
 
   if (options.spriteUrl) {
     embed.setThumbnail(options.spriteUrl);
@@ -388,13 +390,12 @@ export async function handleLocationCommand(
     const color = getTypeColor(data.types[0], fallbackColor);
 
     if (encounters.length === 0) {
-      const embed = new EmbedBuilder()
+      const embed = createBasePokemonEmbed("Sin encuentros salvajes")
         .setColor(color)
         .setTitle(`📍 Ubicaciones de ${displayName}`)
         .setDescription(
           "Este Pokémon no se encuentra de forma salvaje en la hierba.",
-        )
-        .setFooter({ text: "PokéAPI · Sin encuentros salvajes" });
+        );
       if (data.spriteUrl) embed.setThumbnail(data.spriteUrl);
       await interaction.editReply({ embeds: [embed], components: [] });
       return;
@@ -484,7 +485,7 @@ async function updateLocationMessage(
     if (pages.length === 0) {
       await interaction.update({
         embeds: [
-          new EmbedBuilder()
+          createBasePokemonEmbed("Sin encuentros salvajes")
             .setColor(color)
             .setTitle(`📍 Ubicaciones de ${displayName}`)
             .setDescription(

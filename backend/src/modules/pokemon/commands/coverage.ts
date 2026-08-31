@@ -4,9 +4,9 @@ import type {
 } from "discord.js";
 import {
   ActionRowBuilder,
-  EmbedBuilder,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
+  type EmbedBuilder,
 } from "discord.js";
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
 import {
@@ -25,6 +25,7 @@ import {
   formatPokemonTypeWithEmoji,
   getPokemonTypeEmoji,
 } from "../../../utils/pokemonEmojis.js";
+import { createBasePokemonEmbed } from "../../../utils/pokemonEmbed.js";
 import { calculateCoverage } from "../../../utils/typeChart.js";
 import {
   PokemonError,
@@ -198,7 +199,7 @@ function buildSelectionEmbed(options: {
   totalMoves: number;
   menuCount: number;
 }): EmbedBuilder {
-  const embed = new EmbedBuilder()
+  const embed = createBasePokemonEmbed("Elige 1–4 movimientos en el menú")
     .setColor(options.color)
     .setTitle(`🎯 Cobertura de ${options.displayName}`)
     .setDescription(
@@ -211,8 +212,7 @@ function buildSelectionEmbed(options: {
       ]
         .filter(Boolean)
         .join("\n"),
-    )
-    .setFooter({ text: "Elige 1–4 movimientos en el menú" });
+    );
 
   if (options.spriteUrl) embed.setThumbnail(options.spriteUrl);
   return embed;
@@ -234,7 +234,11 @@ function buildResultEmbed(options: {
     options.language,
   );
 
-  const embed = new EmbedBuilder()
+  const embed = createBasePokemonEmbed(
+    offensive.length === 0
+      ? "Solo movimientos de estado — sin cobertura ofensiva"
+      : `Tipos ofensivos: ${offensive.length} · Puedes cambiar la selección`,
+  )
     .setColor(options.color)
     .setTitle(`🎯 Cobertura de ${options.displayName}`)
     .addFields(
@@ -259,13 +263,7 @@ function buildResultEmbed(options: {
         ),
         inline: true,
       },
-    )
-    .setFooter({
-      text:
-        offensive.length === 0
-          ? "Solo movimientos de estado — sin cobertura ofensiva"
-          : `Tipos ofensivos: ${offensive.length} · Puedes cambiar la selección`,
-    });
+    );
 
   if (options.spriteUrl) embed.setThumbnail(options.spriteUrl);
   return embed;

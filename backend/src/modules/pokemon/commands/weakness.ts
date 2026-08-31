@@ -1,5 +1,4 @@
 import type { ChatInputCommandInteraction } from "discord.js";
-import { EmbedBuilder } from "discord.js";
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
 import {
   PokemonApiError,
@@ -15,6 +14,7 @@ import {
   formatPokemonTypeWithEmoji,
   getPokemonTypeEmoji,
 } from "../../../utils/pokemonEmojis.js";
+import { createBasePokemonEmbed } from "../../../utils/pokemonEmbed.js";
 import {
   DEFENSIVE_MATCHUP_ORDER,
   calculateDefensiveMatchup,
@@ -195,7 +195,9 @@ export async function handleWeaknessCommand(
       )
       .join(" · ");
 
-    const embed = new EmbedBuilder()
+    const embed = createBasePokemonEmbed(
+      `Gen ${defaultGeneration} • Tabla de tipos`,
+    )
       .setColor(color)
       .setTitle(title.slice(0, 256))
       .setDescription(
@@ -222,10 +224,6 @@ export async function handleWeaknessCommand(
     if (abilityField) {
       embed.addFields(abilityField);
     }
-
-    embed.setFooter({
-      text: `Gen ${defaultGeneration} • Tabla de tipos • PokéAPI`,
-    });
 
     await interaction.editReply({ embeds: [embed] });
   } catch (error) {

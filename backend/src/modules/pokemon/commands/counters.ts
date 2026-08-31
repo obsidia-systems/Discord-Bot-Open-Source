@@ -1,5 +1,4 @@
 import type { ChatInputCommandInteraction } from "discord.js";
-import { EmbedBuilder } from "discord.js";
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
 import {
   PokemonApiError,
@@ -21,6 +20,7 @@ import {
   assertPokemonCommandAllowed,
 } from "../service.js";
 import { pokemonAccessFromInteraction } from "../access.js";
+import { createBasePokemonEmbed } from "../../../utils/pokemonEmbed.js";
 
 const FALLBACK_DESCRIPTION =
   "⚠️ No hay datos estadísticos recientes de counters para este Pokémon en las tiers principales. Utiliza el comando `/weakness` para evaluar sus puntos ciegos elementales.";
@@ -151,28 +151,26 @@ export async function handleCountersCommand(
     }
 
     if (!result || result.counters.length === 0) {
-      const empty = new EmbedBuilder()
+      const empty = createBasePokemonEmbed(
+        `Gen ${defaultGeneration} • Usage stats`,
+      )
         .setColor(color)
         .setTitle(`🚫 Amenazas Principales: ${displayName}`)
-        .setDescription(FALLBACK_DESCRIPTION)
-        .setFooter({
-          text: `Gen ${defaultGeneration} • Smogon usage stats`,
-        });
+        .setDescription(FALLBACK_DESCRIPTION);
       if (data.spriteUrl) empty.setThumbnail(data.spriteUrl);
       await interaction.editReply({ embeds: [empty] });
       return;
     }
 
-    const embed = new EmbedBuilder()
+    const embed = createBasePokemonEmbed(
+      `Basado en estadísticas de ${result.formatLabel}`,
+    )
       .setColor(color)
       .setTitle(`🚫 Amenazas Principales: ${displayName}`)
       .setDescription(
         "Los Pokémon que estadísticamente vencen o frenan en seco (wall) a esta especie.",
       )
-      .addFields(...buildCounterColumns(result.counters))
-      .setFooter({
-        text: `Basado en estadísticas de ${result.formatLabel} • Smogon`,
-      });
+      .addFields(...buildCounterColumns(result.counters));
 
     if (data.spriteUrl) embed.setThumbnail(data.spriteUrl);
 

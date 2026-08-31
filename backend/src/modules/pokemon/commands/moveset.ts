@@ -31,6 +31,7 @@ import {
   getMoveDamageClassEmoji,
   getPokemonTypeEmoji,
 } from "../../../utils/pokemonEmojis.js";
+import { createBasePokemonEmbed } from "../../../utils/pokemonEmbed.js";
 import {
   PokemonError,
   assertPokemonCommandAllowed,
@@ -208,13 +209,12 @@ export function buildMovesetPageView(options: {
     options.page,
   );
 
-  const embed = new EmbedBuilder()
+  const embed = createBasePokemonEmbed(
+    `Página ${safePage + 1} de ${totalPages} • ${CATEGORY_LABELS[options.category]} • Gen ${options.generation}`,
+  )
     .setColor(options.color)
     .setTitle(`⚔️ Moveset de ${options.displayName}`)
-    .setDescription(text)
-    .setFooter({
-      text: `Página ${safePage + 1} de ${totalPages} • ${CATEGORY_LABELS[options.category]} • Gen ${options.generation} • PokéAPI`,
-    });
+    .setDescription(text);
 
   if (options.spriteUrl) {
     embed.setThumbnail(options.spriteUrl);

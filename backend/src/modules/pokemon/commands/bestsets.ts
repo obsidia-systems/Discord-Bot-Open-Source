@@ -34,6 +34,10 @@ import {
   getPokemonTypeEmoji,
 } from "../../../utils/pokemonEmojis.js";
 import {
+  createBasePokemonEmbed,
+  formatPokemonFooter,
+} from "../../../utils/pokemonEmbed.js";
+import {
   PokemonError,
   assertPokemonCommandAllowed,
 } from "../service.js";
@@ -254,7 +258,7 @@ export async function buildBestsetsPageView(options: {
       : Math.min(Math.max(0, options.page), payload.sets.length - 1);
   const set: CompetitiveSet | undefined = payload.sets[safePage];
 
-  const embed = new EmbedBuilder().setColor(options.color);
+  const embed = createBasePokemonEmbed().setColor(options.color);
 
   if (!set) {
     embed
@@ -263,7 +267,7 @@ export async function buildBestsetsPageView(options: {
         `_No hay sets Smogon para **${options.displayName}** en Gen ${payload.generation}._`,
       )
       .setFooter({
-        text: `Gen ${payload.generation} • Smogon / data.pkmn.cc`,
+        text: formatPokemonFooter(`Gen ${payload.generation}`),
       });
   } else {
     const movesText = await formatMovesField(set.moves, options.language);
@@ -297,7 +301,9 @@ export async function buildBestsetsPageView(options: {
         },
       )
       .setFooter({
-        text: `Set ${safePage + 1} de ${total} • ${set.formatName} • Smogon`,
+        text: formatPokemonFooter(
+          `Set ${safePage + 1} de ${total} • ${set.formatName}`,
+        ),
       });
   }
 
