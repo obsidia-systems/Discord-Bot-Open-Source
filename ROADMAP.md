@@ -26,7 +26,7 @@ línea de autenticación en el repo (`grep -riE "oauth|jwt|session|cookie"` → 
 | 0.9 | **Rate limiting** por IP + por usuario + por guild en la API, y por usuario en comandos costosos (canvas, leaderboards, Pokémon). | `core/http/`, `core/bot/interactionRouter.ts` | M | INFRA |
 | 0.10 | **Error handler centralizado + logging estructurado** (pino). Hecho: `core/http/errorHandler.ts` + `mapHttpError`, `core/log.ts` (pino). Las rutas hacen `next(err)`; 500 genérico, 4xx de dominio. | `core/http/`, 18 módulos | M | INFRA |
 | 0.11 | **Migración SQLite → Postgres.** Hecho: `pgTable`, pool `postgres.js`, queries async, Compose `postgres:16`, migración inicial `0000_initial_postgres.sql`. SQLite ya no arranca. | `db/client.ts`, `db/schema.ts`, `drizzle.config.ts`, `docker-compose.yml` | L | INFRA |
-| 0.12 | **Stripe Billing + webhook con verificación de firma** (`stripe.webhooks.constructEvent`, raw body). | nuevo `modules/billing/` | L | INFRA |
+| 0.12 | **Stripe Billing + webhook con verificación de firma** (`stripe.webhooks.constructEvent`, raw body). Hecho: `modules/billing/`, checkout + Customer Portal, `POST /api/billing/webhook` montado **antes** de `express.json()`, firma verificada, idempotencia `webhook_events`. Stripe solo rellena `subscriptions` / `guild_entitlements`; `can()` sigue leyendo la tabla. | `modules/billing/`, `core/http/createApp.ts` | L | INFRA |
 
 ---
 
@@ -165,7 +165,7 @@ Sin esto no se puede exponer el panel a Internet bajo ninguna circunstancia.
 **Fase 3 — Preparar la monetización (2–3 semanas).** 0.7 (entitlements) → 0.8 → 0.10 → 1.8.
 El punto 0.7 va **antes** de Stripe: primero la capa de permisos de features, luego quién paga.
 
-**Fase 4 — Cobrar (2 semanas).** 0.12 (Stripe + webhooks + Customer Portal).
+**Fase 4 — Cobrar.** 0.12 (Stripe + webhooks + Customer Portal). Hecho.
 
 **Fase 5 — Paridad competitiva (6–8 semanas).** 2.1 → 2.2 → 3.1 → 3.2 → 3.4 → 3.7 → 3.6.
 

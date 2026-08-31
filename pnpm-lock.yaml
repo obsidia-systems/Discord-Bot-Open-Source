@@ -56,6 +56,9 @@ importers:
       postgres:
         specifier: ^3.4.5
         version: 3.4.9
+      stripe:
+        specifier: ^22.6.0
+        version: 22.6.0(@types/node@22.20.1)
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -3966,6 +3969,15 @@ packages:
   strip-json-comments@5.0.3:
     resolution: {integrity: sha512-1tB5mhVo7U+ETBKNf92xT4hrQa3pm0MZ0PQvuDnWgAAGHDsfp4lPSpiS6psrSiet87wyGPh9ft6wmhOMQ0hDiw==}
     engines: {node: '>=14.16'}
+
+  stripe@22.6.0:
+    resolution: {integrity: sha512-Ezk+WYEEwX2DLxFrKfb6coznlCMZvCaCYMNPXNHFSZkBIEzF5Hgm7RLb38q/0h9Ol5jsUJGJRorvhzAvckgfhw==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@types/node': '>=18'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
 
   style-to-js@1.1.21:
     resolution: {integrity: sha512-RjQetxJrrUJLQPHbLku6U/ocGtzyjbJMP9lCNK7Ag0CNh690nSH8woqWH9u16nMjYBAok+i7JO1NP2pOy8IsPQ==}
@@ -8471,6 +8483,10 @@ snapshots:
     optional: true
 
   strip-json-comments@5.0.3: {}
+
+  stripe@22.6.0(@types/node@22.20.1):
+    optionalDependencies:
+      '@types/node': 22.20.1
 
   style-to-js@1.1.21:
     dependencies:

@@ -4,6 +4,7 @@ export * from "./action-logs.js";
 export * from "./auto-delete.js";
 export * from "./auto-mod.js";
 export * from "./autoroles.js";
+export * from "./billing.js";
 export * from "./bot-profile.js";
 export * from "./canvas-event.js";
 export * from "./common.js";
