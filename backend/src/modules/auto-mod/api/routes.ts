@@ -1,10 +1,9 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
+import type { ApiErrorBody } from "@adobos/shared";
 import { guildIdOf } from "../../../core/http/guildContext.js";
-import type {
-  ApiErrorBody,
-  UpdateAutoModConfigRequest,
-} from "@adobos/shared";
+import { parse, sendIfValidationError } from "../../../core/http/validate.js";
+import { updateAutoModConfigSchema } from "../../../core/http/schemas.js";
 import {
   AutoModError,
   getAutoModConfig,
@@ -12,6 +11,7 @@ import {
 } from "../service.js";
 
 function handleError(error: unknown, res: import("express").Response): void {
+  if (sendIfValidationError(error, res)) return;
   if (error instanceof AutoModError) {
     const body: ApiErrorBody = {
       error: error.message,
@@ -46,13 +46,8 @@ export function autoModRoutes(_bot: Client): Router {
   /** POST /api/auto-mod/config */
   router.post("/config", async (req, res) => {
     try {
-      const guildId =
-        typeof req.body?.guildId === "string"
-          ? req.body.guildId
-          : typeof req.query.guildId === "string"
-            ? req.query.guildId
-            : undefined;
-      const body = (req.body ?? {}) as UpdateAutoModConfigRequest;
+      const guildId = guildIdOf(req);
+      const body = parse(updateAutoModConfigSchema, req.body ?? {});
       const config = await updateAutoModConfig(body, guildId);
       res.json({ config });
     } catch (error) {

@@ -1,11 +1,10 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
-import type {
-  ApiErrorBody,
-  UpdateAutoDeleteConfigRequest,
-} from "@adobos/shared";
+import type { ApiErrorBody } from "@adobos/shared";
 import { resolveSchedulerTimezone } from "../../../lib/schedulerTimezone.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
+import { parse, sendIfValidationError } from "../../../core/http/validate.js";
+import { updateAutoDeleteConfigSchema } from "../../../core/http/schemas.js";
 import {
   AutoDeleteError,
   getAutoDeleteConfig,
@@ -13,6 +12,7 @@ import {
 } from "../service.js";
 
 function handleError(error: unknown, res: import("express").Response): void {
+  if (sendIfValidationError(error, res)) return;
   if (error instanceof AutoDeleteError) {
     const body: ApiErrorBody = {
       error: error.message,
@@ -47,13 +47,8 @@ export function autoDeleteRoutes(_bot: Client): Router {
   /** POST /api/auto-delete/config */
   router.post("/config", async (req, res) => {
     try {
-      const guildId =
-        typeof req.body?.guildId === "string"
-          ? req.body.guildId
-          : typeof req.query.guildId === "string"
-            ? req.query.guildId
-            : undefined;
-      const body = (req.body ?? {}) as UpdateAutoDeleteConfigRequest;
+      const guildId = guildIdOf(req);
+      const body = parse(updateAutoDeleteConfigSchema, req.body ?? {});
       const config = await updateAutoDeleteConfig(body, guildId);
       res.json({ config, timezone: resolveSchedulerTimezone() });
     } catch (error) {

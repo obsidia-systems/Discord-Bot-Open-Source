@@ -1,7 +1,9 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
-import type { ApiErrorBody, UpdatePokemonConfigRequest } from "@adobos/shared";
+import type { ApiErrorBody } from "@adobos/shared";
 import { guildIdOf } from "../../../core/http/guildContext.js";
+import { parse, sendIfValidationError } from "../../../core/http/validate.js";
+import { updatePokemonConfigSchema } from "../../../core/http/schemas.js";
 import {
   PokemonError,
   getPokemonConfig,
@@ -9,6 +11,7 @@ import {
 } from "../service.js";
 
 function handleError(error: unknown, res: import("express").Response): void {
+  if (sendIfValidationError(error, res)) return;
   if (error instanceof PokemonError) {
     const body: ApiErrorBody = {
       error: error.message,
@@ -41,10 +44,10 @@ export function pokemonRoutes(_bot: Client): Router {
   /** PUT /api/pokemon/config */
   router.put("/config", async (req, res) => {
     try {
-      const body = (req.body ?? {}) as UpdatePokemonConfigRequest;
+      const body = parse(updatePokemonConfigSchema, req.body ?? {});
       const config = await updatePokemonConfig({
         ...body,
-        guildId: guildIdOf(req) ?? body.guildId,
+        guildId: guildIdOf(req),
       });
       res.json({ config });
     } catch (error) {

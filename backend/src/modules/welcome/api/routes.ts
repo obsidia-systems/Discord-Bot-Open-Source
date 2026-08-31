@@ -1,10 +1,9 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
-import type {
-  ApiErrorBody,
-  SaveWelcomeSettingsRequest,
-} from "@adobos/shared";
+import { parse, sendIfValidationError } from "../../../core/http/validate.js";
+import { saveWelcomeSettingsSchema } from "../../../core/http/schemas.js";
+import type { ApiErrorBody } from "@adobos/shared";
 import {
   WelcomeSettingsError,
   getWelcomeSettings,
@@ -41,10 +40,14 @@ export function welcomeSettingsRoutes(_bot: Client): Router {
 
   router.post("/", async (req, res) => {
     try {
-      const payload = req.body as SaveWelcomeSettingsRequest;
-      const result = await saveWelcomeSettings({ ...payload, guildId: guildIdOf(req) });
+      const payload = parse(saveWelcomeSettingsSchema, req.body);
+      const result = await saveWelcomeSettings({
+        ...payload,
+        guildId: guildIdOf(req),
+      });
       res.json(result);
     } catch (error: unknown) {
+      if (sendIfValidationError(error, res)) return;
       if (error instanceof WelcomeSettingsError) {
         const body: ApiErrorBody = {
           error: error.message,

@@ -1,17 +1,17 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
-import type {
-  ApiErrorBody,
-  UpdateSystemCommandsRequest,
-} from "@adobos/shared";
+import type { ApiErrorBody } from "@adobos/shared";
 import {
   SystemCommandsError,
   listSystemCommandConfigs,
   updateSystemCommandPermissions,
 } from "../service.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
+import { parse, sendIfValidationError } from "../../../core/http/validate.js";
+import { updateSystemCommandsSchema } from "../../../core/http/schemas.js";
 
 function handleError(error: unknown, res: import("express").Response): void {
+  if (sendIfValidationError(error, res)) return;
   if (error instanceof SystemCommandsError) {
     const body: ApiErrorBody = {
       error: error.message,
@@ -45,7 +45,7 @@ export function systemCommandsRoutes(_bot: Client): Router {
   router.put("/", async (req, res) => {
     void (async () => {
       try {
-        const body = req.body as UpdateSystemCommandsRequest;
+        const body = parse(updateSystemCommandsSchema, req.body);
         const guildId = guildIdOf(req);
         const commands = await updateSystemCommandPermissions(body, guildId);
         res.json({ commands });

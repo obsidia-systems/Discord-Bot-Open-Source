@@ -1,11 +1,9 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
-import type {
-  ApiErrorBody,
-  CanvasEventType,
-  SaveCanvasEventSettingsRequest,
-} from "@adobos/shared";
+import { parse, sendIfValidationError } from "../../../core/http/validate.js";
+import { saveCanvasEventSettingsSchema } from "../../../core/http/schemas.js";
+import type { ApiErrorBody, CanvasEventType } from "@adobos/shared";
 import {
   CanvasEventSettingsError,
   getCanvasEventSettings,
@@ -17,6 +15,7 @@ function handleError(
   res: import("express").Response,
   label: string,
 ): void {
+  if (sendIfValidationError(error, res)) return;
   if (error instanceof CanvasEventSettingsError) {
     const body: ApiErrorBody = {
       error: error.message,
@@ -53,7 +52,7 @@ export function canvasEventSettingsRoutes(
 
   router.post("/", async (req, res) => {
     try {
-      const payload = req.body as SaveCanvasEventSettingsRequest;
+      const payload = parse(saveCanvasEventSettingsSchema, req.body);
       const result = await saveCanvasEventSettings(eventType, {
         ...payload,
         guildId: guildIdOf(req),

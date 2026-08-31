@@ -4,14 +4,15 @@ import { randomUUID } from "node:crypto";
 import multer from "multer";
 import { Router } from "express";
 import type { Client } from "discord.js";
-import type {
-  ApiErrorBody,
-  EmbedPayload,
-  SaveEmbedTemplateRequest,
-} from "@adobos/shared";
+import type { ApiErrorBody } from "@adobos/shared";
 import { getTemplatesDir } from "../../../lib/dataPaths.js";
 import { sniffImageFile } from "../../../lib/imageMagic.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
+import { parse, sendIfValidationError } from "../../../core/http/validate.js";
+import {
+  recordId,
+  saveEmbedTemplateSchema,
+} from "../../../core/http/schemas.js";
 import {
   EmbedTemplateError,
   deleteEmbedTemplate,
@@ -70,6 +71,7 @@ function handleError(
   error: unknown,
   res: import("express").Response,
 ): void {
+  if (sendIfValidationError(error, res)) return;
   if (error instanceof EmbedTemplateError) {
     const body: ApiErrorBody = {
       error: error.message,
@@ -108,24 +110,6 @@ function handleError(
     code: "INTERNAL_ERROR",
   };
   res.status(500).json(body);
-}
-
-function parseEmbedDataField(raw: unknown): EmbedPayload {
-  if (typeof raw === "string") {
-    try {
-      return JSON.parse(raw) as EmbedPayload;
-    } catch {
-      throw new EmbedTemplateError(
-        "embedData JSON inválido.",
-        400,
-        "INVALID_EMBED_DATA",
-      );
-    }
-  }
-  if (raw && typeof raw === "object") {
-    return raw as EmbedPayload;
-  }
-  return {};
 }
 
 function publicTemplatePath(filename: string): string {
@@ -179,28 +163,7 @@ export function embedTemplateRoutes(_bot: Client): Router {
           | undefined;
         assertSniffedTemplateFiles(files);
 
-        const contentType = String(req.headers["content-type"] ?? "");
-        const isMultipart = contentType.includes("multipart/form-data");
-
-        let payload: SaveEmbedTemplateRequest;
-
-        if (isMultipart) {
-          const idRaw =
-            typeof req.body.id === "string" && req.body.id.trim()
-              ? Number.parseInt(req.body.id, 10)
-              : undefined;
-          payload = {
-            id: Number.isFinite(idRaw) ? idRaw : undefined,
-            guildId:
-              typeof req.body.guildId === "string"
-                ? req.body.guildId
-                : undefined,
-            name: typeof req.body.name === "string" ? req.body.name : "",
-            embedData: parseEmbedDataField(req.body.embedData),
-          };
-        } else {
-          payload = req.body as SaveEmbedTemplateRequest;
-        }
+        const payload = parse(saveEmbedTemplateSchema, req.body);
 
         const uploadedPaths: {
           imageUrl?: string;
@@ -225,7 +188,12 @@ export function embedTemplateRoutes(_bot: Client): Router {
           uploadedPaths.footerIconUrl = publicTemplatePath(footerIcon.filename);
         }
 
-        res.json(await saveEmbedTemplate(payload, uploadedPaths));
+        res.json(
+          await saveEmbedTemplate(
+            { ...payload, guildId: guildIdOf(req) },
+            uploadedPaths,
+          ),
+        );
       } catch (error: unknown) {
         handleError(error, res);
       }
@@ -233,24 +201,18 @@ export function embedTemplateRoutes(_bot: Client): Router {
   });
 
   router.get("/:id", async (req, res) => {
-    const guildId =
-      guildIdOf(req);
     try {
-      const id = Number.parseInt(req.params.id ?? "", 10);
-      if (!Number.isFinite(id)) {
-        throw new EmbedTemplateError("id inválido.", 400, "INVALID_ID");
-      }
-      res.json(await getEmbedTemplate(id, guildId));
+      const id = parse(recordId, req.params.id);
+      res.json(await getEmbedTemplate(id, guildIdOf(req)));
     } catch (error: unknown) {
       handleError(error, res);
     }
   });
 
   router.delete("/:id", async (req, res) => {
-    const guildId =
-      guildIdOf(req);
     try {
-      res.json(await deleteEmbedTemplate(req.params.id ?? "", guildId));
+      const id = parse(recordId, req.params.id);
+      res.json(await deleteEmbedTemplate(String(id), guildIdOf(req)));
     } catch (error: unknown) {
       handleError(error, res);
     }

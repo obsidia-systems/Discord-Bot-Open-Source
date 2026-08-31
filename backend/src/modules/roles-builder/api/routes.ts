@@ -1,11 +1,12 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
-import type {
-  ApiErrorBody,
-  CreateGuildRoleRequest,
-  RolePositionUpdate,
-} from "@adobos/shared";
+import { parse, sendIfValidationError } from "../../../core/http/validate.js";
+import {
+  createGuildRoleSchema,
+  updateRolePositionsSchema,
+} from "../../../core/http/schemas.js";
+import type { ApiErrorBody } from "@adobos/shared";
 import {
   RolesBuilderError,
   createGuildRole,
@@ -14,6 +15,7 @@ import {
 } from "../service.js";
 
 function handleError(error: unknown, res: import("express").Response): void {
+  if (sendIfValidationError(error, res)) return;
   if (error instanceof RolesBuilderError) {
     const body: ApiErrorBody = {
       error: error.message,
@@ -29,41 +31,6 @@ function handleError(error: unknown, res: import("express").Response): void {
     code: "INTERNAL_ERROR",
   };
   res.status(500).json(body);
-}
-
-function parseCreateBody(raw: unknown): CreateGuildRoleRequest {
-  const body = (raw ?? {}) as Record<string, unknown>;
-  const permissions = Array.isArray(body.permissions)
-    ? body.permissions.filter((p): p is string => typeof p === "string")
-    : undefined;
-
-  return {
-    name: typeof body.name === "string" ? body.name : "",
-    color:
-      typeof body.color === "string"
-        ? body.color
-        : body.color === null
-          ? null
-          : undefined,
-    permissions,
-    hoist: typeof body.hoist === "boolean" ? body.hoist : undefined,
-    mentionable:
-      typeof body.mentionable === "boolean" ? body.mentionable : undefined,
-  };
-}
-
-function parsePositionsBody(raw: unknown): RolePositionUpdate[] {
-  const body = (raw ?? {}) as Record<string, unknown>;
-  const list = Array.isArray(body.positions) ? body.positions : [];
-  return list
-    .map((item) => {
-      const row = (item ?? {}) as Record<string, unknown>;
-      return {
-        roleId: typeof row.roleId === "string" ? row.roleId : "",
-        position: typeof row.position === "number" ? row.position : Number.NaN,
-      };
-    })
-    .filter((row) => row.roleId);
 }
 
 /** Rutas: GET /list · POST /create · PATCH /positions (base `/api/roles`). */
@@ -85,7 +52,7 @@ export function rolesBuilderRoutes(client: Client): Router {
     try {
       const guildId =
         guildIdOf(req);
-      const input = parseCreateBody(req.body);
+      const input = parse(createGuildRoleSchema, req.body);
       const data = await createGuildRole(client, input, guildId);
       res.status(201).json(data);
     } catch (error) {
@@ -97,7 +64,7 @@ export function rolesBuilderRoutes(client: Client): Router {
     try {
       const guildId =
         guildIdOf(req);
-      const positions = parsePositionsBody(req.body);
+      const { positions } = parse(updateRolePositionsSchema, req.body);
       const data = await updateRolePositions(client, positions, guildId);
       res.json(data);
     } catch (error) {

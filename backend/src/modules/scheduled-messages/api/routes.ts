@@ -3,11 +3,14 @@ import type { Client } from "discord.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { sendIfEntitlementError } from "../../../core/entitlements/service.js";
 import { ChannelScopeError, fetchChannelInGuild } from "../../../core/http/channelScope.js";
-import type {
-  ApiErrorBody,
-  CreateScheduledMessageRequest,
-  UpdateScheduledMessageRequest,
-} from "@adobos/shared";
+import { parse, sendIfValidationError } from "../../../core/http/validate.js";
+import {
+  createScheduledMessageSchema,
+  recordId,
+  toggleScheduledSchema,
+  updateScheduledMessageSchema,
+} from "../../../core/http/schemas.js";
+import type { ApiErrorBody } from "@adobos/shared";
 import {
   ScheduledMessagesError,
   createScheduledMessage,
@@ -19,6 +22,7 @@ import {
 } from "../service.js";
 
 function handleError(error: unknown, res: import("express").Response): void {
+  if (sendIfValidationError(error, res)) return;
   if (sendIfEntitlementError(error, res)) return;
   if (error instanceof ChannelScopeError) {
     const body: ApiErrorBody = {
@@ -45,15 +49,7 @@ function handleError(error: unknown, res: import("express").Response): void {
 }
 
 function parseMessageId(raw: string): number {
-  const id = Number.parseInt(raw, 10);
-  if (!Number.isFinite(id) || id < 1) {
-    throw new ScheduledMessagesError(
-      "ID de mensaje inválido.",
-      400,
-      "INVALID_ID",
-    );
-  }
-  return id;
+  return parse(recordId, raw);
 }
 
 export function scheduledMessagesRoutes(bot: Client): Router {
@@ -85,7 +81,7 @@ export function scheduledMessagesRoutes(bot: Client): Router {
     void (async () => {
       try {
         const guildId = guildIdOf(req);
-        const body = (req.body ?? {}) as CreateScheduledMessageRequest;
+        const body = parse(createScheduledMessageSchema, req.body ?? {});
         if (typeof body.channelId === "string" && body.channelId.trim()) {
           await fetchChannelInGuild(bot, body.channelId.trim(), guildId);
         }
@@ -103,7 +99,7 @@ export function scheduledMessagesRoutes(bot: Client): Router {
       try {
         const guildId = guildIdOf(req);
         const messageId = parseMessageId(req.params.id);
-        const body = (req.body ?? {}) as UpdateScheduledMessageRequest;
+        const body = parse(updateScheduledMessageSchema, req.body ?? {});
         if (typeof body.channelId === "string" && body.channelId.trim()) {
           await fetchChannelInGuild(bot, body.channelId.trim(), guildId);
         }
@@ -119,7 +115,7 @@ export function scheduledMessagesRoutes(bot: Client): Router {
   router.post("/:id/toggle", async (req, res) => {
     try {
       const messageId = parseMessageId(req.params.id);
-      const isActive = Boolean(req.body?.isActive);
+      const { isActive } = parse(toggleScheduledSchema, req.body ?? {});
       const message = await setScheduledMessageActive(
         messageId,
         isActive,

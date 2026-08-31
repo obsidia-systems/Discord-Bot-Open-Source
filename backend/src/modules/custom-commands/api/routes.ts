@@ -1,10 +1,6 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
-import type {
-  ApiErrorBody,
-  CreateCustomCommandRequest,
-  UpdateCustomCommandRequest,
-} from "@adobos/shared";
+import type { ApiErrorBody } from "@adobos/shared";
 import {
   CustomCommandsError,
   createCustomCommand,
@@ -15,8 +11,15 @@ import {
 } from "../service.js";
 import { syncGuildSlashCommands } from "../sync.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
+import { parse, sendIfValidationError } from "../../../core/http/validate.js";
+import {
+  createCustomCommandSchema,
+  recordId,
+  updateCustomCommandSchema,
+} from "../../../core/http/schemas.js";
 
 function handleError(error: unknown, res: import("express").Response): void {
+  if (sendIfValidationError(error, res)) return;
   if (error instanceof CustomCommandsError) {
     const body: ApiErrorBody = {
       error: error.message,
@@ -34,11 +37,7 @@ function handleError(error: unknown, res: import("express").Response): void {
 }
 
 function parseId(raw: string): number {
-  const id = Number.parseInt(raw, 10);
-  if (!Number.isFinite(id) || id < 1) {
-    throw new CustomCommandsError("ID inválido.", 400, "INVALID_ID");
-  }
-  return id;
+  return parse(recordId, raw);
 }
 
 async function syncSafe(bot: Client, guildId?: string): Promise<void> {
@@ -90,7 +89,7 @@ export function customCommandsRoutes(bot: Client): Router {
     void (async () => {
       try {
         const guildId = guildIdOf(req);
-        const body = (req.body ?? {}) as CreateCustomCommandRequest;
+        const body = parse(createCustomCommandSchema, req.body ?? {});
         const command = await createCustomCommand(body, guildId);
         await syncSafe(bot, guildId);
         res.status(201).json({ command });
@@ -118,7 +117,7 @@ export function customCommandsRoutes(bot: Client): Router {
     void (async () => {
       try {
         const guildId = guildIdOf(req);
-        const body = (req.body ?? {}) as UpdateCustomCommandRequest;
+        const body = parse(updateCustomCommandSchema, req.body ?? {});
         const command = await updateCustomCommand(
           parseId(req.params.id),
           body,

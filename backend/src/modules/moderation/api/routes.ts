@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
-import type { ApiErrorBody, ModActionRequest } from "@adobos/shared";
+import type { ApiErrorBody } from "@adobos/shared";
 import {
   ModerationError,
   executeModAction,
@@ -14,12 +14,21 @@ import {
 } from "../service.js";
 import { fetchDiscordAuditLog } from "../audit.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
+import { parse, parseQuery, sendIfValidationError } from "../../../core/http/validate.js";
+import {
+  discordAuditQuerySchema,
+  fetchMessageQuerySchema,
+  modActionSchema,
+  searchQuerySchema,
+  snowflake,
+} from "../../../core/http/schemas.js";
 
 function handleError(
   error: unknown,
   res: import("express").Response,
   label: string,
 ): void {
+  if (sendIfValidationError(error, res)) return;
   if (error instanceof ModerationError) {
     const body: ApiErrorBody = {
       error: error.message,
@@ -41,56 +50,50 @@ export function moderationRoutes(bot: Client): Router {
   const router = Router();
 
   router.get("/search-member", async (req, res) => {
-    const q = typeof req.query.q === "string" ? req.query.q : "";
-    const guildId =
-      guildIdOf(req);
     try {
-      res.json(await searchMembers(bot, q, guildId));
+      const { q = "" } = parseQuery(searchQuerySchema, req.query);
+      res.json(await searchMembers(bot, q, guildIdOf(req)));
     } catch (error: unknown) {
       handleError(error, res, "search-member");
     }
   });
 
   router.get("/search-channel", async (req, res) => {
-    const q = typeof req.query.q === "string" ? req.query.q : "";
-    const guildId =
-      guildIdOf(req);
     try {
-      res.json(await searchChannels(bot, q, guildId));
+      const { q = "" } = parseQuery(searchQuerySchema, req.query);
+      res.json(await searchChannels(bot, q, guildIdOf(req)));
     } catch (error: unknown) {
       handleError(error, res, "search-channel");
     }
   });
 
   router.get("/member-info/:id", async (req, res) => {
-    const guildId =
-      guildIdOf(req);
     try {
-      res.json(await getMemberInfo(bot, req.params.id ?? "", guildId));
+      const id = parse(snowflake, req.params.id);
+      res.json(await getMemberInfo(bot, id, guildIdOf(req)));
     } catch (error: unknown) {
       handleError(error, res, "member-info");
     }
   });
 
   router.get("/channel-info/:id", async (req, res) => {
-    const guildId =
-      guildIdOf(req);
     try {
-      res.json(await getChannelInfo(bot, req.params.id ?? "", guildId));
+      const id = parse(snowflake, req.params.id);
+      res.json(await getChannelInfo(bot, id, guildIdOf(req)));
     } catch (error: unknown) {
       handleError(error, res, "channel-info");
     }
   });
 
   router.get("/fetch-message", async (req, res) => {
-    const channelId =
-      typeof req.query.channelId === "string" ? req.query.channelId : "";
-    const messageId =
-      typeof req.query.messageId === "string" ? req.query.messageId : "";
-    const guildId =
-      guildIdOf(req);
     try {
-      res.json(await fetchDiscordMessage(bot, channelId, messageId, guildId));
+      const { channelId, messageId } = parseQuery(
+        fetchMessageQuerySchema,
+        req.query,
+      );
+      res.json(
+        await fetchDiscordMessage(bot, channelId, messageId, guildIdOf(req)),
+      );
     } catch (error: unknown) {
       handleError(error, res, "fetch-message");
     }
@@ -98,7 +101,7 @@ export function moderationRoutes(bot: Client): Router {
 
   router.post("/action", async (req, res) => {
     try {
-      const payload = req.body as ModActionRequest;
+      const payload = parse(modActionSchema, req.body);
       const result = await executeModAction(
         bot,
         { ...payload, guildId: guildIdOf(req) },
@@ -111,27 +114,14 @@ export function moderationRoutes(bot: Client): Router {
   });
 
   router.get("/discord-audit", async (req, res) => {
-    const guildId =
-      guildIdOf(req);
-    const userId =
-      typeof req.query.userId === "string" ? req.query.userId : undefined;
-    const limitRaw =
-      typeof req.query.limit === "string"
-        ? Number.parseInt(req.query.limit, 10)
-        : 100;
-    const actionTypeRaw =
-      typeof req.query.actionType === "string"
-        ? Number.parseInt(req.query.actionType, 10)
-        : undefined;
     try {
+      const query = parseQuery(discordAuditQuerySchema, req.query);
       res.json(
         await fetchDiscordAuditLog(bot, {
-          guildId,
-          limit: limitRaw,
-          userId,
-          actionType: Number.isFinite(actionTypeRaw)
-            ? actionTypeRaw
-            : undefined,
+          guildId: guildIdOf(req),
+          limit: query.limit ?? 100,
+          userId: query.userId,
+          actionType: query.actionType,
         }),
       );
     } catch (error: unknown) {

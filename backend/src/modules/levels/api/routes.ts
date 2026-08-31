@@ -4,11 +4,15 @@ import type {
   ApiErrorBody,
   LevelsLeaderboardEntry,
   LevelsLeaderboardResponse,
-  UpdateLevelsConfigRequest,
 } from "@adobos/shared";
 import { resolveMembersBatch } from "../../../lib/discordMember.js";
 import { forceLiveLeaderboardRefresh } from "../liveLeaderboard.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
+import { parse, parseQuery, sendIfValidationError } from "../../../core/http/validate.js";
+import {
+  leaderboardQuerySchema,
+  updateLevelsConfigSchema,
+} from "../../../core/http/schemas.js";
 import {
   LevelsError,
   getLeaderboardTotal,
@@ -18,6 +22,7 @@ import {
 } from "../service.js";
 
 function handleError(error: unknown, res: import("express").Response): void {
+  if (sendIfValidationError(error, res)) return;
   if (error instanceof LevelsError) {
     const body: ApiErrorBody = {
       error: error.message,
@@ -85,13 +90,8 @@ export function levelsRoutes(bot: Client): Router {
   /** POST /api/levels/config */
   router.post("/config", async (req, res) => {
     try {
-      const guildId =
-        typeof req.body?.guildId === "string"
-          ? req.body.guildId
-          : typeof req.query.guildId === "string"
-            ? req.query.guildId
-            : undefined;
-      const body = (req.body ?? {}) as UpdateLevelsConfigRequest;
+      const guildId = guildIdOf(req);
+      const body = parse(updateLevelsConfigSchema, req.body);
       const before = await getLevelsConfig(guildId);
       const config = await updateLevelsConfig(body, guildId);
 
@@ -114,10 +114,8 @@ export function levelsRoutes(bot: Client): Router {
     void (async () => {
       try {
         const guildId = guildIdOf(req);
-        const limitRaw = Number(req.query.limit ?? 100);
-        const limit = Number.isFinite(limitRaw)
-          ? Math.max(1, Math.min(100, Math.floor(limitRaw)))
-          : 100;
+        const { limit: limitRaw } = parseQuery(leaderboardQuerySchema, req.query);
+        const limit = limitRaw ?? 100;
         const payload = await resolveLeaderboardEntries(bot, guildId, limit);
         res.json(payload);
       } catch (error) {

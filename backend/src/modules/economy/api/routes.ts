@@ -1,18 +1,22 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
 import type {
-  AdjustEconomyFundsRequest,
   ApiErrorBody,
-  CreateEconomyShopItemRequest,
   EconomyLeaderboardEntry,
   EconomyLeaderboardResponse,
-  UpdateEconomyConfigRequest,
-  UpdateEconomyIncomeRequest,
-  UpdateEconomyCasinoRequest,
-  UpdateEconomyShopItemRequest,
 } from "@adobos/shared";
 import { resolveMembersBatch } from "../../../lib/discordMember.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
+import { parse, parseQuery, sendIfValidationError } from "../../../core/http/validate.js";
+import {
+  adjustEconomyFundsSchema,
+  createShopItemSchema,
+  leaderboardQuerySchema,
+  updateEconomyCasinoSchema,
+  updateEconomyConfigSchema,
+  updateEconomyIncomeSchema,
+  updateShopItemSchema,
+} from "../../../core/http/schemas.js";
 import {
   getEconomyCasinoConfig,
   updateEconomyCasinoConfig,
@@ -37,6 +41,7 @@ import {
 } from "../shopService.js";
 
 function handleError(error: unknown, res: import("express").Response): void {
+  if (sendIfValidationError(error, res)) return;
   if (error instanceof EconomyError) {
     const body: ApiErrorBody = {
       error: error.message,
@@ -103,10 +108,10 @@ export function economyRoutes(bot: Client): Router {
   /** PUT /api/economy/config */
   router.put("/config", async (req, res) => {
     try {
-      const body = req.body as UpdateEconomyConfigRequest;
+      const body = parse(updateEconomyConfigSchema, req.body);
       const config = await updateEconomyConfig({
         ...body,
-        guildId: guildIdOf(req) ?? body.guildId,
+        guildId: guildIdOf(req),
       });
       res.json({ config });
     } catch (error) {
@@ -127,10 +132,10 @@ export function economyRoutes(bot: Client): Router {
   /** PUT /api/economy/income */
   router.put("/income", async (req, res) => {
     try {
-      const body = req.body as UpdateEconomyIncomeRequest;
+      const body = parse(updateEconomyIncomeSchema, req.body);
       const config = await updateEconomyIncomeConfig({
         ...body,
-        guildId: guildIdOf(req) ?? body.guildId,
+        guildId: guildIdOf(req),
       });
       res.json({ config });
     } catch (error) {
@@ -151,10 +156,10 @@ export function economyRoutes(bot: Client): Router {
   /** PUT /api/economy/casino */
   router.put("/casino", async (req, res) => {
     try {
-      const body = req.body as UpdateEconomyCasinoRequest;
+      const body = parse(updateEconomyCasinoSchema, req.body);
       const config = await updateEconomyCasinoConfig({
         ...body,
-        guildId: guildIdOf(req) ?? body.guildId,
+        guildId: guildIdOf(req),
       });
       res.json({ config });
     } catch (error) {
@@ -175,10 +180,10 @@ export function economyRoutes(bot: Client): Router {
   /** POST /api/economy/shop/items */
   router.post("/shop/items", async (req, res) => {
     try {
-      const body = req.body as CreateEconomyShopItemRequest;
+      const body = parse(createShopItemSchema, req.body);
       const item = await createShopItem({
         ...body,
-        guildId: guildIdOf(req) ?? body.guildId,
+        guildId: guildIdOf(req),
       });
       res.status(201).json({ item });
     } catch (error) {
@@ -189,10 +194,10 @@ export function economyRoutes(bot: Client): Router {
   /** PUT /api/economy/shop/items/:id */
   router.put("/shop/items/:id", async (req, res) => {
     try {
-      const body = req.body as UpdateEconomyShopItemRequest;
+      const body = parse(updateShopItemSchema, req.body);
       const item = await updateShopItem(req.params.id, {
         ...body,
-        guildId: guildIdOf(req) ?? body.guildId,
+        guildId: guildIdOf(req),
       });
       res.json({ item });
     } catch (error) {
@@ -215,8 +220,8 @@ export function economyRoutes(bot: Client): Router {
     void (async () => {
       try {
         const guildId = guildIdOf(req);
-        const rawLimit = Number(req.query.limit ?? 100);
-        const limit = Number.isFinite(rawLimit) ? rawLimit : 100;
+        const { limit: rawLimit } = parseQuery(leaderboardQuerySchema, req.query);
+        const limit = rawLimit ?? 100;
         const payload = await resolveLeaderboard(bot, guildId, limit);
         res.json(payload);
       } catch (error) {
@@ -228,7 +233,7 @@ export function economyRoutes(bot: Client): Router {
   /** POST /api/economy/funds — override admin de saldos */
   router.post("/funds", async (req, res) => {
     try {
-      const body = req.body as AdjustEconomyFundsRequest;
+      const body = parse(adjustEconomyFundsSchema, req.body);
       const result = await adjustEconomyFunds({
         ...body,
         guildId: guildIdOf(req),

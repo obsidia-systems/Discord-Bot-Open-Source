@@ -1,13 +1,11 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
-import type {
-  ApiErrorBody,
-  CreateFormRequest,
-  UpdateFormRequest,
-} from "@adobos/shared";
+import type { ApiErrorBody } from "@adobos/shared";
 import { publishFormMessage } from "../publish.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { channelBelongsToGuild } from "../../../core/http/channelScope.js";
+import { parse, sendIfValidationError } from "../../../core/http/validate.js";
+import { createFormSchema, recordId, updateFormSchema } from "../../../core/http/schemas.js";
 import {
   FormsError,
   createForm,
@@ -19,6 +17,7 @@ import {
 } from "../service.js";
 
 function handleError(error: unknown, res: import("express").Response): void {
+  if (sendIfValidationError(error, res)) return;
   if (error instanceof FormsError) {
     const body: ApiErrorBody = {
       error: error.message,
@@ -36,11 +35,7 @@ function handleError(error: unknown, res: import("express").Response): void {
 }
 
 function parseFormId(raw: string): number {
-  const id = Number.parseInt(raw, 10);
-  if (!Number.isFinite(id) || id < 1) {
-    throw new FormsError("ID de formulario inválido.", 400, "INVALID_ID");
-  }
-  return id;
+  return parse(recordId, raw);
 }
 
 export function formsRoutes(bot: Client): Router {
@@ -59,7 +54,7 @@ export function formsRoutes(bot: Client): Router {
   /** POST /api/forms */
   router.post("/", async (req, res) => {
     try {
-      const body = (req.body ?? {}) as CreateFormRequest;
+      const body = parse(createFormSchema, req.body ?? {});
       const form = await createForm(body, guildIdOf(req));
       res.status(201).json({ form });
     } catch (error) {
@@ -83,7 +78,7 @@ export function formsRoutes(bot: Client): Router {
     void (async () => {
       try {
         const formId = parseFormId(req.params.id);
-        const body = (req.body ?? {}) as UpdateFormRequest;
+        const body = parse(updateFormSchema, req.body ?? {});
         const result = await publishFormMessage(
           bot,
           formId,
@@ -112,7 +107,7 @@ export function formsRoutes(bot: Client): Router {
   router.patch("/:id", async (req, res) => {
     try {
       const formId = parseFormId(req.params.id);
-      const body = (req.body ?? {}) as UpdateFormRequest;
+      const body = parse(updateFormSchema, req.body ?? {});
       const form = await updateForm(formId, body, guildIdOf(req));
       res.json({ form });
     } catch (error) {

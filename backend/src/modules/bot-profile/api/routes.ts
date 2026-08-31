@@ -1,9 +1,11 @@
 import multer from "multer";
 import { Router } from "express";
 import type { Client } from "discord.js";
-import type { ApiErrorBody, UpdateBotGuildProfileRequest } from "@adobos/shared";
+import type { ApiErrorBody } from "@adobos/shared";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { requireFeature } from "../../../core/entitlements/service.js";
+import { parse, sendIfValidationError } from "../../../core/http/validate.js";
+import { updateBotGuildProfileSchema } from "../../../core/http/schemas.js";
 import {
   BotProfileError,
   getGuildBotProfile,
@@ -33,6 +35,7 @@ const avatarUpload = multer({
 });
 
 function handleError(error: unknown, res: import("express").Response): void {
+  if (sendIfValidationError(error, res)) return;
   if (error instanceof BotProfileError) {
     const body: ApiErrorBody = {
       error: error.message,
@@ -73,40 +76,6 @@ function handleError(error: unknown, res: import("express").Response): void {
   res.status(500).json(body);
 }
 
-function optionalString(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
-  return value;
-}
-
-function optionalBool(value: unknown): boolean | undefined {
-  if (typeof value === "boolean") return value;
-  if (value === "true" || value === "1") return true;
-  if (value === "false" || value === "0") return false;
-  return undefined;
-}
-
-function parseFields(
-  body: Record<string, unknown>,
-): UpdateBotGuildProfileRequest {
-  const fields: UpdateBotGuildProfileRequest = {};
-
-  const nickname = optionalString(body.nickname);
-  if (nickname !== undefined) fields.nickname = nickname;
-
-  const clearNickname = optionalBool(body.clearNickname);
-  if (clearNickname !== undefined) fields.clearNickname = clearNickname;
-
-  const serverAvatarUrl = optionalString(body.serverAvatarUrl);
-  if (serverAvatarUrl !== undefined) fields.serverAvatarUrl = serverAvatarUrl;
-
-  const clearServerAvatar = optionalBool(body.clearServerAvatar);
-  if (clearServerAvatar !== undefined) {
-    fields.clearServerAvatar = clearServerAvatar;
-  }
-
-  return fields;
-}
-
 export function botProfileRoutes(bot: Client): Router {
   const router = Router();
 
@@ -128,11 +97,7 @@ export function botProfileRoutes(bot: Client): Router {
       }
 
       try {
-        const rawBody =
-          req.body && typeof req.body === "object"
-            ? (req.body as Record<string, unknown>)
-            : {};
-        const fields = parseFields(rawBody);
+        const fields = parse(updateBotGuildProfileSchema, req.body ?? {});
         const guildId = guildIdOf(req);
         const file = req.file;
 
