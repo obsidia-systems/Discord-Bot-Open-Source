@@ -5,7 +5,7 @@ import { parse, parseQuery } from "../../../core/http/validate.js";
 import {
   actionLogsHistoryQuerySchema,
   updateActionLogsConfigSchema,
-} from "../../../core/http/schemas.js";
+} from "./schema.js";
 import {
   getActionLogsConfig,
   listActionLogsHistory,

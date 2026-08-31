@@ -9,6 +9,7 @@ import {
 } from "./scheduler.js";
 import { setScheduledMessageChangeListener } from "./service.js";
 import { logger } from "../../core/log.js";
+import { isWorkerLeader } from "../../core/runtime/index.js";
 
 export const scheduledMessagesModule: AdobosModule = {
   id: "scheduled-messages",
@@ -20,6 +21,7 @@ export const scheduledMessagesModule: AdobosModule = {
   register(ctx) {
     bindScheduledMessagesScheduler(ctx.client);
     setScheduledMessageChangeListener(async (message, previousId) => {
+      if (!isWorkerLeader()) return;
       if (!message && previousId != null) {
         onScheduledMessageRemoved(previousId);
         return;
@@ -32,6 +34,7 @@ export const scheduledMessagesModule: AdobosModule = {
     });
 
     ctx.once("ready", async () => {
+      if (!isWorkerLeader()) return;
       await rehydrateAllScheduledJobs();
       logger.info("scheduled-messages: crons rehidratados");
     });

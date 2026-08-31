@@ -7,15 +7,15 @@ import type {
 import { resolveMembersBatch } from "../../../lib/discordMember.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { parse, parseQuery } from "../../../core/http/validate.js";
+import { leaderboardQuerySchema } from "../../../core/http/schemas.js";
 import {
   adjustEconomyFundsSchema,
   createShopItemSchema,
-  leaderboardQuerySchema,
   updateEconomyCasinoSchema,
   updateEconomyConfigSchema,
   updateEconomyIncomeSchema,
   updateShopItemSchema,
-} from "../../../core/http/schemas.js";
+} from "./schema.js";
 import {
   getEconomyCasinoConfig,
   updateEconomyCasinoConfig,

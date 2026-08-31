@@ -31,6 +31,8 @@ export interface StoredSession {
   globalName: string | null;
   avatar: string | null;
   accessTokenEnc: string;
+  refreshTokenEnc: string | null;
+  accessExpiresAt: Date | null;
   expiresAt: Date;
 }
 

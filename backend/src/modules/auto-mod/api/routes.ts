@@ -2,7 +2,7 @@ import { Router } from "express";
 import type { Client } from "discord.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { parse } from "../../../core/http/validate.js";
-import { updateAutoModConfigSchema } from "../../../core/http/schemas.js";
+import { updateAutoModConfigSchema } from "./schema.js";
 import {
   getAutoModConfig,
   updateAutoModConfig,

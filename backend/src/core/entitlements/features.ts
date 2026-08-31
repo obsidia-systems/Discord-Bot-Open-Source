@@ -7,7 +7,6 @@ const CATEGORY_FEATURE: Record<SystemCommandCategory, FeatureKey> = {
   economy: "economy",
   utilities: "utilities",
   forms: "forms",
-  pokemon: "pokemon",
 };
 
 export function featureForCommandCategory(

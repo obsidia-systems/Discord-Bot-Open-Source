@@ -34,15 +34,6 @@ import {
 } from "../../economy/commands/income.js";
 import { handleShopCommand } from "../../economy/commands/shop.js";
 import { getEconomyConfig } from "../../economy/service.js";
-import { handleLocationCommand } from "../../pokemon/commands/location.js";
-import { handlePokeinfoCommand } from "../../pokemon/commands/pokeinfo.js";
-import {
-  handleBreedingCommand,
-  handleCountersCommand,
-  handleSandwichCommand,
-  handleTeambuilderCommand,
-  handleWeaknessCommand,
-} from "../../pokemon/commands/stubs.js";
 import {
   handlePingCommand,
   handleServerInfoCommand,
@@ -100,15 +91,6 @@ export const DEFAULT_COMMAND_HANDLERS: Record<string, DefaultCommandHandler> = {
   coinflip: handleCoinflipCommand,
   roulette: handleRouletteCommand,
   blackjack: handleBlackjackCommand,
-
-  // Pokémon
-  pokeinfo: handlePokeinfoCommand,
-  teambuilder: handleTeambuilderCommand,
-  weakness: handleWeaknessCommand,
-  breeding: handleBreedingCommand,
-  location: handleLocationCommand,
-  counters: handleCountersCommand,
-  sandwich: handleSandwichCommand,
 
   // Utilidades
   userinfo: handleUserInfoCommand,

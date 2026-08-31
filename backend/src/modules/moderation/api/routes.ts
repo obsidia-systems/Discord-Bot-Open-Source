@@ -13,13 +13,12 @@ import {
 import { fetchDiscordAuditLog } from "../audit.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { parse, parseQuery } from "../../../core/http/validate.js";
+import { searchQuerySchema, snowflake } from "../../../core/http/schemas.js";
 import {
   discordAuditQuerySchema,
   fetchMessageQuerySchema,
   modActionSchema,
-  searchQuerySchema,
-  snowflake,
-} from "../../../core/http/schemas.js";
+} from "./schema.js";
 
 export function moderationRoutes(bot: Client): Router {
   const router = Router();

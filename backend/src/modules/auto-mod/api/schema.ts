@@ -1,0 +1,58 @@
+import { z } from "zod";
+import {
+  nonNegInt,
+  posInt,
+  snowflakeList,
+  snowflakeNull,
+} from "../../../core/http/schemas.js";
+
+const autoModFiltersSchema = z.object({
+  zalgo: z.boolean().optional(),
+  excessCaps: z.boolean().optional(),
+  capsPercentage: z.number().int().min(0).max(100).optional(),
+  capsMinLength: nonNegInt.optional(),
+  bannedWordsEnabled: z.boolean().optional(),
+  bannedWords: z.array(z.string()).optional(),
+  antiLinks: z.boolean().optional(),
+  allowedLinks: z.array(z.string()).optional(),
+  antiInvites: z.boolean().optional(),
+  messageSpam: z.boolean().optional(),
+  repeatedText: z.boolean().optional(),
+  mentionSpam: z.boolean().optional(),
+  mentionSpamLimit: posInt.optional(),
+  textFlood: z.boolean().optional(),
+  floodMaxChars: posInt.optional(),
+  floodMaxLines: posInt.optional(),
+});
+
+export const updateAutoModConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  filters: autoModFiltersSchema.optional(),
+  ignoredRoles: snowflakeList.optional(),
+  ignoredChannels: snowflakeList.optional(),
+  logChannelId: snowflakeNull,
+  warnDecayDays: z
+    .union([
+      z.literal(0),
+      z.literal(14),
+      z.literal(30),
+      z.literal(60),
+      z.literal(90),
+    ])
+    .optional(),
+  punishments: z
+    .array(
+      z.object({
+        warnThreshold: posInt,
+        actionType: z.enum([
+          "TIMEOUT",
+          "KICK",
+          "BAN",
+          "REMOVE_XP",
+          "XP_FREEZE",
+        ]),
+        actionParam: z.number().nullable(),
+      }),
+    )
+    .optional(),
+});

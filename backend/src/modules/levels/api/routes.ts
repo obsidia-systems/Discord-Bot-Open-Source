@@ -8,10 +8,8 @@ import { resolveMembersBatch } from "../../../lib/discordMember.js";
 import { forceLiveLeaderboardRefresh } from "../liveLeaderboard.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { parse, parseQuery } from "../../../core/http/validate.js";
-import {
-  leaderboardQuerySchema,
-  updateLevelsConfigSchema,
-} from "../../../core/http/schemas.js";
+import { leaderboardQuerySchema } from "../../../core/http/schemas.js";
+import { updateLevelsConfigSchema } from "./schema.js";
 import {
   getLeaderboardTotal,
   getLevelsConfig,

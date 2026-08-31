@@ -4,6 +4,7 @@ import { actionLogsRoutes } from "./api/routes.js";
 import { registerActionLogListeners } from "./events.js";
 import { purgeAllExpiredActionLogs } from "./service.js";
 import { logger } from "../../core/log.js";
+import { isWorkerLeader } from "../../core/runtime/index.js";
 
 const RETENTION_PURGE_MS = 60 * 60 * 1000; // 1h
 
@@ -25,6 +26,7 @@ export const actionLogsModule: AdobosModule = {
     registerActionLogListeners(ctx);
 
     ctx.once("ready", async () => {
+      if (!isWorkerLeader()) return;
       try {
         const n = await purgeAllExpiredActionLogs();
         if (n > 0) {
@@ -36,6 +38,7 @@ export const actionLogsModule: AdobosModule = {
     });
 
     const timer = setInterval(async () => {
+      if (!isWorkerLeader()) return;
       try {
         const n = await purgeAllExpiredActionLogs();
         if (n > 0) {

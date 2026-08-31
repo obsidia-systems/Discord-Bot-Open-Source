@@ -5,8 +5,8 @@ import {
   type Response,
   Router,
 } from "express";
+import { DiscordHttpError } from "../bot/discordHttpError.js";
 import { logger } from "../log.js";
-import { decryptSecret } from "./crypto.js";
 import { listManagedGuilds } from "./discordGuilds.js";
 import {
   consumeOauthState,
@@ -141,12 +141,20 @@ export function authRouter(): Router {
         );
         return;
       }
-      const tokenJson = (await tokenRes.json()) as { access_token?: string };
+      const tokenJson = (await tokenRes.json()) as {
+        access_token?: string;
+        refresh_token?: string;
+        expires_in?: number;
+      };
       const accessToken = tokenJson.access_token;
       if (!accessToken) {
         res.redirect("/login?error=oauth_token");
         return;
       }
+      const accessExpiresAt =
+        typeof tokenJson.expires_in === "number"
+          ? new Date(Date.now() + tokenJson.expires_in * 1000)
+          : null;
 
       const meRes = await fetch(`${DISCORD_API}/users/@me`, {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -174,6 +182,8 @@ export function authRouter(): Router {
         globalName: me.global_name,
         avatar: me.avatar,
         accessToken,
+        refreshToken: tokenJson.refresh_token ?? null,
+        accessExpiresAt,
       });
       res.cookie(SESSION_COOKIE, sessionId, cookieOptions());
       res.redirect("/dashboard");
@@ -212,13 +222,28 @@ export function meRouter(): Router {
       return;
     }
     try {
-      const accessToken = decryptSecret(session.accessTokenEnc);
-      const guilds = await listManagedGuilds(session.userId, accessToken);
+      const guilds = await listManagedGuilds(session);
       res.json({
         user: toPanelUser(session),
         guilds,
       });
     } catch (error: unknown) {
+      if (error instanceof DiscordHttpError && error.status === 401) {
+        res
+          .status(401)
+          .json({ error: "Sesión expirada.", code: "UNAUTHENTICATED" });
+        return;
+      }
+      if (error instanceof DiscordHttpError && error.status === 429) {
+        if (error.retryAfterSec) {
+          res.setHeader("Retry-After", String(error.retryAfterSec));
+        }
+        res.status(429).json({
+          error: "Discord está limitando peticiones. Espera un momento.",
+          code: "DISCORD_RATE_LIMITED",
+        });
+        return;
+      }
       logger.error({ err: error }, "GET /api/me falló:");
       res.status(502).json({
         error: "No se pudieron cargar tus servidores.",

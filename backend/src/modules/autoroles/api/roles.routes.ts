@@ -7,7 +7,7 @@ import { parse } from "../../../core/http/validate.js";
 import {
   createAutoRoleLegacySchema,
   saveAutoJoinRolesSchema,
-} from "../../../core/http/schemas.js";
+} from "./schema.js";
 
 /** Rutas unificadas: /api/roles/* */
 export function rolesRoutes(bot: Client): Router {

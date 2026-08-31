@@ -4,7 +4,7 @@ import type { Client } from "discord.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { requireFeature } from "../../../core/entitlements/service.js";
 import { parse } from "../../../core/http/validate.js";
-import { updateBotGuildProfileSchema } from "../../../core/http/schemas.js";
+import { updateBotGuildProfileSchema } from "./schema.js";
 import {
   getGuildBotProfile,
   updateGuildBotProfile,

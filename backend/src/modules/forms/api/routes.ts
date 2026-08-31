@@ -4,7 +4,8 @@ import { publishFormMessage } from "../publish.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { channelBelongsToGuild } from "../../../core/http/channelScope.js";
 import { parse } from "../../../core/http/validate.js";
-import { createFormSchema, recordId, updateFormSchema } from "../../../core/http/schemas.js";
+import { recordId } from "../../../core/http/schemas.js";
+import { createFormSchema, updateFormSchema } from "./schema.js";
 import {
   createForm,
   deleteForm,

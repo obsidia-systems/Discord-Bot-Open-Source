@@ -12,6 +12,7 @@ import {
 } from "./commands/shop.js";
 import { startShopExpirationSweeper } from "./shopExpiration.js";
 import { logger } from "../../core/log.js";
+import { isWorkerLeader } from "../../core/runtime/index.js";
 
 /** Módulo Economía — banco, ingresos, saldos y leaderboard. */
 export const economyModule: AdobosModule = {
@@ -26,6 +27,7 @@ export const economyModule: AdobosModule = {
     ctx.button(BJ_BUTTON_PREFIX, (interaction) => handleBlackjackButton(interaction),
     );
     ctx.once("ready", async () => {
+      if (!isWorkerLeader()) return;
       await startShopExpirationSweeper(ctx.client);
       logger.info("economy: sweeper de grants temporales activo");
     });

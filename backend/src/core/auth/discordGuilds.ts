@@ -1,9 +1,12 @@
+import { DiscordHttpError } from "../bot/discordHttpError.js";
 import { BoundedTtlMap } from "../cache/boundedTtlMap.js";
+import { fetchDiscordAsUser } from "./discordUser.js";
 import {
   ADMINISTRATOR_BIT,
   GUILD_CACHE_TTL_MS,
   MANAGE_GUILD_BIT,
   type ManagedGuild,
+  type StoredSession,
 } from "./types.js";
 
 interface DiscordGuildPayload {
@@ -51,32 +54,28 @@ export function toManagedGuild(guild: DiscordGuildPayload): ManagedGuild {
 }
 
 export async function listManagedGuilds(
-  userId: string,
-  accessToken: string,
+  session: StoredSession,
 ): Promise<ManagedGuild[]> {
-  const cached = cache.get(userId);
+  const cached = cache.get(session.userId);
   if (cached) {
     return cached.guilds;
   }
 
-  const res = await fetch("https://discord.com/api/v10/users/@me/guilds", {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  const res = await fetchDiscordAsUser(session, "/users/@me/guilds");
   if (!res.ok) {
-    throw new Error(`Discord guilds HTTP ${res.status}`);
+    throw new DiscordHttpError(`Discord guilds HTTP ${res.status}`, res.status);
   }
   const payload = (await res.json()) as DiscordGuildPayload[];
   const guilds = payload.filter(hasManageGuild).map(toManagedGuild);
-  cache.set(userId, { fetchedAt: Date.now(), guilds });
+  cache.set(session.userId, { fetchedAt: Date.now(), guilds });
   return guilds;
 }
 
 export async function userManagesGuild(
-  userId: string,
-  accessToken: string,
+  session: StoredSession,
   guildId: string,
 ): Promise<boolean> {
-  const guilds = await listManagedGuilds(userId, accessToken);
+  const guilds = await listManagedGuilds(session);
   return guilds.some((g) => g.id === guildId);
 }
 

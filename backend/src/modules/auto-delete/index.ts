@@ -9,6 +9,7 @@ import {
 } from "./scheduler.js";
 import { setAutoDeleteConfigChangeListener } from "./service.js";
 import { logger } from "../../core/log.js";
+import { isWorkerLeader } from "../../core/runtime/index.js";
 
 export const autoDeleteModule: AdobosModule = {
   id: "auto-delete",
@@ -21,6 +22,7 @@ export const autoDeleteModule: AdobosModule = {
   register(ctx) {
     bindAutoDeleteScheduler(ctx.client);
     setAutoDeleteConfigChangeListener(async (config) => {
+      if (!isWorkerLeader()) return;
       await syncAutoDeleteJobsForConfig(config);
     });
 
@@ -30,6 +32,7 @@ export const autoDeleteModule: AdobosModule = {
     registerAutoDeleteListeners(ctx);
 
     ctx.once("ready", async () => {
+      if (!isWorkerLeader()) return;
       await rehydrateAllAutoDeleteJobs();
       logger.info("auto-delete: crons rehidratados");
     });

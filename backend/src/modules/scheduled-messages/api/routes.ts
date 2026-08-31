@@ -3,12 +3,12 @@ import type { Client } from "discord.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { fetchChannelInGuild } from "../../../core/http/channelScope.js";
 import { parse } from "../../../core/http/validate.js";
+import { recordId } from "../../../core/http/schemas.js";
 import {
   createScheduledMessageSchema,
-  recordId,
   toggleScheduledSchema,
   updateScheduledMessageSchema,
-} from "../../../core/http/schemas.js";
+} from "./schema.js";
 import {
   createScheduledMessage,
   deleteScheduledMessage,

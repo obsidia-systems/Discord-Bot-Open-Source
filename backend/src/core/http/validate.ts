@@ -1,4 +1,4 @@
-import type { ZodError, ZodIssue, ZodType } from "zod";
+import type { ZodError, ZodType } from "zod";
 
 export class ValidationError extends Error {
   readonly status = 400;
@@ -8,8 +8,10 @@ export class ValidationError extends Error {
   constructor(error: ZodError) {
     super("Datos inválidos.");
     this.name = "ValidationError";
-    this.issues = error.issues.map((issue: ZodIssue) => ({
-      path: [...issue.path],
+    this.issues = error.issues.map((issue) => ({
+      path: issue.path.map((part) =>
+        typeof part === "symbol" ? String(part) : part,
+      ),
       message: issue.message,
     }));
   }

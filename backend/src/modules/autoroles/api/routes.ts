@@ -8,14 +8,14 @@ import {
 import { emojiKeyToResolvable } from "../../../db/reaction-roles.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { parse } from "../../../core/http/validate.js";
+import { recordId } from "../../../core/http/schemas.js";
 import {
   createAutoRoleLegacySchema,
   createAutoroleCompactSchema,
-  recordId,
   saveReactionRolesSchema,
   updateAutoroleContentSchema,
   updateAutoroleMappingSchema,
-} from "../../../core/http/schemas.js";
+} from "./schema.js";
 import { fetchChannelInGuild } from "../../../core/http/channelScope.js";
 import { logger } from "../../../core/log.js";
 import {

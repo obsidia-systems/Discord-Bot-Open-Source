@@ -5,7 +5,7 @@ import { parse } from "../../../core/http/validate.js";
 import {
   createGuildRoleSchema,
   updateRolePositionsSchema,
-} from "../../../core/http/schemas.js";
+} from "./schema.js";
 import {
   createGuildRole,
   listGuildRoles,

@@ -1,16 +1,6 @@
 import { BoundedTtlMap } from "../cache/boundedTtlMap.js";
 
-const EXPENSIVE_COMMANDS = new Set([
-  "pokeinfo",
-  "location",
-  "leaderboard",
-  "rank",
-  "teambuilder",
-  "weakness",
-  "breeding",
-  "counters",
-  "sandwich",
-]);
+const EXPENSIVE_COMMANDS = new Set(["leaderboard", "rank"]);
 
 const generalHits = new BoundedTtlMap<string, number[]>(8_000, 60_000);
 const expensiveHits = new BoundedTtlMap<string, number[]>(8_000, 60_000);

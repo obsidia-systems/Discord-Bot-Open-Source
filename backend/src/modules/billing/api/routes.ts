@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { HttpError } from "../../../core/http/httpError.js";
-import { billingCheckoutSchema } from "../../../core/http/schemas.js";
+import { billingCheckoutSchema } from "./schema.js";
 import { parse } from "../../../core/http/validate.js";
 import {
   assignCurrentGuild,

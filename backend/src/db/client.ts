@@ -81,6 +81,24 @@ export function getDb(): AppDatabase {
   return db;
 }
 
+export async function pingDatabase(): Promise<boolean> {
+  if (!sql) return false;
+  try {
+    await sql`SELECT 1`;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function closeDatabase(): Promise<void> {
+  if (sql) {
+    await sql.end({ timeout: 5 }).catch(() => undefined);
+  }
+  sql = null;
+  db = null;
+}
+
 export async function one<T>(rows: Promise<T[]>): Promise<T | undefined> {
   const [row] = await rows;
   return row;

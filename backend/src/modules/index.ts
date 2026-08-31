@@ -16,7 +16,6 @@ import { customCommandsModule } from "./custom-commands/index.js";
 import { systemCommandsModule } from "./system-commands/index.js";
 import { levelsModule } from "./levels/index.js";
 import { rolesBuilderModule } from "./roles-builder/index.js";
-import { pokemonModule } from "./pokemon/index.js";
 import { billingModule } from "./billing/index.js";
 
 /**
@@ -41,7 +40,6 @@ export const ENABLED_MODULES: readonly AdobosModule[] = [
   systemCommandsModule,
   levelsModule,
   rolesBuilderModule,
-  pokemonModule,
   billingModule,
 ];
 
@@ -63,6 +61,5 @@ export {
   systemCommandsModule,
   levelsModule,
   rolesBuilderModule,
-  pokemonModule,
   billingModule,
 };

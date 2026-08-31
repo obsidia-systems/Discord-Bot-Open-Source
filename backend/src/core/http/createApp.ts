@@ -11,9 +11,9 @@ import helmet from "helmet";
 import { healthRouter } from "../../api/routes/health.js";
 import { uploadRoutes } from "../../api/routes/uploads.routes.js";
 import { getUploadsRoot } from "../../lib/dataPaths.js";
-import { stripeWebhookHandler } from "../../modules/billing/webhook.js";
 import { authRouter, meRouter } from "../auth/oauth.js";
 import { entitlementsRoutes, requireFeature } from "../entitlements/index.js";
+import { env } from "../env.js";
 import { logger } from "../log.js";
 import type { ModuleRegistry } from "../modules/registry.js";
 import { errorHandler, notFoundHandler } from "./errorHandler.js";
@@ -23,6 +23,7 @@ import {
   authRateLimiter,
   uploadRateLimiter,
 } from "./rateLimit.js";
+import { requestIdMiddleware } from "./requestContext.js";
 
 export interface CreateAppOptions {
   bot: Client;
@@ -30,28 +31,8 @@ export interface CreateAppOptions {
   staticDir: string;
 }
 
-function assertPanelEnv(): void {
-  const secret = process.env.SESSION_SECRET?.trim();
-  if (!secret || secret.length < 16) {
-    throw new Error(
-      "SESSION_SECRET debe definirse (mínimo 16 caracteres) para las sesiones del panel.",
-    );
-  }
-  if (!process.env.PUBLIC_APP_URL?.trim()) {
-    throw new Error("PUBLIC_APP_URL es obligatorio (redirect OAuth y CORS).");
-  }
-  if (!process.env.DISCORD_CLIENT_ID?.trim()) {
-    throw new Error("DISCORD_CLIENT_ID es obligatorio para OAuth del panel.");
-  }
-  if (!process.env.DISCORD_CLIENT_SECRET?.trim()) {
-    throw new Error(
-      "DISCORD_CLIENT_SECRET es obligatorio para OAuth del panel.",
-    );
-  }
-}
-
 function corsOrigin(): string | string[] {
-  const raw = process.env.CORS_ORIGIN?.trim();
+  const raw = env().CORS_ORIGIN?.trim();
   if (raw) {
     const list = raw
       .split(",")
@@ -60,33 +41,25 @@ function corsOrigin(): string | string[] {
     if (list.length === 1) return list[0]!;
     if (list.length > 1) return list;
   }
-  if (process.env.NODE_ENV === "production") {
-    throw new Error(
-      "CORS_ORIGIN es obligatorio en producción (allowlist, no origin:true).",
-    );
-  }
-  return process.env.PUBLIC_APP_URL?.trim() || "http://localhost:4321";
+  return env().PUBLIC_APP_URL.replace(/\/$/, "") || "http://localhost:4321";
 }
 
-function isPublicApiPath(req: Request): boolean {
-  return (
-    req.path === "/health" ||
-    req.path.startsWith("/health/") ||
-    req.path === "/billing/webhook"
-  );
+function isPublicApiPath(req: Request, registry: ModuleRegistry): boolean {
+  if (req.path === "/health" || req.path.startsWith("/health/")) return true;
+  const full = `/api${req.path}`;
+  return registry.rawRoutes.some((r) => r.path === full || r.path === req.path);
 }
 
 /**
  * Express kernel: health + auth + uploads + rutas de módulos.
- * /api/* (salvo health) exige sesión. Rutas de dominio exigen guild.
- * El panel estático (Astro) lo sirve el servicio `frontend`, salvo SERVE_STATIC
- * (p. ej. `pnpm start` local copiando frontend/dist → backend/public).
+ * /api/* (salvo health y webhooks raw) exige sesión. Rutas de dominio exigen guild.
  */
 export function createApp(options: CreateAppOptions): Express {
-  assertPanelEnv();
   const app = express();
+  const { registry } = options;
 
   app.set("trust proxy", 1);
+  app.use(requestIdMiddleware());
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(cors({ origin: corsOrigin(), credentials: true }));
   app.use(cookieParser());
@@ -111,19 +84,20 @@ export function createApp(options: CreateAppOptions): Express {
     next();
   });
 
-  // Body crudo ANTES de express.json: constructEvent falla si el JSON ya está parseado.
-  app.post(
-    "/api/billing/webhook",
-    express.raw({ type: "application/json" }),
-    stripeWebhookHandler,
-  );
+  for (const raw of registry.rawRoutes) {
+    app[raw.method](
+      raw.path,
+      express.raw({ type: "application/json" }),
+      raw.handler,
+    );
+  }
   app.use(express.json({ limit: "1mb" }));
 
   app.use("/auth", authRateLimiter, authRouter());
   app.use("/api/health", healthRouter(options.bot));
 
   app.use("/api", apiRateLimiter, (req, res, next) => {
-    if (isPublicApiPath(req)) return next();
+    if (isPublicApiPath(req, registry)) return next();
     return requireAuth()(req, res, next);
   });
   app.use("/api/me", meRouter());
@@ -135,7 +109,7 @@ export function createApp(options: CreateAppOptions): Express {
     uploadRoutes(),
   );
 
-  for (const entry of options.registry.routes) {
+  for (const entry of registry.routes) {
     const guards: RequestHandler[] = [requireGuildAccess()];
     if (entry.feature) guards.push(requireFeature(entry.feature));
     app.use(entry.basePath, ...guards, entry.router);
@@ -143,8 +117,7 @@ export function createApp(options: CreateAppOptions): Express {
 
   app.use("/uploads", requireAuth(), express.static(getUploadsRoot()));
 
-  const serveStatic =
-    process.env.SERVE_STATIC !== "false" && process.env.SERVE_STATIC !== "0";
+  const serveStatic = env().SERVE_STATIC;
   if (serveStatic) {
     app.use((req, res, next) => {
       if (!req.path.startsWith("/dashboard")) return next();
@@ -166,6 +139,18 @@ export function createApp(options: CreateAppOptions): Express {
     });
   }
 
+  app.use(notFoundHandler);
+  app.use(errorHandler);
+  return app;
+}
+
+/** App mínima para gateway/worker: solo probes. */
+export function createHealthApp(bot: Client): Express {
+  const app = express();
+  app.set("trust proxy", 1);
+  app.use(requestIdMiddleware());
+  app.use(helmet({ contentSecurityPolicy: false }));
+  app.use("/api/health", healthRouter(bot));
   app.use(notFoundHandler);
   app.use(errorHandler);
   return app;

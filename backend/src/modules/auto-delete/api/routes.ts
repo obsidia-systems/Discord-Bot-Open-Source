@@ -3,7 +3,7 @@ import type { Client } from "discord.js";
 import { resolveSchedulerTimezone } from "../../../lib/schedulerTimezone.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { parse } from "../../../core/http/validate.js";
-import { updateAutoDeleteConfigSchema } from "../../../core/http/schemas.js";
+import { updateAutoDeleteConfigSchema } from "./schema.js";
 import {
   getAutoDeleteConfig,
   updateAutoDeleteConfig,

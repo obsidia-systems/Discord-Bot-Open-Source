@@ -1,6 +1,10 @@
-import { GatewayIntentBits } from "discord.js";
+import { GatewayIntentBits, MessageFlags } from "discord.js";
+import { SYSTEM_COMMAND_CATALOG } from "@adobos/shared";
 import type { AdobosModule } from "../../core/modules/types.js";
+import { handleBuyAutocomplete } from "../economy/commands/buy.js";
 import { systemCommandsRoutes } from "./api/routes.js";
+import { assertSystemCommandAllowed } from "./guard.js";
+import { dispatchDefaultCommand } from "./handlers/index.js";
 
 export const systemCommandsModule: AdobosModule = {
   id: "system-commands",
@@ -10,6 +14,24 @@ export const systemCommandsModule: AdobosModule = {
     ctx.route("/api/system-commands", systemCommandsRoutes(ctx.client), {
       feature: "system-commands",
     });
+    ctx.autocomplete("buy", handleBuyAutocomplete);
+    for (const def of SYSTEM_COMMAND_CATALOG) {
+      ctx.command({
+        name: def.name,
+        description: def.description,
+        handle: async (interaction) => {
+          const guard = await assertSystemCommandAllowed(interaction);
+          if (!guard.ok) {
+            await interaction.reply({
+              content: guard.message,
+              flags: MessageFlags.Ephemeral,
+            });
+            return;
+          }
+          await dispatchDefaultCommand(interaction);
+        },
+      });
+    }
   },
 };
 

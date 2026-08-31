@@ -1,4 +1,5 @@
 import type {
+  AutocompleteInteraction,
   ButtonInteraction,
   Client,
   ClientEvents,
@@ -6,17 +7,23 @@ import type {
 } from "discord.js";
 import type {
   AdobosModule,
+  AutocompleteHandler,
   ButtonHandler,
   ChatInputCommandDefinition,
+  FallbackChatHandler,
   ModalHandler,
   ModuleContext,
+  RawRoute,
   RegisteredRoute,
 } from "./types.js";
 
 export interface ModuleRegistry {
   modules: readonly AdobosModule[];
   routes: readonly RegisteredRoute[];
+  rawRoutes: readonly RawRoute[];
   commands: readonly ChatInputCommandDefinition[];
+  fallbackChat: FallbackChatHandler | null;
+  autocompleteHandlers: ReadonlyMap<string, AutocompleteHandler>;
   buttonHandlers: ReadonlyMap<string, ButtonHandler>;
   modalHandlers: ReadonlyMap<string, ModalHandler>;
   intents: readonly number[];
@@ -32,7 +39,10 @@ export function createModuleRegistry(
   modules: readonly AdobosModule[],
 ): ModuleRegistry {
   const routes: RegisteredRoute[] = [];
+  const rawRoutes: RawRoute[] = [];
   const commands: ChatInputCommandDefinition[] = [];
+  let fallbackChat: FallbackChatHandler | null = null;
+  const autocompleteHandlers = new Map<string, AutocompleteHandler>();
   const buttonHandlers = new Map<string, ButtonHandler>();
   const modalHandlers = new Map<string, ModalHandler>();
   const intentSet = new Set<number>();
@@ -74,11 +84,34 @@ export function createModuleRegistry(
         const normalized = basePath.startsWith("/") ? basePath : `/${basePath}`;
         routes.push({ basePath: normalized, router, feature: opts?.feature });
       },
+      rawRoute(method, path, handler) {
+        const normalized = path.startsWith("/") ? path : `/${path}`;
+        if (
+          rawRoutes.some((r) => r.method === method && r.path === normalized)
+        ) {
+          throw new Error(
+            `[adobos] rawRoute duplicada: ${method} ${normalized}`,
+          );
+        }
+        rawRoutes.push({ method, path: normalized, handler });
+      },
       command(def) {
         if (commands.some((c) => c.name === def.name)) {
           throw new Error(`[adobos] Comando duplicado: /${def.name}`);
         }
         commands.push(def);
+      },
+      fallbackChat(handler) {
+        if (fallbackChat) {
+          throw new Error("[adobos] fallbackChat ya registrado");
+        }
+        fallbackChat = handler;
+      },
+      autocomplete(commandName, handler) {
+        if (autocompleteHandlers.has(commandName)) {
+          throw new Error(`[adobos] Autocomplete duplicado: /${commandName}`);
+        }
+        autocompleteHandlers.set(commandName, handler);
       },
       button(prefixOrId, handler) {
         if (buttonHandlers.has(prefixOrId)) {
@@ -94,10 +127,12 @@ export function createModuleRegistry(
       },
     };
 
-    // Primera pasada: register (puede encolar eventos y rutas)
     pendingEvents.length = 0;
     routes.length = 0;
+    rawRoutes.length = 0;
     commands.length = 0;
+    fallbackChat = null;
+    autocompleteHandlers.clear();
     buttonHandlers.clear();
     modalHandlers.clear();
 
@@ -119,8 +154,17 @@ export function createModuleRegistry(
     get routes() {
       return routes;
     },
+    get rawRoutes() {
+      return rawRoutes;
+    },
     get commands() {
       return commands;
+    },
+    get fallbackChat() {
+      return fallbackChat;
+    },
+    get autocompleteHandlers() {
+      return autocompleteHandlers;
     },
     get buttonHandlers() {
       return buttonHandlers;
@@ -179,6 +223,16 @@ export async function dispatchModal(
   interaction: ModalSubmitInteraction,
 ): Promise<boolean> {
   const handler = resolveModalHandler(registry, interaction.customId);
+  if (!handler) return false;
+  await handler(interaction);
+  return true;
+}
+
+export async function dispatchAutocomplete(
+  registry: ModuleRegistry,
+  interaction: AutocompleteInteraction,
+): Promise<boolean> {
+  const handler = registry.autocompleteHandlers.get(interaction.commandName);
   if (!handler) return false;
   await handler(interaction);
   return true;

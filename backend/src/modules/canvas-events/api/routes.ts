@@ -2,7 +2,7 @@ import { Router } from "express";
 import type { Client } from "discord.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { parse } from "../../../core/http/validate.js";
-import { saveCanvasEventSettingsSchema } from "../../../core/http/schemas.js";
+import { saveCanvasEventSettingsSchema } from "./schema.js";
 import type { CanvasEventType } from "@adobos/shared";
 import {
   getCanvasEventSettings,

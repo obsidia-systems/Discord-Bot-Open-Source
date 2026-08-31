@@ -8,10 +8,8 @@ import { getTemplatesDir } from "../../../lib/dataPaths.js";
 import { sniffImageFile } from "../../../lib/imageMagic.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { parse } from "../../../core/http/validate.js";
-import {
-  recordId,
-  saveEmbedTemplateSchema,
-} from "../../../core/http/schemas.js";
+import { recordId } from "../../../core/http/schemas.js";
+import { saveEmbedTemplateSchema } from "./schema.js";
 import {
   EmbedTemplateError,
   deleteEmbedTemplate,

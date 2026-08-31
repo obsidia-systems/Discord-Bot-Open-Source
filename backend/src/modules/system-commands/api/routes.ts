@@ -6,7 +6,7 @@ import {
 } from "../service.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { parse } from "../../../core/http/validate.js";
-import { updateSystemCommandsSchema } from "../../../core/http/schemas.js";
+import { updateSystemCommandsSchema } from "./schema.js";
 
 export function systemCommandsRoutes(_bot: Client): Router {
   const router = Router();

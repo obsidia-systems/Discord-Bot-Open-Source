@@ -12,11 +12,11 @@ import { syncGuildSlashCommands } from "../sync.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { parse } from "../../../core/http/validate.js";
 import { logger } from "../../../core/log.js";
+import { recordId } from "../../../core/http/schemas.js";
 import {
   createCustomCommandSchema,
-  recordId,
   updateCustomCommandSchema,
-} from "../../../core/http/schemas.js";
+} from "./schema.js";
 
 function parseId(raw: string): number {
   return parse(recordId, raw);

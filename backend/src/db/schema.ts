@@ -1074,6 +1074,11 @@ export const panelSessions = pgTable(
       .notNull()
       .references(() => panelUsers.userId, { onDelete: "cascade" }),
     accessTokenEnc: text("access_token_enc").notNull(),
+    refreshTokenEnc: text("refresh_token_enc"),
+    accessExpiresAt: timestamp("access_expires_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
     expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
@@ -1178,5 +1183,4 @@ export const DEFAULT_PLUGIN_NAMES = [
   "valorant",
   "gachas",
   "alerts",
-  "pokemon",
 ] as const;

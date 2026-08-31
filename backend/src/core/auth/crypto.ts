@@ -8,6 +8,10 @@ import {
 const ALGO = "aes-256-gcm";
 const KEY_LEN = 32;
 const IV_LEN = 12;
+const SALT = "adobos-oauth-token";
+
+let cachedKey: Buffer | null = null;
+let cachedSecret: string | null = null;
 
 function sessionSecret(): string {
   const secret = process.env.SESSION_SECRET?.trim();
@@ -20,10 +24,14 @@ function sessionSecret(): string {
 }
 
 function deriveKey(): Buffer {
-  return scryptSync(sessionSecret(), "adobos-oauth-token", KEY_LEN);
+  const secret = sessionSecret();
+  if (cachedKey && cachedSecret === secret) return cachedKey;
+  cachedKey = scryptSync(secret, SALT, KEY_LEN);
+  cachedSecret = secret;
+  return cachedKey;
 }
 
-/** Cifra el access token de Discord en reposo. */
+/** Cifra un secreto (access/refresh token) en reposo. */
 export function encryptSecret(plain: string): string {
   const iv = randomBytes(IV_LEN);
   const cipher = createCipheriv(ALGO, deriveKey(), iv);

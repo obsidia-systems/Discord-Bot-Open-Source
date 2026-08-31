@@ -1,14 +1,14 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
-import { decryptSecret } from "../auth/crypto.js";
 import { userManagesGuild } from "../auth/discordGuilds.js";
 import { readSessionFromRequest, redirectToLogin } from "../auth/oauth.js";
 import type { GuildContext } from "../auth/types.js";
+import { DiscordHttpError } from "../bot/discordHttpError.js";
 import { entitlementsOf, getGuildTier } from "../entitlements/service.js";
 import { logger } from "../log.js";
 import { HttpError } from "./httpError.js";
 import { isSnowflake } from "./snowflake.js";
 
-function extractGuildId(req: Request): unknown {
+export function extractGuildId(req: Request): unknown {
   if (typeof req.params.guildId === "string") return req.params.guildId;
   if (typeof req.query.guildId === "string") return req.query.guildId;
   const body = req.body as Record<string, unknown> | undefined;
@@ -55,8 +55,7 @@ export function requireGuildAccess(): RequestHandler {
         return;
       }
 
-      const accessToken = decryptSecret(session.accessTokenEnc);
-      const allowed = await userManagesGuild(session.userId, accessToken, raw);
+      const allowed = await userManagesGuild(session, raw);
       if (!allowed) {
         next(
           new HttpError(
@@ -89,6 +88,20 @@ export function requireGuildAccess(): RequestHandler {
       }
       next();
     } catch (error: unknown) {
+      if (error instanceof DiscordHttpError && error.status === 429) {
+        next(
+          new HttpError(
+            "Discord está limitando peticiones. Espera un momento.",
+            429,
+            "DISCORD_RATE_LIMITED",
+          ),
+        );
+        return;
+      }
+      if (error instanceof DiscordHttpError && error.status === 401) {
+        next(new HttpError("Sesión expirada.", 401, "UNAUTHENTICATED"));
+        return;
+      }
       logger.error({ err: error }, "requireGuildAccess falló");
       next(
         new HttpError(

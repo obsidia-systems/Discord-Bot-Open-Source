@@ -4,11 +4,7 @@ import type { Client } from "discord.js";
 import type { EmbedUploadedFiles } from "./controller.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { parse } from "../../../core/http/validate.js";
-import {
-  editSentEmbedSchema,
-  sendEmbedSchema,
-  stringId,
-} from "../../../core/http/schemas.js";
+import { editSentEmbedSchema, sendEmbedSchema, stringId } from "./schema.js";
 import {
   deleteSentEmbed,
   editSentEmbed,

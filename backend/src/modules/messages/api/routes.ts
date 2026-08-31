@@ -8,7 +8,7 @@ import {
 } from "./controller.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { parse } from "../../../core/http/validate.js";
-import { sendEmbedSchema, sendMessageSchema } from "../../../core/http/schemas.js";
+import { sendEmbedSchema, sendMessageSchema } from "./schema.js";
 
 const ALLOWED_MIME = new Set([
   "image/png",

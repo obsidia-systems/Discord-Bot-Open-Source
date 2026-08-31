@@ -1,6 +1,7 @@
 import {
   Client,
   type ClientOptions,
+  Events,
   GatewayIntentBits,
   Options,
   Partials,
@@ -30,7 +31,8 @@ function shardConfig(): number | number[] | "auto" {
  * enlaza el interaction router y ejecuta `registry.bindClient`.
  *
  * `shards: "auto"` (o SHARD_COUNT) es sharding interno en un proceso: el panel
- * Express sigue viendo el mismo Client. ShardingManager multi-proceso espera a Postgres.
+ * Express sigue viendo el mismo Client. ShardingManager multi-proceso: ver
+ * ROADMAP (cuando haya `ADOBO_ROLE=api` N réplicas + un gateway).
  */
 export function createBotClient(registry: ModuleRegistry): Client {
   const intentSet = new Set<number>([...CORE_INTENTS, ...registry.intents]);
@@ -64,7 +66,7 @@ export function createBotClient(registry: ModuleRegistry): Client {
 
   const client = new Client(options);
 
-  client.once("ready", () => {
+  client.once(Events.ClientReady, () => {
     logger.info(`Bot listo como ${client.user?.tag ?? "desconocido"}`);
   });
   client.on("error", (error) => {
