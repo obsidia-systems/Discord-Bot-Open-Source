@@ -8,6 +8,7 @@ import {
   syncAutoDeleteJobsForConfig,
 } from "./scheduler.js";
 import { setAutoDeleteConfigChangeListener } from "./service.js";
+import { logger } from "../../core/log.js";
 
 export const autoDeleteModule: AdobosModule = {
   id: "auto-delete",
@@ -30,7 +31,7 @@ export const autoDeleteModule: AdobosModule = {
 
     ctx.once("ready", async () => {
       await rehydrateAllAutoDeleteJobs();
-      console.log("[adobos] auto-delete: crons rehidratados");
+      logger.info("auto-delete: crons rehidratados");
     });
   },
 };

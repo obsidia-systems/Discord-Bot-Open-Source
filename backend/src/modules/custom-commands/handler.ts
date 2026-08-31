@@ -9,6 +9,7 @@ import { can, getGuildTier } from "../../core/entitlements/service.js";
 import { resolveEmbedMedia } from "../../lib/embedMedia.js";
 import { getCustomCommandByName } from "./service.js";
 import { parseCustomCommandVariables } from "./variables.js";
+import { logger } from "../../core/log.js";
 
 /** Cooldown en memoria: guildId:userId:commandId → timestamp ms. */
 const cooldownUntil = new Map<string, number>();
@@ -179,10 +180,7 @@ export async function handleCustomChatCommand(
         if (resolved.file) files.push(resolved.file);
         if (resolved.url) builder.setImage(resolved.url);
       } catch (error) {
-        console.warn(
-          `[adobos] custom-commands: media inválida (/${command.name}):`,
-          error,
-        );
+        logger.warn({ err: error }, `custom-commands: media inválida (/${command.name}):`);
       }
     }
     embeds = [builder];

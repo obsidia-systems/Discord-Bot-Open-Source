@@ -1,16 +1,22 @@
 import path from "node:path";
-import express, { type Express, type Request, type RequestHandler } from "express";
-import cors from "cors";
 import cookieParser from "cookie-parser";
-import helmet from "helmet";
+import cors from "cors";
 import type { Client } from "discord.js";
-import type { ModuleRegistry } from "../modules/registry.js";
+import express, {
+  type Express,
+  type Request,
+  type RequestHandler,
+} from "express";
+import helmet from "helmet";
 import { healthRouter } from "../../api/routes/health.js";
 import { uploadRoutes } from "../../api/routes/uploads.routes.js";
 import { getUploadsRoot } from "../../lib/dataPaths.js";
 import { authRouter, meRouter } from "../auth/oauth.js";
-import { requireAuth, requireGuildAccess } from "./guildContext.js";
 import { entitlementsRoutes, requireFeature } from "../entitlements/index.js";
+import { logger } from "../log.js";
+import type { ModuleRegistry } from "../modules/registry.js";
+import { errorHandler, notFoundHandler } from "./errorHandler.js";
+import { requireAuth, requireGuildAccess } from "./guildContext.js";
 import {
   apiRateLimiter,
   authRateLimiter,
@@ -37,14 +43,19 @@ function assertPanelEnv(): void {
     throw new Error("DISCORD_CLIENT_ID es obligatorio para OAuth del panel.");
   }
   if (!process.env.DISCORD_CLIENT_SECRET?.trim()) {
-    throw new Error("DISCORD_CLIENT_SECRET es obligatorio para OAuth del panel.");
+    throw new Error(
+      "DISCORD_CLIENT_SECRET es obligatorio para OAuth del panel.",
+    );
   }
 }
 
 function corsOrigin(): string | string[] {
   const raw = process.env.CORS_ORIGIN?.trim();
   if (raw) {
-    const list = raw.split(",").map((s) => s.trim()).filter(Boolean);
+    const list = raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
     if (list.length === 1) return list[0]!;
     if (list.length > 1) return list;
   }
@@ -75,6 +86,26 @@ export function createApp(options: CreateAppOptions): Express {
   app.use(cors({ origin: corsOrigin(), credentials: true }));
   app.use(cookieParser());
   app.use(express.json({ limit: "1mb" }));
+  app.use((req, res, next) => {
+    if (req.path === "/api/health" || req.path.startsWith("/api/health/")) {
+      next();
+      return;
+    }
+    const start = Date.now();
+    res.on("finish", () => {
+      logger.info(
+        {
+          method: req.method,
+          url: req.originalUrl,
+          status: res.statusCode,
+          ms: Date.now() - start,
+          guildId: req.guild?.guildId,
+        },
+        "http",
+      );
+    });
+    next();
+  });
 
   app.use("/auth", authRateLimiter, authRouter());
   app.use("/api/health", healthRouter(options.bot));
@@ -102,24 +133,28 @@ export function createApp(options: CreateAppOptions): Express {
 
   const serveStatic =
     process.env.SERVE_STATIC !== "false" && process.env.SERVE_STATIC !== "0";
-  if (!serveStatic) {
-    return app;
+  if (serveStatic) {
+    app.use((req, res, next) => {
+      if (!req.path.startsWith("/dashboard")) return next();
+      return requireAuth()(req, res, next);
+    });
+
+    app.use(express.static(options.staticDir));
+    app.get("*", (req, res, next) => {
+      if (
+        req.path.startsWith("/api") ||
+        req.path.startsWith("/uploads") ||
+        req.path.startsWith("/auth")
+      ) {
+        return next();
+      }
+      res.sendFile(path.join(options.staticDir, "index.html"), (err) => {
+        if (err) next();
+      });
+    });
   }
 
-  app.use((req, res, next) => {
-    if (!req.path.startsWith("/dashboard")) return next();
-    return requireAuth()(req, res, next);
-  });
-
-  app.use(express.static(options.staticDir));
-  app.get("*", (req, res, next) => {
-    if (req.path.startsWith("/api") || req.path.startsWith("/uploads") || req.path.startsWith("/auth")) {
-      return next();
-    }
-    res.sendFile(path.join(options.staticDir, "index.html"), (err) => {
-      if (err) next();
-    });
-  });
-
+  app.use(notFoundHandler);
+  app.use(errorHandler);
   return app;
 }

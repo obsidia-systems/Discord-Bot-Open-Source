@@ -1,20 +1,21 @@
-import type { RequestHandler } from "express";
 import {
   entitlementsSnapshot,
+  type FeatureKey,
   featureLockedMessage,
   isPlanTier,
   isUnlimited,
+  type LimitKey,
   limitExceededMessage,
+  type PlanTier,
   tierHasFeature,
   tierLimit,
-  type FeatureKey,
-  type LimitKey,
-  type PlanTier,
 } from "@adobos/shared";
 import { eq } from "drizzle-orm";
-import { BoundedTtlMap } from "../cache/boundedTtlMap.js";
+import type { RequestHandler } from "express";
 import { getDb, one } from "../../db/client.js";
 import { guildEntitlements } from "../../db/schema.js";
+import { BoundedTtlMap } from "../cache/boundedTtlMap.js";
+import { HttpError } from "../http/httpError.js";
 
 const tierCache = new BoundedTtlMap<string, PlanTier>(5_000, 60_000);
 
@@ -68,10 +69,7 @@ export async function can(
   return tierHasFeature(tier, feature);
 }
 
-export async function limit(
-  guildId: string,
-  key: LimitKey,
-): Promise<number> {
+export async function limit(guildId: string, key: LimitKey): Promise<number> {
   const tier = await getGuildTier(guildId);
   return tierLimit(tier, key);
 }
@@ -128,22 +126,27 @@ export async function countSubscriptionSeats(
 }
 
 export function requireFeature(feature: FeatureKey): RequestHandler {
-  return (req, res, next) => {
+  return (req, _res, next) => {
     const guild = req.guild;
     if (!guild) {
-      res.status(500).json({
-        error: "requireGuildAccess no se aplicó en esta ruta.",
-        code: "MISSING_GUILD_CONTEXT",
-      });
+      next(
+        new HttpError(
+          "requireGuildAccess no se aplicó en esta ruta.",
+          500,
+          "MISSING_GUILD_CONTEXT",
+        ),
+      );
       return;
     }
     if (!guild.can(feature)) {
-      res.status(403).json({
-        error: featureLockedMessage(guild.tier, feature),
-        code: "FEATURE_LOCKED",
-        feature,
-        tier: guild.tier,
-      });
+      next(
+        new EntitlementError(
+          featureLockedMessage(guild.tier, feature),
+          403,
+          "FEATURE_LOCKED",
+          feature,
+        ),
+      );
       return;
     }
     next();

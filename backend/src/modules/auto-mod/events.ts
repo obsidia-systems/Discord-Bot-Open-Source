@@ -4,6 +4,7 @@ import { evaluateAutoModFilters } from "./filters.js";
 import { dispatchAutoModAlert } from "./logs.js";
 import { applyAutoModPunishments } from "./punishments.js";
 import { getAutoModConfigCached } from "./service.js";
+import { logger } from "../../core/log.js";
 
 type GuildMessage = OmitPartialGroupDMChannel<Message<true>>;
 
@@ -23,7 +24,7 @@ export async function onAutoModMessageCreate(
   try {
     await handleAutoModMessage(message);
   } catch (error) {
-    console.warn("[adobos] auto-mod messageCreate falló:", error);
+    logger.warn({ err: error }, "auto-mod messageCreate falló:");
   }
 }
 
@@ -96,7 +97,7 @@ async function handleAutoModMessage(
       dmText: `Tu mensaje en el servidor **${guildName}** fue eliminado por el filtro de Auto Mod (Razón: ${violation.label}).`,
     });
   } catch (error) {
-    console.warn("[adobos] auto-mod: no se pudo registrar warn:", error);
+    logger.warn({ err: error }, "auto-mod: no se pudo registrar warn:");
   }
 
   void applyAutoModPunishments({
@@ -105,7 +106,7 @@ async function handleAutoModMessage(
     member,
     config,
   }).catch((error) => {
-    console.warn("[adobos] auto-mod: sanción escalada falló:", error);
+    logger.warn({ err: error }, "auto-mod: sanción escalada falló:");
   });
 
   await dispatchAutoModAlert(message.client as Client, {

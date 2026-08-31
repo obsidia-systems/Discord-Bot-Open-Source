@@ -9,6 +9,7 @@ import { eq } from "drizzle-orm";
 import type { ActionLogWebhooksMapping } from "@adobos/shared";
 import { getDb, one } from "../../db/client.js";
 import { actionLogsConfig } from "../../db/schema.js";
+import { logger } from "../../core/log.js";
 
 /** Nombre de creación del webhook en el canal (fallback legacy). */
 export const ACTION_LOG_WEBHOOK_NAME = "Adobos Audit";
@@ -95,10 +96,7 @@ async function resolveBotServerIdentity(
       avatarURL: me.displayAvatarURL({ extension: "png", size: 128 }),
     };
   } catch (err) {
-    console.warn(
-      "[action-logs] No se pudo resolver identidad del bot en el servidor:",
-      err,
-    );
+    logger.warn({ err: err }, "No se pudo resolver identidad del bot en el servidor:");
     const fallback = bot.user?.username?.trim() || "Adobos";
     return {
       username: `${fallback} Audit`,

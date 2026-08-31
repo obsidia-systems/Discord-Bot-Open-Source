@@ -36,6 +36,7 @@ import {
 } from "../../db/reaction-roles.js";
 import { getEmbedTemplate } from "../messages/templates/service.js";
 import { buildEmbedFromPayload } from "../moderation/dm.js";
+import { logger } from "../../core/log.js";
 import {
   AutoRoleError,
   createAutoRoleSetup,
@@ -802,7 +803,7 @@ export async function deleteAutorole(
       await deleteReactionRolesForMessage(row.messageId);
     } else {
       // Aun así limpiamos el registro local si el usuario confirma.
-      console.warn("[adobos] deleteAutorole Discord:", error);
+      logger.warn({ err: error }, "deleteAutorole Discord:");
       orphaned = true;
     }
   }

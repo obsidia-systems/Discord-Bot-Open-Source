@@ -1,10 +1,12 @@
+export { featureForCommandCategory } from "./features.js";
+export { entitlementsRoutes } from "./routes.js";
 export {
-  EntitlementError,
   assertFeature,
   assertWithinLimit,
   can,
   clearGuildEntitlement,
   countSubscriptionSeats,
+  EntitlementError,
   entitlementsOf,
   getGuildEntitlements,
   getGuildTier,
@@ -14,5 +16,3 @@ export {
   sendIfEntitlementError,
   upsertGuildEntitlement,
 } from "./service.js";
-export { featureForCommandCategory } from "./features.js";
-export { entitlementsRoutes } from "./routes.js";

@@ -1,11 +1,13 @@
-import { REST, type Client } from "discord.js";
+import { type Client, REST } from "discord.js";
 
 export function discordApplicationId(client: Client): string {
   const fromEnv = process.env.DISCORD_CLIENT_ID?.trim();
   if (fromEnv) return fromEnv;
   const id = client.user?.id;
   if (!id) {
-    throw new Error("DISCORD_CLIENT_ID no definido y el bot aún no está listo.");
+    throw new Error(
+      "DISCORD_CLIENT_ID no definido y el bot aún no está listo.",
+    );
   }
   return id;
 }

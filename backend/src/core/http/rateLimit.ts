@@ -1,5 +1,5 @@
-import rateLimit from "express-rate-limit";
 import type { Request } from "express";
+import rateLimit from "express-rate-limit";
 
 function skipHealth(req: Request): boolean {
   return req.path === "/health" || req.path.startsWith("/health/");

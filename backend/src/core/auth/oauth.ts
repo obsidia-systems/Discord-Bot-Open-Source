@@ -1,16 +1,22 @@
 import { createHash, randomBytes } from "node:crypto";
-import { Router, type CookieOptions, type Request, type Response } from "express";
-import { decryptSecret } from "./crypto.js";
 import {
-  createOauthState,
+  type CookieOptions,
+  type Request,
+  type Response,
+  Router,
+} from "express";
+import { logger } from "../log.js";
+import { decryptSecret } from "./crypto.js";
+import { listManagedGuilds } from "./discordGuilds.js";
+import {
   consumeOauthState,
+  createOauthState,
   createSession,
   deleteSession,
   getSession,
   toPanelUser,
   upsertPanelUser,
 } from "./sessionStore.js";
-import { listManagedGuilds } from "./discordGuilds.js";
 import { SESSION_COOKIE, SESSION_TTL_MS } from "./types.js";
 
 const DISCORD_API = "https://discord.com/api/v10";
@@ -87,7 +93,7 @@ export function authRouter(): Router {
       });
       res.redirect(`${DISCORD_AUTHORIZE}?${params.toString()}`);
     } catch (error: unknown) {
-      console.error("[adobos] OAuth authorize falló:", error);
+      logger.error({ err: error }, "OAuth authorize falló:");
       res.redirect("/login?error=oauth_config");
     }
   });
@@ -124,10 +130,15 @@ export function authRouter(): Router {
       });
       if (!tokenRes.ok) {
         const detail = await tokenRes.text();
-        console.error("[adobos] Discord token error:", tokenRes.status, detail);
+        logger.error(
+          { detail: [tokenRes.status, detail] },
+          "Discord token error:",
+        );
         const isClient =
           tokenRes.status === 401 || detail.includes("invalid_client");
-        res.redirect(`/login?error=${isClient ? "oauth_client" : "oauth_token"}`);
+        res.redirect(
+          `/login?error=${isClient ? "oauth_client" : "oauth_token"}`,
+        );
         return;
       }
       const tokenJson = (await tokenRes.json()) as { access_token?: string };
@@ -167,7 +178,7 @@ export function authRouter(): Router {
       res.cookie(SESSION_COOKIE, sessionId, cookieOptions());
       res.redirect("/dashboard");
     } catch (error: unknown) {
-      console.error("[adobos] OAuth callback falló:", error);
+      logger.error({ err: error }, "OAuth callback falló:");
       res.redirect("/login?error=oauth_callback");
     }
   });
@@ -195,7 +206,9 @@ export function meRouter(): Router {
   router.get("/", async (req, res) => {
     const session = req.panelSession;
     if (!session) {
-      res.status(401).json({ error: "No autenticado.", code: "UNAUTHENTICATED" });
+      res
+        .status(401)
+        .json({ error: "No autenticado.", code: "UNAUTHENTICATED" });
       return;
     }
     try {
@@ -206,7 +219,7 @@ export function meRouter(): Router {
         guilds,
       });
     } catch (error: unknown) {
-      console.error("[adobos] GET /api/me falló:", error);
+      logger.error({ err: error }, "GET /api/me falló:");
       res.status(502).json({
         error: "No se pudieron cargar tus servidores.",
         code: "DISCORD_GUILDS_FAILED",

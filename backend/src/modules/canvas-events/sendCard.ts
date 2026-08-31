@@ -11,6 +11,7 @@ import {
 } from "../welcome/text/welcomeEmbed.js";
 import { parseTextLayersJson } from "../welcome/service.js";
 import { disableCanvasEventSettings } from "./service.js";
+import { logger } from "../../core/log.js";
 
 export interface CanvasEventUserPayload {
   id: string;
@@ -60,9 +61,7 @@ export async function dispatchCanvasEventCard(options: {
     const channel = await guild.channels.fetch(row.channelId).catch(() => null);
     if (!channel || !isSendableTextChannel(channel)) {
       await disableCanvasEventSettings(eventType, guild.id);
-      console.warn(
-        `[adobos] ${logLabel} desactivado en ${guild.id}: canal inválido o borrado.`,
-      );
+      logger.warn(`${logLabel} desactivado en ${guild.id}: canal inválido o borrado.`);
       return;
     }
 
@@ -105,10 +104,7 @@ export async function dispatchCanvasEventCard(options: {
       files: [new AttachmentBuilder(png, { name: `${eventType}-card.png` })],
     });
   } catch (error: unknown) {
-    console.warn(
-      `[adobos] Error silencioso en ${options.logLabel}:`,
-      error instanceof Error ? error.message : error,
-    );
+    logger.warn({ err: error instanceof Error ? error.message : error }, `Error silencioso en ${options.logLabel}:`);
   }
 }
 

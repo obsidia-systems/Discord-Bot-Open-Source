@@ -1,43 +1,23 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
 import type {
-  ApiErrorBody,
   LevelsLeaderboardEntry,
   LevelsLeaderboardResponse,
 } from "@adobos/shared";
 import { resolveMembersBatch } from "../../../lib/discordMember.js";
 import { forceLiveLeaderboardRefresh } from "../liveLeaderboard.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
-import { parse, parseQuery, sendIfValidationError } from "../../../core/http/validate.js";
+import { parse, parseQuery } from "../../../core/http/validate.js";
 import {
   leaderboardQuerySchema,
   updateLevelsConfigSchema,
 } from "../../../core/http/schemas.js";
 import {
-  LevelsError,
   getLeaderboardTotal,
   getLevelsConfig,
   listLeaderboardRows,
   updateLevelsConfig,
 } from "../service.js";
-
-function handleError(error: unknown, res: import("express").Response): void {
-  if (sendIfValidationError(error, res)) return;
-  if (error instanceof LevelsError) {
-    const body: ApiErrorBody = {
-      error: error.message,
-      code: error.code,
-    };
-    res.status(error.status).json(body);
-    return;
-  }
-  console.error("[adobos] Error en /api/levels:", error);
-  const body: ApiErrorBody = {
-    error: "Error interno en Rangos y XP.",
-    code: "INTERNAL_ERROR",
-  };
-  res.status(500).json(body);
-}
 
 async function resolveLeaderboardEntries(
   bot: Client,
@@ -76,19 +56,19 @@ export function levelsRoutes(bot: Client): Router {
   const router = Router();
 
   /** GET /api/levels/config */
-  router.get("/config", async (req, res) => {
+  router.get("/config", async (req, res, next) => {
     try {
       const guildId =
         guildIdOf(req);
       const config = await getLevelsConfig(guildId);
       res.json({ config });
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 
   /** POST /api/levels/config */
-  router.post("/config", async (req, res) => {
+  router.post("/config", async (req, res, next) => {
     try {
       const guildId = guildIdOf(req);
       const body = parse(updateLevelsConfigSchema, req.body);
@@ -105,12 +85,12 @@ export function levelsRoutes(bot: Client): Router {
 
       res.json({ config });
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 
   /** GET /api/levels/leaderboard?limit=100 */
-  router.get("/leaderboard", async (req, res) => {
+  router.get("/leaderboard", async (req, res, next) => {
     void (async () => {
       try {
         const guildId = guildIdOf(req);
@@ -119,7 +99,7 @@ export function levelsRoutes(bot: Client): Router {
         const payload = await resolveLeaderboardEntries(bot, guildId, limit);
         res.json(payload);
       } catch (error) {
-        handleError(error, res);
+        next(error);
       }
     })();
   });

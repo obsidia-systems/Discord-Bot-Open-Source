@@ -1,13 +1,11 @@
 import multer from "multer";
 import { Router } from "express";
 import type { Client } from "discord.js";
-import type { ApiErrorBody } from "@adobos/shared";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { requireFeature } from "../../../core/entitlements/service.js";
-import { parse, sendIfValidationError } from "../../../core/http/validate.js";
+import { parse } from "../../../core/http/validate.js";
 import { updateBotGuildProfileSchema } from "../../../core/http/schemas.js";
 import {
-  BotProfileError,
   getGuildBotProfile,
   updateGuildBotProfile,
 } from "../service.js";
@@ -34,65 +32,23 @@ const avatarUpload = multer({
   },
 });
 
-function handleError(error: unknown, res: import("express").Response): void {
-  if (sendIfValidationError(error, res)) return;
-  if (error instanceof BotProfileError) {
-    const body: ApiErrorBody = {
-      error: error.message,
-      code: error.code,
-    };
-    res.status(error.status).json(body);
-    return;
-  }
-
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "LIMIT_FILE_SIZE"
-  ) {
-    const body: ApiErrorBody = {
-      error: "El avatar supera el límite de 8MB.",
-      code: "FILE_TOO_LARGE",
-    };
-    res.status(400).json(body);
-    return;
-  }
-
-  if (error instanceof Error && /Avatar:|solo PNG/i.test(error.message)) {
-    const body: ApiErrorBody = {
-      error: error.message,
-      code: "INVALID_AVATAR",
-    };
-    res.status(400).json(body);
-    return;
-  }
-
-  console.error("[adobos] Error en /api/bot/guild-profile:", error);
-  const body: ApiErrorBody = {
-    error: "Error interno al actualizar el perfil del servidor.",
-    code: "INTERNAL_ERROR",
-  };
-  res.status(500).json(body);
-}
-
 export function botProfileRoutes(bot: Client): Router {
   const router = Router();
 
-  router.get("/", async (req, res) => {
+  router.get("/", async (req, res, next) => {
     const guildId =
       guildIdOf(req);
     try {
       res.json(await getGuildBotProfile(bot, guildId));
     } catch (error: unknown) {
-      handleError(error, res);
+      next(error);
     }
   });
 
-  router.post("/", requireFeature("branding"), async (req, res) => {
+  router.post("/", requireFeature("branding"), async (req, res, next) => {
     avatarUpload.single("serverAvatar")(req, res, async (err: unknown) => {
       if (err) {
-        handleError(err, res);
+        next(err);
         return;
       }
 
@@ -108,7 +64,7 @@ export function botProfileRoutes(bot: Client): Router {
         });
         res.json(result);
       } catch (error: unknown) {
-        handleError(error, res);
+        next(error);
       }
     });
   });

@@ -19,6 +19,7 @@ import {
 } from "./service.js";
 import { scheduleLiveLeaderboardRefresh } from "./liveLeaderboard.js";
 import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
+import { logger } from "../../core/log.js";
 
 /** Color fijo del anuncio de subida de nivel. */
 const LEVEL_UP_EMBED_COLOR = 0x34e21d;
@@ -148,7 +149,7 @@ async function announceLevelUp(input: {
       allowedMentions: { users: [input.member.id], roles: [] },
     })
     .catch((error) => {
-      console.warn("[adobos] levels: no se pudo anunciar level-up:", error);
+      logger.warn({ err: error }, "levels: no se pudo anunciar level-up:");
     });
 }
 
@@ -231,7 +232,7 @@ export async function onLevelsMessageCreate(
       amount,
     });
   } catch (error) {
-    console.warn("[adobos] levels messageCreate falló:", error);
+    logger.warn({ err: error }, "levels messageCreate falló:");
   }
 }
 
@@ -398,7 +399,7 @@ export async function onLevelsVoiceStateUpdate(
       }
     }
   } catch (error) {
-    console.warn("[adobos] levels voiceStateUpdate falló:", error);
+    logger.warn({ err: error }, "levels voiceStateUpdate falló:");
   }
 }
 

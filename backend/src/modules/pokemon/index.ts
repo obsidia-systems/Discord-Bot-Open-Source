@@ -1,6 +1,7 @@
 import type { AdobosModule } from "../../core/modules/types.js";
 import { warmPokemonAutocompleteCache } from "../../services/pokemonApi.js";
 import { pokemonRoutes } from "./api/routes.js";
+import { logger } from "../../core/log.js";
 import {
   LOCATION_JUMP_PREFIX,
   LOCATION_PAGE_PREFIX,
@@ -24,9 +25,9 @@ export const pokemonModule: AdobosModule = {
     });
     ctx.once("ready", () => {
       void warmPokemonAutocompleteCache().catch((error) => {
-        console.warn("[adobos] pokemon: fallo al precargar caché:", error);
+        logger.warn({ err: error }, "pokemon: fallo al precargar caché:");
       });
-      console.log("[adobos] pokemon: API /api/pokemon lista");
+      logger.info("pokemon: API /api/pokemon lista");
     });
   },
 };

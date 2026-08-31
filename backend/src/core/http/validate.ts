@@ -1,5 +1,4 @@
-import type { ZodIssue, ZodType } from "zod";
-import { ZodError } from "zod";
+import type { ZodError, ZodIssue, ZodType } from "zod";
 
 export class ValidationError extends Error {
   readonly status = 400;

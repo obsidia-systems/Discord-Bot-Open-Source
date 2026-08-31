@@ -71,9 +71,7 @@ export function createModuleRegistry(
         });
       },
       route(basePath, router, opts) {
-        const normalized = basePath.startsWith("/")
-          ? basePath
-          : `/${basePath}`;
+        const normalized = basePath.startsWith("/") ? basePath : `/${basePath}`;
         routes.push({ basePath: normalized, router, feature: opts?.feature });
       },
       command(def) {

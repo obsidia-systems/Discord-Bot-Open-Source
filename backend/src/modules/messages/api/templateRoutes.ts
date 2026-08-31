@@ -4,11 +4,10 @@ import { randomUUID } from "node:crypto";
 import multer from "multer";
 import { Router } from "express";
 import type { Client } from "discord.js";
-import type { ApiErrorBody } from "@adobos/shared";
 import { getTemplatesDir } from "../../../lib/dataPaths.js";
 import { sniffImageFile } from "../../../lib/imageMagic.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
-import { parse, sendIfValidationError } from "../../../core/http/validate.js";
+import { parse } from "../../../core/http/validate.js";
 import {
   recordId,
   saveEmbedTemplateSchema,
@@ -67,51 +66,6 @@ const templateUpload = multer({
   { name: "footerIcon", maxCount: 1 },
 ]);
 
-function handleError(
-  error: unknown,
-  res: import("express").Response,
-): void {
-  if (sendIfValidationError(error, res)) return;
-  if (error instanceof EmbedTemplateError) {
-    const body: ApiErrorBody = {
-      error: error.message,
-      code: error.code,
-    };
-    res.status(error.status).json(body);
-    return;
-  }
-
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "LIMIT_FILE_SIZE"
-  ) {
-    const body: ApiErrorBody = {
-      error: "La imagen supera el límite de 5MB.",
-      code: "FILE_TOO_LARGE",
-    };
-    res.status(400).json(body);
-    return;
-  }
-
-  if (error instanceof Error && /Solo PNG|máx\. 5MB/i.test(error.message)) {
-    const body: ApiErrorBody = {
-      error: error.message,
-      code: "INVALID_FILE",
-    };
-    res.status(400).json(body);
-    return;
-  }
-
-  console.error("[adobos] Error en /api/embeds/templates:", error);
-  const body: ApiErrorBody = {
-    error: "Error interno de plantillas.",
-    code: "INTERNAL_ERROR",
-  };
-  res.status(500).json(body);
-}
-
 function publicTemplatePath(filename: string): string {
   return `/uploads/templates/${filename}`;
 }
@@ -140,20 +94,20 @@ function assertSniffedTemplateFiles(
 export function embedTemplateRoutes(_bot: Client): Router {
   const router = Router();
 
-  router.get("/", async (req, res) => {
+  router.get("/", async (req, res, next) => {
     const guildId =
       guildIdOf(req);
     try {
       res.json(await listEmbedTemplates(guildId));
     } catch (error: unknown) {
-      handleError(error, res);
+      next(error);
     }
   });
 
-  router.post("/", async (req, res) => {
+  router.post("/", async (req, res, next) => {
     templateUpload(req, res, async (err: unknown) => {
       if (err) {
-        handleError(err, res);
+        next(err);
         return;
       }
 
@@ -195,26 +149,26 @@ export function embedTemplateRoutes(_bot: Client): Router {
           ),
         );
       } catch (error: unknown) {
-        handleError(error, res);
+        next(error);
       }
     });
   });
 
-  router.get("/:id", async (req, res) => {
+  router.get("/:id", async (req, res, next) => {
     try {
       const id = parse(recordId, req.params.id);
       res.json(await getEmbedTemplate(id, guildIdOf(req)));
     } catch (error: unknown) {
-      handleError(error, res);
+      next(error);
     }
   });
 
-  router.delete("/:id", async (req, res) => {
+  router.delete("/:id", async (req, res, next) => {
     try {
       const id = parse(recordId, req.params.id);
       res.json(await deleteEmbedTemplate(String(id), guildIdOf(req)));
     } catch (error: unknown) {
-      handleError(error, res);
+      next(error);
     }
   });
 

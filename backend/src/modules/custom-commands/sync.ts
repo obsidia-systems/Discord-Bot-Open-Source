@@ -9,6 +9,7 @@ import {
   discordApplicationId,
 } from "../../core/bot/discordApp.js";
 import { listCustomCommands } from "./service.js";
+import { logger } from "../../core/log.js";
 
 function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
@@ -29,9 +30,7 @@ export async function syncGuildSlashCommands(
 ): Promise<number> {
   const rest = createDiscordRest();
   if (!rest) {
-    console.warn(
-      "[adobos] custom-commands: sin DISCORD_TOKEN — no se sincronizan slash.",
-    );
+    logger.warn("custom-commands: sin DISCORD_TOKEN — no se sincronizan slash.");
     return 0;
   }
 
@@ -48,8 +47,8 @@ export async function syncGuildSlashCommands(
     }));
 
   await rest.put(Routes.applicationGuildCommands(clientId, gid), { body });
-  console.log(
-    `[adobos] slash sync guild customs (${body.length}) guild=${gid}`,
+  logger.info(
+    `slash sync guild customs (${body.length}) guild=${gid}`,
   );
   return body.length;
 }

@@ -1,11 +1,9 @@
 import { Router } from "express";
 import multer from "multer";
 import type { Client } from "discord.js";
-import type { ApiErrorBody } from "@adobos/shared";
-import { MessageSendError } from "./controller.js";
 import type { EmbedUploadedFiles } from "./controller.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
-import { parse, sendIfValidationError } from "../../../core/http/validate.js";
+import { parse } from "../../../core/http/validate.js";
 import {
   editSentEmbedSchema,
   sendEmbedSchema,
@@ -22,25 +20,6 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 8 * 1024 * 1024 },
 });
-
-function handleError(
-  error: unknown,
-  res: import("express").Response,
-): void {
-  if (sendIfValidationError(error, res)) return;
-  if (error instanceof MessageSendError) {
-    res.status(error.status).json({
-      error: error.message,
-      code: error.code,
-    } satisfies ApiErrorBody);
-    return;
-  }
-  console.error("[adobos] Error en /api/embeds:", error);
-  res.status(500).json({
-    error: "Error interno de embeds.",
-    code: "INTERNAL_ERROR",
-  } satisfies ApiErrorBody);
-}
 
 function firstFile(
   files: Express.Multer.File[] | undefined,
@@ -64,11 +43,11 @@ export function embedLibraryRoutes(bot: Client): Router {
   const router = Router();
 
   /** GET /api/embeds/library */
-  router.get("/library", async (req, res) => {
+  router.get("/library", async (req, res, next) => {
     try {
       res.json(await getEmbedLibrary(bot, guildIdOf(req)));
     } catch (error: unknown) {
-      handleError(error, res);
+      next(error);
     }
   });
 
@@ -81,7 +60,7 @@ export function embedLibraryRoutes(bot: Client): Router {
       { name: "authorIcon", maxCount: 1 },
       { name: "footerIcon", maxCount: 1 },
     ]),
-    async (req, res) => {
+    async (req, res, next) => {
       try {
         const payload = parse(sendEmbedSchema, req.body);
         const result = await sendAndRegisterEmbed(
@@ -92,7 +71,7 @@ export function embedLibraryRoutes(bot: Client): Router {
         );
         res.status(201).json(result);
       } catch (error: unknown) {
-        handleError(error, res);
+        next(error);
       }
     },
   );
@@ -106,7 +85,7 @@ export function embedLibraryRoutes(bot: Client): Router {
       { name: "authorIcon", maxCount: 1 },
       { name: "footerIcon", maxCount: 1 },
     ]),
-    async (req, res) => {
+    async (req, res, next) => {
       try {
         const id = parse(stringId, req.params.id);
         const payload = parse(editSentEmbedSchema, req.body);
@@ -119,19 +98,19 @@ export function embedLibraryRoutes(bot: Client): Router {
         );
         res.json(result);
       } catch (error: unknown) {
-        handleError(error, res);
+        next(error);
       }
     },
   );
 
   /** DELETE /api/embeds/sent/:id */
-  router.delete("/sent/:id", async (req, res) => {
+  router.delete("/sent/:id", async (req, res, next) => {
     try {
       const id = parse(stringId, req.params.id);
       const result = await deleteSentEmbed(bot, id, guildIdOf(req));
       res.json(result);
     } catch (error: unknown) {
-      handleError(error, res);
+      next(error);
     }
   });
 

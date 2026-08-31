@@ -8,6 +8,7 @@ import {
   syncScheduledJob,
 } from "./scheduler.js";
 import { setScheduledMessageChangeListener } from "./service.js";
+import { logger } from "../../core/log.js";
 
 export const scheduledMessagesModule: AdobosModule = {
   id: "scheduled-messages",
@@ -32,7 +33,7 @@ export const scheduledMessagesModule: AdobosModule = {
 
     ctx.once("ready", async () => {
       await rehydrateAllScheduledJobs();
-      console.log("[adobos] scheduled-messages: crons rehidratados");
+      logger.info("scheduled-messages: crons rehidratados");
     });
   },
 };

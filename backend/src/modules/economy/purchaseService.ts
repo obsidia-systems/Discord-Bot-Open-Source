@@ -25,6 +25,7 @@ import {
 import { getLevelsConfig } from "../levels/service.js";
 import { EconomyError, getEconomyConfig } from "./service.js";
 import { decrementShopStock, getShopItem } from "./shopService.js";
+import { logger } from "../../core/log.js";
 
 const PRIVATE_CATEGORY_NAME = "Zonas Privadas";
 
@@ -361,7 +362,7 @@ async function fulfillManual(
         content: `Seguimiento de entrega para <@${member.id}>. Marcad cuando esté listo.`,
       });
     } catch (error) {
-      console.warn("[adobos] shop MANUAL_TICKET thread:", error);
+      logger.warn({ err: error }, "shop MANUAL_TICKET thread:");
     }
   }
 

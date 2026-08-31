@@ -1,5 +1,5 @@
-import { z } from "zod";
 import { CUSTOM_COMMAND_NAME_REGEX, POKEMON_GENERATIONS } from "@adobos/shared";
+import { z } from "zod";
 import { SNOWFLAKE_RE } from "./snowflake.js";
 
 export const snowflake = z.string().regex(SNOWFLAKE_RE, "snowflake inválido");
@@ -236,13 +236,15 @@ export const updateEconomyCasinoSchema = z.object({
     .object({
       allowDoubleDown: z.boolean().optional(),
       blackjackMultiplier: finiteNum.optional(),
-      deckCount: z.union([
-        z.literal(1),
-        z.literal(2),
-        z.literal(4),
-        z.literal(6),
-        z.literal(8),
-      ]).optional(),
+      deckCount: z
+        .union([
+          z.literal(1),
+          z.literal(2),
+          z.literal(4),
+          z.literal(6),
+          z.literal(8),
+        ])
+        .optional(),
       standOnSoft17: z.boolean().optional(),
     })
     .optional(),
@@ -496,18 +498,26 @@ export const updateAutoModConfigSchema = z.object({
   ignoredRoles: snowflakeList.optional(),
   ignoredChannels: snowflakeList.optional(),
   logChannelId: snowflakeNull,
-  warnDecayDays: z.union([
-    z.literal(0),
-    z.literal(14),
-    z.literal(30),
-    z.literal(60),
-    z.literal(90),
-  ]).optional(),
+  warnDecayDays: z
+    .union([
+      z.literal(0),
+      z.literal(14),
+      z.literal(30),
+      z.literal(60),
+      z.literal(90),
+    ])
+    .optional(),
   punishments: z
     .array(
       z.object({
         warnThreshold: posInt,
-        actionType: z.enum(["TIMEOUT", "KICK", "BAN", "REMOVE_XP", "XP_FREEZE"]),
+        actionType: z.enum([
+          "TIMEOUT",
+          "KICK",
+          "BAN",
+          "REMOVE_XP",
+          "XP_FREEZE",
+        ]),
         actionParam: z.number().nullable(),
       }),
     )
@@ -593,7 +603,8 @@ export const createScheduledMessageSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
-export const updateScheduledMessageSchema = createScheduledMessageSchema.partial();
+export const updateScheduledMessageSchema =
+  createScheduledMessageSchema.partial();
 
 export const toggleScheduledSchema = z.object({
   isActive: boolish,

@@ -14,6 +14,7 @@ import { and, count, desc, eq } from "drizzle-orm";
 import { getDb, one } from "../../db/client.js";
 import { guildSettings, scheduledMessages } from "../../db/schema.js";
 import { assertWithinLimit } from "../../core/entitlements/service.js";
+import { logger } from "../../core/log.js";
 
 export class ScheduledMessagesError extends Error {
   constructor(
@@ -47,7 +48,7 @@ function notifyChanged(
   try {
     onMessageChanged(message, previousId);
   } catch (error) {
-    console.warn("[adobos] scheduled-messages: onMessageChanged falló:", error);
+    logger.warn({ err: error }, "scheduled-messages: onMessageChanged falló:");
   }
 }
 

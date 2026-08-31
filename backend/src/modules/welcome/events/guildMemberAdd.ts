@@ -10,6 +10,7 @@ import {
   parseTextLayersJson,
 } from "../service.js";
 import { buildWelcomeCard } from "../card/WelcomeCardBuilder.js";
+import { logger } from "../../../core/log.js";
 import {
   applyWelcomeVariables,
   contextFromMember,
@@ -38,9 +39,7 @@ export async function onGuildMemberAdd(member: GuildMember): Promise<void> {
 
     if (!channel || !isSendableTextChannel(channel)) {
       await disableWelcomeSettings(member.guild.id);
-      console.warn(
-        `[adobos] Bienvenida desactivada en ${member.guild.id}: canal inválido o borrado.`,
-      );
+      logger.warn(`Bienvenida desactivada en ${member.guild.id}: canal inválido o borrado.`);
       return;
     }
 
@@ -91,9 +90,6 @@ export async function onGuildMemberAdd(member: GuildMember): Promise<void> {
       files: [attachment],
     });
   } catch (error: unknown) {
-    console.warn(
-      "[adobos] Error silencioso en guildMemberAdd (bienvenida):",
-      error instanceof Error ? error.message : error,
-    );
+    logger.warn({ err: error instanceof Error ? error.message : error }, "Error silencioso en guildMemberAdd (bienvenida):");
   }
 }

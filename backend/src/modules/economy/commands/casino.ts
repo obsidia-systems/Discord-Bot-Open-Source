@@ -16,6 +16,7 @@ import {
   setCooldownMs,
 } from "../cooldowns.js";
 import { assertCasinoBetAllowed } from "../casinoService.js";
+import { logger } from "../../../core/log.js";
 import {
   createShoe,
   dealerShouldHit,
@@ -606,7 +607,7 @@ async function scheduleTimeout(session: BlackjackSession): Promise<ReturnType<ty
         runDealerTurn(current);
         await finishSession(current, null);
       } catch (error) {
-        console.error("[adobos] blackjack timeout:", error);
+        logger.error({ err: error }, "blackjack timeout:");
         clearSession(key);
       }
     })();
@@ -889,7 +890,7 @@ export async function handleBlackjackButton(
       ephemeral: true,
     });
   } catch (error) {
-    console.error("[adobos] blackjack button:", error);
+    logger.error({ err: error }, "blackjack button:");
     if (!interaction.replied && !interaction.deferred) {
       await interaction
         .reply({

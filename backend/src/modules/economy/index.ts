@@ -11,6 +11,7 @@ import {
   handleShopPageButton,
 } from "./commands/shop.js";
 import { startShopExpirationSweeper } from "./shopExpiration.js";
+import { logger } from "../../core/log.js";
 
 /** Módulo Economía — banco, ingresos, saldos y leaderboard. */
 export const economyModule: AdobosModule = {
@@ -26,7 +27,7 @@ export const economyModule: AdobosModule = {
     );
     ctx.once("ready", async () => {
       await startShopExpirationSweeper(ctx.client);
-      console.log("[adobos] economy: sweeper de grants temporales activo");
+      logger.info("economy: sweeper de grants temporales activo");
     });
   },
 };

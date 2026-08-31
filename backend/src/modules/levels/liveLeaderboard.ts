@@ -1,3 +1,4 @@
+import { logger } from "../../core/log.js";
 import {
   EmbedBuilder,
   type Client,
@@ -134,10 +135,7 @@ async function flushLiveLeaderboard(
     lastEditAt.set(guildId, Date.now());
     dirtyGuilds.delete(guildId);
   } catch (error) {
-    console.warn(
-      `[adobos] levels: no se pudo actualizar leaderboard en vivo (${guildId}):`,
-      error,
-    );
+    logger.warn({ err: error }, `levels: no se pudo actualizar leaderboard en vivo (${guildId}):`);
   }
 }
 

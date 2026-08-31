@@ -202,8 +202,8 @@ export async function warmPokemonAutocompleteCache(): Promise<number> {
     }>("/pokemon?limit=2000");
     speciesIndex = Array.isArray(body.results) ? body.results : [];
     cacheReady = true;
-    console.log(
-      `[adobos] pokemon: caché autocomplete lista (${speciesIndex.length} especies)`,
+    logger.info(
+      `pokemon: caché autocomplete lista (${speciesIndex.length} especies)`,
     );
   })();
 
@@ -1393,6 +1393,7 @@ export {
 } from "./smogonService.js";
 
 import { getCompetitiveData } from "./smogonService.js";
+import { logger } from "../core/log.js";
 
 /**
  * @deprecated Usar `getCompetitiveData` (async, datos reales Smogon/PS).

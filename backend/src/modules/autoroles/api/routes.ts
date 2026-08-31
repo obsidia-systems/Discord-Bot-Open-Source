@@ -1,15 +1,13 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
-import type { ApiErrorBody } from "@adobos/shared";
 import {
-  AutoRoleError,
   createAutoRoleSetup,
   normalizeEmojiKey,
   saveReactionRoleMappings,
 } from "./controller.js";
 import { emojiKeyToResolvable } from "../../../db/reaction-roles.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
-import { parse, sendIfValidationError } from "../../../core/http/validate.js";
+import { parse } from "../../../core/http/validate.js";
 import {
   createAutoRoleLegacySchema,
   createAutoroleCompactSchema,
@@ -18,7 +16,8 @@ import {
   updateAutoroleContentSchema,
   updateAutoroleMappingSchema,
 } from "../../../core/http/schemas.js";
-import { ChannelScopeError, fetchChannelInGuild } from "../../../core/http/channelScope.js";
+import { fetchChannelInGuild } from "../../../core/http/channelScope.js";
+import { logger } from "../../../core/log.js";
 import {
   createAutoroleCompact,
   deleteAutorole,
@@ -27,49 +26,22 @@ import {
   updateAutoroleMapping,
 } from "../registry.js";
 
-function handleError(
-  error: unknown,
-  res: import("express").Response,
-  label: string,
-): void {
-  if (sendIfValidationError(error, res)) return;
-  if (error instanceof AutoRoleError) {
-    res.status(error.status).json({
-      error: error.message,
-      code: error.code,
-    } satisfies ApiErrorBody);
-    return;
-  }
-  if (error instanceof ChannelScopeError) {
-    res.status(error.status).json({
-      error: error.message,
-      code: error.code,
-    } satisfies ApiErrorBody);
-    return;
-  }
-  console.error(`[adobos] Error en /api/autoroles/${label}:`, error);
-  res.status(500).json({
-    error: "Error interno de autoroles.",
-    code: "INTERNAL_ERROR",
-  } satisfies ApiErrorBody);
-}
-
 export function autoroleRoutes(bot: Client): Router {
   const router = Router();
 
   /** GET /api/autoroles/active */
-  router.get("/active", async (req, res) => {
+  router.get("/active", async (req, res, next) => {
     const guildId =
       guildIdOf(req);
     try {
       res.json(await listActiveAutoroles(bot, guildId));
     } catch (error: unknown) {
-      handleError(error, res, "active");
+      next(error);
     }
   });
 
   /** POST /api/autoroles/reactions */
-  router.post("/reactions", async (req, res) => {
+  router.post("/reactions", async (req, res, next) => {
     try {
       const body = parse(saveReactionRolesSchema, req.body);
       const payload = {
@@ -98,20 +70,17 @@ export function autoroleRoutes(bot: Client): Router {
           }
         }
       } catch (error: unknown) {
-        console.warn(
-          "[adobos] Mappings guardados, pero no se pudieron añadir reacciones:",
-          error,
-        );
+        logger.warn({ err: error }, "Mappings guardados, pero no se pudieron añadir reacciones:");
       }
 
       res.status(201).json(result);
     } catch (error: unknown) {
-      handleError(error, res, "reactions");
+      next(error);
     }
   });
 
   /** POST /api/autoroles/create — compacto (preferido) o legacy */
-  router.post("/create", async (req, res) => {
+  router.post("/create", async (req, res, next) => {
     try {
       const raw = req.body as Record<string, unknown> | undefined;
       if (raw && typeof raw.type === "string") {
@@ -131,54 +100,54 @@ export function autoroleRoutes(bot: Client): Router {
       });
       res.status(201).json(result);
     } catch (error: unknown) {
-      handleError(error, res, "create");
+      next(error);
     }
   });
 
   /** PUT /api/autoroles/update-mapping/:id */
-  router.put("/update-mapping/:id", async (req, res) => {
+  router.put("/update-mapping/:id", async (req, res, next) => {
     try {
       const id = parse(recordId, req.params.id);
       const body = parse(updateAutoroleMappingSchema, req.body);
       const result = await updateAutoroleMapping(bot, id, body, guildIdOf(req));
       res.json(result);
     } catch (error: unknown) {
-      handleError(error, res, "update-mapping");
+      next(error);
     }
   });
 
   /** PUT /api/autoroles/update-content/:id */
-  router.put("/update-content/:id", async (req, res) => {
+  router.put("/update-content/:id", async (req, res, next) => {
     try {
       const id = parse(recordId, req.params.id);
       const body = parse(updateAutoroleContentSchema, req.body);
       const result = await updateAutoroleContent(bot, id, body, guildIdOf(req));
       res.json(result);
     } catch (error: unknown) {
-      handleError(error, res, "update-content");
+      next(error);
     }
   });
 
   /** Alias: PUT /api/autoroles/edit-content/:id */
-  router.put("/edit-content/:id", async (req, res) => {
+  router.put("/edit-content/:id", async (req, res, next) => {
     try {
       const id = parse(recordId, req.params.id);
       const body = parse(updateAutoroleContentSchema, req.body);
       const result = await updateAutoroleContent(bot, id, body, guildIdOf(req));
       res.json(result);
     } catch (error: unknown) {
-      handleError(error, res, "edit-content");
+      next(error);
     }
   });
 
   /** DELETE /api/autoroles/delete/:id */
-  router.delete("/delete/:id", async (req, res) => {
+  router.delete("/delete/:id", async (req, res, next) => {
     try {
       const id = parse(recordId, req.params.id);
       const result = await deleteAutorole(bot, id, guildIdOf(req));
       res.json(result);
     } catch (error: unknown) {
-      handleError(error, res, "delete");
+      next(error);
     }
   });
 

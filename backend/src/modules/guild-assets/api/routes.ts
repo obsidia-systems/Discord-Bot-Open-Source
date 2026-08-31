@@ -1,39 +1,17 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
-import type { ApiErrorBody } from "@adobos/shared";
 import { guildIdOf } from "../../../core/http/guildContext.js";
-import {
-  GuildAssetsError,
-  getGuildAssets,
-} from "./controller.js";
+import { getGuildAssets } from "./controller.js";
 
 export function guildAssetsRoutes(bot: Client): Router {
   const router = Router();
 
   /** GET /api/guild-assets?guildId=optional */
-  router.get("/", async (req, res) => {
-    const guildId =
-      guildIdOf(req);
-
+  router.get("/", async (req, res, next) => {
     try {
-      const assets = await getGuildAssets(bot, guildId);
-      res.json(assets);
+      res.json(await getGuildAssets(bot, guildIdOf(req)));
     } catch (error: unknown) {
-      if (error instanceof GuildAssetsError) {
-        const body: ApiErrorBody = {
-          error: error.message,
-          code: error.code,
-        };
-        res.status(error.status).json(body);
-        return;
-      }
-
-      console.error("[adobos] Error en GET /api/guild-assets:", error);
-      const body: ApiErrorBody = {
-        error: "No se pudieron obtener los assets del servidor.",
-        code: "INTERNAL_ERROR",
-      };
-      res.status(500).json(body);
+      next(error);
     }
   });
 

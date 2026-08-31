@@ -6,6 +6,7 @@ import {
   getLevelsConfigCached,
 } from "../levels/service.js";
 import { countActiveWarns } from "./service.js";
+import { logger } from "../../core/log.js";
 
 const AUDIT = "Sanción automática de Auto Mod";
 
@@ -48,28 +49,26 @@ async function executePunishment(
       const ms = Math.max(0, Number(punishment.actionParam) || 0);
       if (ms <= 0) return;
       await member.timeout(ms, reason).catch((error) => {
-        console.warn("[adobos] auto-mod TIMEOUT falló:", error);
+        logger.warn({ err: error }, "auto-mod TIMEOUT falló:");
       });
       return;
     }
     case "KICK": {
       await member.kick(reason).catch((error) => {
-        console.warn("[adobos] auto-mod KICK falló:", error);
+        logger.warn({ err: error }, "auto-mod KICK falló:");
       });
       return;
     }
     case "BAN": {
       await member.ban({ reason }).catch((error) => {
-        console.warn("[adobos] auto-mod BAN falló:", error);
+        logger.warn({ err: error }, "auto-mod BAN falló:");
       });
       return;
     }
     case "REMOVE_XP": {
       const levels = await getLevelsConfigCached(guildId);
       if (!levels.enabled) {
-        console.warn(
-          "[adobos] auto-mod REMOVE_XP ignorado: Rangos y XP desactivado.",
-        );
+        logger.warn("auto-mod REMOVE_XP ignorado: Rangos y XP desactivado.");
         return;
       }
       const amount = Math.max(
@@ -79,16 +78,14 @@ async function executePunishment(
       try {
         await deductUserXp(guildId, member.id, amount);
       } catch (error) {
-        console.warn("[adobos] auto-mod REMOVE_XP falló:", error);
+        logger.warn({ err: error }, "auto-mod REMOVE_XP falló:");
       }
       return;
     }
     case "XP_FREEZE": {
       const levels = await getLevelsConfigCached(guildId);
       if (!levels.enabled) {
-        console.warn(
-          "[adobos] auto-mod XP_FREEZE ignorado: Rangos y XP desactivado.",
-        );
+        logger.warn("auto-mod XP_FREEZE ignorado: Rangos y XP desactivado.");
         return;
       }
       const ms = Math.max(0, Number(punishment.actionParam) || 0);
@@ -96,7 +93,7 @@ async function executePunishment(
       try {
         await freezeUserXp(guildId, member.id, new Date(Date.now() + ms));
       } catch (error) {
-        console.warn("[adobos] auto-mod XP_FREEZE falló:", error);
+        logger.warn({ err: error }, "auto-mod XP_FREEZE falló:");
       }
       return;
     }

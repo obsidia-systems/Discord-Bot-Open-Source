@@ -4,6 +4,8 @@ import { userManagesGuild } from "../auth/discordGuilds.js";
 import { readSessionFromRequest, redirectToLogin } from "../auth/oauth.js";
 import type { GuildContext } from "../auth/types.js";
 import { entitlementsOf, getGuildTier } from "../entitlements/service.js";
+import { logger } from "../log.js";
+import { HttpError } from "./httpError.js";
 import { isSnowflake } from "./snowflake.js";
 
 function extractGuildId(req: Request): unknown {
@@ -47,20 +49,22 @@ export function requireGuildAccess(): RequestHandler {
 
       const raw = extractGuildId(req);
       if (!isSnowflake(raw)) {
-        res.status(400).json({
-          error: "guildId inválido o ausente.",
-          code: "INVALID_GUILD_ID",
-        });
+        next(
+          new HttpError("guildId inválido o ausente.", 400, "INVALID_GUILD_ID"),
+        );
         return;
       }
 
       const accessToken = decryptSecret(session.accessTokenEnc);
       const allowed = await userManagesGuild(session.userId, accessToken, raw);
       if (!allowed) {
-        res.status(403).json({
-          error: "No tienes permiso de gestionar este servidor.",
-          code: "GUILD_FORBIDDEN",
-        });
+        next(
+          new HttpError(
+            "No tienes permiso de gestionar este servidor.",
+            403,
+            "GUILD_FORBIDDEN",
+          ),
+        );
         return;
       }
 
@@ -76,16 +80,23 @@ export function requireGuildAccess(): RequestHandler {
       req.guild = guild;
       // Canonizar: los servicios no deben leer un guildId distinto del autorizado.
       req.query.guildId = raw;
-      if (req.body && typeof req.body === "object" && !Array.isArray(req.body)) {
+      if (
+        req.body &&
+        typeof req.body === "object" &&
+        !Array.isArray(req.body)
+      ) {
         (req.body as Record<string, unknown>).guildId = raw;
       }
       next();
     } catch (error: unknown) {
-      console.error("[adobos] requireGuildAccess falló:", error);
-      res.status(502).json({
-        error: "No se pudo verificar el acceso al servidor.",
-        code: "GUILD_ACCESS_CHECK_FAILED",
-      });
+      logger.error({ err: error }, "requireGuildAccess falló");
+      next(
+        new HttpError(
+          "No se pudo verificar el acceso al servidor.",
+          502,
+          "GUILD_ACCESS_CHECK_FAILED",
+        ),
+      );
     }
   };
 }
@@ -94,7 +105,11 @@ export function requireGuildAccess(): RequestHandler {
 export function guildIdOf(req: Request): string {
   const id = req.guild?.guildId;
   if (!id) {
-    throw new Error("requireGuildAccess no se aplicó en esta ruta.");
+    throw new HttpError(
+      "requireGuildAccess no se aplicó en esta ruta.",
+      500,
+      "MISSING_GUILD_CONTEXT",
+    );
   }
   return id;
 }

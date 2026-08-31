@@ -36,6 +36,7 @@ import {
   warnings,
 } from "../../db/schema.js";
 import { getEmbedTemplate } from "../messages/templates/service.js";
+import { logger } from "../../core/log.js";
 import {
   applySanctionTextVars,
   buildEmbedFromPayload,
@@ -553,10 +554,7 @@ async function sendSanctionDm(options: {
     return { dmSent: true, dmSkipped: false, dmFailed: false };
   } catch (error: unknown) {
     if (error instanceof ModerationError) throw error;
-    console.warn(
-      "[adobos] DM de sanción no enviado:",
-      error instanceof Error ? error.message : error,
-    );
+    logger.warn({ err: error instanceof Error ? error.message : error }, "DM de sanción no enviado:");
     return { dmSent: false, dmSkipped: false, dmFailed: true };
   }
 }

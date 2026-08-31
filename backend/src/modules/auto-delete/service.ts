@@ -16,6 +16,7 @@ import { eq } from "drizzle-orm";
 import { getDb, one } from "../../db/client.js";
 import { autoDeleteConfig, guildSettings } from "../../db/schema.js";
 import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
+import { logger } from "../../core/log.js";
 
 export class AutoDeleteError extends Error {
   constructor(
@@ -209,7 +210,7 @@ export async function updateAutoDeleteConfig(
   try {
     onConfigChanged?.(next);
   } catch (error) {
-    console.warn("[adobos] auto-delete: onConfigChanged falló:", error);
+    logger.warn({ err: error }, "auto-delete: onConfigChanged falló:");
   }
   return next;
 }

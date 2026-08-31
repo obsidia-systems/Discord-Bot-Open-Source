@@ -3,6 +3,7 @@ import type { AdobosModule } from "../../core/modules/types.js";
 import { actionLogsRoutes } from "./api/routes.js";
 import { registerActionLogListeners } from "./events.js";
 import { purgeAllExpiredActionLogs } from "./service.js";
+import { logger } from "../../core/log.js";
 
 const RETENTION_PURGE_MS = 60 * 60 * 1000; // 1h
 
@@ -27,10 +28,10 @@ export const actionLogsModule: AdobosModule = {
       try {
         const n = await purgeAllExpiredActionLogs();
         if (n > 0) {
-          console.log(`[adobos] action-logs: purge inicial eliminó ${n} filas`);
+          logger.info(`action-logs: purge inicial eliminó ${n} filas`);
         }
       } catch (error) {
-        console.warn("[adobos] action-logs: purge inicial falló:", error);
+        logger.warn({ err: error }, "action-logs: purge inicial falló:");
       }
     });
 
@@ -38,10 +39,10 @@ export const actionLogsModule: AdobosModule = {
       try {
         const n = await purgeAllExpiredActionLogs();
         if (n > 0) {
-          console.log(`[adobos] action-logs: purge periódico eliminó ${n} filas`);
+          logger.info(`action-logs: purge periódico eliminó ${n} filas`);
         }
       } catch (error) {
-        console.warn("[adobos] action-logs: purge periódico falló:", error);
+        logger.warn({ err: error }, "action-logs: purge periódico falló:");
       }
     }, RETENTION_PURGE_MS);
     timer.unref?.();

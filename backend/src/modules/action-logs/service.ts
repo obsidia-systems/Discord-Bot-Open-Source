@@ -43,6 +43,7 @@ import {
 } from "../../db/schema.js";
 import { buildActionLogEmbed } from "./embeds.js";
 import { sendActionLogWebhook } from "./webhooks.js";
+import { logger } from "../../core/log.js";
 
 export class ActionLogsError extends Error {
   constructor(
@@ -597,10 +598,7 @@ export async function recordActionLog(
         embeds: [embed],
       });
     } catch (error) {
-      console.warn(
-        `[adobos] action-logs: no se pudo enviar webhook a ${destinationId}:`,
-        error,
-      );
+      logger.warn({ err: error }, `action-logs: no se pudo enviar webhook a ${destinationId}:`);
     }
   }
 
@@ -633,10 +631,7 @@ export async function purgeAllExpiredActionLogs(): Promise<number> {
     try {
       total += await purgeExpiredActionLogs(row.guildId);
     } catch (error) {
-      console.warn(
-        `[adobos] action-logs: purge falló para ${row.guildId}:`,
-        error,
-      );
+      logger.warn({ err: error }, `action-logs: purge falló para ${row.guildId}:`);
     }
   }
   return total;

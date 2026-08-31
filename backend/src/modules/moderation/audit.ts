@@ -21,6 +21,7 @@ import {
 } from "../../lib/discordMember.js";
 import { ModerationError } from "./service.js";
 import { consolidateAuditLogs } from "./consolidateAuditLogs.js";
+import { logger } from "../../core/log.js";
 
 type ActionMeta = {
   label: string;
@@ -777,7 +778,7 @@ export async function fetchDiscordAuditLog(
       }
     }
     if (error instanceof ModerationError) throw error;
-    console.error("[adobos] Error al obtener audit log:", error);
+    logger.error({ err: error }, "Error al obtener audit log:");
     throw new ModerationError(
       "No se pudo obtener el registro de auditoría de Discord.",
       500,

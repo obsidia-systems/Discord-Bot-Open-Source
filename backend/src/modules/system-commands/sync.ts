@@ -14,6 +14,7 @@ import {
   discordApplicationId,
 } from "../../core/bot/discordApp.js";
 import { getCommandPermission } from "./service.js";
+import { logger } from "../../core/log.js";
 
 /** Bitfield Discord para ocultar el comando en el autocomplete. */
 function defaultMemberPermissionsFor(
@@ -82,9 +83,7 @@ export function buildGlobalDefaultSlashBodies(): RESTPostAPIChatInputApplication
 export async function syncGlobalCommands(client: Client): Promise<number> {
   const rest = createDiscordRest();
   if (!rest) {
-    console.warn(
-      "[adobos] system-commands: sin DISCORD_TOKEN — no se sincronizan slash globales.",
-    );
+    logger.warn("system-commands: sin DISCORD_TOKEN — no se sincronizan slash globales.");
     return 0;
   }
 
@@ -92,8 +91,8 @@ export async function syncGlobalCommands(client: Client): Promise<number> {
   await rest.put(Routes.applicationCommands(discordApplicationId(client)), {
     body,
   });
-  console.log(
-    `[adobos] slash sync global (${body.length} nativos)`,
+  logger.info(
+    `slash sync global (${body.length} nativos)`,
   );
   return body.length;
 }

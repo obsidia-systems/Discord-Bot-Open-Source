@@ -1,6 +1,7 @@
 import { EmbedBuilder, type Client, type Message } from "discord.js";
 import { sendActionLogWebhook } from "../action-logs/webhooks.js";
 import { resolveAutoModLogChannelId } from "./service.js";
+import { logger } from "../../core/log.js";
 
 /**
  * Despacha alerta de seguridad (rojo) por cascada de canales.
@@ -67,6 +68,6 @@ export async function dispatchAutoModAlert(
       embeds: [embed],
     });
   } catch (error) {
-    console.warn("[adobos] auto-mod: no se pudo enviar alerta:", error);
+    logger.warn({ err: error }, "auto-mod: no se pudo enviar alerta:");
   }
 }

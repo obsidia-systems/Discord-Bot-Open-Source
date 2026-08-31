@@ -5,6 +5,7 @@ import { customCommandsRoutes } from "./api/routes.js";
 import { setReservedSlashCommandNames } from "./service.js";
 import { syncGuildSlashCommands } from "./sync.js";
 import { syncGlobalCommands } from "../system-commands/sync.js";
+import { logger } from "../../core/log.js";
 
 export const customCommandsModule: AdobosModule = {
   id: "custom-commands",
@@ -23,16 +24,13 @@ export const customCommandsModule: AdobosModule = {
         try {
           await syncGlobalCommands(ctx.client);
         } catch (error) {
-          console.warn("[adobos] slash sync global falló:", error);
+          logger.warn({ err: error }, "slash sync global falló:");
         }
         for (const guild of ctx.client.guilds.cache.values()) {
           try {
             await syncGuildSlashCommands(ctx.client, guild.id);
           } catch (error) {
-            console.warn(
-              `[adobos] custom-commands: sync inicial falló guild=${guild.id}:`,
-              error,
-            );
+            logger.warn({ err: error }, `custom-commands: sync inicial falló guild=${guild.id}:`);
           }
         }
       })();
@@ -40,10 +38,7 @@ export const customCommandsModule: AdobosModule = {
 
     ctx.on("guildCreate", (guild) => {
       void syncGuildSlashCommands(ctx.client, guild.id).catch((error) => {
-        console.warn(
-          `[adobos] custom-commands: sync al unirse falló guild=${guild.id}:`,
-          error,
-        );
+        logger.warn({ err: error }, `custom-commands: sync al unirse falló guild=${guild.id}:`);
       });
     });
   },

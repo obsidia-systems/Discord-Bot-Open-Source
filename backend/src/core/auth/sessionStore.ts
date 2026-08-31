@@ -4,8 +4,8 @@ import { oauthStates, panelSessions, panelUsers } from "../../db/schema.js";
 import { encryptSecret, randomToken } from "./crypto.js";
 import {
   OAUTH_STATE_TTL_MS,
-  SESSION_TTL_MS,
   type PanelUser,
+  SESSION_TTL_MS,
   type StoredSession,
 } from "./types.js";
 
@@ -56,16 +56,14 @@ export async function upsertPanelUser(input: {
       .where(eq(panelUsers.userId, input.userId));
     return;
   }
-  await getDb()
-    .insert(panelUsers)
-    .values({
-      userId: input.userId,
-      username: input.username,
-      globalName: input.globalName,
-      avatar: input.avatar,
-      createdAt: now,
-      updatedAt: now,
-    });
+  await getDb().insert(panelUsers).values({
+    userId: input.userId,
+    username: input.username,
+    globalName: input.globalName,
+    avatar: input.avatar,
+    createdAt: now,
+    updatedAt: now,
+  });
 }
 
 export async function createOauthState(codeVerifier: string): Promise<string> {

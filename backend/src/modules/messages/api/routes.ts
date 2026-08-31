@@ -1,15 +1,13 @@
 import multer from "multer";
 import { Router } from "express";
 import type { Client } from "discord.js";
-import type { ApiErrorBody } from "@adobos/shared";
 import {
-  MessageSendError,
   sendEmbedMessage,
   sendTextMessage,
   type EmbedUploadedFiles,
 } from "./controller.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
-import { parse, sendIfValidationError } from "../../../core/http/validate.js";
+import { parse } from "../../../core/http/validate.js";
 import { sendEmbedSchema, sendMessageSchema } from "../../../core/http/schemas.js";
 
 const ALLOWED_MIME = new Set([
@@ -36,48 +34,6 @@ const embedUpload = multer({
   { name: "footerIcon", maxCount: 1 },
 ]);
 
-function handleMessageError(error: unknown, res: import("express").Response): void {
-  if (sendIfValidationError(error, res)) return;
-  if (error instanceof MessageSendError) {
-    const errorBody: ApiErrorBody = {
-      error: error.message,
-      code: error.code,
-    };
-    res.status(error.status).json(errorBody);
-    return;
-  }
-
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "LIMIT_FILE_SIZE"
-  ) {
-    const errorBody: ApiErrorBody = {
-      error: "La imagen supera el límite de 5MB.",
-      code: "FILE_TOO_LARGE",
-    };
-    res.status(400).json(errorBody);
-    return;
-  }
-
-  if (error instanceof Error && /Solo PNG|máx\. 5MB/i.test(error.message)) {
-    const errorBody: ApiErrorBody = {
-      error: error.message,
-      code: "INVALID_FILE",
-    };
-    res.status(400).json(errorBody);
-    return;
-  }
-
-  console.error("[adobos] Error inesperado en /api/messages:", error);
-  const errorBody: ApiErrorBody = {
-    error: "Error interno al enviar el mensaje.",
-    code: "INTERNAL_ERROR",
-  };
-  res.status(500).json(errorBody);
-}
-
 function firstFile(
   files: Express.Multer.File[] | undefined,
 ): Express.Multer.File | undefined {
@@ -96,7 +52,7 @@ function optionalEmbedUpload(
   }
   embedUpload(req, res, (err: unknown) => {
     if (err) {
-      handleMessageError(err, res);
+      next(err);
       return;
     }
     next();
@@ -106,7 +62,7 @@ function optionalEmbedUpload(
 export function messageRoutes(bot: Client): Router {
   const router = Router();
 
-  router.post("/", async (req, res) => {
+  router.post("/", async (req, res, next) => {
     try {
       const body = parse(sendMessageSchema, req.body);
       const result = await sendTextMessage(
@@ -119,11 +75,11 @@ export function messageRoutes(bot: Client): Router {
       );
       res.status(201).json(result);
     } catch (error: unknown) {
-      handleMessageError(error, res);
+      next(error);
     }
   });
 
-  router.post("/embed", optionalEmbedUpload, async (req, res) => {
+  router.post("/embed", optionalEmbedUpload, async (req, res, next) => {
     try {
       const payload = parse(sendEmbedSchema, req.body);
 
@@ -146,7 +102,7 @@ export function messageRoutes(bot: Client): Router {
       );
       res.status(201).json(result);
     } catch (error: unknown) {
-      handleMessageError(error, res);
+      next(error);
     }
   });
 

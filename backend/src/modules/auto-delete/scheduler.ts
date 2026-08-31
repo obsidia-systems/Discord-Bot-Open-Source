@@ -11,6 +11,7 @@ import {
   timeAndDaysToCron,
 } from "../../lib/schedulerTimezone.js";
 import { listAllAutoDeleteConfigs } from "./service.js";
+import { logger } from "../../core/log.js";
 
 const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -70,16 +71,10 @@ async function runScheduledCleanup(
     if (toDelete.size === 0) return;
 
     await textChannel.bulkDelete(toDelete, true).catch((error: unknown) => {
-      console.warn(
-        `[adobos] auto-delete: bulkDelete falló (${rule.channelId}):`,
-        error,
-      );
+      logger.warn({ err: error }, `auto-delete: bulkDelete falló (${rule.channelId}):`);
     });
   } catch (error) {
-    console.warn(
-      `[adobos] auto-delete: limpieza programada falló (${guildId}/${rule.channelId}):`,
-      error,
-    );
+    logger.warn({ err: error }, `auto-delete: limpieza programada falló (${guildId}/${rule.channelId}):`);
   }
 }
 
@@ -154,6 +149,6 @@ export async function rehydrateAllAutoDeleteJobs(): Promise<void> {
       await syncAutoDeleteJobsForConfig(config);
     }
   } catch (error) {
-    console.warn("[adobos] auto-delete: rehydrate cron falló:", error);
+    logger.warn({ err: error }, "auto-delete: rehydrate cron falló:");
   }
 }

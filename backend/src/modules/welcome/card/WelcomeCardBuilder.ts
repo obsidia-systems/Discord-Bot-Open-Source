@@ -10,6 +10,7 @@ import {
 } from "@napi-rs/canvas";
 import type { WelcomeTextLayer } from "@adobos/shared";
 import { resolvePublicUploadPath } from "../../../lib/dataPaths.js";
+import { logger } from "../../../core/log.js";
 
 /** Lienzo fijo 1920×1080 (coincide con sliders del panel). */
 export const CARD_WIDTH = 1920;
@@ -49,9 +50,7 @@ function ensureFontsRegistered(): void {
   const regularPath = path.join(fontsDir, "Inter-Regular.ttf");
 
   if (!fs.existsSync(boldPath)) {
-    console.warn(
-      `[adobos] Fuente no encontrada: ${boldPath}. El texto de la tarjeta puede no renderizar.`,
-    );
+    logger.warn(`Fuente no encontrada: ${boldPath}. El texto de la tarjeta puede no renderizar.`);
   } else {
     GlobalFonts.registerFromPath(boldPath, FONT_FAMILY);
   }

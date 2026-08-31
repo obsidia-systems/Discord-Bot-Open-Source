@@ -1,13 +1,14 @@
 import "dotenv/config";
 import { initDatabase } from "./client.js";
+import { logger } from "../core/log.js";
 
 async function run(): Promise<void> {
   await initDatabase();
-  console.log("[adobos] Migraciones Drizzle aplicadas (Postgres)");
+  logger.info("Migraciones Drizzle aplicadas (Postgres)");
   process.exit(0);
 }
 
 run().catch((error: unknown) => {
-  console.error("[adobos] Migración falló:", error);
+  logger.error({ err: error }, "Migración falló:");
   process.exit(1);
 });

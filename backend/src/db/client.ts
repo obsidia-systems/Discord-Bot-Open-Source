@@ -4,6 +4,7 @@ import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import * as schema from "./schema.js";
+import { logger } from "../core/log.js";
 
 export type AppDatabase = ReturnType<typeof drizzle<typeof schema>>;
 
@@ -42,7 +43,7 @@ export async function initDatabase(): Promise<AppDatabase> {
 
       sql = postgres(url, { max: 10, idle_timeout: 20, max_lifetime: 60 * 30 });
       db = drizzle(sql, { schema });
-      console.log("[adobos] Postgres listo");
+      logger.info("Postgres listo");
       return db;
     } catch (error: unknown) {
       await migrationClient.end({ timeout: 5 }).catch(() => undefined);
@@ -55,8 +56,9 @@ export async function initDatabase(): Promise<AppDatabase> {
         code === "CONNECT_TIMEOUT";
       if (!retryable || attempt === 8) throw error;
       const delay = Math.min(500 * 2 ** (attempt - 1), 5000);
-      console.warn(
-        `[adobos] Postgres no alcanzable (${code}); reintento ${attempt}/8 en ${delay}ms`,
+      logger.warn(
+        { err: error, code },
+        `Postgres no alcanzable; reintento ${attempt}/8 en ${delay}ms`,
       );
       await new Promise((resolve) => setTimeout(resolve, delay));
     }

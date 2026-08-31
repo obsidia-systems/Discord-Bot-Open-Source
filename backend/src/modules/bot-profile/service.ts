@@ -17,6 +17,7 @@ import type {
 import { getDb, one } from "../../db/client.js";
 import { botPresenceSettings } from "../../db/schema.js";
 import { resolvePublicUploadPath } from "../../lib/dataPaths.js";
+import { logger } from "../../core/log.js";
 
 export class BotProfileError extends Error {
   constructor(
@@ -180,18 +181,18 @@ export async function restorePersistedPresence(bot: Client): Promise<void> {
     if (!bot.isReady() || !bot.user) return;
     const saved = await readPersistedPresence();
     if (!saved) {
-      console.log("[adobos] Sin presencia persistida; se omite restore.");
+      logger.info("Sin presencia persistida; se omite restore.");
       return;
     }
     bot.user.setPresence({
       status: STATUS_TO_DJS[saved.status],
       activities: buildActivities(saved),
     });
-    console.log(
-      `[adobos] Presencia restaurada: ${saved.status} / ${saved.activityType} "${saved.activityName}"`,
+    logger.info(
+      `Presencia restaurada: ${saved.status} / ${saved.activityType} "${saved.activityName}"`,
     );
   } catch (error: unknown) {
-    console.error("[adobos] No se pudo restaurar la presencia:", error);
+    logger.error({ err: error }, "No se pudo restaurar la presencia:");
   }
 }
 

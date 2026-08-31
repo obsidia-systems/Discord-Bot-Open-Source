@@ -1,5 +1,10 @@
-import { ADMINISTRATOR_BIT, GUILD_CACHE_TTL_MS, MANAGE_GUILD_BIT, type ManagedGuild } from "./types.js";
 import { BoundedTtlMap } from "../cache/boundedTtlMap.js";
+import {
+  ADMINISTRATOR_BIT,
+  GUILD_CACHE_TTL_MS,
+  MANAGE_GUILD_BIT,
+  type ManagedGuild,
+} from "./types.js";
 
 interface DiscordGuildPayload {
   id: string;
@@ -26,7 +31,10 @@ function hasManageGuild(guild: DiscordGuildPayload): boolean {
   if (guild.owner) return true;
   try {
     const bits = BigInt(guild.permissions);
-    return (bits & ADMINISTRATOR_BIT) === ADMINISTRATOR_BIT || (bits & MANAGE_GUILD_BIT) === MANAGE_GUILD_BIT;
+    return (
+      (bits & ADMINISTRATOR_BIT) === ADMINISTRATOR_BIT ||
+      (bits & MANAGE_GUILD_BIT) === MANAGE_GUILD_BIT
+    );
   } catch {
     return false;
   }

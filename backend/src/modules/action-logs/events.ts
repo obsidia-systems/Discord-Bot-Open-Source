@@ -17,6 +17,7 @@ import {
   type VoiceState,
 } from "discord.js";
 import { recordActionLog, passesActionLogFilters } from "./service.js";
+import { logger } from "../../core/log.js";
 
 function userTag(user: {
   username?: string | null;
@@ -956,10 +957,7 @@ export async function onVoiceStateUpdate(
   try {
     await handleVoiceStateUpdate(oldState, newState);
   } catch (err) {
-    console.warn(
-      "[action-logs] voiceStateUpdate falló (no se detiene el bot):",
-      err,
-    );
+    logger.warn({ err: err }, "voiceStateUpdate falló (no se detiene el bot):");
   }
 }
 
@@ -1066,10 +1064,7 @@ async function handleVoiceStateUpdate(
         break;
       }
     } catch (err) {
-      console.warn(
-        "No se pudo consultar el AuditLog de desconexión de voz:",
-        err,
-      );
+      logger.warn({ err: err }, "No se pudo consultar el AuditLog de desconexión de voz:");
       // No abortar: continuar como desconexión estándar si leave está activo
     }
 
@@ -1282,7 +1277,7 @@ export function registerActionLogListeners(ctx: {
   });
   ctx.on("voiceStateUpdate", (oldState, newState) => {
     void onVoiceStateUpdate(oldState, newState).catch((err) => {
-      console.warn("[action-logs] voiceStateUpdate listener:", err);
+      logger.warn({ err: err }, "voiceStateUpdate listener:");
     });
   });
   ctx.on("inviteCreate", (invite) => {

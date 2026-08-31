@@ -1,6 +1,7 @@
 import type { Client } from "discord.js";
 import { and, eq, isNotNull, lte } from "drizzle-orm";
 import { getDb } from "../../db/client.js";
+import { logger } from "../../core/log.js";
 import {
   economyOwnedChannels,
   economyOwnedRoles,
@@ -52,7 +53,7 @@ export async function sweepExpiredShopGrants(bot: Client): Promise<void> {
         }
       }
     } catch (error) {
-      console.warn("[adobos] shop expire role:", row.id, error);
+      logger.warn({ detail: [row.id, error] }, "shop expire role:");
     }
     await getDb()
       .delete(economyOwnedRoles)
@@ -85,7 +86,7 @@ export async function sweepExpiredShopGrants(bot: Client): Promise<void> {
         }
       }
     } catch (error) {
-      console.warn("[adobos] shop expire channel:", row.id, error);
+      logger.warn({ detail: [row.id, error] }, "shop expire channel:");
     }
     await getDb()
       .delete(economyOwnedChannels)

@@ -1,4 +1,9 @@
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  randomBytes,
+  scryptSync,
+} from "node:crypto";
 
 const ALGO = "aes-256-gcm";
 const KEY_LEN = 32;
@@ -22,7 +27,10 @@ function deriveKey(): Buffer {
 export function encryptSecret(plain: string): string {
   const iv = randomBytes(IV_LEN);
   const cipher = createCipheriv(ALGO, deriveKey(), iv);
-  const encrypted = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
+  const encrypted = Buffer.concat([
+    cipher.update(plain, "utf8"),
+    cipher.final(),
+  ]);
   const tag = cipher.getAuthTag();
   return `${iv.toString("base64url")}.${tag.toString("base64url")}.${encrypted.toString("base64url")}`;
 }

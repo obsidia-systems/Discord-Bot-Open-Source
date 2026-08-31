@@ -1,18 +1,15 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
-import { sendIfEntitlementError } from "../../../core/entitlements/service.js";
-import { ChannelScopeError, fetchChannelInGuild } from "../../../core/http/channelScope.js";
-import { parse, sendIfValidationError } from "../../../core/http/validate.js";
+import { fetchChannelInGuild } from "../../../core/http/channelScope.js";
+import { parse } from "../../../core/http/validate.js";
 import {
   createScheduledMessageSchema,
   recordId,
   toggleScheduledSchema,
   updateScheduledMessageSchema,
 } from "../../../core/http/schemas.js";
-import type { ApiErrorBody } from "@adobos/shared";
 import {
-  ScheduledMessagesError,
   createScheduledMessage,
   deleteScheduledMessage,
   getScheduledMessage,
@@ -20,33 +17,6 @@ import {
   setScheduledMessageActive,
   updateScheduledMessage,
 } from "../service.js";
-
-function handleError(error: unknown, res: import("express").Response): void {
-  if (sendIfValidationError(error, res)) return;
-  if (sendIfEntitlementError(error, res)) return;
-  if (error instanceof ChannelScopeError) {
-    const body: ApiErrorBody = {
-      error: error.message,
-      code: error.code,
-    };
-    res.status(error.status).json(body);
-    return;
-  }
-  if (error instanceof ScheduledMessagesError) {
-    const body: ApiErrorBody = {
-      error: error.message,
-      code: error.code,
-    };
-    res.status(error.status).json(body);
-    return;
-  }
-  console.error("[adobos] Error en /api/scheduled-messages:", error);
-  const body: ApiErrorBody = {
-    error: "Error interno en Mensajes programados.",
-    code: "INTERNAL_ERROR",
-  };
-  res.status(500).json(body);
-}
 
 function parseMessageId(raw: string): number {
   return parse(recordId, raw);
@@ -56,28 +26,28 @@ export function scheduledMessagesRoutes(bot: Client): Router {
   const router = Router();
 
   /** GET /api/scheduled-messages */
-  router.get("/", async (req, res) => {
+  router.get("/", async (req, res, next) => {
     try {
       const messages = await listScheduledMessages(guildIdOf(req));
       res.json({ messages });
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 
   /** GET /api/scheduled-messages/:id */
-  router.get("/:id", async (req, res) => {
+  router.get("/:id", async (req, res, next) => {
     try {
       const messageId = parseMessageId(req.params.id);
       const message = await getScheduledMessage(messageId, guildIdOf(req));
       res.json({ message });
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 
   /** POST /api/scheduled-messages */
-  router.post("/", async (req, res) => {
+  router.post("/", async (req, res, next) => {
     void (async () => {
       try {
         const guildId = guildIdOf(req);
@@ -88,13 +58,13 @@ export function scheduledMessagesRoutes(bot: Client): Router {
         const message = await createScheduledMessage(body, guildId);
         res.status(201).json({ message });
       } catch (error) {
-        handleError(error, res);
+        next(error);
       }
     })();
   });
 
   /** PATCH /api/scheduled-messages/:id */
-  router.patch("/:id", async (req, res) => {
+  router.patch("/:id", async (req, res, next) => {
     void (async () => {
       try {
         const guildId = guildIdOf(req);
@@ -106,13 +76,13 @@ export function scheduledMessagesRoutes(bot: Client): Router {
         const message = await updateScheduledMessage(messageId, body, guildId);
         res.json({ message });
       } catch (error) {
-        handleError(error, res);
+        next(error);
       }
     })();
   });
 
   /** POST /api/scheduled-messages/:id/toggle — body: { isActive: boolean } */
-  router.post("/:id/toggle", async (req, res) => {
+  router.post("/:id/toggle", async (req, res, next) => {
     try {
       const messageId = parseMessageId(req.params.id);
       const { isActive } = parse(toggleScheduledSchema, req.body ?? {});
@@ -123,18 +93,18 @@ export function scheduledMessagesRoutes(bot: Client): Router {
       );
       res.json({ message });
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 
   /** DELETE /api/scheduled-messages/:id */
-  router.delete("/:id", async (req, res) => {
+  router.delete("/:id", async (req, res, next) => {
     try {
       const messageId = parseMessageId(req.params.id);
       await deleteScheduledMessage(messageId, guildIdOf(req));
       res.status(204).send();
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 

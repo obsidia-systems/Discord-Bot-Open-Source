@@ -7,6 +7,7 @@ import { createBotClient } from "./core/bot/createClient.js";
 import { createApp } from "./core/http/createApp.js";
 import { ENABLED_MODULES } from "./modules/index.js";
 import { wireCustomCommandsBuiltinSync } from "./modules/custom-commands/index.js";
+import { logger } from "./core/log.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -14,7 +15,7 @@ const PORT = Number(process.env.PORT ?? 3000);
 const HOST = process.env.HOST ?? "0.0.0.0";
 
 async function main(): Promise<void> {
-    await initDatabase();
+  await initDatabase();
 
   const registry = loadModules(ENABLED_MODULES);
   // Reserva nombres del catálogo nativo para custom-commands.
@@ -30,20 +31,18 @@ async function main(): Promise<void> {
   if (process.env.DISCORD_TOKEN) {
     await bot.login(process.env.DISCORD_TOKEN);
   } else {
-    console.warn(
-      "[adobos] DISCORD_TOKEN no definido — el panel web arranca sin bot conectado.",
-    );
+    logger.warn("DISCORD_TOKEN no definido — el panel web arranca sin bot conectado.");
   }
 
   const servingPanel =
     process.env.SERVE_STATIC !== "false" && process.env.SERVE_STATIC !== "0";
   app.listen(PORT, HOST, () => {
     const kind = servingPanel ? "Panel + API" : "API";
-    console.log(`[adobos] ${kind} en http://${HOST}:${PORT}`);
+    logger.info(`${kind} en http://${HOST}:${PORT}`);
   });
 }
 
 main().catch((error: unknown) => {
-  console.error("[adobos] Fallo al iniciar:", error);
+  logger.error({ err: error }, "Fallo al iniciar:");
   process.exit(1);
 });

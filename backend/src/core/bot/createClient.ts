@@ -1,10 +1,11 @@
 import {
   Client,
+  type ClientOptions,
   GatewayIntentBits,
   Options,
   Partials,
-  type ClientOptions,
 } from "discord.js";
+import { logger } from "../log.js";
 import type { ModuleRegistry } from "../modules/registry.js";
 import { registerInteractionRouter } from "./interactionRouter.js";
 
@@ -64,16 +65,16 @@ export function createBotClient(registry: ModuleRegistry): Client {
   const client = new Client(options);
 
   client.once("ready", () => {
-    console.log(`[adobos] Bot listo como ${client.user?.tag ?? "desconocido"}`);
+    logger.info(`Bot listo como ${client.user?.tag ?? "desconocido"}`);
   });
   client.on("error", (error) => {
-    console.error("[adobos] Error del cliente Discord:", error);
+    logger.error({ err: error }, "Error del cliente Discord:");
   });
   client.on("shardReconnecting", (id) => {
-    console.warn(`[adobos] Reconectando shard ${id}…`);
+    logger.warn(`Reconectando shard ${id}…`);
   });
   client.on("shardResume", (id) => {
-    console.log(`[adobos] Shard ${id} reanudado.`);
+    logger.info(`Shard ${id} reanudado.`);
   });
 
   registerInteractionRouter(client, registry);

@@ -38,20 +38,12 @@ function takeSlot(
 }
 
 /** Rate limit por usuario (comandos caros más estrictos). */
-export function allowChatCommand(
-  userId: string,
-  commandName: string,
-): boolean {
+export function allowChatCommand(userId: string, commandName: string): boolean {
   if (!takeSlot(generalHits, userId, GENERAL_WINDOW_MS, GENERAL_MAX)) {
     return false;
   }
   if (EXPENSIVE_COMMANDS.has(commandName)) {
-    return takeSlot(
-      expensiveHits,
-      userId,
-      EXPENSIVE_WINDOW_MS,
-      EXPENSIVE_MAX,
-    );
+    return takeSlot(expensiveHits, userId, EXPENSIVE_WINDOW_MS, EXPENSIVE_MAX);
   }
   return true;
 }

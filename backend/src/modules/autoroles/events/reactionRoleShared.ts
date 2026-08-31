@@ -5,6 +5,7 @@ import type {
   User,
 } from "discord.js";
 import { findReactionRole, toEmojiKey } from "../../../db/reaction-roles.js";
+import { logger } from "../../../core/log.js";
 
 type ReactionLike = MessageReaction | PartialMessageReaction;
 type UserLike = User | PartialUser;
@@ -20,7 +21,7 @@ async function resolveReactionAndUser(
     try {
       fullReaction = await reaction.fetch();
     } catch (error: unknown) {
-      console.warn("[adobos] No se pudo fetch de la reacción parcial:", error);
+      logger.warn({ err: error }, "No se pudo fetch de la reacción parcial:");
       return null;
     }
   }
@@ -30,7 +31,7 @@ async function resolveReactionAndUser(
     try {
       fullUser = await user.fetch();
     } catch (error: unknown) {
-      console.warn("[adobos] No se pudo fetch del usuario parcial:", error);
+      logger.warn({ err: error }, "No se pudo fetch del usuario parcial:");
       return null;
     }
   }
@@ -90,9 +91,6 @@ export async function applyReactionRoleChange(
       await member.roles.remove(mapping.roleId, "Adobos reaction role");
     }
   } catch (error: unknown) {
-    console.error(
-      `[adobos] Error al ${action === "add" ? "asignar" : "quitar"} rol ${mapping.roleId}:`,
-      error,
-    );
+    logger.error({ err: error }, `Error al ${action === "add" ? "asignar" : "quitar"} rol ${mapping.roleId}:`);
   }
 }

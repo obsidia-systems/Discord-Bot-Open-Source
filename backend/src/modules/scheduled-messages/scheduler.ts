@@ -12,6 +12,7 @@ import {
   normalizeScheduledTimezone,
 } from "@adobos/shared";
 import { resolveEmbedMedia } from "../../lib/embedMedia.js";
+import { logger } from "../../core/log.js";
 import {
   isValidIanaTimezone,
   timeAndDaysToCron,
@@ -87,10 +88,7 @@ async function sendScheduledMessage(
         if (resolved.file) files.push(resolved.file);
         imageUrl = resolved.url;
       } catch (error) {
-        console.warn(
-          `[adobos] scheduled-messages: media inválida (id=${message.id}):`,
-          error,
-        );
+        logger.warn({ err: error }, `scheduled-messages: media inválida (id=${message.id}):`);
       }
     }
 
@@ -105,10 +103,7 @@ async function sendScheduledMessage(
       files: files.length > 0 ? files : undefined,
     });
   } catch (error) {
-    console.warn(
-      `[adobos] scheduled-messages: envío falló (id=${message.id}):`,
-      error,
-    );
+    logger.warn({ err: error }, `scheduled-messages: envío falló (id=${message.id}):`);
   }
 }
 
@@ -158,19 +153,13 @@ export async function syncScheduledJob(message: ScheduledMessage | null): Promis
 
   const expression = frequencyToCronExpression(message);
   if (!expression || !cron.validate(expression)) {
-    console.warn(
-      `[adobos] scheduled-messages: cron inválido (id=${message.id}):`,
-      expression,
-    );
+    logger.warn({ err: expression }, `scheduled-messages: cron inválido (id=${message.id}):`);
     return;
   }
 
   const timezone = normalizeScheduledTimezone(message.timezone);
   if (!isValidIanaTimezone(timezone)) {
-    console.warn(
-      `[adobos] scheduled-messages: timezone inválida (id=${message.id}):`,
-      message.timezone,
-    );
+    logger.warn({ err: message.timezone }, `scheduled-messages: timezone inválida (id=${message.id}):`);
     return;
   }
 
@@ -201,10 +190,7 @@ export async function syncScheduledJob(message: ScheduledMessage | null): Promis
             await setScheduledMessageActive(messageId, false, fresh.guildId);
           }
         } catch (error) {
-          console.warn(
-            `[adobos] scheduled-messages: tick falló (id=${messageId}):`,
-            error,
-          );
+          logger.warn({ err: error }, `scheduled-messages: tick falló (id=${messageId}):`);
         }
       })();
     },
@@ -227,6 +213,6 @@ export async function rehydrateAllScheduledJobs(): Promise<void> {
       await syncScheduledJob(message);
     }
   } catch (error) {
-    console.warn("[adobos] scheduled-messages: rehydrate cron falló:", error);
+    logger.warn({ err: error }, "scheduled-messages: rehydrate cron falló:");
   }
 }

@@ -1,6 +1,7 @@
 import type { Message } from "discord.js";
 import { delayToMs, AUTO_DELETE_MAX_COUNTDOWN_MS } from "@adobos/shared";
 import { getAutoDeleteConfigCached } from "./service.js";
+import { logger } from "../../core/log.js";
 
 export async function onAutoDeleteMessageCreate(
   message: Message,
@@ -35,7 +36,7 @@ export async function onAutoDeleteMessageCreate(
       void message.delete().catch(() => {});
     }, delayMs);
   } catch (error) {
-    console.warn("[adobos] auto-delete messageCreate falló:", error);
+    logger.warn({ err: error }, "auto-delete messageCreate falló:");
   }
 }
 

@@ -1,58 +1,38 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
-import type { ApiErrorBody } from "@adobos/shared";
 import { resolveSchedulerTimezone } from "../../../lib/schedulerTimezone.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
-import { parse, sendIfValidationError } from "../../../core/http/validate.js";
+import { parse } from "../../../core/http/validate.js";
 import { updateAutoDeleteConfigSchema } from "../../../core/http/schemas.js";
 import {
-  AutoDeleteError,
   getAutoDeleteConfig,
   updateAutoDeleteConfig,
 } from "../service.js";
-
-function handleError(error: unknown, res: import("express").Response): void {
-  if (sendIfValidationError(error, res)) return;
-  if (error instanceof AutoDeleteError) {
-    const body: ApiErrorBody = {
-      error: error.message,
-      code: error.code,
-    };
-    res.status(error.status).json(body);
-    return;
-  }
-  console.error("[adobos] Error en /api/auto-delete:", error);
-  const body: ApiErrorBody = {
-    error: "Error interno en Auto-delete.",
-    code: "INTERNAL_ERROR",
-  };
-  res.status(500).json(body);
-}
 
 export function autoDeleteRoutes(_bot: Client): Router {
   const router = Router();
 
   /** GET /api/auto-delete/config */
-  router.get("/config", async (req, res) => {
+  router.get("/config", async (req, res, next) => {
     try {
       const guildId =
         guildIdOf(req);
       const config = await getAutoDeleteConfig(guildId);
       res.json({ config, timezone: resolveSchedulerTimezone() });
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 
   /** POST /api/auto-delete/config */
-  router.post("/config", async (req, res) => {
+  router.post("/config", async (req, res, next) => {
     try {
       const guildId = guildIdOf(req);
       const body = parse(updateAutoDeleteConfigSchema, req.body ?? {});
       const config = await updateAutoDeleteConfig(body, guildId);
       res.json({ config, timezone: resolveSchedulerTimezone() });
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 

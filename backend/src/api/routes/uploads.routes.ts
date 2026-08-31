@@ -3,9 +3,9 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import multer from "multer";
 import { Router, type Request, type Response } from "express";
-import type { ApiErrorBody } from "@adobos/shared";
 import { getBackgroundsDir, getImagesDir } from "../../lib/dataPaths.js";
 import { sniffImageFile } from "../../lib/imageMagic.js";
+import { HttpError } from "../../core/http/httpError.js";
 
 const ALLOWED_MIME = new Set([
   "image/png",
@@ -66,23 +66,21 @@ function handleUpload(
   publicDir: "backgrounds" | "images",
 ): void {
   if (!req.file) {
-    const body: ApiErrorBody = {
-      error: "No se recibió ningún archivo (campo `file`).",
-      code: "NO_FILE",
-    };
-    res.status(400).json(body);
-    return;
+    throw new HttpError(
+      "No se recibió ningún archivo (campo `file`).",
+      400,
+      "NO_FILE",
+    );
   }
 
   const sniffed = sniffImageFile(req.file.path);
   if (!sniffed) {
     fs.unlink(req.file.path, () => undefined);
-    const body: ApiErrorBody = {
-      error: "El archivo no es una imagen PNG, JPG o WEBP válida.",
-      code: "INVALID_IMAGE_CONTENT",
-    };
-    res.status(400).json(body);
-    return;
+    throw new HttpError(
+      "El archivo no es una imagen PNG, JPG o WEBP válida.",
+      400,
+      "INVALID_IMAGE_CONTENT",
+    );
   }
 
   const publicPath = `/uploads/${publicDir}/${req.file.filename}`;
@@ -95,39 +93,36 @@ function handleUpload(
   });
 }
 
-function multerErrorHandler(err: unknown, res: Response): boolean {
-  if (!err) return false;
-  const message =
-    err instanceof Error ? err.message : "No se pudo subir el archivo.";
-  const isLimit =
-    typeof err === "object" &&
-    err !== null &&
-    "code" in err &&
-    (err as { code?: string }).code === "LIMIT_FILE_SIZE";
-  const body: ApiErrorBody = {
-    error: isLimit ? "La imagen supera el límite de 5MB." : message,
-    code: isLimit ? "FILE_TOO_LARGE" : "UPLOAD_ERROR",
-  };
-  res.status(400).json(body);
-  return true;
-}
-
 export function uploadRoutes(): Router {
   const router = Router();
 
   /** POST /api/uploads/background — fondos de bienvenida → /uploads/backgrounds/ */
-  router.post("/background", (req, res) => {
+  router.post("/background", (req, res, next) => {
     uploadBackground.single("file")(req, res, (err: unknown) => {
-      if (multerErrorHandler(err, res)) return;
-      handleUpload(req, res, "backgrounds");
+      if (err) {
+        next(err);
+        return;
+      }
+      try {
+        handleUpload(req, res, "backgrounds");
+      } catch (error: unknown) {
+        next(error);
+      }
     });
   });
 
   /** POST /api/uploads/image — embeds / iconos / genérico → /uploads/images/ */
-  router.post("/image", (req, res) => {
+  router.post("/image", (req, res, next) => {
     uploadImage.single("file")(req, res, (err: unknown) => {
-      if (multerErrorHandler(err, res)) return;
-      handleUpload(req, res, "images");
+      if (err) {
+        next(err);
+        return;
+      }
+      try {
+        handleUpload(req, res, "images");
+      } catch (error: unknown) {
+        next(error);
+      }
     });
   });
 

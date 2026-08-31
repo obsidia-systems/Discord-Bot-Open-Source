@@ -6,6 +6,7 @@ import type {
   Interaction,
   ModalSubmitInteraction,
 } from "discord.js";
+import { logger } from "../log.js";
 import {
   dispatchButton,
   dispatchModal,
@@ -47,7 +48,7 @@ async function onInteractionCreate(
       await handleModal(interaction, registry);
     }
   } catch (error: unknown) {
-    console.error("[adobos] Error en interactionCreate:", error);
+    logger.error({ err: error }, "Error en interactionCreate:");
     if (
       interaction.isRepliable() &&
       !interaction.replied &&
@@ -99,7 +100,7 @@ async function handleAutocomplete(
 
     await interaction.respond([]);
   } catch (error) {
-    console.warn("[adobos] autocomplete falló:", error);
+    logger.warn({ err: error }, "autocomplete falló:");
     if (!interaction.responded) {
       await interaction.respond([]).catch(() => undefined);
     }
@@ -141,7 +142,7 @@ async function handleChatInput(
       if (handled) return;
     }
   } catch (error) {
-    console.warn("[adobos] default-commands dispatch falló:", error);
+    logger.warn({ err: error }, "default-commands dispatch falló:");
   }
 
   // 2) Handlers registrados por módulos (legacy / plugins)
@@ -159,7 +160,7 @@ async function handleChatInput(
     const handled = await handleCustomChatCommand(interaction);
     if (handled) return;
   } catch (error) {
-    console.warn("[adobos] custom-commands handler falló:", error);
+    logger.warn({ err: error }, "custom-commands handler falló:");
   }
 
   await interaction.reply({

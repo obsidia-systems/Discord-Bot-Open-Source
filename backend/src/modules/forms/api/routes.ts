@@ -1,13 +1,11 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
-import type { ApiErrorBody } from "@adobos/shared";
 import { publishFormMessage } from "../publish.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { channelBelongsToGuild } from "../../../core/http/channelScope.js";
-import { parse, sendIfValidationError } from "../../../core/http/validate.js";
+import { parse } from "../../../core/http/validate.js";
 import { createFormSchema, recordId, updateFormSchema } from "../../../core/http/schemas.js";
 import {
-  FormsError,
   createForm,
   deleteForm,
   getForm,
@@ -15,24 +13,6 @@ import {
   listForms,
   updateForm,
 } from "../service.js";
-
-function handleError(error: unknown, res: import("express").Response): void {
-  if (sendIfValidationError(error, res)) return;
-  if (error instanceof FormsError) {
-    const body: ApiErrorBody = {
-      error: error.message,
-      code: error.code,
-    };
-    res.status(error.status).json(body);
-    return;
-  }
-  console.error("[adobos] Error en /api/forms:", error);
-  const body: ApiErrorBody = {
-    error: "Error interno en Formularios.",
-    code: "INTERNAL_ERROR",
-  };
-  res.status(500).json(body);
-}
 
 function parseFormId(raw: string): number {
   return parse(recordId, raw);
@@ -42,39 +22,39 @@ export function formsRoutes(bot: Client): Router {
   const router = Router();
 
   /** GET /api/forms */
-  router.get("/", async (req, res) => {
+  router.get("/", async (req, res, next) => {
     try {
       const forms = await listForms(guildIdOf(req));
       res.json({ forms });
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 
   /** POST /api/forms */
-  router.post("/", async (req, res) => {
+  router.post("/", async (req, res, next) => {
     try {
       const body = parse(createFormSchema, req.body ?? {});
       const form = await createForm(body, guildIdOf(req));
       res.status(201).json({ form });
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 
   /** GET /api/forms/:id/responses — antes de /:id genérico */
-  router.get("/:id/responses", async (req, res) => {
+  router.get("/:id/responses", async (req, res, next) => {
     try {
       const formId = parseFormId(req.params.id);
       const responses = await listFormResponses(formId, guildIdOf(req));
       res.json({ responses });
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 
   /** POST /api/forms/:id/publish */
-  router.post("/:id/publish", async (req, res) => {
+  router.post("/:id/publish", async (req, res, next) => {
     void (async () => {
       try {
         const formId = parseFormId(req.params.id);
@@ -87,36 +67,36 @@ export function formsRoutes(bot: Client): Router {
         );
         res.json(result);
       } catch (error) {
-        handleError(error, res);
+        next(error);
       }
     })();
   });
 
   /** GET /api/forms/:id */
-  router.get("/:id", async (req, res) => {
+  router.get("/:id", async (req, res, next) => {
     try {
       const formId = parseFormId(req.params.id);
       const form = await getForm(formId, guildIdOf(req));
       res.json({ form });
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 
   /** PATCH /api/forms/:id */
-  router.patch("/:id", async (req, res) => {
+  router.patch("/:id", async (req, res, next) => {
     try {
       const formId = parseFormId(req.params.id);
       const body = parse(updateFormSchema, req.body ?? {});
       const form = await updateForm(formId, body, guildIdOf(req));
       res.json({ form });
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 
   /** DELETE /api/forms/:id */
-  router.delete("/:id", async (req, res) => {
+  router.delete("/:id", async (req, res, next) => {
     void (async () => {
       try {
         const formId = parseFormId(req.params.id);
@@ -144,7 +124,7 @@ export function formsRoutes(bot: Client): Router {
         }
         res.status(204).send();
       } catch (error) {
-        handleError(error, res);
+        next(error);
       }
     })();
   });

@@ -18,9 +18,7 @@ export interface ChatInputCommandDefinition {
   handle: (interaction: ChatInputCommandInteraction) => Promise<void>;
 }
 
-export type ButtonHandler = (
-  interaction: ButtonInteraction,
-) => Promise<void>;
+export type ButtonHandler = (interaction: ButtonInteraction) => Promise<void>;
 
 export type ModalHandler = (
   interaction: ModalSubmitInteraction,
@@ -40,7 +38,11 @@ export interface ModuleContext {
     event: K,
     handler: (...args: ClientEvents[K]) => void,
   ) => void;
-  route: (basePath: string, router: Router, opts?: { feature?: FeatureKey }) => void;
+  route: (
+    basePath: string,
+    router: Router,
+    opts?: { feature?: FeatureKey },
+  ) => void;
   command: (def: ChatInputCommandDefinition) => void;
   /** Prefijo o customId exacto. Prefijos terminan en `_` (ej. `autorole_`). */
   button: (prefixOrId: string, handler: ButtonHandler) => void;

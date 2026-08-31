@@ -1,13 +1,12 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
 import type {
-  ApiErrorBody,
   EconomyLeaderboardEntry,
   EconomyLeaderboardResponse,
 } from "@adobos/shared";
 import { resolveMembersBatch } from "../../../lib/discordMember.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
-import { parse, parseQuery, sendIfValidationError } from "../../../core/http/validate.js";
+import { parse, parseQuery } from "../../../core/http/validate.js";
 import {
   adjustEconomyFundsSchema,
   createShopItemSchema,
@@ -26,7 +25,6 @@ import {
   updateEconomyIncomeConfig,
 } from "../incomeService.js";
 import {
-  EconomyError,
   adjustEconomyFunds,
   getEconomyConfig,
   getEconomyLeaderboardTotal,
@@ -39,24 +37,6 @@ import {
   listShopItems,
   updateShopItem,
 } from "../shopService.js";
-
-function handleError(error: unknown, res: import("express").Response): void {
-  if (sendIfValidationError(error, res)) return;
-  if (error instanceof EconomyError) {
-    const body: ApiErrorBody = {
-      error: error.message,
-      code: error.code,
-    };
-    res.status(error.status).json(body);
-    return;
-  }
-  console.error("[adobos] Error en /api/economy:", error);
-  const body: ApiErrorBody = {
-    error: "Error interno en Economía.",
-    code: "INTERNAL_ERROR",
-  };
-  res.status(500).json(body);
-}
 
 async function resolveLeaderboard(
   bot: Client,
@@ -96,17 +76,17 @@ export function economyRoutes(bot: Client): Router {
   const router = Router();
 
   /** GET /api/economy/config */
-  router.get("/config", async (req, res) => {
+  router.get("/config", async (req, res, next) => {
     try {
       const config = await getEconomyConfig(guildIdOf(req));
       res.json({ config });
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 
   /** PUT /api/economy/config */
-  router.put("/config", async (req, res) => {
+  router.put("/config", async (req, res, next) => {
     try {
       const body = parse(updateEconomyConfigSchema, req.body);
       const config = await updateEconomyConfig({
@@ -115,22 +95,22 @@ export function economyRoutes(bot: Client): Router {
       });
       res.json({ config });
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 
   /** GET /api/economy/income */
-  router.get("/income", async (req, res) => {
+  router.get("/income", async (req, res, next) => {
     try {
       const config = await getEconomyIncomeConfig(guildIdOf(req));
       res.json({ config });
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 
   /** PUT /api/economy/income */
-  router.put("/income", async (req, res) => {
+  router.put("/income", async (req, res, next) => {
     try {
       const body = parse(updateEconomyIncomeSchema, req.body);
       const config = await updateEconomyIncomeConfig({
@@ -139,22 +119,22 @@ export function economyRoutes(bot: Client): Router {
       });
       res.json({ config });
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 
   /** GET /api/economy/casino */
-  router.get("/casino", async (req, res) => {
+  router.get("/casino", async (req, res, next) => {
     try {
       const config = await getEconomyCasinoConfig(guildIdOf(req));
       res.json({ config });
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 
   /** PUT /api/economy/casino */
-  router.put("/casino", async (req, res) => {
+  router.put("/casino", async (req, res, next) => {
     try {
       const body = parse(updateEconomyCasinoSchema, req.body);
       const config = await updateEconomyCasinoConfig({
@@ -163,22 +143,22 @@ export function economyRoutes(bot: Client): Router {
       });
       res.json({ config });
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 
   /** GET /api/economy/shop/items */
-  router.get("/shop/items", async (req, res) => {
+  router.get("/shop/items", async (req, res, next) => {
     try {
       const items = await listShopItems(guildIdOf(req));
       res.json({ items });
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 
   /** POST /api/economy/shop/items */
-  router.post("/shop/items", async (req, res) => {
+  router.post("/shop/items", async (req, res, next) => {
     try {
       const body = parse(createShopItemSchema, req.body);
       const item = await createShopItem({
@@ -187,12 +167,12 @@ export function economyRoutes(bot: Client): Router {
       });
       res.status(201).json({ item });
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 
   /** PUT /api/economy/shop/items/:id */
-  router.put("/shop/items/:id", async (req, res) => {
+  router.put("/shop/items/:id", async (req, res, next) => {
     try {
       const body = parse(updateShopItemSchema, req.body);
       const item = await updateShopItem(req.params.id, {
@@ -201,22 +181,22 @@ export function economyRoutes(bot: Client): Router {
       });
       res.json({ item });
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 
   /** DELETE /api/economy/shop/items/:id */
-  router.delete("/shop/items/:id", async (req, res) => {
+  router.delete("/shop/items/:id", async (req, res, next) => {
     try {
       await deleteShopItem(req.params.id, guildIdOf(req));
       res.json({ ok: true });
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 
   /** GET /api/economy/leaderboard?limit=100 */
-  router.get("/leaderboard", async (req, res) => {
+  router.get("/leaderboard", async (req, res, next) => {
     void (async () => {
       try {
         const guildId = guildIdOf(req);
@@ -225,13 +205,13 @@ export function economyRoutes(bot: Client): Router {
         const payload = await resolveLeaderboard(bot, guildId, limit);
         res.json(payload);
       } catch (error) {
-        handleError(error, res);
+        next(error);
       }
     })();
   });
 
   /** POST /api/economy/funds — override admin de saldos */
-  router.post("/funds", async (req, res) => {
+  router.post("/funds", async (req, res, next) => {
     try {
       const body = parse(adjustEconomyFundsSchema, req.body);
       const result = await adjustEconomyFunds({
@@ -240,7 +220,7 @@ export function economyRoutes(bot: Client): Router {
       });
       res.json(result);
     } catch (error) {
-      handleError(error, res);
+      next(error);
     }
   });
 
