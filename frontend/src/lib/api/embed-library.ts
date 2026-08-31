@@ -5,7 +5,7 @@ import type {
   SendEmbedRequest,
   SendEmbedResponse,
 } from "@adobos/shared";
-import { API_BASE, readApiError } from "./client";
+import { apiFetch, readApiError } from "./client";
 import type { EmbedMediaValue, SendEmbedPayload } from "./messages";
 
 function appendOptional(
@@ -91,7 +91,7 @@ function buildEmbedBody(payload: SendEmbedPayload): {
 }
 
 export async function fetchEmbedLibrary(): Promise<EmbedLibraryResponse> {
-  const response = await fetch(`${API_BASE}/api/embeds/library`, {
+  const response = await apiFetch(`/api/embeds/library`, {
     headers: { Accept: "application/json" },
   });
   if (!response.ok) {
@@ -111,12 +111,12 @@ export async function sendEmbedToLibrary(
 ): Promise<SendEmbedResponse> {
   const built = buildEmbedBody(payload);
   const response = built.hasFiles
-    ? await fetch(`${API_BASE}/api/embeds/send`, {
+    ? await apiFetch(`/api/embeds/send`, {
         method: "POST",
         headers: { Accept: "application/json" },
         body: built.formData,
       })
-    : await fetch(`${API_BASE}/api/embeds/send`, {
+    : await apiFetch(`/api/embeds/send`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -142,12 +142,12 @@ export async function editSentEmbed(
 ): Promise<EditSentEmbedResponse> {
   const built = buildEmbedBody(payload);
   const response = built.hasFiles
-    ? await fetch(`${API_BASE}/api/embeds/edit-sent/${encodeURIComponent(id)}`, {
+    ? await apiFetch(`/api/embeds/edit-sent/${encodeURIComponent(id)}`, {
         method: "PUT",
         headers: { Accept: "application/json" },
         body: built.formData,
       })
-    : await fetch(`${API_BASE}/api/embeds/edit-sent/${encodeURIComponent(id)}`, {
+    : await apiFetch(`/api/embeds/edit-sent/${encodeURIComponent(id)}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -170,8 +170,8 @@ export async function editSentEmbed(
 export async function deleteSentEmbed(
   id: string,
 ): Promise<DeleteSentEmbedResponse> {
-  const response = await fetch(
-    `${API_BASE}/api/embeds/sent/${encodeURIComponent(id)}`,
+  const response = await apiFetch(
+    `/api/embeds/sent/${encodeURIComponent(id)}`,
     {
       method: "DELETE",
       headers: { Accept: "application/json" },

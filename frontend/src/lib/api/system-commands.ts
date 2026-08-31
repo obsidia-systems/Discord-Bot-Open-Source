@@ -4,10 +4,10 @@ import type {
   SystemCommandsUpdateResponse,
   UpdateSystemCommandsRequest,
 } from "@adobos/shared";
-import { API_BASE, readApiError } from "./client";
+import { apiFetch, readApiError } from "./client";
 
 export async function fetchSystemCommands(): Promise<SystemCommandConfig[]> {
-  const response = await fetch(`${API_BASE}/api/system-commands`);
+  const response = await apiFetch(`/api/system-commands`);
   if (!response.ok) {
     throw new Error(
       await readApiError(response, "No se pudieron cargar los comandos."),
@@ -20,7 +20,7 @@ export async function fetchSystemCommands(): Promise<SystemCommandConfig[]> {
 export async function saveSystemCommands(
   commands: UpdateSystemCommandsRequest["commands"],
 ): Promise<SystemCommandConfig[]> {
-  const response = await fetch(`${API_BASE}/api/system-commands`, {
+  const response = await apiFetch(`/api/system-commands`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ commands } satisfies UpdateSystemCommandsRequest),

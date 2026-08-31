@@ -352,8 +352,19 @@ export const dashboardNav: NavCategoryConfig[] = [
 
 export const brandIcon = Hammer;
 
-export function flattenNavItems(
+export function visibleDashboardNav(
   nav: NavCategoryConfig[] = dashboardNav,
+): NavCategoryConfig[] {
+  return nav
+    .map((category) => ({
+      ...category,
+      items: category.items.filter((item) => !item.soon),
+    }))
+    .filter((category) => category.items.length > 0);
+}
+
+export function flattenNavItems(
+  nav: NavCategoryConfig[] = visibleDashboardNav(),
 ): NavItemConfig[] {
   return nav.flatMap((category) => category.items);
 }

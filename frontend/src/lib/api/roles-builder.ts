@@ -5,13 +5,13 @@ import type {
   UpdateRolePositionsRequest,
   UpdateRolePositionsResponse,
 } from "@adobos/shared";
-import { API_BASE, readApiError } from "./client";
+import { apiFetch, readApiError } from "./client";
 
 export async function fetchRolesBuilderList(
   guildId?: string,
 ): Promise<RolesBuilderListResponse> {
   const qs = guildId ? `?guildId=${encodeURIComponent(guildId)}` : "";
-  const response = await fetch(`${API_BASE}/api/roles/list${qs}`, {
+  const response = await apiFetch(`/api/roles/list${qs}`, {
     credentials: "include",
   });
   if (!response.ok) {
@@ -27,7 +27,7 @@ export async function createGuildRole(
   guildId?: string,
 ): Promise<CreateGuildRoleResponse> {
   const qs = guildId ? `?guildId=${encodeURIComponent(guildId)}` : "";
-  const response = await fetch(`${API_BASE}/api/roles/create${qs}`, {
+  const response = await apiFetch(`/api/roles/create${qs}`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -46,7 +46,7 @@ export async function updateRolePositions(
   guildId?: string,
 ): Promise<UpdateRolePositionsResponse> {
   const qs = guildId ? `?guildId=${encodeURIComponent(guildId)}` : "";
-  const response = await fetch(`${API_BASE}/api/roles/positions${qs}`, {
+  const response = await apiFetch(`/api/roles/positions${qs}`, {
     method: "PATCH",
     credentials: "include",
     headers: { "Content-Type": "application/json" },

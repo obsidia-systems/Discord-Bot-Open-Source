@@ -2,10 +2,10 @@ import type {
   AutoDeleteConfigResponse,
   UpdateAutoDeleteConfigRequest,
 } from "@adobos/shared";
-import { API_BASE, readApiError } from "./client";
+import { apiFetch, readApiError } from "./client";
 
 export async function fetchAutoDeleteConfig(): Promise<AutoDeleteConfigResponse> {
-  const response = await fetch(`${API_BASE}/api/auto-delete/config`);
+  const response = await apiFetch(`/api/auto-delete/config`);
   if (!response.ok) {
     throw new Error(
       await readApiError(
@@ -20,7 +20,7 @@ export async function fetchAutoDeleteConfig(): Promise<AutoDeleteConfigResponse>
 export async function saveAutoDeleteConfig(
   input: UpdateAutoDeleteConfigRequest,
 ): Promise<AutoDeleteConfigResponse> {
-  const response = await fetch(`${API_BASE}/api/auto-delete/config`, {
+  const response = await apiFetch(`/api/auto-delete/config`, {
     method: "POST",
     headers: {
       Accept: "application/json",

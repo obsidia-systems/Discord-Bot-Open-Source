@@ -2,7 +2,7 @@ import type {
   UploadBackgroundResponse,
   UploadImageResponse,
 } from "@adobos/shared";
-import { API_BASE, readApiError } from "./client";
+import { apiFetch, readApiError } from "./client";
 
 export async function uploadBackgroundFile(
   file: File,
@@ -10,7 +10,7 @@ export async function uploadBackgroundFile(
   const body = new FormData();
   body.append("file", file);
 
-  const response = await fetch(`${API_BASE}/api/uploads/background`, {
+  const response = await apiFetch(`/api/uploads/background`, {
     method: "POST",
     body,
   });
@@ -33,7 +33,7 @@ export async function uploadImageFile(
   const body = new FormData();
   body.append("file", file);
 
-  const response = await fetch(`${API_BASE}/api/uploads/image`, {
+  const response = await apiFetch(`/api/uploads/image`, {
     method: "POST",
     body,
   });

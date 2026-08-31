@@ -5,10 +5,10 @@ import type {
   ActionLogsTestResponse,
   UpdateActionLogsConfigRequest,
 } from "@adobos/shared";
-import { API_BASE, readApiError } from "./client";
+import { apiFetch, readApiError } from "./client";
 
 export async function fetchActionLogsConfig(): Promise<ActionLogsConfigResponse> {
-  const response = await fetch(`${API_BASE}/api/logs/config`);
+  const response = await apiFetch(`/api/logs/config`);
   if (!response.ok) {
     throw new Error(
       await readApiError(
@@ -23,7 +23,7 @@ export async function fetchActionLogsConfig(): Promise<ActionLogsConfigResponse>
 export async function saveActionLogsConfig(
   input: UpdateActionLogsConfigRequest,
 ): Promise<ActionLogsConfigResponse> {
-  const response = await fetch(`${API_BASE}/api/logs/config`, {
+  const response = await apiFetch(`/api/logs/config`, {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -56,8 +56,8 @@ export async function fetchActionLogsHistory(
   if (query.limit) params.set("limit", String(query.limit));
 
   const qs = params.toString();
-  const response = await fetch(
-    `${API_BASE}/api/logs/history${qs ? `?${qs}` : ""}`,
+  const response = await apiFetch(
+    `/api/logs/history${qs ? `?${qs}` : ""}`,
   );
   if (!response.ok) {
     throw new Error(
@@ -71,7 +71,7 @@ export async function fetchActionLogsHistory(
 }
 
 export async function sendActionLogsTest(): Promise<ActionLogsTestResponse> {
-  const response = await fetch(`${API_BASE}/api/logs/test`, {
+  const response = await apiFetch(`/api/logs/test`, {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: "{}",

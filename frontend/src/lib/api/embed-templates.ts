@@ -5,7 +5,7 @@ import type {
   EmbedTemplateListResponse,
   SaveEmbedTemplateResponse,
 } from "@adobos/shared";
-import { API_BASE, readApiError } from "./client";
+import { apiFetch, readApiError } from "./client";
 
 export type TemplateMediaValue = string | File | null | undefined;
 
@@ -37,7 +37,7 @@ export async function listEmbedTemplates(
   const query = guildId
     ? `?guildId=${encodeURIComponent(guildId)}`
     : "";
-  const response = await fetch(`${API_BASE}/api/embeds/templates${query}`, {
+  const response = await apiFetch(`/api/embeds/templates${query}`, {
     headers: { Accept: "application/json" },
   });
   if (!response.ok) {
@@ -58,8 +58,8 @@ export async function fetchEmbedTemplate(
   const query = guildId
     ? `?guildId=${encodeURIComponent(guildId)}`
     : "";
-  const response = await fetch(
-    `${API_BASE}/api/embeds/templates/${encodeURIComponent(String(id))}${query}`,
+  const response = await apiFetch(
+    `/api/embeds/templates/${encodeURIComponent(String(id))}${query}`,
     { headers: { Accept: "application/json" } },
   );
   if (!response.ok) {
@@ -115,13 +115,13 @@ export async function saveEmbedTemplate(
     if (authorIcon.file) body.append("authorIcon", authorIcon.file);
     if (footerIcon.file) body.append("footerIcon", footerIcon.file);
 
-    response = await fetch(`${API_BASE}/api/embeds/templates`, {
+    response = await apiFetch(`/api/embeds/templates`, {
       method: "POST",
       headers: { Accept: "application/json" },
       body,
     });
   } else {
-    response = await fetch(`${API_BASE}/api/embeds/templates`, {
+    response = await apiFetch(`/api/embeds/templates`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -154,8 +154,8 @@ export async function deleteEmbedTemplate(
   const query = guildId
     ? `?guildId=${encodeURIComponent(guildId)}`
     : "";
-  const response = await fetch(
-    `${API_BASE}/api/embeds/templates/${encodeURIComponent(String(id))}${query}`,
+  const response = await apiFetch(
+    `/api/embeds/templates/${encodeURIComponent(String(id))}${query}`,
     { method: "DELETE", headers: { Accept: "application/json" } },
   );
   if (!response.ok) {

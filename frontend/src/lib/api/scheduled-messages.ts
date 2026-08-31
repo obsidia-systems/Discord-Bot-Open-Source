@@ -4,10 +4,10 @@ import type {
   ScheduledMessagesListResponse,
   UpdateScheduledMessageRequest,
 } from "@adobos/shared";
-import { API_BASE, readApiError } from "./client";
+import { apiFetch, readApiError } from "./client";
 
 export async function fetchScheduledMessages(): Promise<ScheduledMessagesListResponse> {
-  const response = await fetch(`${API_BASE}/api/scheduled-messages`);
+  const response = await apiFetch(`/api/scheduled-messages`);
   if (!response.ok) {
     throw new Error(
       await readApiError(
@@ -22,7 +22,7 @@ export async function fetchScheduledMessages(): Promise<ScheduledMessagesListRes
 export async function createScheduledMessage(
   input: CreateScheduledMessageRequest,
 ): Promise<ScheduledMessageResponse> {
-  const response = await fetch(`${API_BASE}/api/scheduled-messages`, {
+  const response = await apiFetch(`/api/scheduled-messages`, {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -45,7 +45,7 @@ export async function updateScheduledMessage(
   id: number,
   input: UpdateScheduledMessageRequest,
 ): Promise<ScheduledMessageResponse> {
-  const response = await fetch(`${API_BASE}/api/scheduled-messages/${id}`, {
+  const response = await apiFetch(`/api/scheduled-messages/${id}`, {
     method: "PATCH",
     headers: {
       Accept: "application/json",
@@ -68,8 +68,8 @@ export async function toggleScheduledMessage(
   id: number,
   isActive: boolean,
 ): Promise<ScheduledMessageResponse> {
-  const response = await fetch(
-    `${API_BASE}/api/scheduled-messages/${id}/toggle`,
+  const response = await apiFetch(
+    `/api/scheduled-messages/${id}/toggle`,
     {
       method: "POST",
       headers: {
@@ -91,7 +91,7 @@ export async function toggleScheduledMessage(
 }
 
 export async function deleteScheduledMessage(id: number): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/scheduled-messages/${id}`, {
+  const response = await apiFetch(`/api/scheduled-messages/${id}`, {
     method: "DELETE",
   });
   if (!response.ok) {

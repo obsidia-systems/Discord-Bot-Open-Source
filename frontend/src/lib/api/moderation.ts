@@ -10,13 +10,13 @@ import type {
   ModMemberInfoResponse,
   ModMemberSearchResponse,
 } from "@adobos/shared";
-import { API_BASE, readApiError } from "./client";
+import { apiFetch, readApiError } from "./client";
 
 export async function searchModMembers(
   q: string,
 ): Promise<ModMemberSearchResponse> {
-  const response = await fetch(
-    `${API_BASE}/api/mod/search-member?q=${encodeURIComponent(q)}`,
+  const response = await apiFetch(
+    `/api/mod/search-member?q=${encodeURIComponent(q)}`,
   );
   if (!response.ok) {
     throw new Error(
@@ -29,8 +29,8 @@ export async function searchModMembers(
 export async function searchModChannels(
   q: string,
 ): Promise<ModChannelSearchResponse> {
-  const response = await fetch(
-    `${API_BASE}/api/mod/search-channel?q=${encodeURIComponent(q)}`,
+  const response = await apiFetch(
+    `/api/mod/search-channel?q=${encodeURIComponent(q)}`,
   );
   if (!response.ok) {
     throw new Error(
@@ -43,8 +43,8 @@ export async function searchModChannels(
 export async function fetchModMemberInfo(
   userId: string,
 ): Promise<ModMemberInfoResponse> {
-  const response = await fetch(
-    `${API_BASE}/api/mod/member-info/${encodeURIComponent(userId)}`,
+  const response = await apiFetch(
+    `/api/mod/member-info/${encodeURIComponent(userId)}`,
   );
   if (!response.ok) {
     throw new Error(
@@ -57,8 +57,8 @@ export async function fetchModMemberInfo(
 export async function fetchModChannelInfo(
   channelId: string,
 ): Promise<ModChannelInfoResponse> {
-  const response = await fetch(
-    `${API_BASE}/api/mod/channel-info/${encodeURIComponent(channelId)}`,
+  const response = await apiFetch(
+    `/api/mod/channel-info/${encodeURIComponent(channelId)}`,
   );
   if (!response.ok) {
     throw new Error(
@@ -77,8 +77,8 @@ export async function fetchModMessage(
     channelId,
     messageId,
   });
-  const response = await fetch(
-    `${API_BASE}/api/mod/fetch-message?${params.toString()}`,
+  const response = await apiFetch(
+    `/api/mod/fetch-message?${params.toString()}`,
     { headers: { Accept: "application/json" }, signal },
   );
   if (!response.ok) {
@@ -95,7 +95,7 @@ export async function fetchModMessage(
 export async function executeModAction(
   payload: ModActionRequest,
 ): Promise<ModActionResponse> {
-  const response = await fetch(`${API_BASE}/api/mod/action`, {
+  const response = await apiFetch(`/api/mod/action`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify(payload),
@@ -123,8 +123,8 @@ export async function fetchDiscordAuditLog(
     params.set("actionType", String(options.actionType));
   }
 
-  const response = await fetch(
-    `${API_BASE}/api/mod/discord-audit?${params.toString()}`,
+  const response = await apiFetch(
+    `/api/mod/discord-audit?${params.toString()}`,
     { headers: { Accept: "application/json" } },
   );
   if (!response.ok) {
@@ -141,7 +141,7 @@ export async function fetchDiscordAuditLog(
 }
 
 export async function fetchActiveBans(): Promise<ModActiveBansResponse> {
-  const response = await fetch(`${API_BASE}/api/mod/active/bans`, {
+  const response = await apiFetch(`/api/mod/active/bans`, {
     headers: { Accept: "application/json" },
   });
   if (!response.ok) {
@@ -156,7 +156,7 @@ export async function fetchActiveBans(): Promise<ModActiveBansResponse> {
 }
 
 export async function fetchActiveTimeouts(): Promise<ModActiveTimeoutsResponse> {
-  const response = await fetch(`${API_BASE}/api/mod/active/timeouts`, {
+  const response = await apiFetch(`/api/mod/active/timeouts`, {
     headers: { Accept: "application/json" },
   });
   if (!response.ok) {

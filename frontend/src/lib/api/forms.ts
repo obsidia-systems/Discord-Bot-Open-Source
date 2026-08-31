@@ -6,10 +6,10 @@ import type {
   PublishFormResponse,
   UpdateFormRequest,
 } from "@adobos/shared";
-import { API_BASE, readApiError } from "./client";
+import { apiFetch, readApiError } from "./client";
 
 export async function fetchForms(): Promise<FormsListResponse> {
-  const response = await fetch(`${API_BASE}/api/forms`);
+  const response = await apiFetch(`/api/forms`);
   if (!response.ok) {
     throw new Error(
       await readApiError(
@@ -22,7 +22,7 @@ export async function fetchForms(): Promise<FormsListResponse> {
 }
 
 export async function fetchForm(id: number): Promise<FormResponseBody> {
-  const response = await fetch(`${API_BASE}/api/forms/${id}`);
+  const response = await apiFetch(`/api/forms/${id}`);
   if (!response.ok) {
     throw new Error(
       await readApiError(
@@ -37,7 +37,7 @@ export async function fetchForm(id: number): Promise<FormResponseBody> {
 export async function createForm(
   input: CreateFormRequest = {},
 ): Promise<FormResponseBody> {
-  const response = await fetch(`${API_BASE}/api/forms`, {
+  const response = await apiFetch(`/api/forms`, {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -60,7 +60,7 @@ export async function saveForm(
   id: number,
   input: UpdateFormRequest,
 ): Promise<FormResponseBody> {
-  const response = await fetch(`${API_BASE}/api/forms/${id}`, {
+  const response = await apiFetch(`/api/forms/${id}`, {
     method: "PATCH",
     headers: {
       Accept: "application/json",
@@ -80,7 +80,7 @@ export async function saveForm(
 }
 
 export async function deleteForm(id: number): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/forms/${id}`, {
+  const response = await apiFetch(`/api/forms/${id}`, {
     method: "DELETE",
   });
   if (!response.ok) {
@@ -97,7 +97,7 @@ export async function publishForm(
   id: number,
   input: UpdateFormRequest,
 ): Promise<PublishFormResponse> {
-  const response = await fetch(`${API_BASE}/api/forms/${id}/publish`, {
+  const response = await apiFetch(`/api/forms/${id}/publish`, {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -119,7 +119,7 @@ export async function publishForm(
 export async function fetchFormResponses(
   id: number,
 ): Promise<FormResponsesListResponse> {
-  const response = await fetch(`${API_BASE}/api/forms/${id}/responses`);
+  const response = await apiFetch(`/api/forms/${id}/responses`);
   if (!response.ok) {
     throw new Error(
       await readApiError(

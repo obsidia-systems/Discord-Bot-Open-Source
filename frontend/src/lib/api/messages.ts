@@ -4,7 +4,7 @@ import type {
   SendMessageRequest,
   SendMessageResponse,
 } from "@adobos/shared";
-import { API_BASE, readApiError } from "./client";
+import { apiFetch, readApiError } from "./client";
 
 export type EmbedMediaValue = string | File | null;
 
@@ -43,7 +43,7 @@ function splitMedia(value: EmbedMediaValue | undefined): {
 export async function sendChannelMessage(
   payload: SendMessageRequest,
 ): Promise<SendMessageResponse> {
-  const response = await fetch(`${API_BASE}/api/messages`, {
+  const response = await apiFetch(`/api/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify(payload),
@@ -100,7 +100,7 @@ export async function sendEmbedMessage(
     if (authorIcon.file) body.append("authorIcon", authorIcon.file);
     if (footerIcon.file) body.append("footerIcon", footerIcon.file);
 
-    response = await fetch(`${API_BASE}/api/messages/embed`, {
+    response = await apiFetch(`/api/messages/embed`, {
       method: "POST",
       headers: { Accept: "application/json" },
       body,
@@ -123,7 +123,7 @@ export async function sendEmbedMessage(
       components: payload.components,
     };
 
-    response = await fetch(`${API_BASE}/api/messages/embed`, {
+    response = await apiFetch(`/api/messages/embed`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

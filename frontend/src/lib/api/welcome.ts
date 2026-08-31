@@ -3,13 +3,13 @@ import type {
   SaveWelcomeSettingsResponse,
   WelcomeSettingsResponse,
 } from "@adobos/shared";
-import { API_BASE, readApiError } from "./client";
+import { apiFetch, readApiError } from "./client";
 
 export async function fetchWelcomeSettings(
   guildId?: string,
 ): Promise<WelcomeSettingsResponse> {
   const query = guildId ? `?guildId=${encodeURIComponent(guildId)}` : "";
-  const response = await fetch(`${API_BASE}/api/welcome-settings${query}`);
+  const response = await apiFetch(`/api/welcome-settings${query}`);
   if (!response.ok) {
     throw new Error(
       await readApiError(
@@ -24,7 +24,7 @@ export async function fetchWelcomeSettings(
 export async function saveWelcomeSettings(
   payload: SaveWelcomeSettingsRequest,
 ): Promise<SaveWelcomeSettingsResponse> {
-  const response = await fetch(`${API_BASE}/api/welcome-settings`, {
+  const response = await apiFetch(`/api/welcome-settings`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify(payload),

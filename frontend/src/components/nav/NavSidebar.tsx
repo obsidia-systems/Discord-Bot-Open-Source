@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Menu, X } from "lucide-react";
 import {
   brandIcon as BrandIcon,
-  dashboardNav,
   flattenNavItems,
+  visibleDashboardNav,
 } from "@/lib/nav";
 import { NavCategoryGroup } from "@/components/nav/NavCategoryGroup";
 import { NavItem } from "@/components/nav/NavItem";
@@ -43,7 +43,7 @@ function isActive(href: string, currentPath: string): boolean {
 
 /** Categoría acordeón que contiene la ruta activa (nunca `general`). */
 function resolveOpenCategoryId(currentPath: string): string | null {
-  for (const category of dashboardNav) {
+  for (const category of visibleDashboardNav()) {
     if (category.id === STATIC_CATEGORY_ID) continue;
     const match = category.items.some((item) =>
       isActive(item.href, currentPath),
@@ -69,7 +69,7 @@ function NavLinks({
       className="flex flex-1 flex-col gap-4 overflow-y-auto px-3 py-4"
       aria-label="Navegación del panel"
     >
-      {dashboardNav.map((category) => {
+      {visibleDashboardNav().map((category) => {
         const isStatic = category.id === STATIC_CATEGORY_ID;
         return (
           <NavCategoryGroup

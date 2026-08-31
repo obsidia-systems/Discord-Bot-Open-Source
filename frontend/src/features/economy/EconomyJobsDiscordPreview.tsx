@@ -162,6 +162,7 @@ export function EconomyJobsDiscordPreview({
       maxReward: 400,
       minFine: 50,
       maxFine: 200,
+      cooldownMinutes: 60,
       successMessage:
         "¡Éxito! Completaste «{crime}» y escapaste con {payout} {currency}.",
       failMessage:

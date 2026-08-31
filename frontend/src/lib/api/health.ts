@@ -1,8 +1,8 @@
 import type { HealthResponse, GuildAssetsResponse } from "@adobos/shared";
-import { API_BASE, readApiError } from "./client";
+import { apiFetch, readApiError } from "./client";
 
 export async function fetchHealth(): Promise<HealthResponse> {
-  const response = await fetch(`${API_BASE}/api/health`);
+  const response = await apiFetch(`/api/health`);
   if (!response.ok) {
     throw new Error(`Health check falló (${response.status})`);
   }
@@ -13,7 +13,7 @@ export async function fetchGuildAssets(
   guildId?: string,
 ): Promise<GuildAssetsResponse> {
   const query = guildId ? `?guildId=${encodeURIComponent(guildId)}` : "";
-  const response = await fetch(`${API_BASE}/api/guild-assets${query}`);
+  const response = await apiFetch(`/api/guild-assets${query}`);
   if (!response.ok) {
     throw new Error(
       await readApiError(

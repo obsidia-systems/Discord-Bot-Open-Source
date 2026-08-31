@@ -1,6 +1,7 @@
 ---
 import BaseLayout from "./BaseLayout.astro";
 import { Sidebar } from "../components/custom/Sidebar";
+import { AuthGate } from "../features/auth/AuthGate";
 
 interface Props {
   title: string;
@@ -25,6 +26,7 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
       class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto"
       transition:animate="fade"
     >
+      <AuthGate client:load />
       <header
         class="hidden border-b border-border/70 bg-card/40 px-8 py-5 backdrop-blur-md lg:block"
       >

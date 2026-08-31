@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import rehypeRaw from "rehype-raw";
+import { discordMarkdownRehype } from "@/lib/discordMarkdown";
 import { CheckCircle2, Loader2, Save, Send, XCircle } from "lucide-react";
 import type {
   EmbedPayload,
@@ -774,7 +774,7 @@ export function EmbedBuilder() {
                 <div className="discord-md text-sm text-white/90">
                   <Markdown
                     remarkPlugins={[remarkGfm]}
-                    rehypePlugins={[rehypeRaw]}
+                    rehypePlugins={discordMarkdownRehype}
                   >
                     {parseDiscordEmojis(form.content)}
                   </Markdown>
@@ -819,7 +819,7 @@ export function EmbedBuilder() {
                         <div className="discord-md mt-1 text-sm text-white/80">
                           <Markdown
                             remarkPlugins={[remarkGfm]}
-                            rehypePlugins={[rehypeRaw]}
+                            rehypePlugins={discordMarkdownRehype}
                           >
                             {parseDiscordEmojis(form.description)}
                           </Markdown>

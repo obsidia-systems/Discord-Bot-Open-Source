@@ -2,10 +2,10 @@ import type {
   AutoModConfigResponse,
   UpdateAutoModConfigRequest,
 } from "@adobos/shared";
-import { API_BASE, readApiError } from "./client";
+import { apiFetch, readApiError } from "./client";
 
 export async function fetchAutoModConfig(): Promise<AutoModConfigResponse> {
-  const response = await fetch(`${API_BASE}/api/auto-mod/config`);
+  const response = await apiFetch(`/api/auto-mod/config`);
   if (!response.ok) {
     throw new Error(
       await readApiError(
@@ -20,7 +20,7 @@ export async function fetchAutoModConfig(): Promise<AutoModConfigResponse> {
 export async function saveAutoModConfig(
   input: UpdateAutoModConfigRequest,
 ): Promise<AutoModConfigResponse> {
-  const response = await fetch(`${API_BASE}/api/auto-mod/config`, {
+  const response = await apiFetch(`/api/auto-mod/config`, {
     method: "POST",
     headers: {
       Accept: "application/json",

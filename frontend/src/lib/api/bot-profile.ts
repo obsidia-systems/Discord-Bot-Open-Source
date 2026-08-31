@@ -2,10 +2,10 @@ import type {
   BotGuildProfileResponse,
   UpdateBotGuildProfileResponse,
 } from "@adobos/shared";
-import { API_BASE, readApiError } from "./client";
+import { apiFetch, readApiError } from "./client";
 
 export async function fetchBotGuildProfile(): Promise<BotGuildProfileResponse> {
-  const response = await fetch(`${API_BASE}/api/bot/guild-profile`);
+  const response = await apiFetch(`/api/bot/guild-profile`);
   if (!response.ok) {
     throw new Error(
       await readApiError(
@@ -44,7 +44,7 @@ export async function saveBotGuildProfile(
     body.set("serverAvatar", input.serverAvatarFile);
   }
 
-  const response = await fetch(`${API_BASE}/api/bot/guild-profile`, {
+  const response = await apiFetch(`/api/bot/guild-profile`, {
     method: "POST",
     body,
     headers: { Accept: "application/json" },

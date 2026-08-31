@@ -103,7 +103,7 @@ function StatusRow({
     <div className="flex items-center justify-between gap-2">
       <span className="text-muted-foreground">{label}</span>
       {badgeClass ? (
-        <Badge variant="outline" className={badgeClass}>
+        <Badge className={badgeClass}>
           {value}
         </Badge>
       ) : (

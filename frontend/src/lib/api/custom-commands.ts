@@ -4,10 +4,10 @@ import type {
   CustomCommandsListResponse,
   UpdateCustomCommandRequest,
 } from "@adobos/shared";
-import { API_BASE, readApiError } from "./client";
+import { apiFetch, readApiError } from "./client";
 
 export async function fetchCustomCommands(): Promise<CustomCommandsListResponse> {
-  const response = await fetch(`${API_BASE}/api/custom-commands`);
+  const response = await apiFetch(`/api/custom-commands`);
   if (!response.ok) {
     throw new Error(
       await readApiError(
@@ -22,7 +22,7 @@ export async function fetchCustomCommands(): Promise<CustomCommandsListResponse>
 export async function createCustomCommand(
   input: CreateCustomCommandRequest,
 ): Promise<CustomCommandResponse> {
-  const response = await fetch(`${API_BASE}/api/custom-commands`, {
+  const response = await apiFetch(`/api/custom-commands`, {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -45,7 +45,7 @@ export async function updateCustomCommand(
   id: number,
   input: UpdateCustomCommandRequest,
 ): Promise<CustomCommandResponse> {
-  const response = await fetch(`${API_BASE}/api/custom-commands/${id}`, {
+  const response = await apiFetch(`/api/custom-commands/${id}`, {
     method: "PATCH",
     headers: {
       Accept: "application/json",
@@ -65,7 +65,7 @@ export async function updateCustomCommand(
 }
 
 export async function deleteCustomCommand(id: number): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/custom-commands/${id}`, {
+  const response = await apiFetch(`/api/custom-commands/${id}`, {
     method: "DELETE",
   });
   if (!response.ok) {

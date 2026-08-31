@@ -1,5 +1,5 @@
 import type { HealthResponse } from "@adobos/shared";
-import { getReadyModules, getSoonModules } from "@/lib/nav";
+import { getReadyModules } from "@/lib/nav";
 import { StatusIsland } from "@/features/dashboard/StatusIsland";
 
 interface DashboardHomeProps {
@@ -8,7 +8,6 @@ interface DashboardHomeProps {
 
 export function DashboardHome({ initialHealth = null }: DashboardHomeProps) {
   const ready = getReadyModules();
-  const soon = getSoonModules(6);
 
   return (
     <div className="space-y-8">
@@ -75,37 +74,6 @@ export function DashboardHome({ initialHealth = null }: DashboardHomeProps) {
           </ul>
         </section>
       </div>
-
-      <section className="rounded-2xl border border-border/70 bg-card/60 p-5 shadow-sm backdrop-blur-sm">
-        <div>
-          <h2 className="font-display text-base font-semibold">En el roadmap</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Ya visibles en el menú; la implementación llega por módulos.
-          </p>
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {soon.map((item) => {
-            const Icon = item.icon;
-            return (
-              <a
-                key={`${item.href}-${item.label}`}
-                href={item.href}
-                className="rounded-xl border border-dashed border-border/80 bg-muted/20 px-4 py-3 transition-colors hover:border-primary/30 hover:bg-primary/5"
-              >
-                <span className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  <Icon className="size-4 text-primary/80" aria-hidden />
-                  {item.label}
-                </span>
-                {item.blurb && (
-                  <span className="mt-1 block text-xs text-muted-foreground">
-                    {item.blurb}
-                  </span>
-                )}
-              </a>
-            );
-          })}
-        </div>
-      </section>
     </div>
   );
 }

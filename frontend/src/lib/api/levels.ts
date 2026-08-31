@@ -3,10 +3,10 @@ import type {
   LevelsLeaderboardResponse,
   UpdateLevelsConfigRequest,
 } from "@adobos/shared";
-import { API_BASE, readApiError } from "./client";
+import { apiFetch, readApiError } from "./client";
 
 export async function fetchLevelsConfig(): Promise<LevelsConfigResponse> {
-  const response = await fetch(`${API_BASE}/api/levels/config`);
+  const response = await apiFetch(`/api/levels/config`);
   if (!response.ok) {
     throw new Error(
       await readApiError(
@@ -21,7 +21,7 @@ export async function fetchLevelsConfig(): Promise<LevelsConfigResponse> {
 export async function saveLevelsConfig(
   input: UpdateLevelsConfigRequest,
 ): Promise<LevelsConfigResponse> {
-  const response = await fetch(`${API_BASE}/api/levels/config`, {
+  const response = await apiFetch(`/api/levels/config`, {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -43,8 +43,8 @@ export async function saveLevelsConfig(
 export async function fetchLevelsLeaderboard(
   limit = 100,
 ): Promise<LevelsLeaderboardResponse> {
-  const response = await fetch(
-    `${API_BASE}/api/levels/leaderboard?limit=${encodeURIComponent(String(limit))}`,
+  const response = await apiFetch(
+    `/api/levels/leaderboard?limit=${encodeURIComponent(String(limit))}`,
   );
   if (!response.ok) {
     throw new Error(

@@ -17,10 +17,10 @@ import type {
   UpdateEconomyCasinoRequest,
   UpdateEconomyShopItemRequest,
 } from "@adobos/shared";
-import { API_BASE, readApiError } from "./client";
+import { apiFetch, readApiError } from "./client";
 
 export async function fetchEconomyConfig(): Promise<EconomyConfig> {
-  const response = await fetch(`${API_BASE}/api/economy/config`);
+  const response = await apiFetch(`/api/economy/config`);
   if (!response.ok) {
     throw new Error(
       await readApiError(response, "No se pudo cargar la economía."),
@@ -33,7 +33,7 @@ export async function fetchEconomyConfig(): Promise<EconomyConfig> {
 export async function saveEconomyConfig(
   input: UpdateEconomyConfigRequest,
 ): Promise<EconomyConfig> {
-  const response = await fetch(`${API_BASE}/api/economy/config`, {
+  const response = await apiFetch(`/api/economy/config`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -50,8 +50,8 @@ export async function saveEconomyConfig(
 export async function fetchEconomyLeaderboard(
   limit = 100,
 ): Promise<EconomyLeaderboardResponse> {
-  const response = await fetch(
-    `${API_BASE}/api/economy/leaderboard?limit=${encodeURIComponent(String(limit))}`,
+  const response = await apiFetch(
+    `/api/economy/leaderboard?limit=${encodeURIComponent(String(limit))}`,
   );
   if (!response.ok) {
     throw new Error(
@@ -64,7 +64,7 @@ export async function fetchEconomyLeaderboard(
 export async function adjustEconomyFunds(
   input: AdjustEconomyFundsRequest,
 ): Promise<AdjustEconomyFundsResponse> {
-  const response = await fetch(`${API_BASE}/api/economy/funds`, {
+  const response = await apiFetch(`/api/economy/funds`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -78,7 +78,7 @@ export async function adjustEconomyFunds(
 }
 
 export async function fetchEconomyIncomeConfig(): Promise<EconomyIncomeConfig> {
-  const response = await fetch(`${API_BASE}/api/economy/income`);
+  const response = await apiFetch(`/api/economy/income`);
   if (!response.ok) {
     throw new Error(
       await readApiError(response, "No se pudo cargar ingresos y trabajos."),
@@ -91,7 +91,7 @@ export async function fetchEconomyIncomeConfig(): Promise<EconomyIncomeConfig> {
 export async function saveEconomyIncomeConfig(
   input: UpdateEconomyIncomeRequest,
 ): Promise<EconomyIncomeConfig> {
-  const response = await fetch(`${API_BASE}/api/economy/income`, {
+  const response = await apiFetch(`/api/economy/income`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -106,7 +106,7 @@ export async function saveEconomyIncomeConfig(
 }
 
 export async function fetchEconomyCasinoConfig(): Promise<EconomyCasinoConfig> {
-  const response = await fetch(`${API_BASE}/api/economy/casino`);
+  const response = await apiFetch(`/api/economy/casino`);
   if (!response.ok) {
     throw new Error(
       await readApiError(response, "No se pudo cargar el casino."),
@@ -119,7 +119,7 @@ export async function fetchEconomyCasinoConfig(): Promise<EconomyCasinoConfig> {
 export async function saveEconomyCasinoConfig(
   input: UpdateEconomyCasinoRequest,
 ): Promise<EconomyCasinoConfig> {
-  const response = await fetch(`${API_BASE}/api/economy/casino`, {
+  const response = await apiFetch(`/api/economy/casino`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -134,7 +134,7 @@ export async function saveEconomyCasinoConfig(
 }
 
 export async function fetchShopItems(): Promise<EconomyShopItem[]> {
-  const response = await fetch(`${API_BASE}/api/economy/shop/items`);
+  const response = await apiFetch(`/api/economy/shop/items`);
   if (!response.ok) {
     throw new Error(
       await readApiError(response, "No se pudieron cargar los ítems."),
@@ -147,7 +147,7 @@ export async function fetchShopItems(): Promise<EconomyShopItem[]> {
 export async function createShopItem(
   input: CreateEconomyShopItemRequest,
 ): Promise<EconomyShopItem> {
-  const response = await fetch(`${API_BASE}/api/economy/shop/items`, {
+  const response = await apiFetch(`/api/economy/shop/items`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -165,8 +165,8 @@ export async function updateShopItem(
   id: string,
   input: UpdateEconomyShopItemRequest,
 ): Promise<EconomyShopItem> {
-  const response = await fetch(
-    `${API_BASE}/api/economy/shop/items/${encodeURIComponent(id)}`,
+  const response = await apiFetch(
+    `/api/economy/shop/items/${encodeURIComponent(id)}`,
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -183,8 +183,8 @@ export async function updateShopItem(
 }
 
 export async function deleteShopItem(id: string): Promise<void> {
-  const response = await fetch(
-    `${API_BASE}/api/economy/shop/items/${encodeURIComponent(id)}`,
+  const response = await apiFetch(
+    `/api/economy/shop/items/${encodeURIComponent(id)}`,
     { method: "DELETE" },
   );
   if (!response.ok) {

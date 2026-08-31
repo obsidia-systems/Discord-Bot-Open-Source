@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import rehypeRaw from "rehype-raw";
+import { discordMarkdownRehype } from "@/lib/discordMarkdown";
 import {
   CheckCircle2,
   Loader2,
@@ -812,7 +812,7 @@ export function AutoRoleBuilder() {
                     <div className="discord-md text-sm text-white/90">
                       <Markdown
                         remarkPlugins={[remarkGfm]}
-                        rehypePlugins={[rehypeRaw]}
+                        rehypePlugins={discordMarkdownRehype}
                       >
                         {parseDiscordEmojis(fetchedMessage.content)}
                       </Markdown>
@@ -862,7 +862,7 @@ export function AutoRoleBuilder() {
                                 <div className="discord-md mt-1 text-sm text-white/80">
                                   <Markdown
                                     remarkPlugins={[remarkGfm]}
-                                    rehypePlugins={[rehypeRaw]}
+                                    rehypePlugins={discordMarkdownRehype}
                                   >
                                     {parseDiscordEmojis(embed.description)}
                                   </Markdown>
@@ -923,7 +923,7 @@ export function AutoRoleBuilder() {
               {plainContent.trim() ? (
                 <Markdown
                   remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[rehypeRaw]}
+                  rehypePlugins={discordMarkdownRehype}
                 >
                   {parseDiscordEmojis(plainContent)}
                 </Markdown>
@@ -940,7 +940,7 @@ export function AutoRoleBuilder() {
                   <div className="discord-md text-sm text-white/90">
                     <Markdown
                       remarkPlugins={[remarkGfm]}
-                      rehypePlugins={[rehypeRaw]}
+                      rehypePlugins={discordMarkdownRehype}
                     >
                       {parseDiscordEmojis(previewEmbed.content)}
                     </Markdown>
@@ -974,7 +974,7 @@ export function AutoRoleBuilder() {
                           <div className="discord-md mt-1 text-sm text-white/80">
                             <Markdown
                               remarkPlugins={[remarkGfm]}
-                              rehypePlugins={[rehypeRaw]}
+                              rehypePlugins={discordMarkdownRehype}
                             >
                               {parseDiscordEmojis(previewEmbed.description)}
                             </Markdown>

@@ -14,12 +14,12 @@ import type {
   UpdateAutoroleMappingRequest,
   UpdateAutoroleMappingResponse,
 } from "@adobos/shared";
-import { API_BASE, readApiError } from "./client";
+import { apiFetch, readApiError } from "./client";
 
 export async function saveReactionRoles(
   payload: SaveReactionRolesRequest,
 ): Promise<SaveReactionRolesResponse> {
-  const response = await fetch(`${API_BASE}/api/autoroles/reactions`, {
+  const response = await apiFetch(`/api/autoroles/reactions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify(payload),
@@ -38,7 +38,7 @@ export async function saveReactionRoles(
 }
 
 export async function fetchActiveAutoroles(): Promise<ListActiveAutorolesResponse> {
-  const response = await fetch(`${API_BASE}/api/autoroles/active`, {
+  const response = await apiFetch(`/api/autoroles/active`, {
     headers: { Accept: "application/json" },
   });
   if (!response.ok) {
@@ -55,7 +55,7 @@ export async function fetchActiveAutoroles(): Promise<ListActiveAutorolesRespons
 export async function createAutoroleCompact(
   payload: CreateAutoroleCompactRequest,
 ): Promise<CreateAutoRoleResponse> {
-  const response = await fetch(`${API_BASE}/api/autoroles/create`, {
+  const response = await apiFetch(`/api/autoroles/create`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify(payload),
@@ -81,7 +81,7 @@ export async function createAutoRole(
 export async function saveInteractiveRoles(
   payload: CreateAutoRoleRequest,
 ): Promise<CreateAutoRoleResponse> {
-  const response = await fetch(`${API_BASE}/api/roles/interactive`, {
+  const response = await apiFetch(`/api/roles/interactive`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify(payload),
@@ -103,8 +103,8 @@ export async function updateAutoroleMapping(
   id: number,
   payload: UpdateAutoroleMappingRequest,
 ): Promise<UpdateAutoroleMappingResponse> {
-  const response = await fetch(
-    `${API_BASE}/api/autoroles/update-mapping/${id}`,
+  const response = await apiFetch(
+    `/api/autoroles/update-mapping/${id}`,
     {
       method: "PUT",
       headers: {
@@ -129,8 +129,8 @@ export async function updateAutoroleContent(
   id: number,
   payload: UpdateAutoroleContentRequest,
 ): Promise<UpdateAutoroleContentResponse> {
-  const response = await fetch(
-    `${API_BASE}/api/autoroles/edit-content/${id}`,
+  const response = await apiFetch(
+    `/api/autoroles/edit-content/${id}`,
     {
       method: "PUT",
       headers: {
@@ -154,7 +154,7 @@ export async function updateAutoroleContent(
 export async function deleteAutorole(
   id: number,
 ): Promise<DeleteAutoroleResponse> {
-  const response = await fetch(`${API_BASE}/api/autoroles/delete/${id}`, {
+  const response = await apiFetch(`/api/autoroles/delete/${id}`, {
     method: "DELETE",
     headers: { Accept: "application/json" },
   });
@@ -173,7 +173,7 @@ export async function fetchAutoJoinRoles(
   guildId?: string,
 ): Promise<GetAutoJoinRolesResponse> {
   const qs = guildId ? `?guildId=${encodeURIComponent(guildId)}` : "";
-  const response = await fetch(`${API_BASE}/api/roles/auto${qs}`, {
+  const response = await apiFetch(`/api/roles/auto${qs}`, {
     headers: { Accept: "application/json" },
   });
 
@@ -192,7 +192,7 @@ export async function fetchAutoJoinRoles(
 export async function saveAutoJoinRoles(
   payload: SaveAutoJoinRolesRequest,
 ): Promise<SaveAutoJoinRolesResponse> {
-  const response = await fetch(`${API_BASE}/api/roles/auto`, {
+  const response = await apiFetch(`/api/roles/auto`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify(payload),

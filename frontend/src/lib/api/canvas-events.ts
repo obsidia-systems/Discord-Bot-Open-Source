@@ -4,10 +4,10 @@ import type {
   SaveCanvasEventSettingsRequest,
   SaveCanvasEventSettingsResponse,
 } from "@adobos/shared";
-import { API_BASE, readApiError } from "./client";
+import { apiFetch, readApiError } from "./client";
 
 function endpointFor(eventType: CanvasEventType): string {
-  return `${API_BASE}/api/bot/${eventType}`;
+  return `/api/bot/${eventType}`;
 }
 
 export async function fetchCanvasEventSettings(
@@ -15,7 +15,7 @@ export async function fetchCanvasEventSettings(
   guildId?: string,
 ): Promise<CanvasEventSettingsResponse> {
   const query = guildId ? `?guildId=${encodeURIComponent(guildId)}` : "";
-  const response = await fetch(`${endpointFor(eventType)}${query}`);
+  const response = await apiFetch(`${endpointFor(eventType)}${query}`);
   if (!response.ok) {
     throw new Error(
       await readApiError(
@@ -31,7 +31,7 @@ export async function saveCanvasEventSettings(
   eventType: CanvasEventType,
   payload: SaveCanvasEventSettingsRequest,
 ): Promise<SaveCanvasEventSettingsResponse> {
-  const response = await fetch(endpointFor(eventType), {
+  const response = await apiFetch(endpointFor(eventType), {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify(payload),

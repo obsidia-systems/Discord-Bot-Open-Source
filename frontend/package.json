@@ -29,6 +29,7 @@
     "react-dropzone": "^20.1.0",
     "react-markdown": "^10.1.0",
     "rehype-raw": "^7.0.0",
+    "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^2.6.0"
   },
