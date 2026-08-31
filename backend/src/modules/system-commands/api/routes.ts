@@ -9,7 +9,6 @@ import {
   listSystemCommandConfigs,
   updateSystemCommandPermissions,
 } from "../service.js";
-import { syncGuildSlashCommands } from "../../custom-commands/sync.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 
 function handleError(error: unknown, res: import("express").Response): void {
@@ -29,7 +28,7 @@ function handleError(error: unknown, res: import("express").Response): void {
   res.status(500).json(body);
 }
 
-export function systemCommandsRoutes(bot: Client): Router {
+export function systemCommandsRoutes(_bot: Client): Router {
   const router = Router();
 
   /** GET /api/system-commands */
@@ -42,23 +41,13 @@ export function systemCommandsRoutes(bot: Client): Router {
     }
   });
 
-  /** PUT /api/system-commands — guarda permisos y re-sincroniza slash en Discord. */
+  /** PUT /api/system-commands — permisos por guild (el registro Discord es global). */
   router.put("/", (req, res) => {
     void (async () => {
       try {
         const body = req.body as UpdateSystemCommandsRequest;
         const guildId = guildIdOf(req);
         const commands = updateSystemCommandPermissions(body, guildId);
-        if (bot.isReady()) {
-          try {
-            await syncGuildSlashCommands(bot, guildId);
-          } catch (error) {
-            console.warn(
-              "[adobos] system-commands: sync Discord tras guardar falló:",
-              error,
-            );
-          }
-        }
         res.json({ commands });
       } catch (error) {
         handleError(error, res);

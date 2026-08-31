@@ -25,7 +25,9 @@ export {
 } from "./ephemeral.js";
 export {
   buildEnabledDefaultSlashBodies,
+  buildGlobalDefaultSlashBodies,
   listEnabledDefaultCommands,
   syncDefaultCommands,
+  syncGlobalCommands,
 } from "./sync.js";
 export { dispatchDefaultCommand } from "./handlers/index.js";

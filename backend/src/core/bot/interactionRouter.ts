@@ -11,6 +11,7 @@ import {
   dispatchModal,
   type ModuleRegistry,
 } from "../modules/registry.js";
+import { allowChatCommand } from "./commandRateLimit.js";
 
 /**
  * Despacha interacciones a handlers registrados por módulos
@@ -109,6 +110,14 @@ async function handleChatInput(
   interaction: ChatInputCommandInteraction,
   registry: ModuleRegistry,
 ): Promise<void> {
+  if (!allowChatCommand(interaction.user.id, interaction.commandName)) {
+    await interaction.reply({
+      content: "⏳ Vas demasiado rápido. Espera unos segundos.",
+      ephemeral: true,
+    });
+    return;
+  }
+
   // 1) Comandos nativos del catálogo (mega-lista)
   try {
     const { getSystemCommandDefinition } = await import("@adobos/shared");

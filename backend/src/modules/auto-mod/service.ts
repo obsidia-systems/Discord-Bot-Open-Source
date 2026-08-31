@@ -13,6 +13,7 @@ import { and, eq, gte, sql } from "drizzle-orm";
 import { getDb } from "../../db/client.js";
 import { autoModConfig, guildSettings, warnings } from "../../db/schema.js";
 import { actionLogsConfig } from "../../db/schema.js";
+import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
 
 export class AutoModError extends Error {
   constructor(
@@ -25,7 +26,7 @@ export class AutoModError extends Error {
   }
 }
 
-const configCache = new Map<string, AutoModConfig>();
+const configCache = new BoundedTtlMap<string, AutoModConfig>(5_000, 60_000);
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   if (!raw) return fallback;

@@ -1,4 +1,5 @@
 import { ADMINISTRATOR_BIT, GUILD_CACHE_TTL_MS, MANAGE_GUILD_BIT, type ManagedGuild } from "./types.js";
+import { BoundedTtlMap } from "../cache/boundedTtlMap.js";
 
 interface DiscordGuildPayload {
   id: string;
@@ -13,7 +14,7 @@ interface CacheEntry {
   guilds: ManagedGuild[];
 }
 
-const cache = new Map<string, CacheEntry>();
+const cache = new BoundedTtlMap<string, CacheEntry>(2_000, GUILD_CACHE_TTL_MS);
 
 function iconUrl(guildId: string, icon: string | null): string | null {
   if (!icon) return null;
@@ -46,7 +47,7 @@ export async function listManagedGuilds(
   accessToken: string,
 ): Promise<ManagedGuild[]> {
   const cached = cache.get(userId);
-  if (cached && Date.now() - cached.fetchedAt < GUILD_CACHE_TTL_MS) {
+  if (cached) {
     return cached.guilds;
   }
 

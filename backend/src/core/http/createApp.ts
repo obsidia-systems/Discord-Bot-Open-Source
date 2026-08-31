@@ -10,6 +10,11 @@ import { uploadRoutes } from "../../api/routes/uploads.routes.js";
 import { getUploadsRoot } from "../../lib/dataPaths.js";
 import { authRouter, meRouter } from "../auth/oauth.js";
 import { requireAuth, requireGuildAccess } from "./guildContext.js";
+import {
+  apiRateLimiter,
+  authRateLimiter,
+  uploadRateLimiter,
+} from "./rateLimit.js";
 
 export interface CreateAppOptions {
   bot: Client;
@@ -62,20 +67,26 @@ export function createApp(options: CreateAppOptions): Express {
   assertPanelEnv();
   const app = express();
 
+  app.set("trust proxy", 1);
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(cors({ origin: corsOrigin(), credentials: true }));
   app.use(cookieParser());
   app.use(express.json({ limit: "1mb" }));
 
-  app.use("/auth", authRouter());
+  app.use("/auth", authRateLimiter, authRouter());
   app.use("/api/health", healthRouter(options.bot));
 
-  app.use("/api", (req, res, next) => {
+  app.use("/api", apiRateLimiter, (req, res, next) => {
     if (isPublicApiPath(req)) return next();
     return requireAuth()(req, res, next);
   });
   app.use("/api/me", meRouter());
-  app.use("/api/uploads", requireGuildAccess(), uploadRoutes());
+  app.use(
+    "/api/uploads",
+    uploadRateLimiter,
+    requireGuildAccess(),
+    uploadRoutes(),
+  );
 
   for (const entry of options.registry.routes) {
     app.use(entry.basePath, requireGuildAccess(), entry.router);

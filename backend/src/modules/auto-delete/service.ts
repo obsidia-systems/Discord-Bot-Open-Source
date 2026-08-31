@@ -15,6 +15,7 @@ import {
 import { eq } from "drizzle-orm";
 import { getDb } from "../../db/client.js";
 import { autoDeleteConfig, guildSettings } from "../../db/schema.js";
+import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
 
 export class AutoDeleteError extends Error {
   constructor(
@@ -27,7 +28,7 @@ export class AutoDeleteError extends Error {
   }
 }
 
-const configCache = new Map<string, AutoDeleteConfig>();
+const configCache = new BoundedTtlMap<string, AutoDeleteConfig>(5_000, 60_000);
 
 /** Callback opcional para reprogramar crons tras guardar. */
 let onConfigChanged:

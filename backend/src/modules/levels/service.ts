@@ -22,6 +22,7 @@ import {
   xpForLevel,
 } from "@adobos/shared";
 import { getDb } from "../../db/client.js";
+import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
 import {
   guildSettings,
   userXp,
@@ -40,7 +41,7 @@ export class LevelsError extends Error {
   }
 }
 
-const configCache = new Map<string, LevelsConfig>();
+const configCache = new BoundedTtlMap<string, LevelsConfig>(5_000, 60_000);
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   if (!raw) return fallback;

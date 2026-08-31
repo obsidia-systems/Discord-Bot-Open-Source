@@ -1,5 +1,6 @@
 import type { AutoModFilters, AutoModFilterKey } from "@adobos/shared";
 import { AUTO_MOD_FILTER_LABELS } from "@adobos/shared";
+import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
 
 export interface AutoModHit {
   key: AutoModFilterKey;
@@ -17,11 +18,11 @@ const URL_RE =
 const DISCORD_ATTACHMENT_HOST_RE =
   /^(?:cdn\.discordapp\.com|media\.discordapp\.net|images-ext-\d+\.discordapp\.net|cdn\.discord\.com)$/i;
 
-const spamBuckets = new Map<string, number[]>();
-const repeatBuckets = new Map<
+const spamBuckets = new BoundedTtlMap<string, number[]>(20_000, 15_000);
+const repeatBuckets = new BoundedTtlMap<
   string,
   { content: string; count: number; at: number }
->();
+>(20_000, 30_000);
 
 const SPAM_WINDOW_MS = 4_000;
 const SPAM_THRESHOLD = 5;

@@ -20,6 +20,7 @@ import {
   guildForms,
   guildSettings,
 } from "../../db/schema.js";
+import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
 
 export class FormsError extends Error {
   constructor(
@@ -32,7 +33,7 @@ export class FormsError extends Error {
   }
 }
 
-const formCache = new Map<number, InteractiveForm>();
+const formCache = new BoundedTtlMap<number, InteractiveForm>(2_000, 10 * 60_000);
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   if (!raw) return fallback;

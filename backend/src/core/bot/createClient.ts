@@ -1,6 +1,7 @@
 import {
   Client,
   GatewayIntentBits,
+  Options,
   Partials,
   type ClientOptions,
 } from "discord.js";
@@ -15,16 +16,41 @@ export const CORE_INTENTS: number[] = [
   GatewayIntentBits.MessageContent,
 ];
 
+function shardConfig(): number | number[] | "auto" {
+  const raw = process.env.SHARD_COUNT?.trim();
+  if (!raw || raw === "auto") return "auto";
+  const n = Number(raw);
+  if (Number.isFinite(n) && n >= 1) return n;
+  return "auto";
+}
+
 /**
  * Crea el Client Discord fusionando intents del core + módulos,
  * enlaza el interaction router y ejecuta `registry.bindClient`.
+ *
+ * `shards: "auto"` (o SHARD_COUNT) es sharding interno en un proceso: el panel
+ * Express sigue viendo el mismo Client. ShardingManager multi-proceso espera a Postgres.
  */
 export function createBotClient(registry: ModuleRegistry): Client {
   const intentSet = new Set<number>([...CORE_INTENTS, ...registry.intents]);
 
   const options: ClientOptions = {
+    shards: shardConfig(),
     intents: [...intentSet],
     allowedMentions: { parse: [] },
+    makeCache: Options.cacheWithLimits({
+      ...Options.DefaultMakeCacheSettings,
+      MessageManager: 200,
+      PresenceManager: 0,
+      GuildMemberManager: 200,
+    }),
+    sweepers: {
+      ...Options.DefaultSweeperSettings,
+      messages: {
+        interval: 3_600,
+        lifetime: 1_800,
+      },
+    },
     partials: [
       Partials.Channel,
       Partials.Message,
@@ -37,7 +63,6 @@ export function createBotClient(registry: ModuleRegistry): Client {
 
   const client = new Client(options);
 
-  // Eventos de infraestructura del kernel
   client.once("ready", () => {
     console.log(`[adobos] Bot listo como ${client.user?.tag ?? "desconocido"}`);
   });

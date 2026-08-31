@@ -2,32 +2,18 @@ import type {
   Client,
   RESTPostAPIChatInputApplicationCommandsJSONBody,
 } from "discord.js";
-import { PermissionFlagsBits, REST, Routes } from "discord.js";
+import { PermissionFlagsBits, Routes } from "discord.js";
 import {
   SYSTEM_COMMAND_CATALOG,
   resolveDiscordPermPreset,
   toDiscordSlashCommandBody,
   type SystemCommandDefinition,
 } from "@adobos/shared";
+import {
+  createDiscordRest,
+  discordApplicationId,
+} from "../../core/bot/discordApp.js";
 import { getCommandPermission } from "./service.js";
-
-function resolveClientId(client: Client): string {
-  const fromEnv = process.env.DISCORD_CLIENT_ID?.trim();
-  if (fromEnv) return fromEnv;
-  const id = client.user?.id;
-  if (!id) {
-    throw new Error("DISCORD_CLIENT_ID no definido y el bot aún no está listo.");
-  }
-  return id;
-}
-
-function resolveGuildId(guildId?: string): string {
-  const id = (guildId ?? "").trim();
-  if (!id) {
-    throw new Error("Falta guildId para sincronizar slash commands.");
-  }
-  return id;
-}
 
 /** Bitfield Discord para ocultar el comando en el autocomplete. */
 function defaultMemberPermissionsFor(
@@ -53,8 +39,19 @@ function defaultMemberPermissionsFor(
   }
 }
 
+function toSlashBody(
+  def: SystemCommandDefinition,
+): RESTPostAPIChatInputApplicationCommandsJSONBody {
+  const body = toDiscordSlashCommandBody(def);
+  return {
+    ...body,
+    default_member_permissions: defaultMemberPermissionsFor(def),
+  } as RESTPostAPIChatInputApplicationCommandsJSONBody;
+}
+
 /**
  * Catálogo filtrado por permisos de la guild (`enabled !== false`).
+ * El registro en Discord es global; esto solo alimenta el panel / guard.
  */
 export function listEnabledDefaultCommands(guildId: string) {
   return SYSTEM_COMMAND_CATALOG.filter((def) => {
@@ -63,44 +60,45 @@ export function listEnabledDefaultCommands(guildId: string) {
   });
 }
 
-/** Cuerpos REST de slash nativos habilitados (+ default_member_permissions). */
+/** Cuerpos REST de slash nativos habilitados en una guild (panel / compat). */
 export function buildEnabledDefaultSlashBodies(
   guildId: string,
 ): RESTPostAPIChatInputApplicationCommandsJSONBody[] {
-  return listEnabledDefaultCommands(guildId).map((def) => {
-    const body = toDiscordSlashCommandBody(def);
-    return {
-      ...body,
-      default_member_permissions: defaultMemberPermissionsFor(def),
-    } as RESTPostAPIChatInputApplicationCommandsJSONBody;
-  });
+  return listEnabledDefaultCommands(guildId).map(toSlashBody);
+}
+
+/** Catálogo nativo completo para registro global (enable/disable es el guard). */
+export function buildGlobalDefaultSlashBodies(): RESTPostAPIChatInputApplicationCommandsJSONBody[] {
+  return SYSTEM_COMMAND_CATALOG.map(toSlashBody);
 }
 
 /**
- * Registra en Discord solo los comandos nativos habilitados.
- * Preferir `syncGuildSlashCommands` para no borrar customs.
+ * Un PUT de aplicación: los nativos viven en global, no por guild.
+ * Discord puede tardar hasta ~1 h en propagar el cambio.
  */
-export async function syncDefaultCommands(
-  client: Client,
-  guildId?: string,
-): Promise<number> {
-  const token = process.env.DISCORD_TOKEN?.trim();
-  if (!token) {
+export async function syncGlobalCommands(client: Client): Promise<number> {
+  const rest = createDiscordRest();
+  if (!rest) {
     console.warn(
-      "[adobos] system-commands: sin DISCORD_TOKEN — no se sincronizan slash.",
+      "[adobos] system-commands: sin DISCORD_TOKEN — no se sincronizan slash globales.",
     );
     return 0;
   }
 
-  const gid = resolveGuildId(guildId);
-  const body = buildEnabledDefaultSlashBodies(gid);
-  const rest = new REST({ version: "10" }).setToken(token);
-  await rest.put(
-    Routes.applicationGuildCommands(resolveClientId(client), gid),
-    { body },
-  );
+  const body = buildGlobalDefaultSlashBodies();
+  await rest.put(Routes.applicationCommands(discordApplicationId(client)), {
+    body,
+  });
   console.log(
-    `[adobos] system-commands: sync Discord (${body.length} nativos) guild=${gid}`,
+    `[adobos] slash sync global (${body.length} nativos)`,
   );
   return body.length;
+}
+
+/** @deprecated Usa `syncGlobalCommands`. El guildId ya no registra nativos. */
+export async function syncDefaultCommands(
+  client: Client,
+  _guildId?: string,
+): Promise<number> {
+  return syncGlobalCommands(client);
 }

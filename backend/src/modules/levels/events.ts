@@ -18,13 +18,14 @@ import {
   scaleXpAmount,
 } from "./service.js";
 import { scheduleLiveLeaderboardRefresh } from "./liveLeaderboard.js";
+import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
 
 /** Color fijo del anuncio de subida de nivel. */
 const LEVEL_UP_EMBED_COLOR = 0x34e21d;
 
 type GuildMessage = OmitPartialGroupDMChannel<Message<true>>;
 
-const textCooldowns = new Map<string, number>();
+const textCooldowns = new BoundedTtlMap<string, number>(50_000, 5 * 60_000);
 const voiceSessions = new Map<
   string,
   {
