@@ -34,6 +34,8 @@ export interface MeResponse {
 export interface ApiErrorBody {
   error: string;
   code?: string;
+  /** Problemas de validación zod (borde HTTP). */
+  issues?: Array<{ path: Array<string | number>; message: string }>;
 }
 
 export interface GuildChannelAsset {
