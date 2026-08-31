@@ -49,6 +49,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ToastBanner } from "@/components/ui/toast";
+import { useEntitlements } from "@/features/entitlements/useEntitlements";
 import { TimezoneCombobox } from "@/features/scheduled-messages/TimezoneCombobox";
 import { cn } from "@/lib/utils";
 import {
@@ -144,6 +145,7 @@ function toggleWeekday(
 }
 
 export function ScheduledDashboard() {
+  const { limitOf, isUnlimited } = useEntitlements();
   const [messages, setMessages] = useState<ScheduledMessage[]>([]);
   const [channels, setChannels] = useState<GuildChannelAsset[]>([]);
   const [templates, setTemplates] = useState<EmbedTemplateSummary[]>([]);
@@ -157,6 +159,9 @@ export function ScheduledDashboard() {
   const [togglingId, setTogglingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const scheduledCap = limitOf("scheduledMessages");
+  const atScheduledLimit =
+    !isUnlimited("scheduledMessages") && messages.length >= scheduledCap;
 
   const textChannels = useMemo(
     () =>
@@ -200,6 +205,12 @@ export function ScheduledDashboard() {
   }, [load]);
 
   const openCreate = () => {
+    if (atScheduledLimit) {
+      setError(
+        `Has alcanzado el límite de ${scheduledCap} mensajes programados de este plan.`,
+      );
+      return;
+    }
     setEditingId(null);
     setTemplateId("none");
     setDraft(emptyDraft());
@@ -273,6 +284,13 @@ export function ScheduledDashboard() {
     setSuccess(null);
     try {
       if (editingId == null) {
+        if (atScheduledLimit) {
+          setError(
+            `Has alcanzado el límite de ${scheduledCap} mensajes programados de este plan.`,
+          );
+          setSaving(false);
+          return;
+        }
         const body: CreateScheduledMessageRequest = {
           channelId: draft.channelId,
           timezone: draft.timezone,
@@ -401,9 +419,14 @@ export function ScheduledDashboard() {
                   <p className="text-sm text-muted-foreground">
                     {messages.length === 0
                       ? "Aún no hay programaciones."
-                      : `${messages.length} mensaje${messages.length === 1 ? "" : "s"}`}
+                      : `${messages.length}${isUnlimited("scheduledMessages") ? "" : ` / ${scheduledCap}`} mensaje${messages.length === 1 ? "" : "s"}`}
                   </p>
-                  <Button type="button" size="sm" onClick={openCreate}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={openCreate}
+                    disabled={atScheduledLimit}
+                  >
                     <Plus className="size-4" aria-hidden />
                     Nuevo
                   </Button>

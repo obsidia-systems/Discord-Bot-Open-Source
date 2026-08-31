@@ -1,6 +1,7 @@
 /** Barrel de clientes API del panel — importar desde `@/lib/api`. */
 export { API_BASE, apiFetch, readApiError, resolvePublicAssetUrl } from "./api/client";
 export { fetchMe, logout } from "./api/me";
+export { fetchEntitlements } from "./api/entitlements";
 export { fetchHealth, fetchGuildAssets } from "./api/health";
 export { sendChannelMessage, sendEmbedMessage } from "./api/messages";
 export {

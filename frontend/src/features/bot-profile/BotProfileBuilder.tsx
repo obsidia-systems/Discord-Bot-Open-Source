@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useEntitlements } from "@/features/entitlements/useEntitlements";
 import { BotProfilePreview } from "./BotProfilePreview";
 
 type Feedback =
@@ -44,6 +45,8 @@ function resolvePreviewSrc(value: HybridImageValue): string | null {
 }
 
 export function BotProfileBuilder() {
+  const { can, loading: entitlementsLoading } = useEntitlements();
+  const brandingUnlocked = can("branding");
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<Feedback>({ kind: "idle" });
   const [profile, setProfile] = useState<BotGuildProfileResponse | null>(null);
@@ -111,6 +114,7 @@ export function BotProfileBuilder() {
 
   async function onSubmit(event: FormEvent): Promise<void> {
     event.preventDefault();
+    if (!brandingUnlocked) return;
     setFeedback({ kind: "loading" });
     try {
       const trimmedNick = nickname.trim();
@@ -184,13 +188,19 @@ export function BotProfileBuilder() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {!brandingUnlocked && !entitlementsLoading ? (
+                <p className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-muted-foreground">
+                  El branding por servidor (apodo y avatar) forma parte del plan
+                  Pro.
+                </p>
+              ) : null}
               <div className="space-y-2">
                 <Label htmlFor="bot-guild-nickname">Apodo en el Servidor</Label>
                 <Input
                   id="bot-guild-nickname"
                   value={nickname}
                   maxLength={32}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !brandingUnlocked}
                   onChange={(event) => setNickname(event.target.value)}
                   placeholder={profile?.username ?? "Apodo visible en el servidor"}
                 />
@@ -216,7 +226,7 @@ export function BotProfileBuilder() {
                   label="Avatar del Servidor"
                   value={avatarValue}
                   onChange={setAvatarValue}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !brandingUnlocked}
                   uploadImmediately
                   placeholder="https://… o sube una imagen"
                   maxSizeMb={8}
@@ -240,7 +250,7 @@ export function BotProfileBuilder() {
           </Card>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Button type="submit" disabled={isSubmitting || !profile}>
+            <Button type="submit" disabled={isSubmitting || !profile || !brandingUnlocked}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 size-4 animate-spin" />

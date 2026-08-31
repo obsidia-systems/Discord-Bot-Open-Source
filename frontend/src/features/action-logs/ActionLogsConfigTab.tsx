@@ -16,7 +16,9 @@ import type {
 } from "@adobos/shared";
 import {
   ACTION_LOG_RETENTION_OPTIONS,
+  isUnlimited,
 } from "@adobos/shared";
+import { useEntitlements } from "@/features/entitlements/useEntitlements";
 import { ChannelMultiSelect } from "@/components/shared/ChannelMultiSelect";
 import { RoleMultiSelect } from "@/components/shared/RoleMultiSelect";
 import {
@@ -124,6 +126,15 @@ export function ActionLogsConfigTab({
   onSave,
   onTest,
 }: ActionLogsConfigTabProps) {
+  const { limitOf, isUnlimited: unlimitedRetention } = useEntitlements();
+  const maxRetention = limitOf("logRetentionDays");
+  const retentionOptions = ACTION_LOG_RETENTION_OPTIONS.filter(
+    (opt) =>
+      unlimitedRetention("logRetentionDays") ||
+      isUnlimited(maxRetention) ||
+      opt.value <= maxRetention ||
+      opt.value === config.dataRetentionDays,
+  );
   const [openAccordion, setOpenAccordion] = useState<string>("messages");
 
   const textChannels = useMemo(
@@ -371,7 +382,7 @@ export function ActionLogsConfigTab({
           <CardHeader>
             <CardTitle className="text-base">Retención de datos</CardTitle>
             <CardDescription>
-              Auto-borrado del historial en SQLite del dashboard.
+              Auto-borrado del historial. El plan Gratis conserva 14 días.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -389,11 +400,20 @@ export function ActionLogsConfigTab({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ACTION_LOG_RETENTION_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={String(opt.value)}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
+                  {retentionOptions.map((opt) => {
+                    const locked =
+                      !isUnlimited(maxRetention) && opt.value > maxRetention;
+                    return (
+                      <SelectItem
+                        key={opt.value}
+                        value={String(opt.value)}
+                        disabled={locked}
+                      >
+                        {opt.label}
+                        {locked ? " (Pro)" : ""}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>

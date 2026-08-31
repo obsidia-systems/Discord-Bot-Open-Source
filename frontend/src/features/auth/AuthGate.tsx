@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import type { MeResponse, PanelMeGuild } from "@adobos/shared";
+import type { MeResponse, PanelMeGuild, PlanTier } from "@adobos/shared";
+import { PLAN_TIER_LABEL } from "@adobos/shared";
+import { fetchEntitlements } from "@/lib/api/entitlements";
 import { fetchMe, logout } from "@/lib/api/me";
 import {
   clearSelectedGuildId,
@@ -10,6 +12,7 @@ import {
 export function AuthGate() {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [empty, setEmpty] = useState(false);
+  const [tier, setTier] = useState<PlanTier>("free");
 
   useEffect(() => {
     let cancelled = false;
@@ -28,6 +31,11 @@ export function AuthGate() {
         if (pick && pick.id !== current) setSelectedGuildId(pick.id);
         else if (pick) setSelectedGuildId(pick.id);
         setMe(data);
+        void fetchEntitlements()
+          .then((ent) => {
+            if (!cancelled) setTier(ent.tier);
+          })
+          .catch(() => undefined);
       } catch {
         if (!cancelled) window.location.assign("/login");
       }
@@ -96,6 +104,9 @@ export function AuthGate() {
         </select>
       </label>
       <div className="flex items-center gap-3">
+        <span className="rounded-md border border-border bg-background px-2 py-0.5 text-xs font-medium text-muted-foreground">
+          {PLAN_TIER_LABEL[tier]}
+        </span>
         <span className="truncate text-muted-foreground">{me.user.username}</span>
         <button
           type="button"
