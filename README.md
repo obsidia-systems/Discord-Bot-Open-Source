@@ -197,7 +197,7 @@ Los alcances o funcionalidades (Requerimientos funcionales) que he pensado son:
 
 [ ] - Economia (metodos de ganar economia, casino tipo gambling, ruleta pocker etc, y que se pueda canjear esto por recompensas - roles?)
 
-[ ] - Pokemon: Formacion de equipos competitivos, objetos, formas, debilidades, coberturas, movesets, stats, donde conseguir cierto pokemon, etc.
+[-] - Pokémon: fuera del producto (plugin retirado; tablas Postgres se dejan hasta un DROP explícito).
 
 [ ] - League of Legends: ...
 

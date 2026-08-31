@@ -20,13 +20,13 @@ línea de autenticación en el repo (`grep -riE "oauth|jwt|session|cookie"` → 
 | 0.3 | **Eliminar el fallback `process.env.DISCORD_GUILD_ID`** de los 8 `resolveGuildId()` duplicados. En SaaS ese fallback es un bug de aislamiento, no una comodidad. | `economy/{service,shopService,casinoService,incomeService}.ts`, `auto-delete/service.ts`, `moderation/service.ts`, `system-commands/sync.ts` | M | INFRA |
 | 0.4 | **Scoping de canal por guild.** `POST /api/messages` y `/api/messages/embed` sólo reciben `channelId` y lo resuelven global (`messages/api/controller.ts:284`). Debe validarse que el canal pertenece a la guild autorizada. | `modules/messages/api/` | S | INFRA |
 | 0.5 | **Slash commands globales** en vez de `Routes.applicationGuildCommands(clientId, DISCORD_GUILD_ID)`. Con N guilds el modelo actual es inviable (rate limit + un `PUT` por guild). | `modules/system-commands/sync.ts:105` | M | INFRA |
-| 0.6 | **Sharding** (`ShardingManager` o `client.shard`). Discord obliga a ≥1 shard por cada 2.500 guilds. Hoy `createClient.ts` crea un `Client` plano. | `core/bot/createClient.ts`, `index.ts` | M | INFRA |
+| 0.6 | **Sharding** interno (`shards: "auto"`). ShardingManager multi-proceso **cuando** haya `ADOBO_ROLE=api` N réplicas + un gateway, o ~2.500 guilds. Redis no hace falta hasta 2+ APIs. | `core/bot/createClient.ts`, `core/runtime/` | M | INFRA |
 | 0.7 | **Tabla `guild_entitlements` + capa de entitlements** (`can(guildId, "feature")`). Hecho: `core/entitlements/`, `GET /api/entitlements`, tiers free/pro/business, límites de retención y mensajes programados, branding Pro. Stripe (0.12) solo rellenará las filas. | `core/entitlements/` | M | INFRA |
 | 0.8 | **Validación con zod en el borde HTTP.** Hecho: `core/http/validate.ts` + `schemas.ts`, `parse`/`parseQuery` en las rutas JSON; 400 `{ error, issues }`. `guildId` sigue saliendo de `guildIdOf(req)`. Uploads multipart no tienen body JSON. | todos los `modules/*/api/routes.ts` | M | INFRA |
-| 0.9 | **Rate limiting** por IP + por usuario + por guild en la API, y por usuario en comandos costosos (canvas, leaderboards, Pokémon). | `core/http/`, `core/bot/interactionRouter.ts` | M | INFRA |
+| 0.9 | **Rate limiting** por IP + sesión + guild en la API, y por usuario en comandos costosos. | `core/http/rateLimit.ts`, `core/bot/commandRateLimit.ts` | M | INFRA |
 | 0.10 | **Error handler centralizado + logging estructurado** (pino). Hecho: `core/http/errorHandler.ts` + `mapHttpError`, `core/log.ts` (pino). Las rutas hacen `next(err)`; 500 genérico, 4xx de dominio. | `core/http/`, 18 módulos | M | INFRA |
 | 0.11 | **Migración SQLite → Postgres.** Hecho: `pgTable`, pool `postgres.js`, queries async, Compose `postgres:16`, migración inicial `0000_initial_postgres.sql`. SQLite ya no arranca. | `db/client.ts`, `db/schema.ts`, `drizzle.config.ts`, `docker-compose.yml` | L | INFRA |
-| 0.12 | **Stripe Billing + webhook con verificación de firma** (`stripe.webhooks.constructEvent`, raw body). Hecho: `modules/billing/`, checkout + Customer Portal, `POST /api/billing/webhook` montado **antes** de `express.json()`, firma verificada, idempotencia `webhook_events`. Stripe solo rellena `subscriptions` / `guild_entitlements`; `can()` sigue leyendo la tabla. | `modules/billing/`, `core/http/createApp.ts` | L | INFRA |
+| 0.12 | **Stripe Billing + webhook con verificación de firma**. Hecho: módulo `billing`, `ctx.rawRoute` (body crudo), `can()` lee `guild_entitlements`. | `modules/billing/`, `core/modules/` | L | INFRA |
 
 ---
 
@@ -35,7 +35,7 @@ línea de autenticación en el repo (`grep -riE "oauth|jwt|session|cookie"` → 
 | # | Item | Archivo | Esfuerzo | Tier |
 |---|------|---------|----------|------|
 | 1.1 | **Fuga de memoria confirmada:** `ephemeralByInteraction` se escribe en *cada* comando nativo (`guard.ts:129`) pero sólo 15 archivos llaman a `consume*`. Las entradas de los ~30 comandos restantes nunca se borran. Añadir TTL de 15 min o usar `interaction.client`-scoped WeakRef. | `modules/system-commands/ephemeral.ts` | S | INFRA |
-| 1.2 | **Cachés de config sin límite ni invalidación cross-instancia:** `configCache` en `levels`, `auto-mod`, `auto-delete`; `formCache`, `historyByGuild`, `spamBuckets`, `repeatBuckets`, `textCooldowns`, `voiceSessions`, `dirtyGuilds`… ~20 `Map` a nivel de módulo, todas ilimitadas y por-proceso. Con sharding quedan desincronizadas. Migrar a un caché con TTL + tamaño máximo (o Redis/KV). | `modules/*/service.ts`, `levels/events.ts`, `auto-mod/filters.ts` | M | INFRA |
+| 1.2 | **Cachés de config sin límite ni invalidación cross-instancia.** BoundedTtlMap en core. Redis/KV **cuando** haya 2+ `ADOBO_ROLE=api` (rate limit, XP cooldown, blackjack). | `modules/*/service.ts` | M | INFRA |
 | 1.3 | **`sessions` de blackjack en memoria** (`economy/commands/casino.ts:73`) — se pierden en cada deploy y no tienen límite. | `modules/economy/commands/casino.ts` | S | INFRA |
 | 1.4 | **`ensureCoreTables()` de 600+ líneas de DDL literal** conviviendo con 40 migraciones Drizzle (`db/client.ts`). Dos fuentes de verdad del esquema. Consolidar en Drizzle. | `db/client.ts` | M | INFRA |
 | 1.5 | **`cors({ origin: true })`** refleja cualquier `Origin` (`core/http/createApp.ts:22`). Con cookies de sesión sería CSRF trivial. Allowlist explícita. | `core/http/createApp.ts` | S | INFRA |
@@ -64,11 +64,8 @@ Están **registrados en Discord** y responden "🚧 Lógica pendiente" — mala 
 y el panel ya la consume; sólo falta el handler de slash.
 → **Esfuerzo M · FREE** (moderación básica debe ser gratis, es el dolor original).
 
-### 2.2 Comandos Pokémon en stub — **5 de 7**
-`backend/src/modules/pokemon/commands/stubs.ts`: `teambuilder`, `weakness`, `breeding`, `counters`, `sandwich`.
-`pokeinfo` y `location` sí funcionan. Ya existe `services/pokemonApi.ts` (PokéAPI + caché) y
-`services/smogonService.ts` (tiers + stats), así que la infraestructura de datos está hecha.
-→ `weakness` / `breeding` / `counters` **M · FREE** · `teambuilder` (equipos guardados) **M · PAID**.
+### 2.2 Pokémon — retirado
+El plugin no forma parte del producto. Código y slash fuera; `plugin_pokemon_config` se deja en Postgres hasta un DROP explícito.
 
 ### 2.3 Páginas del panel en `ComingSoon`
 `plugins/{minecraft,osu,valorant,gachas,free-games,alerts}.astro`,
@@ -136,7 +133,7 @@ Los 18 módulos actuales, completos y sin recortes cosméticos:
 mensajes/embeds ilimitados, welcome/leave/ban/boost con **canvas completo**, autoroles ilimitados,
 action logs (retención 14 días), auto-mod, auto-delete, formularios, mensajes programados,
 comandos custom **ilimitados** (vs. 5 de MEE6), niveles con recompensas por rol, economía + casino
-+ tienda, moderación completa, roles builder, Pokémon, tickets, giveaways, starboard.
++ tienda, moderación completa, roles builder, tickets, giveaways, starboard.
 Límite razonable: **3 servidores por cuenta**.
 
 ### PRO — ~$4.99/mes o $39.99/año · **hasta 3 servidores**
@@ -167,6 +164,19 @@ El punto 0.7 va **antes** de Stripe: primero la capa de permisos de features, lu
 
 **Fase 4 — Cobrar.** 0.12 (Stripe + webhooks + Customer Portal). Hecho.
 
-**Fase 5 — Paridad competitiva (6–8 semanas).** 2.1 → 2.2 → 3.1 → 3.2 → 3.4 → 3.7 → 3.6.
+**Fase 5 — Paridad competitiva (6–8 semanas).** 2.1 → 3.1 → 3.2 → 3.4 → 3.7 → 3.6.
 
-**Fase 6 — Expansión.** 3.3 → 3.5 → 3.8 (i18n) → 3.9 → 2.2 (Pokémon completo).
+**Fase 6 — Expansión.** 3.3 → 3.5 → 3.8 (i18n) → 3.9.
+
+---
+
+## Runtime (mismos binario, distinto `ADOBO_ROLE`)
+
+Compose sigue en `all` (Express + gateway + crons, 1 proceso).
+
+| Disparador | Qué hacer |
+|---|---|
+| El panel necesita N réplicas HTTP | `ADOBO_ROLE=api` detrás del proxy + **un** `gateway` + **un** `worker`. El worker usa advisory lock Postgres. |
+| 2+ APIs y rate limit / XP / blackjack cruzados | Redis (o KV) como store compartido. Hasta entonces no. |
+| ~2.500 guilds o CPU del websocket | `ShardingManager` en el proceso gateway. El API no abre el gateway. |
+| gateway + worker a la vez | No: ambos hacen `bot.login`. REST dedicado en el worker es el siguiente paso. |
