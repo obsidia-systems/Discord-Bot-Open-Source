@@ -22,9 +22,9 @@ function resolveClientId(client: Client): string {
 }
 
 function resolveGuildId(guildId?: string): string {
-  const id = (guildId ?? process.env.DISCORD_GUILD_ID ?? "").trim();
+  const id = (guildId ?? "").trim();
   if (!id) {
-    throw new Error("Falta DISCORD_GUILD_ID para sincronizar slash commands.");
+    throw new Error("Falta guildId para sincronizar slash commands.");
   }
   return id;
 }

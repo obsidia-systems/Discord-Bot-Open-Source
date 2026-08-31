@@ -1,9 +1,11 @@
+import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import multer from "multer";
 import { Router, type Request, type Response } from "express";
 import type { ApiErrorBody } from "@adobos/shared";
 import { getBackgroundsDir, getImagesDir } from "../../lib/dataPaths.js";
+import { sniffImageFile } from "../../lib/imageMagic.js";
 
 const ALLOWED_MIME = new Set([
   "image/png",
@@ -72,13 +74,24 @@ function handleUpload(
     return;
   }
 
+  const sniffed = sniffImageFile(req.file.path);
+  if (!sniffed) {
+    fs.unlink(req.file.path, () => undefined);
+    const body: ApiErrorBody = {
+      error: "El archivo no es una imagen PNG, JPG o WEBP válida.",
+      code: "INVALID_IMAGE_CONTENT",
+    };
+    res.status(400).json(body);
+    return;
+  }
+
   const publicPath = `/uploads/${publicDir}/${req.file.filename}`;
   res.json({
     ok: true as const,
     path: publicPath,
     filename: req.file.filename,
     size: req.file.size,
-    mimeType: req.file.mimetype,
+    mimeType: sniffed,
   });
 }
 

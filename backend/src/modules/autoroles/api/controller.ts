@@ -29,6 +29,10 @@ import {
   upsertReactionRoles,
 } from "../../../db/reaction-roles.js";
 import {
+  fetchChannelInGuild,
+  rethrowAsChannelError,
+} from "../../../core/http/channelScope.js";
+import {
   EmbedMediaError,
   requireHttpUrl,
   resolveEmbedMedia,
@@ -250,10 +254,16 @@ function buildButtonRows(
 async function resolveSendableChannel(
   bot: Client,
   channelId: string,
+  expectedGuildId: string,
 ): Promise<SendableChannels & TextChannel> {
-  const channel = await bot.channels.fetch(channelId).catch(() => null);
-  if (!channel) {
-    throw new AutoRoleError("Canal no encontrado.", 404, "CHANNEL_NOT_FOUND");
+  let channel;
+  try {
+    channel = await fetchChannelInGuild(bot, channelId, expectedGuildId);
+  } catch (error: unknown) {
+    rethrowAsChannelError(
+      error,
+      (message, status, code) => new AutoRoleError(message, status, code),
+    );
   }
   if (
     channel.type === ChannelType.GuildCategory ||
@@ -371,7 +381,7 @@ export async function createAutoRoleSetup(
 
   const guildId = assertSnowflake(input.guildId, "guildId");
   const channelId = assertSnowflake(input.channelId, "channelId");
-  const channel = await resolveSendableChannel(bot, channelId);
+  const channel = await resolveSendableChannel(bot, channelId, guildId);
 
   let messageId: string;
   let saved = 0;

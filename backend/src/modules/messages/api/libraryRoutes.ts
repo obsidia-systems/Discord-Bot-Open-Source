@@ -8,6 +8,7 @@ import type {
 } from "@adobos/shared";
 import { MessageSendError } from "./controller.js";
 import type { EmbedUploadedFiles } from "./controller.js";
+import { guildIdOf } from "../../../core/http/guildContext.js";
 import {
   deleteSentEmbed,
   editSentEmbed,
@@ -95,7 +96,7 @@ export function embedLibraryRoutes(bot: Client): Router {
   /** GET /api/embeds/library */
   router.get("/library", (req, res) => {
     const guildId =
-      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+      guildIdOf(req);
     try {
       res.json(getEmbedLibrary(bot, guildId));
     } catch (error: unknown) {
@@ -132,7 +133,12 @@ export function embedLibraryRoutes(bot: Client): Router {
           authorIcon: firstFile(uploadedMap?.authorIcon),
           footerIcon: firstFile(uploadedMap?.footerIcon),
         };
-        const result = await sendAndRegisterEmbed(bot, payload, uploaded);
+        const result = await sendAndRegisterEmbed(
+          bot,
+          payload,
+          uploaded,
+          guildIdOf(req),
+        );
         res.status(201).json(result);
       } catch (error: unknown) {
         handleError(error, res);
@@ -152,7 +158,7 @@ export function embedLibraryRoutes(bot: Client): Router {
     async (req, res) => {
       const id = String(req.params.id);
       const guildId =
-        typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+        guildIdOf(req);
       try {
         const body = req.body as Record<string, unknown>;
         const payload: EditSentEmbedRequest = parseBodyPayload(body);
@@ -177,7 +183,7 @@ export function embedLibraryRoutes(bot: Client): Router {
   router.delete("/sent/:id", async (req, res) => {
     const id = String(req.params.id);
     const guildId =
-      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+      guildIdOf(req);
     try {
       const result = await deleteSentEmbed(bot, id, guildId);
       res.json(result);

@@ -5,6 +5,7 @@ import type {
   UpdateAutoDeleteConfigRequest,
 } from "@adobos/shared";
 import { resolveSchedulerTimezone } from "../../../lib/schedulerTimezone.js";
+import { guildIdOf } from "../../../core/http/guildContext.js";
 import {
   AutoDeleteError,
   getAutoDeleteConfig,
@@ -35,7 +36,7 @@ export function autoDeleteRoutes(_bot: Client): Router {
   router.get("/config", (req, res) => {
     try {
       const guildId =
-        typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+        guildIdOf(req);
       const config = getAutoDeleteConfig(guildId);
       res.json({ config, timezone: resolveSchedulerTimezone() });
     } catch (error) {

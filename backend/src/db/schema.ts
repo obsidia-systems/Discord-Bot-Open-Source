@@ -237,18 +237,22 @@ export const botPresenceSettings = sqliteTable("bot_presence_settings", {
 /**
  * Advertencias de moderación por usuario/servidor.
  */
-export const warnings = sqliteTable("warnings", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  guildId: text("guild_id")
-    .notNull()
-    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  userId: text("user_id").notNull(),
-  moderatorId: text("moderator_id").notNull(),
-  reason: text("reason").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp_ms" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
+export const warnings = sqliteTable(
+  "warnings",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    moderatorId: text("moderator_id").notNull(),
+    reason: text("reason").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [index("idx_warnings_guild_user").on(table.guildId, table.userId)],
+);
 
 /**
  * Plantillas de embed reutilizables (moderación DM, anuncios, etc.).
@@ -272,42 +276,54 @@ export const embedTemplates = sqliteTable("embed_templates", {
 /**
  * Mensajes embed enviados desde el panel (edición/borrado en vivo).
  */
-export const sentEmbeds = sqliteTable("sent_embeds", {
-  id: text("id").primaryKey(),
-  guildId: text("guild_id")
-    .notNull()
-    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  channelId: text("channel_id").notNull(),
-  messageId: text("message_id").notNull(),
-  title: text("title"),
-  /** JSON: EmbedPayload + components */
-  embedData: text("embed_data").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp_ms" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
+export const sentEmbeds = sqliteTable(
+  "sent_embeds",
+  {
+    id: text("id").primaryKey(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    channelId: text("channel_id").notNull(),
+    messageId: text("message_id").notNull(),
+    title: text("title"),
+    /** JSON: EmbedPayload + components */
+    embedData: text("embed_data").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index("idx_sent_embeds_guild").on(table.guildId, table.createdAt),
+  ],
+);
 
 /**
  * Registro de acciones de moderación del panel.
  */
-export const modLogs = sqliteTable("mod_logs", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  guildId: text("guild_id")
-    .notNull()
-    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  action: text("action").notNull(),
-  targetUserId: text("target_user_id"),
-  targetChannelId: text("target_channel_id"),
-  moderatorId: text("moderator_id").notNull(),
-  reason: text("reason").notNull().default(""),
-  meta: text("meta"),
-  createdAt: integer("created_at", { mode: "timestamp_ms" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
+export const modLogs = sqliteTable(
+  "mod_logs",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    action: text("action").notNull(),
+    targetUserId: text("target_user_id"),
+    targetChannelId: text("target_channel_id"),
+    moderatorId: text("moderator_id").notNull(),
+    reason: text("reason").notNull().default(""),
+    meta: text("meta"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index("idx_mod_logs_guild").on(table.guildId, table.createdAt),
+  ],
+);
 
 /**
  * Configuración de Action Logs por guild (canales, filtros, eventos).
@@ -343,25 +359,31 @@ export const actionLogsConfig = sqliteTable("action_logs_config", {
 /**
  * Historial de Action Logs capturados por discord.js.
  */
-export const actionLogs = sqliteTable("action_logs", {
-  id: text("id").primaryKey(),
-  guildId: text("guild_id")
-    .notNull()
-    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  category: text("category").notNull(),
-  eventType: text("event_type").notNull(),
-  executorId: text("executor_id"),
-  executorTag: text("executor_tag"),
-  targetId: text("target_id"),
-  targetTag: text("target_tag"),
-  channelId: text("channel_id"),
-  summary: text("summary").notNull().default(""),
-  /** JSON con detalles / diff */
-  details: text("details").notNull().default("{}"),
-  createdAt: integer("created_at", { mode: "timestamp_ms" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
+export const actionLogs = sqliteTable(
+  "action_logs",
+  {
+    id: text("id").primaryKey(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    category: text("category").notNull(),
+    eventType: text("event_type").notNull(),
+    executorId: text("executor_id"),
+    executorTag: text("executor_tag"),
+    targetId: text("target_id"),
+    targetTag: text("target_tag"),
+    channelId: text("channel_id"),
+    summary: text("summary").notNull().default(""),
+    /** JSON con detalles / diff */
+    details: text("details").notNull().default("{}"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index("idx_action_logs_guild_created").on(table.guildId, table.createdAt),
+  ],
+);
 
 /**
  * Configuración de Auto Mod por guild (filtros, exclusiones, canal de alertas).
@@ -575,24 +597,30 @@ export type NewGuildFormRow = typeof guildForms.$inferInsert;
 /**
  * Respuestas enviadas a formularios.
  */
-export const formResponses = sqliteTable("form_responses", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  formId: integer("form_id")
-    .notNull()
-    .references(() => guildForms.id, { onDelete: "cascade" }),
-  guildId: text("guild_id")
-    .notNull()
-    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  userId: text("user_id").notNull(),
-  username: text("username").notNull().default(""),
-  displayName: text("display_name").notNull().default(""),
-  avatarUrl: text("avatar_url"),
-  /** JSON: FormAnswerEntry[] */
-  answers: text("answers").notNull().default("[]"),
-  createdAt: integer("created_at", { mode: "timestamp_ms" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
+export const formResponses = sqliteTable(
+  "form_responses",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    formId: integer("form_id")
+      .notNull()
+      .references(() => guildForms.id, { onDelete: "cascade" }),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    username: text("username").notNull().default(""),
+    displayName: text("display_name").notNull().default(""),
+    avatarUrl: text("avatar_url"),
+    /** JSON: FormAnswerEntry[] */
+    answers: text("answers").notNull().default("[]"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index("idx_form_responses_form").on(table.formId, table.createdAt),
+  ],
+);
 
 export type FormResponseRow = typeof formResponses.$inferSelect;
 export type NewFormResponseRow = typeof formResponses.$inferInsert;
@@ -1022,6 +1050,44 @@ export const pluginPokemonConfig = sqliteTable("plugin_pokemon_config", {
 
 export type PluginPokemonConfigRow = typeof pluginPokemonConfig.$inferSelect;
 export type NewPluginPokemonConfigRow = typeof pluginPokemonConfig.$inferInsert;
+
+/** Usuarios del panel (OAuth Discord). */
+export const panelUsers = sqliteTable("panel_users", {
+  userId: text("user_id").primaryKey(),
+  username: text("username").notNull(),
+  globalName: text("global_name"),
+  avatar: text("avatar"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+/** Sesiones opacas del panel. */
+export const panelSessions = sqliteTable(
+  "panel_sessions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => panelUsers.userId, { onDelete: "cascade" }),
+    accessTokenEnc: text("access_token_enc").notNull(),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [index("idx_panel_sessions_user").on(table.userId)],
+);
+
+/** State OAuth de un solo uso (anti-CSRF + PKCE verifier). */
+export const oauthStates = sqliteTable("oauth_states", {
+  state: text("state").primaryKey(),
+  codeVerifier: text("code_verifier").notNull(),
+  expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+});
 
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [

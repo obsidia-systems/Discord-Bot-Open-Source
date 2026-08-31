@@ -163,15 +163,6 @@ async function handleButton(
   interaction: ButtonInteraction,
   registry: ModuleRegistry,
 ): Promise<void> {
-  // Handlers legacy de prueba del núcleo
-  if (interaction.customId === "test_button_1") {
-    await interaction.reply({
-      content: "¡El botón interactivo funciona!",
-      ephemeral: true,
-    });
-    return;
-  }
-
   const handled = await dispatchButton(registry, interaction);
   if (handled) return;
 

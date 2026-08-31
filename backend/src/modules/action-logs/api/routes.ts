@@ -1,5 +1,6 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
+import { guildIdOf } from "../../../core/http/guildContext.js";
 import type {
   ApiErrorBody,
   UpdateActionLogsConfigRequest,
@@ -36,7 +37,7 @@ export function actionLogsRoutes(bot: Client): Router {
   router.get("/config", (req, res) => {
     try {
       const guildId =
-        typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+        guildIdOf(req);
       const config = getActionLogsConfig(guildId);
       res.json({ config });
     } catch (error) {
@@ -65,7 +66,7 @@ export function actionLogsRoutes(bot: Client): Router {
   router.get("/history", (req, res) => {
     try {
       const guildId =
-        typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+        guildIdOf(req);
       const category =
         typeof req.query.category === "string" ? req.query.category : undefined;
       const q = typeof req.query.q === "string" ? req.query.q : undefined;

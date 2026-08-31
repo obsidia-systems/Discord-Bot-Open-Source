@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs";
 import { randomUUID } from "node:crypto";
 import multer from "multer";
 import { Router } from "express";
@@ -9,6 +10,8 @@ import type {
   SaveEmbedTemplateRequest,
 } from "@adobos/shared";
 import { getTemplatesDir } from "../../../lib/dataPaths.js";
+import { sniffImageFile } from "../../../lib/imageMagic.js";
+import { guildIdOf } from "../../../core/http/guildContext.js";
 import {
   EmbedTemplateError,
   deleteEmbedTemplate,
@@ -129,12 +132,33 @@ function publicTemplatePath(filename: string): string {
   return `/uploads/templates/${filename}`;
 }
 
+function assertSniffedTemplateFiles(
+  files: Record<string, Express.Multer.File[]> | undefined,
+): void {
+  const uploaded = [
+    ...(files?.image ?? []),
+    ...(files?.thumbnail ?? []),
+    ...(files?.authorIcon ?? []),
+    ...(files?.footerIcon ?? []),
+  ];
+  for (const file of uploaded) {
+    if (!sniffImageFile(file.path)) {
+      fs.unlink(file.path, () => undefined);
+      throw new EmbedTemplateError(
+        "El archivo no es una imagen PNG, JPG, WEBP o GIF válida.",
+        400,
+        "INVALID_IMAGE_CONTENT",
+      );
+    }
+  }
+}
+
 export function embedTemplateRoutes(_bot: Client): Router {
   const router = Router();
 
   router.get("/", (req, res) => {
     const guildId =
-      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+      guildIdOf(req);
     try {
       res.json(listEmbedTemplates(guildId));
     } catch (error: unknown) {
@@ -153,6 +177,7 @@ export function embedTemplateRoutes(_bot: Client): Router {
         const files = req.files as
           | Record<string, Express.Multer.File[]>
           | undefined;
+        assertSniffedTemplateFiles(files);
 
         const contentType = String(req.headers["content-type"] ?? "");
         const isMultipart = contentType.includes("multipart/form-data");
@@ -209,7 +234,7 @@ export function embedTemplateRoutes(_bot: Client): Router {
 
   router.get("/:id", (req, res) => {
     const guildId =
-      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+      guildIdOf(req);
     try {
       const id = Number.parseInt(req.params.id ?? "", 10);
       if (!Number.isFinite(id)) {
@@ -223,7 +248,7 @@ export function embedTemplateRoutes(_bot: Client): Router {
 
   router.delete("/:id", (req, res) => {
     const guildId =
-      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+      guildIdOf(req);
     try {
       res.json(deleteEmbedTemplate(req.params.id ?? "", guildId));
     } catch (error: unknown) {

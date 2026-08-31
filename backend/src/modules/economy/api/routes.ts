@@ -12,6 +12,7 @@ import type {
   UpdateEconomyShopItemRequest,
 } from "@adobos/shared";
 import { resolveMembersBatch } from "../../../lib/discordMember.js";
+import { guildIdOf } from "../../../core/http/guildContext.js";
 import {
   getEconomyCasinoConfig,
   updateEconomyCasinoConfig,
@@ -50,15 +51,6 @@ function handleError(error: unknown, res: import("express").Response): void {
     code: "INTERNAL_ERROR",
   };
   res.status(500).json(body);
-}
-
-function resolveGuildId(req: {
-  query: Record<string, unknown>;
-  body?: Record<string, unknown>;
-}): string | undefined {
-  if (typeof req.body?.guildId === "string") return req.body.guildId;
-  if (typeof req.query.guildId === "string") return req.query.guildId;
-  return undefined;
 }
 
 async function resolveLeaderboard(
@@ -101,7 +93,7 @@ export function economyRoutes(bot: Client): Router {
   /** GET /api/economy/config */
   router.get("/config", (req, res) => {
     try {
-      const config = getEconomyConfig(resolveGuildId(req));
+      const config = getEconomyConfig(guildIdOf(req));
       res.json({ config });
     } catch (error) {
       handleError(error, res);
@@ -114,7 +106,7 @@ export function economyRoutes(bot: Client): Router {
       const body = req.body as UpdateEconomyConfigRequest;
       const config = updateEconomyConfig({
         ...body,
-        guildId: resolveGuildId(req) ?? body.guildId,
+        guildId: guildIdOf(req) ?? body.guildId,
       });
       res.json({ config });
     } catch (error) {
@@ -125,7 +117,7 @@ export function economyRoutes(bot: Client): Router {
   /** GET /api/economy/income */
   router.get("/income", (req, res) => {
     try {
-      const config = getEconomyIncomeConfig(resolveGuildId(req));
+      const config = getEconomyIncomeConfig(guildIdOf(req));
       res.json({ config });
     } catch (error) {
       handleError(error, res);
@@ -138,7 +130,7 @@ export function economyRoutes(bot: Client): Router {
       const body = req.body as UpdateEconomyIncomeRequest;
       const config = updateEconomyIncomeConfig({
         ...body,
-        guildId: resolveGuildId(req) ?? body.guildId,
+        guildId: guildIdOf(req) ?? body.guildId,
       });
       res.json({ config });
     } catch (error) {
@@ -149,7 +141,7 @@ export function economyRoutes(bot: Client): Router {
   /** GET /api/economy/casino */
   router.get("/casino", (req, res) => {
     try {
-      const config = getEconomyCasinoConfig(resolveGuildId(req));
+      const config = getEconomyCasinoConfig(guildIdOf(req));
       res.json({ config });
     } catch (error) {
       handleError(error, res);
@@ -162,7 +154,7 @@ export function economyRoutes(bot: Client): Router {
       const body = req.body as UpdateEconomyCasinoRequest;
       const config = updateEconomyCasinoConfig({
         ...body,
-        guildId: resolveGuildId(req) ?? body.guildId,
+        guildId: guildIdOf(req) ?? body.guildId,
       });
       res.json({ config });
     } catch (error) {
@@ -173,7 +165,7 @@ export function economyRoutes(bot: Client): Router {
   /** GET /api/economy/shop/items */
   router.get("/shop/items", (req, res) => {
     try {
-      const items = listShopItems(resolveGuildId(req));
+      const items = listShopItems(guildIdOf(req));
       res.json({ items });
     } catch (error) {
       handleError(error, res);
@@ -186,7 +178,7 @@ export function economyRoutes(bot: Client): Router {
       const body = req.body as CreateEconomyShopItemRequest;
       const item = createShopItem({
         ...body,
-        guildId: resolveGuildId(req) ?? body.guildId,
+        guildId: guildIdOf(req) ?? body.guildId,
       });
       res.status(201).json({ item });
     } catch (error) {
@@ -200,7 +192,7 @@ export function economyRoutes(bot: Client): Router {
       const body = req.body as UpdateEconomyShopItemRequest;
       const item = updateShopItem(req.params.id, {
         ...body,
-        guildId: resolveGuildId(req) ?? body.guildId,
+        guildId: guildIdOf(req) ?? body.guildId,
       });
       res.json({ item });
     } catch (error) {
@@ -211,7 +203,7 @@ export function economyRoutes(bot: Client): Router {
   /** DELETE /api/economy/shop/items/:id */
   router.delete("/shop/items/:id", (req, res) => {
     try {
-      deleteShopItem(req.params.id, resolveGuildId(req));
+      deleteShopItem(req.params.id, guildIdOf(req));
       res.json({ ok: true });
     } catch (error) {
       handleError(error, res);
@@ -222,14 +214,7 @@ export function economyRoutes(bot: Client): Router {
   router.get("/leaderboard", (req, res) => {
     void (async () => {
       try {
-        const guildId = resolveGuildId(req) ?? process.env.DISCORD_GUILD_ID;
-        if (!guildId) {
-          throw new EconomyError(
-            "Falta DISCORD_GUILD_ID (o guildId).",
-            400,
-            "MISSING_GUILD_ID",
-          );
-        }
+        const guildId = guildIdOf(req);
         const rawLimit = Number(req.query.limit ?? 100);
         const limit = Number.isFinite(rawLimit) ? rawLimit : 100;
         const payload = await resolveLeaderboard(bot, guildId, limit);
@@ -246,7 +231,7 @@ export function economyRoutes(bot: Client): Router {
       const body = req.body as AdjustEconomyFundsRequest;
       const result = adjustEconomyFunds({
         ...body,
-        guildId: resolveGuildId(req) ?? body.guildId,
+        guildId: guildIdOf(req),
       });
       res.json(result);
     } catch (error) {

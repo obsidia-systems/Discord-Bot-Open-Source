@@ -15,6 +15,8 @@ import {
   saveReactionRoleMappings,
 } from "./controller.js";
 import { emojiKeyToResolvable } from "../../../db/reaction-roles.js";
+import { guildIdOf } from "../../../core/http/guildContext.js";
+import { ChannelScopeError, fetchChannelInGuild } from "../../../core/http/channelScope.js";
 import {
   createAutoroleCompact,
   deleteAutorole,
@@ -29,6 +31,13 @@ function handleError(
   label: string,
 ): void {
   if (error instanceof AutoRoleError) {
+    res.status(error.status).json({
+      error: error.message,
+      code: error.code,
+    } satisfies ApiErrorBody);
+    return;
+  }
+  if (error instanceof ChannelScopeError) {
     res.status(error.status).json({
       error: error.message,
       code: error.code,
@@ -58,7 +67,7 @@ export function autoroleRoutes(bot: Client): Router {
   /** GET /api/autoroles/active */
   router.get("/active", async (req, res) => {
     const guildId =
-      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+      guildIdOf(req);
     try {
       res.json(await listActiveAutoroles(bot, guildId));
     } catch (error: unknown) {
@@ -86,7 +95,7 @@ export function autoroleRoutes(bot: Client): Router {
 
     try {
       const payload: SaveReactionRolesRequest = {
-        guildId: body.guildId,
+        guildId: guildIdOf(req),
         channelId: body.channelId,
         messageId: body.messageId,
         mappings: body.mappings.map((item) => ({
@@ -95,11 +104,16 @@ export function autoroleRoutes(bot: Client): Router {
         })),
       };
 
+      const channel = await fetchChannelInGuild(
+        bot,
+        payload.channelId,
+        payload.guildId,
+      );
+
       const result = saveReactionRoleMappings(payload);
 
       try {
-        const channel = await bot.channels.fetch(payload.channelId);
-        if (channel && channel.isTextBased() && "messages" in channel) {
+        if (channel.isTextBased() && "messages" in channel) {
           const message = await channel.messages.fetch(payload.messageId);
           for (const mapping of payload.mappings) {
             const key = normalizeEmojiKey(mapping.emojiKey.trim());
@@ -230,7 +244,7 @@ export function autoroleRoutes(bot: Client): Router {
     const id = Number.parseInt(req.params.id, 10);
     const body = req.body as Partial<UpdateAutoroleMappingRequest>;
     const guildId =
-      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+      guildIdOf(req);
 
     if (!Array.isArray(body.mappings)) {
       res.status(400).json({
@@ -258,7 +272,7 @@ export function autoroleRoutes(bot: Client): Router {
     const id = Number.parseInt(req.params.id, 10);
     const body = req.body as Partial<UpdateAutoroleContentRequest>;
     const guildId =
-      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+      guildIdOf(req);
 
     try {
       const result = await updateAutoroleContent(
@@ -283,7 +297,7 @@ export function autoroleRoutes(bot: Client): Router {
     const id = Number.parseInt(req.params.id, 10);
     const body = req.body as Partial<UpdateAutoroleContentRequest>;
     const guildId =
-      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+      guildIdOf(req);
 
     try {
       const result = await updateAutoroleContent(
@@ -307,7 +321,7 @@ export function autoroleRoutes(bot: Client): Router {
   router.delete("/delete/:id", async (req, res) => {
     const id = Number.parseInt(req.params.id, 10);
     const guildId =
-      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+      guildIdOf(req);
     try {
       const result = await deleteAutorole(bot, id, guildId);
       res.json(result);

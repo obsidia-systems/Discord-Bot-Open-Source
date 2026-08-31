@@ -51,10 +51,10 @@ function parseJson<T>(raw: string | null | undefined, fallback: T): T {
 }
 
 function resolveGuildId(guildId?: string): string {
-  const id = (guildId ?? process.env.DISCORD_GUILD_ID ?? "").trim();
+  const id = (guildId ?? "").trim();
   if (!id) {
     throw new CustomCommandsError(
-      "Falta DISCORD_GUILD_ID (o guildId).",
+      "Falta guildId.",
       400,
       "MISSING_GUILD_ID",
     );

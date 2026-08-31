@@ -1015,6 +1015,36 @@ function ensureCoreTables(database: Database.Database): void {
   } catch {
     /* ignore */
   }
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS panel_users (
+      user_id TEXT PRIMARY KEY NOT NULL,
+      username TEXT NOT NULL,
+      global_name TEXT,
+      avatar TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS panel_sessions (
+      id TEXT PRIMARY KEY NOT NULL,
+      user_id TEXT NOT NULL,
+      access_token_enc TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES panel_users(user_id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_panel_sessions_user ON panel_sessions(user_id);
+    CREATE TABLE IF NOT EXISTS oauth_states (
+      state TEXT PRIMARY KEY NOT NULL,
+      code_verifier TEXT NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_action_logs_guild_created ON action_logs(guild_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_mod_logs_guild ON mod_logs(guild_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_warnings_guild_user ON warnings(guild_id, user_id);
+    CREATE INDEX IF NOT EXISTS idx_form_responses_form ON form_responses(form_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_sent_embeds_guild ON sent_embeds(guild_id, created_at);
+  `);
 }
 
 export function initDatabase(): AppDatabase {

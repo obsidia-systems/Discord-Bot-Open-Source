@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
 import type { ApiErrorBody } from "@adobos/shared";
+import { guildIdOf } from "../../../core/http/guildContext.js";
 import {
   GuildAssetsError,
   getGuildAssets,
@@ -12,7 +13,7 @@ export function guildAssetsRoutes(bot: Client): Router {
   /** GET /api/guild-assets?guildId=optional */
   router.get("/", async (req, res) => {
     const guildId =
-      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+      guildIdOf(req);
 
     try {
       const assets = await getGuildAssets(bot, guildId);

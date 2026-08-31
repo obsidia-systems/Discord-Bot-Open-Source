@@ -1,5 +1,6 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
+import { guildIdOf } from "../../../core/http/guildContext.js";
 import type {
   ApiErrorBody,
   SaveWelcomeSettingsRequest,
@@ -15,7 +16,7 @@ export function welcomeSettingsRoutes(_bot: Client): Router {
 
   router.get("/", (req, res) => {
     const guildId =
-      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+      guildIdOf(req);
 
     try {
       res.json(getWelcomeSettings(guildId));
@@ -41,7 +42,7 @@ export function welcomeSettingsRoutes(_bot: Client): Router {
   router.post("/", (req, res) => {
     try {
       const payload = req.body as SaveWelcomeSettingsRequest;
-      const result = saveWelcomeSettings(payload);
+      const result = saveWelcomeSettings({ ...payload, guildId: guildIdOf(req) });
       res.json(result);
     } catch (error: unknown) {
       if (error instanceof WelcomeSettingsError) {

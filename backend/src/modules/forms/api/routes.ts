@@ -6,6 +6,8 @@ import type {
   UpdateFormRequest,
 } from "@adobos/shared";
 import { publishFormMessage } from "../publish.js";
+import { guildIdOf } from "../../../core/http/guildContext.js";
+import { channelBelongsToGuild } from "../../../core/http/channelScope.js";
 import {
   FormsError,
   createForm,
@@ -41,22 +43,13 @@ function parseFormId(raw: string): number {
   return id;
 }
 
-function resolveGuildId(req: {
-  query: Record<string, unknown>;
-  body?: Record<string, unknown>;
-}): string | undefined {
-  if (typeof req.body?.guildId === "string") return req.body.guildId;
-  if (typeof req.query.guildId === "string") return req.query.guildId;
-  return undefined;
-}
-
 export function formsRoutes(bot: Client): Router {
   const router = Router();
 
   /** GET /api/forms */
   router.get("/", (req, res) => {
     try {
-      const forms = listForms(resolveGuildId(req));
+      const forms = listForms(guildIdOf(req));
       res.json({ forms });
     } catch (error) {
       handleError(error, res);
@@ -67,7 +60,7 @@ export function formsRoutes(bot: Client): Router {
   router.post("/", (req, res) => {
     try {
       const body = (req.body ?? {}) as CreateFormRequest;
-      const form = createForm(body, resolveGuildId(req));
+      const form = createForm(body, guildIdOf(req));
       res.status(201).json({ form });
     } catch (error) {
       handleError(error, res);
@@ -78,7 +71,7 @@ export function formsRoutes(bot: Client): Router {
   router.get("/:id/responses", (req, res) => {
     try {
       const formId = parseFormId(req.params.id);
-      const responses = listFormResponses(formId, resolveGuildId(req));
+      const responses = listFormResponses(formId, guildIdOf(req));
       res.json({ responses });
     } catch (error) {
       handleError(error, res);
@@ -94,7 +87,7 @@ export function formsRoutes(bot: Client): Router {
         const result = await publishFormMessage(
           bot,
           formId,
-          resolveGuildId(req),
+          guildIdOf(req),
           body,
         );
         res.json(result);
@@ -108,7 +101,7 @@ export function formsRoutes(bot: Client): Router {
   router.get("/:id", (req, res) => {
     try {
       const formId = parseFormId(req.params.id);
-      const form = getForm(formId, resolveGuildId(req));
+      const form = getForm(formId, guildIdOf(req));
       res.json({ form });
     } catch (error) {
       handleError(error, res);
@@ -120,7 +113,7 @@ export function formsRoutes(bot: Client): Router {
     try {
       const formId = parseFormId(req.params.id);
       const body = (req.body ?? {}) as UpdateFormRequest;
-      const form = updateForm(formId, body, resolveGuildId(req));
+      const form = updateForm(formId, body, guildIdOf(req));
       res.json({ form });
     } catch (error) {
       handleError(error, res);
@@ -132,7 +125,7 @@ export function formsRoutes(bot: Client): Router {
     void (async () => {
       try {
         const formId = parseFormId(req.params.id);
-        const meta = deleteForm(formId, resolveGuildId(req));
+        const meta = deleteForm(formId, guildIdOf(req));
         if (
           bot.isReady() &&
           meta.publishedChannelId &&
@@ -140,7 +133,12 @@ export function formsRoutes(bot: Client): Router {
         ) {
           try {
             const channel = await bot.channels.fetch(meta.publishedChannelId);
-            if (channel && channel.isTextBased() && "messages" in channel) {
+            if (
+              channel &&
+              channelBelongsToGuild(channel, guildIdOf(req)) &&
+              channel.isTextBased() &&
+              "messages" in channel
+            ) {
               await channel.messages
                 .delete(meta.publishedMessageId)
                 .catch(() => null);

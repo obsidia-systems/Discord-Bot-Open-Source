@@ -10,6 +10,7 @@ import {
   updateSystemCommandPermissions,
 } from "../service.js";
 import { syncGuildSlashCommands } from "../../custom-commands/sync.js";
+import { guildIdOf } from "../../../core/http/guildContext.js";
 
 function handleError(error: unknown, res: import("express").Response): void {
   if (error instanceof SystemCommandsError) {
@@ -28,22 +29,13 @@ function handleError(error: unknown, res: import("express").Response): void {
   res.status(500).json(body);
 }
 
-function resolveGuildId(req: {
-  query: Record<string, unknown>;
-  body?: Record<string, unknown>;
-}): string | undefined {
-  if (typeof req.body?.guildId === "string") return req.body.guildId;
-  if (typeof req.query.guildId === "string") return req.query.guildId;
-  return undefined;
-}
-
 export function systemCommandsRoutes(bot: Client): Router {
   const router = Router();
 
   /** GET /api/system-commands */
   router.get("/", (req, res) => {
     try {
-      const commands = listSystemCommandConfigs(resolveGuildId(req));
+      const commands = listSystemCommandConfigs(guildIdOf(req));
       res.json({ commands });
     } catch (error) {
       handleError(error, res);
@@ -55,7 +47,7 @@ export function systemCommandsRoutes(bot: Client): Router {
     void (async () => {
       try {
         const body = req.body as UpdateSystemCommandsRequest;
-        const guildId = resolveGuildId(req);
+        const guildId = guildIdOf(req);
         const commands = updateSystemCommandPermissions(body, guildId);
         if (bot.isReady()) {
           try {

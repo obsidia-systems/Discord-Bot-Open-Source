@@ -24,6 +24,7 @@ export function createBotClient(registry: ModuleRegistry): Client {
 
   const options: ClientOptions = {
     intents: [...intentSet],
+    allowedMentions: { parse: [] },
     partials: [
       Partials.Channel,
       Partials.Message,

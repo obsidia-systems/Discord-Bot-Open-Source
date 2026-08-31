@@ -184,7 +184,7 @@ export function getCanvasEventSettings(
 ): CanvasEventSettingsResponse {
   const eventType = assertEventType(eventTypeRaw);
   const guildId = assertSnowflake(
-    guildIdRaw?.trim() || process.env.DISCORD_GUILD_ID || "",
+    guildIdRaw?.trim() || "",
     "guildId",
   );
 

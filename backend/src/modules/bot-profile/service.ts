@@ -76,10 +76,10 @@ function assertBotReady(bot: Client): void {
 
 function resolveGuild(bot: Client, guildId?: string): Guild {
   assertBotReady(bot);
-  const id = (guildId ?? process.env.DISCORD_GUILD_ID ?? "").trim();
+  const id = (guildId ?? "").trim();
   if (!id) {
     throw new BotProfileError(
-      "Falta DISCORD_GUILD_ID (o guildId).",
+      "Falta guildId.",
       400,
       "MISSING_GUILD_ID",
     );

@@ -17,13 +17,15 @@ export const customCommandsModule: AdobosModule = {
 
     ctx.once("ready", () => {
       void (async () => {
-        try {
-          await syncGuildSlashCommands(ctx.client);
-        } catch (error) {
-          console.warn(
-            "[adobos] custom-commands: sync inicial falló:",
-            error,
-          );
+        for (const guild of ctx.client.guilds.cache.values()) {
+          try {
+            await syncGuildSlashCommands(ctx.client, guild.id);
+          } catch (error) {
+            console.warn(
+              `[adobos] custom-commands: sync inicial falló guild=${guild.id}:`,
+              error,
+            );
+          }
         }
       })();
     });

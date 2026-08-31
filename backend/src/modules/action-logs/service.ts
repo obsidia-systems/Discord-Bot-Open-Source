@@ -135,10 +135,10 @@ function ensureGuildRow(guildId: string): void {
 }
 
 function resolveGuildId(guildId?: string): string {
-  const id = (guildId ?? process.env.DISCORD_GUILD_ID ?? "").trim();
+  const id = (guildId ?? "").trim();
   if (!id) {
     throw new ActionLogsError(
-      "Falta DISCORD_GUILD_ID (o guildId).",
+      "Falta guildId.",
       400,
       "MISSING_GUILD_ID",
     );

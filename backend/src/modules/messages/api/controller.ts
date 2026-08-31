@@ -83,6 +83,7 @@ function assertChannelId(channelId: string): string {
 async function resolveSendableChannel(
   bot: Client,
   channelId: string,
+  expectedGuildId: string,
 ): Promise<SendableChannels> {
   let channel;
   try {
@@ -97,6 +98,18 @@ async function resolveSendableChannel(
 
   if (!channel) {
     throw new MessageSendError("Canal no encontrado.", 404, "CHANNEL_NOT_FOUND");
+  }
+
+  const channelGuildId =
+    "guildId" in channel && typeof channel.guildId === "string"
+      ? channel.guildId
+      : null;
+  if (!channelGuildId || channelGuildId !== expectedGuildId) {
+    throw new MessageSendError(
+      "El canal no pertenece a este servidor.",
+      403,
+      "CHANNEL_GUILD_MISMATCH",
+    );
   }
 
   if (
@@ -180,9 +193,16 @@ function resolveMediaField(
   files: AttachmentBuilder[],
 ): string | undefined {
   if (uploaded) {
-    const resolved = resolveMulterEmbedMedia(uploaded, attachmentName);
-    if (resolved.file) files.push(resolved.file);
-    return resolved.url;
+    try {
+      const resolved = resolveMulterEmbedMedia(uploaded, attachmentName);
+      if (resolved.file) files.push(resolved.file);
+      return resolved.url;
+    } catch (error: unknown) {
+      if (error instanceof EmbedMediaError) {
+        throw new MessageSendError(error.message, error.status, error.code);
+      }
+      throw error;
+    }
   }
   return resolveMediaOrThrow(urlValue, field, attachmentName, files);
 }
@@ -284,6 +304,7 @@ function buildActionRows(
 export async function sendTextMessage(
   bot: Client,
   input: SendMessageRequest,
+  expectedGuildId: string,
 ): Promise<SendMessageResponse> {
   assertBotReady(bot);
   const channelId = assertChannelId(input.channelId);
@@ -305,7 +326,7 @@ export async function sendTextMessage(
     );
   }
 
-  const channel = await resolveSendableChannel(bot, channelId);
+  const channel = await resolveSendableChannel(bot, channelId, expectedGuildId);
 
   try {
     const message = await channel.send({ content });
@@ -326,6 +347,7 @@ export async function sendEmbedMessage(
   bot: Client,
   input: SendEmbedRequest,
   uploaded: EmbedUploadedFiles = {},
+  expectedGuildId: string,
 ): Promise<SendEmbedResponse> {
   assertBotReady(bot);
   const channelId = assertChannelId(input.channelId);
@@ -428,7 +450,7 @@ export async function sendEmbedMessage(
     embed.setTimestamp(new Date());
   }
 
-  const channel = await resolveSendableChannel(bot, channelId);
+  const channel = await resolveSendableChannel(bot, channelId, expectedGuildId);
 
   try {
     const message = await channel.send({
@@ -438,12 +460,7 @@ export async function sendEmbedMessage(
       files: files.length > 0 ? files : undefined,
     });
 
-    const guildId =
-      ("guildId" in channel && typeof channel.guildId === "string"
-        ? channel.guildId
-        : null) ||
-      process.env.DISCORD_GUILD_ID ||
-      "";
+    const guildId = expectedGuildId;
 
     let sentId: string | undefined;
     if (/^\d{17,20}$/.test(guildId)) {
@@ -520,6 +537,7 @@ export async function editEmbedMessage(
   messageIdRaw: string,
   input: SendEmbedRequest,
   uploaded: EmbedUploadedFiles = {},
+  expectedGuildId: string,
 ): Promise<{ orphaned: boolean }> {
   assertBotReady(bot);
   const channelId = assertChannelId(channelIdRaw);
@@ -592,7 +610,7 @@ export async function editEmbedMessage(
   }
   if (includeTimestamp) embed.setTimestamp(new Date());
 
-  const channel = await resolveSendableChannel(bot, channelId);
+  const channel = await resolveSendableChannel(bot, channelId, expectedGuildId);
 
   try {
     const message = await channel.messages.fetch(messageId);
@@ -620,11 +638,12 @@ export async function deleteDiscordMessage(
   bot: Client,
   channelIdRaw: string,
   messageIdRaw: string,
+  expectedGuildId: string,
 ): Promise<{ orphaned: boolean }> {
   assertBotReady(bot);
   const channelId = assertChannelId(channelIdRaw);
   const messageId = messageIdRaw.trim();
-  const channel = await resolveSendableChannel(bot, channelId);
+  const channel = await resolveSendableChannel(bot, channelId, expectedGuildId);
   try {
     const message = await channel.messages.fetch(messageId);
     await message.delete();

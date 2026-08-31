@@ -2,6 +2,7 @@ import multer from "multer";
 import { Router } from "express";
 import type { Client } from "discord.js";
 import type { ApiErrorBody, UpdateBotGuildProfileRequest } from "@adobos/shared";
+import { guildIdOf } from "../../../core/http/guildContext.js";
 import {
   BotProfileError,
   getGuildBotProfile,
@@ -110,7 +111,7 @@ export function botProfileRoutes(bot: Client): Router {
 
   router.get("/", async (req, res) => {
     const guildId =
-      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+      guildIdOf(req);
     try {
       res.json(await getGuildBotProfile(bot, guildId));
     } catch (error: unknown) {
@@ -131,8 +132,7 @@ export function botProfileRoutes(bot: Client): Router {
             ? (req.body as Record<string, unknown>)
             : {};
         const fields = parseFields(rawBody);
-        const guildId =
-          typeof rawBody.guildId === "string" ? rawBody.guildId : undefined;
+        const guildId = guildIdOf(req);
         const file = req.file;
 
         const result = await updateGuildBotProfile(bot, {

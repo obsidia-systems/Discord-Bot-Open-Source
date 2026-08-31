@@ -11,6 +11,7 @@ import {
 import type { PublishFormResponse, UpdateFormRequest } from "@adobos/shared";
 import { FORM_OPEN_PREFIX } from "@adobos/shared";
 import { resolveEmbedMedia } from "../../lib/embedMedia.js";
+import { channelBelongsToGuild } from "../../core/http/channelScope.js";
 import {
   FormsError,
   getForm,
@@ -75,6 +76,24 @@ export async function publishFormMessage(
       "El canal de publicación no es válido o no es de texto.",
       400,
       "INVALID_PUBLISH_CHANNEL",
+    );
+  }
+  if (!channelBelongsToGuild(channel, form.guildId)) {
+    throw new FormsError(
+      "El canal de publicación no pertenece a este servidor.",
+      403,
+      "CHANNEL_GUILD_MISMATCH",
+    );
+  }
+
+  const reception = await bot.channels
+    .fetch(form.receptionChannelId)
+    .catch(() => null);
+  if (!reception || !channelBelongsToGuild(reception, form.guildId)) {
+    throw new FormsError(
+      "El canal de recepción no pertenece a este servidor.",
+      403,
+      "CHANNEL_GUILD_MISMATCH",
     );
   }
 

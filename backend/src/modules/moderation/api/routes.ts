@@ -13,6 +13,7 @@ import {
   searchMembers,
 } from "../service.js";
 import { fetchDiscordAuditLog } from "../audit.js";
+import { guildIdOf } from "../../../core/http/guildContext.js";
 
 function handleError(
   error: unknown,
@@ -42,7 +43,7 @@ export function moderationRoutes(bot: Client): Router {
   router.get("/search-member", async (req, res) => {
     const q = typeof req.query.q === "string" ? req.query.q : "";
     const guildId =
-      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+      guildIdOf(req);
     try {
       res.json(await searchMembers(bot, q, guildId));
     } catch (error: unknown) {
@@ -53,7 +54,7 @@ export function moderationRoutes(bot: Client): Router {
   router.get("/search-channel", async (req, res) => {
     const q = typeof req.query.q === "string" ? req.query.q : "";
     const guildId =
-      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+      guildIdOf(req);
     try {
       res.json(await searchChannels(bot, q, guildId));
     } catch (error: unknown) {
@@ -63,7 +64,7 @@ export function moderationRoutes(bot: Client): Router {
 
   router.get("/member-info/:id", async (req, res) => {
     const guildId =
-      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+      guildIdOf(req);
     try {
       res.json(await getMemberInfo(bot, req.params.id ?? "", guildId));
     } catch (error: unknown) {
@@ -73,7 +74,7 @@ export function moderationRoutes(bot: Client): Router {
 
   router.get("/channel-info/:id", async (req, res) => {
     const guildId =
-      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+      guildIdOf(req);
     try {
       res.json(await getChannelInfo(bot, req.params.id ?? "", guildId));
     } catch (error: unknown) {
@@ -87,7 +88,7 @@ export function moderationRoutes(bot: Client): Router {
     const messageId =
       typeof req.query.messageId === "string" ? req.query.messageId : "";
     const guildId =
-      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+      guildIdOf(req);
     try {
       res.json(await fetchDiscordMessage(bot, channelId, messageId, guildId));
     } catch (error: unknown) {
@@ -98,7 +99,11 @@ export function moderationRoutes(bot: Client): Router {
   router.post("/action", async (req, res) => {
     try {
       const payload = req.body as ModActionRequest;
-      const result = await executeModAction(bot, payload);
+      const result = await executeModAction(
+        bot,
+        { ...payload, guildId: guildIdOf(req) },
+        req.guild?.userId,
+      );
       res.status(result.dmFailed ? 206 : 200).json(result);
     } catch (error: unknown) {
       handleError(error, res, "action");
@@ -107,7 +112,7 @@ export function moderationRoutes(bot: Client): Router {
 
   router.get("/discord-audit", async (req, res) => {
     const guildId =
-      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+      guildIdOf(req);
     const userId =
       typeof req.query.userId === "string" ? req.query.userId : undefined;
     const limitRaw =
@@ -136,7 +141,7 @@ export function moderationRoutes(bot: Client): Router {
 
   router.get("/active/bans", async (req, res) => {
     const guildId =
-      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+      guildIdOf(req);
     try {
       res.json(await listActiveBans(bot, guildId));
     } catch (error: unknown) {
@@ -146,7 +151,7 @@ export function moderationRoutes(bot: Client): Router {
 
   router.get("/active/timeouts", async (req, res) => {
     const guildId =
-      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+      guildIdOf(req);
     try {
       res.json(await listActiveTimeouts(bot, guildId));
     } catch (error: unknown) {

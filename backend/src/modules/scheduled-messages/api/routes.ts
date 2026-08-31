@@ -1,5 +1,7 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
+import { guildIdOf } from "../../../core/http/guildContext.js";
+import { ChannelScopeError, fetchChannelInGuild } from "../../../core/http/channelScope.js";
 import type {
   ApiErrorBody,
   CreateScheduledMessageRequest,
@@ -16,6 +18,14 @@ import {
 } from "../service.js";
 
 function handleError(error: unknown, res: import("express").Response): void {
+  if (error instanceof ChannelScopeError) {
+    const body: ApiErrorBody = {
+      error: error.message,
+      code: error.code,
+    };
+    res.status(error.status).json(body);
+    return;
+  }
   if (error instanceof ScheduledMessagesError) {
     const body: ApiErrorBody = {
       error: error.message,
@@ -44,15 +54,13 @@ function parseMessageId(raw: string): number {
   return id;
 }
 
-export function scheduledMessagesRoutes(_bot: Client): Router {
+export function scheduledMessagesRoutes(bot: Client): Router {
   const router = Router();
 
   /** GET /api/scheduled-messages */
   router.get("/", (req, res) => {
     try {
-      const guildId =
-        typeof req.query.guildId === "string" ? req.query.guildId : undefined;
-      const messages = listScheduledMessages(guildId);
+      const messages = listScheduledMessages(guildIdOf(req));
       res.json({ messages });
     } catch (error) {
       handleError(error, res);
@@ -62,10 +70,8 @@ export function scheduledMessagesRoutes(_bot: Client): Router {
   /** GET /api/scheduled-messages/:id */
   router.get("/:id", (req, res) => {
     try {
-      const guildId =
-        typeof req.query.guildId === "string" ? req.query.guildId : undefined;
       const messageId = parseMessageId(req.params.id);
-      const message = getScheduledMessage(messageId, guildId);
+      const message = getScheduledMessage(messageId, guildIdOf(req));
       res.json({ message });
     } catch (error) {
       handleError(error, res);
@@ -74,51 +80,49 @@ export function scheduledMessagesRoutes(_bot: Client): Router {
 
   /** POST /api/scheduled-messages */
   router.post("/", (req, res) => {
-    try {
-      const guildId =
-        typeof req.body?.guildId === "string"
-          ? req.body.guildId
-          : typeof req.query.guildId === "string"
-            ? req.query.guildId
-            : undefined;
-      const body = (req.body ?? {}) as CreateScheduledMessageRequest;
-      const message = createScheduledMessage(body, guildId);
-      res.status(201).json({ message });
-    } catch (error) {
-      handleError(error, res);
-    }
+    void (async () => {
+      try {
+        const guildId = guildIdOf(req);
+        const body = (req.body ?? {}) as CreateScheduledMessageRequest;
+        if (typeof body.channelId === "string" && body.channelId.trim()) {
+          await fetchChannelInGuild(bot, body.channelId.trim(), guildId);
+        }
+        const message = createScheduledMessage(body, guildId);
+        res.status(201).json({ message });
+      } catch (error) {
+        handleError(error, res);
+      }
+    })();
   });
 
   /** PATCH /api/scheduled-messages/:id */
   router.patch("/:id", (req, res) => {
-    try {
-      const guildId =
-        typeof req.body?.guildId === "string"
-          ? req.body.guildId
-          : typeof req.query.guildId === "string"
-            ? req.query.guildId
-            : undefined;
-      const messageId = parseMessageId(req.params.id);
-      const body = (req.body ?? {}) as UpdateScheduledMessageRequest;
-      const message = updateScheduledMessage(messageId, body, guildId);
-      res.json({ message });
-    } catch (error) {
-      handleError(error, res);
-    }
+    void (async () => {
+      try {
+        const guildId = guildIdOf(req);
+        const messageId = parseMessageId(req.params.id);
+        const body = (req.body ?? {}) as UpdateScheduledMessageRequest;
+        if (typeof body.channelId === "string" && body.channelId.trim()) {
+          await fetchChannelInGuild(bot, body.channelId.trim(), guildId);
+        }
+        const message = updateScheduledMessage(messageId, body, guildId);
+        res.json({ message });
+      } catch (error) {
+        handleError(error, res);
+      }
+    })();
   });
 
   /** POST /api/scheduled-messages/:id/toggle — body: { isActive: boolean } */
   router.post("/:id/toggle", (req, res) => {
     try {
-      const guildId =
-        typeof req.body?.guildId === "string"
-          ? req.body.guildId
-          : typeof req.query.guildId === "string"
-            ? req.query.guildId
-            : undefined;
       const messageId = parseMessageId(req.params.id);
       const isActive = Boolean(req.body?.isActive);
-      const message = setScheduledMessageActive(messageId, isActive, guildId);
+      const message = setScheduledMessageActive(
+        messageId,
+        isActive,
+        guildIdOf(req),
+      );
       res.json({ message });
     } catch (error) {
       handleError(error, res);
@@ -128,10 +132,8 @@ export function scheduledMessagesRoutes(_bot: Client): Router {
   /** DELETE /api/scheduled-messages/:id */
   router.delete("/:id", (req, res) => {
     try {
-      const guildId =
-        typeof req.query.guildId === "string" ? req.query.guildId : undefined;
       const messageId = parseMessageId(req.params.id);
-      deleteScheduledMessage(messageId, guildId);
+      deleteScheduledMessage(messageId, guildIdOf(req));
       res.status(204).send();
     } catch (error) {
       handleError(error, res);

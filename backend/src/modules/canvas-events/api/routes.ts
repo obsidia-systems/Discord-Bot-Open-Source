@@ -1,5 +1,6 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
+import { guildIdOf } from "../../../core/http/guildContext.js";
 import type {
   ApiErrorBody,
   CanvasEventType,
@@ -41,7 +42,7 @@ export function canvasEventSettingsRoutes(
 
   router.get("/", (req, res) => {
     const guildId =
-      typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+      guildIdOf(req);
 
     try {
       res.json(getCanvasEventSettings(eventType, guildId));
@@ -53,7 +54,10 @@ export function canvasEventSettingsRoutes(
   router.post("/", (req, res) => {
     try {
       const payload = req.body as SaveCanvasEventSettingsRequest;
-      const result = saveCanvasEventSettings(eventType, payload);
+      const result = saveCanvasEventSettings(eventType, {
+        ...payload,
+        guildId: guildIdOf(req),
+      });
       res.json(result);
     } catch (error: unknown) {
       handleError(error, res, eventType);

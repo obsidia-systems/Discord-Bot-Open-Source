@@ -14,6 +14,7 @@ import {
   updateCustomCommand,
 } from "../service.js";
 import { syncGuildSlashCommands } from "../sync.js";
+import { guildIdOf } from "../../../core/http/guildContext.js";
 
 function handleError(error: unknown, res: import("express").Response): void {
   if (error instanceof CustomCommandsError) {
@@ -40,15 +41,6 @@ function parseId(raw: string): number {
   return id;
 }
 
-function resolveGuildId(req: {
-  query: Record<string, unknown>;
-  body?: Record<string, unknown>;
-}): string | undefined {
-  if (typeof req.body?.guildId === "string") return req.body.guildId;
-  if (typeof req.query.guildId === "string") return req.query.guildId;
-  return undefined;
-}
-
 async function syncSafe(bot: Client, guildId?: string): Promise<void> {
   if (!bot.isReady()) return;
   try {
@@ -64,7 +56,7 @@ export function customCommandsRoutes(bot: Client): Router {
   /** GET /api/custom-commands */
   router.get("/", (req, res) => {
     try {
-      const commands = listCustomCommands(resolveGuildId(req));
+      const commands = listCustomCommands(guildIdOf(req));
       res.json({ commands });
     } catch (error) {
       handleError(error, res);
@@ -84,7 +76,7 @@ export function customCommandsRoutes(bot: Client): Router {
         }
         const count = await syncGuildSlashCommands(
           bot,
-          resolveGuildId(req),
+          guildIdOf(req),
         );
         res.json({ ok: true, count });
       } catch (error) {
@@ -97,7 +89,7 @@ export function customCommandsRoutes(bot: Client): Router {
   router.post("/", (req, res) => {
     void (async () => {
       try {
-        const guildId = resolveGuildId(req);
+        const guildId = guildIdOf(req);
         const body = (req.body ?? {}) as CreateCustomCommandRequest;
         const command = createCustomCommand(body, guildId);
         await syncSafe(bot, guildId);
@@ -113,7 +105,7 @@ export function customCommandsRoutes(bot: Client): Router {
     try {
       const command = getCustomCommand(
         parseId(req.params.id),
-        resolveGuildId(req),
+        guildIdOf(req),
       );
       res.json({ command });
     } catch (error) {
@@ -125,7 +117,7 @@ export function customCommandsRoutes(bot: Client): Router {
   router.patch("/:id", (req, res) => {
     void (async () => {
       try {
-        const guildId = resolveGuildId(req);
+        const guildId = guildIdOf(req);
         const body = (req.body ?? {}) as UpdateCustomCommandRequest;
         const command = updateCustomCommand(
           parseId(req.params.id),
@@ -144,7 +136,7 @@ export function customCommandsRoutes(bot: Client): Router {
   router.delete("/:id", (req, res) => {
     void (async () => {
       try {
-        const guildId = resolveGuildId(req);
+        const guildId = guildIdOf(req);
         deleteCustomCommand(parseId(req.params.id), guildId);
         await syncSafe(bot, guildId);
         res.status(204).send();

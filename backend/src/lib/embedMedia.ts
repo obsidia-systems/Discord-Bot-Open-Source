@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { AttachmentBuilder } from "discord.js";
 import { resolvePublicUploadPath } from "./dataPaths.js";
+import { extensionForMime, sniffImageMime } from "./imageMagic.js";
 
 export class EmbedMediaError extends Error {
   constructor(
@@ -89,34 +90,23 @@ export function requireHttpUrl(
   return trimmed;
 }
 
-function extensionFromUpload(
-  originalName: string,
-  mimetype: string,
-): string {
-  const fromName = path.extname(originalName).toLowerCase();
-  if (fromName) return fromName;
-  switch (mimetype) {
-    case "image/jpeg":
-      return ".jpg";
-    case "image/png":
-      return ".png";
-    case "image/webp":
-      return ".webp";
-    case "image/gif":
-      return ".gif";
-    default:
-      return ".png";
-  }
-}
-
 /**
  * Convierte un archivo multer (memoria) en adjunto Discord + `attachment://`.
+ * Valida magic bytes; no confía en `file.mimetype`.
  */
 export function resolveMulterEmbedMedia(
   file: { buffer: Buffer; originalname: string; mimetype: string },
   attachmentName: string,
 ): ResolvedEmbedMedia {
-  const ext = extensionFromUpload(file.originalname, file.mimetype);
+  const sniffed = sniffImageMime(file.buffer);
+  if (!sniffed) {
+    throw new EmbedMediaError(
+      "El archivo no es una imagen PNG, JPG, WEBP o GIF válida.",
+      400,
+      "INVALID_IMAGE_CONTENT",
+    );
+  }
+  const ext = extensionForMime(sniffed);
   const name = attachmentName.includes(".")
     ? attachmentName
     : `${attachmentName}${ext}`;

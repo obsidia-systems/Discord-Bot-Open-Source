@@ -64,10 +64,10 @@ function resolveGuild(bot: Client, guildId?: string): Guild {
     );
   }
 
-  const id = (guildId ?? process.env.DISCORD_GUILD_ID ?? "").trim();
+  const id = (guildId ?? "").trim();
   if (!id) {
     throw new ModerationError(
-      "Falta DISCORD_GUILD_ID (o guildId).",
+      "Falta guildId.",
       400,
       "MISSING_GUILD_ID",
     );
@@ -563,6 +563,7 @@ async function sendSanctionDm(options: {
 export async function executeModAction(
   bot: Client,
   input: ModActionRequest,
+  actorUserId?: string,
 ): Promise<ModActionResponse> {
   const action = assertAction(input.action);
   const guild = resolveGuild(bot, input.guildId);
@@ -583,7 +584,7 @@ export async function executeModAction(
   }
 
   const auditReason = reason.slice(0, 400) || "Acción desde panel Adobos";
-  const moderatorId = bot.user?.id ?? "dashboard";
+  const moderatorId = actorUserId ?? bot.user?.id ?? "dashboard";
 
   try {
     ensureGuildRow(guild.id);

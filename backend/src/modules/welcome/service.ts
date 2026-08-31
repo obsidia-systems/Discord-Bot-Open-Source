@@ -237,7 +237,7 @@ function ensureGuildRow(guildId: string): void {
 
 export function getWelcomeSettings(guildIdRaw?: string): WelcomeSettingsResponse {
   const guildId = assertSnowflake(
-    guildIdRaw?.trim() || process.env.DISCORD_GUILD_ID || "",
+    guildIdRaw?.trim() || "",
     "guildId",
   );
 

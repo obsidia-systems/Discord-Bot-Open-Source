@@ -31,10 +31,10 @@ function resolveGuild(bot: Client, guildId?: string): Guild {
     );
   }
 
-  const id = (guildId ?? process.env.DISCORD_GUILD_ID ?? "").trim();
+  const id = (guildId ?? "").trim();
   if (!id) {
     throw new GuildAssetsError(
-      "Falta DISCORD_GUILD_ID (o el query ?guildId=).",
+      "Falta guildId.",
       400,
       "MISSING_GUILD_ID",
     );

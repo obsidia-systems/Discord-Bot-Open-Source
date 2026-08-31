@@ -15,6 +15,7 @@ import {
   sendTextMessage,
   type EmbedUploadedFiles,
 } from "./controller.js";
+import { guildIdOf } from "../../../core/http/guildContext.js";
 
 const BUTTON_STYLES: MessageButtonStyle[] = [
   "Primary",
@@ -210,10 +211,14 @@ export function messageRoutes(bot: Client): Router {
     }
 
     try {
-      const result = await sendTextMessage(bot, {
-        channelId: body.channelId,
-        content: body.content,
-      });
+      const result = await sendTextMessage(
+        bot,
+        {
+          channelId: body.channelId,
+          content: body.content,
+        },
+        guildIdOf(req),
+      );
       res.status(201).json(result);
     } catch (error: unknown) {
       handleMessageError(error, res);
@@ -261,7 +266,12 @@ export function messageRoutes(bot: Client): Router {
         footerIcon: firstFile(uploadedMap?.footerIcon),
       };
 
-      const result = await sendEmbedMessage(bot, payload, uploaded);
+      const result = await sendEmbedMessage(
+        bot,
+        payload,
+        uploaded,
+        guildIdOf(req),
+      );
       res.status(201).json(result);
     } catch (error: unknown) {
       handleMessageError(error, res);

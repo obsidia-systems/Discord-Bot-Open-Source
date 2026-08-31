@@ -1,5 +1,6 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
+import { guildIdOf } from "../../../core/http/guildContext.js";
 import type {
   ApiErrorBody,
   CreateGuildRoleRequest,
@@ -72,7 +73,7 @@ export function rolesBuilderRoutes(client: Client): Router {
   router.get("/list", async (req, res) => {
     try {
       const guildId =
-        typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+        guildIdOf(req);
       const data = await listGuildRoles(client, guildId);
       res.json(data);
     } catch (error) {
@@ -83,7 +84,7 @@ export function rolesBuilderRoutes(client: Client): Router {
   router.post("/create", async (req, res) => {
     try {
       const guildId =
-        typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+        guildIdOf(req);
       const input = parseCreateBody(req.body);
       const data = await createGuildRole(client, input, guildId);
       res.status(201).json(data);
@@ -95,7 +96,7 @@ export function rolesBuilderRoutes(client: Client): Router {
   router.patch("/positions", async (req, res) => {
     try {
       const guildId =
-        typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+        guildIdOf(req);
       const positions = parsePositionsBody(req.body);
       const data = await updateRolePositions(client, positions, guildId);
       res.json(data);

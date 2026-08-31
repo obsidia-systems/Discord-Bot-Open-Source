@@ -24,7 +24,7 @@ import {
 } from "./api/controller.js";
 
 function resolveGuildId(raw?: string): string {
-  const guildId = raw?.trim() || process.env.DISCORD_GUILD_ID || "";
+  const guildId = raw?.trim() || "";
   if (!/^\d{17,20}$/.test(guildId)) {
     throw new MessageSendError("guildId inválido.", 400, "INVALID_GUILD");
   }
@@ -99,8 +99,10 @@ export async function sendAndRegisterEmbed(
   bot: Client,
   input: SendEmbedRequest,
   uploaded: EmbedUploadedFiles = {},
+  guildIdRaw?: string,
 ): Promise<SendEmbedResponse> {
-  return sendEmbedMessage(bot, input, uploaded);
+  const guildId = resolveGuildId(guildIdRaw);
+  return sendEmbedMessage(bot, input, uploaded, guildId);
 }
 
 export async function editSentEmbed(
@@ -144,6 +146,7 @@ export async function editSentEmbed(
     row.messageId,
     payload,
     uploaded,
+    guildId,
   );
 
   if (orphaned) {
@@ -212,6 +215,7 @@ export async function deleteSentEmbed(
     bot,
     row.channelId,
     row.messageId,
+    guildId,
   );
 
   getDb().delete(sentEmbeds).where(eq(sentEmbeds.id, id)).run();

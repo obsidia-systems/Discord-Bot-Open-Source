@@ -34,7 +34,7 @@ function assertSnowflake(value: string, field: string): string {
 
 function resolveGuildId(guildIdRaw?: string): string {
   return assertSnowflake(
-    guildIdRaw?.trim() || process.env.DISCORD_GUILD_ID || "",
+    guildIdRaw?.trim() || "",
     "guildId",
   );
 }

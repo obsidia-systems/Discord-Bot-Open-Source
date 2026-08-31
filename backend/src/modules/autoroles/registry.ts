@@ -41,6 +41,10 @@ import {
   createAutoRoleSetup,
   normalizeEmojiKey,
 } from "./api/controller.js";
+import {
+  fetchChannelInGuild,
+  rethrowAsChannelError,
+} from "../../core/http/channelScope.js";
 
 const BUTTON_STYLE_MAP: Record<
   NonNullable<AutoroleMappingItem["style"]>,
@@ -66,7 +70,7 @@ function assertSnowflake(value: string, field: string): string {
 
 function resolveGuildId(raw?: string): string {
   return assertSnowflake(
-    raw?.trim() || process.env.DISCORD_GUILD_ID || "",
+    raw?.trim() || "",
     "guildId",
   );
 }
@@ -245,10 +249,16 @@ function upsertRegistry(input: {
 async function resolveChannel(
   bot: Client,
   channelId: string,
+  expectedGuildId: string,
 ): Promise<SendableChannels & TextChannel> {
-  const channel = await bot.channels.fetch(channelId).catch(() => null);
-  if (!channel) {
-    throw new AutoRoleError("Canal no encontrado.", 404, "CHANNEL_NOT_FOUND");
+  let channel;
+  try {
+    channel = await fetchChannelInGuild(bot, channelId, expectedGuildId);
+  } catch (error: unknown) {
+    rethrowAsChannelError(
+      error,
+      (message, status, code) => new AutoRoleError(message, status, code),
+    );
   }
   if (
     channel.type === ChannelType.GuildCategory ||
@@ -394,7 +404,7 @@ export async function listActiveAutoroles(
       let orphaned = false;
 
       try {
-        const textChannel = await resolveChannel(bot, row.channelId);
+        const textChannel = await resolveChannel(bot, row.channelId, guildId);
         const message = await textChannel.messages.fetch(row.messageId);
         isBotAuthor = Boolean(botUserId && message.author.id === botUserId);
       } catch (error: unknown) {
@@ -515,7 +525,7 @@ export async function createAutoroleCompact(
   });
 
   if (type === "SELECT") {
-    const channel = await resolveChannel(bot, channelId);
+    const channel = await resolveChannel(bot, channelId, guildId);
     const message = await channel.messages.fetch(result.messageId);
     await message.edit({ components: buildSelectComponents(mappings) });
   }
@@ -556,7 +566,7 @@ export async function updateAutoroleMapping(
 
   const mappings = normalizeMappings(input.mappings);
   const type = row.type as AutoroleRegistryType;
-  const channel = await resolveChannel(bot, row.channelId);
+  const channel = await resolveChannel(bot, row.channelId, guildId);
 
   let orphaned = false;
   try {
@@ -627,7 +637,7 @@ export async function updateAutoroleContent(
     throw new AutoRoleError("Registro no encontrado.", 404, "NOT_FOUND");
   }
 
-  const channel = await resolveChannel(bot, row.channelId);
+  const channel = await resolveChannel(bot, row.channelId, guildId);
   let orphaned = false;
   let isBotAuthor: boolean | null = null;
 
@@ -764,7 +774,7 @@ export async function deleteAutorole(
 
   let orphaned = false;
   try {
-    const channel = await resolveChannel(bot, row.channelId);
+    const channel = await resolveChannel(bot, row.channelId, guildId);
     const message = await channel.messages.fetch(row.messageId);
     if (row.type === "REACTIONS") {
       deleteReactionRolesForMessage(row.messageId);

@@ -8,6 +8,7 @@ import type {
 } from "@adobos/shared";
 import { resolveMembersBatch } from "../../../lib/discordMember.js";
 import { forceLiveLeaderboardRefresh } from "../liveLeaderboard.js";
+import { guildIdOf } from "../../../core/http/guildContext.js";
 import {
   LevelsError,
   getLeaderboardTotal,
@@ -73,7 +74,7 @@ export function levelsRoutes(bot: Client): Router {
   router.get("/config", (req, res) => {
     try {
       const guildId =
-        typeof req.query.guildId === "string" ? req.query.guildId : undefined;
+        guildIdOf(req);
       const config = getLevelsConfig(guildId);
       res.json({ config });
     } catch (error) {
@@ -112,17 +113,7 @@ export function levelsRoutes(bot: Client): Router {
   router.get("/leaderboard", (req, res) => {
     void (async () => {
       try {
-        const guildId =
-          typeof req.query.guildId === "string"
-            ? req.query.guildId
-            : process.env.DISCORD_GUILD_ID;
-        if (!guildId) {
-          throw new LevelsError(
-            "Falta DISCORD_GUILD_ID (o guildId).",
-            400,
-            "MISSING_GUILD_ID",
-          );
-        }
+        const guildId = guildIdOf(req);
         const limitRaw = Number(req.query.limit ?? 100);
         const limit = Number.isFinite(limitRaw)
           ? Math.max(1, Math.min(100, Math.floor(limitRaw)))
