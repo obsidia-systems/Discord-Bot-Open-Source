@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly PUBLIC_API_BASE?: string;
+  readonly INTERNAL_API_URL?: string;
 }
 
 interface ImportMeta {

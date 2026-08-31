@@ -5,10 +5,11 @@ import react from "@astrojs/react";
 import tailwind from "@astrojs/tailwind";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
+const backendUrl = process.env.INTERNAL_API_URL ?? "http://127.0.0.1:3000";
 
 /**
- * Salida estática (`dist/`) inyectada en el backend vía Dockerfile.
- * En desarrollo (Docker/OrbStack) HMR y proxy apuntan a localhost:3000.
+ * Salida estática (`dist/`). En Compose el servicio `frontend` hace de
+ * puerta de entrada; el proxy same-origin apunta a INTERNAL_API_URL.
  */
 export default defineConfig({
   output: "static",
@@ -45,17 +46,17 @@ export default defineConfig({
       },
       proxy: {
         "/api": {
-          target: "http://127.0.0.1:3000",
+          target: backendUrl,
           changeOrigin: true,
           cookieDomainRewrite: "",
         },
         "/auth": {
-          target: "http://127.0.0.1:3000",
+          target: backendUrl,
           changeOrigin: true,
           cookieDomainRewrite: "",
         },
         "/uploads": {
-          target: "http://127.0.0.1:3000",
+          target: backendUrl,
           changeOrigin: true,
           cookieDomainRewrite: "",
         },
