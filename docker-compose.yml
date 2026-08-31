@@ -1,12 +1,22 @@
-# Desarrollo local (OrbStack / Mac M1 ARM64) — hot reload, sin build de producción.
+# Desarrollo local — tres servicios: postgres, backend (API + bot), frontend (Astro).
 # Uso: docker compose up --build
 #
-# Producción (TrueNAS AMD64): ver docker-compose.prod.yml
+# El navegador entra por http://localhost:4321. Astro hace proxy same-origin
+# de /api, /auth y /uploads al servicio `backend` (cookies HttpOnly).
+#
+# Producción: docker compose -f docker-compose.prod.yml up -d --build
+
+x-dev-volumes: &dev-volumes
+  - .:/app
+  - adobos_node_modules:/app/node_modules
+  - adobos_backend_modules:/app/backend/node_modules
+  - adobos_frontend_modules:/app/frontend/node_modules
+  - adobos_shared_modules:/app/packages/shared/node_modules
+  - adobos_pnpm_store:/app/.pnpm-store
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: adobos-postgres-dev
     environment:
       POSTGRES_USER: adobos
       POSTGRES_PASSWORD: adobos
@@ -21,30 +31,39 @@ services:
       timeout: 5s
       retries: 12
     restart: unless-stopped
+    networks:
+      - adobos
 
-  adobos-bot:
+  install:
     build:
       context: .
-      dockerfile: Dockerfile.dev
-    platform: linux/arm64
-    image: adobos-bot:dev
-    container_name: adobos-bot-dev
-    ports:
-      - "3000:3000"
-      - "4321:4321"
+      dockerfile: docker/Dockerfile.dev
+    image: adobos-dev:local
+    working_dir: /app
+    command: sh -c "pnpm install && pnpm --filter @adobos/shared build"
+    volumes: *dev-volumes
+    networks:
+      - adobos
+    restart: "no"
+
+  backend:
+    image: adobos-dev:local
+    working_dir: /app
+    command: pnpm --filter @adobos/backend dev
     env_file:
       - .env
     environment:
       NODE_ENV: development
       HOST: 0.0.0.0
       PORT: 3000
+      SERVE_STATIC: "false"
       DATABASE_URL: postgresql://adobos:adobos@postgres:5432/adobos
       DATA_DIR: /data
-      CHOKIDAR_USEPOLLING: "true"
-      WATCHPACK_POLLING: "true"
-    depends_on:
-      postgres:
-        condition: service_healthy
+      PUBLIC_APP_URL: http://localhost:4321
+      CORS_ORIGIN: http://localhost:4321
+      NODE_OPTIONS: --dns-result-order=ipv4first
+    ports:
+      - "3000:3000"
     volumes:
       - .:/app
       - ./data:/data
@@ -53,10 +72,47 @@ services:
       - adobos_frontend_modules:/app/frontend/node_modules
       - adobos_shared_modules:/app/packages/shared/node_modules
       - adobos_pnpm_store:/app/.pnpm-store
+    depends_on:
+      install:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    stop_grace_period: 20s
+    networks:
+      - adobos
+    restart: unless-stopped
+
+  frontend:
+    image: adobos-dev:local
     working_dir: /app
-    command: sh -c "pnpm install && pnpm dev"
-    stdin_open: true
-    tty: true
+    command: pnpm --filter @adobos/frontend dev
+    environment:
+      NODE_ENV: development
+      INTERNAL_API_URL: http://backend:3000
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+    ports:
+      - "4321:4321"
+    volumes: *dev-volumes
+    depends_on:
+      install:
+        condition: service_completed_successfully
+      backend:
+        condition: service_healthy
+    networks:
+      - adobos
     restart: unless-stopped
 
 volumes:
@@ -66,3 +122,7 @@ volumes:
   adobos_shared_modules:
   adobos_pnpm_store:
   adobos_pgdata:
+
+networks:
+  adobos:
+    driver: bridge

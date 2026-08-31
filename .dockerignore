@@ -16,3 +16,6 @@ coverage
 README.md
 .vscode
 .idea
+backend/drizzle-sqlite-legacy
+AUDITORIA.md
+docs

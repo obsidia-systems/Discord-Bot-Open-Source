@@ -1,17 +1,20 @@
-# Producción All-in-One (TrueNAS AMD64 / imagen multi-etapa).
+# Producción — postgres (interno) + backend (API + bot) + frontend (nginx).
 # Uso:
 #   docker compose -f docker-compose.prod.yml up -d --build
-# Cross-compile desde Mac ARM64:
-#   docker buildx build --platform linux/amd64 -t adobos-bot --load .
+#
+# Un solo puerto público: el panel (nginx) en 3000. Postgres y la API
+# no se publican; nginx proxifica /api, /auth y /uploads.
+#
+# PUBLIC_APP_URL y CORS_ORIGIN deben ser la URL que ve el navegador
+# (p. ej. http://tu-host:3000).
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: adobos-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: adobos
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-adobos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: adobos
     volumes:
       - adobos_pgdata:/var/lib/postgresql/data
@@ -20,29 +23,31 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    networks:
+      - adobos
+    # Sin ports: sólo la red interna de Compose.
 
-  adobos-bot:
+  backend:
     build:
       context: .
       dockerfile: Dockerfile
-    image: adobos-bot:latest
-    container_name: adobos-bot
+    image: adobos-backend:latest
     restart: unless-stopped
-    ports:
-      - "3000:3000"
     env_file:
       - .env
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3000
-      DATABASE_URL: postgresql://adobos:${POSTGRES_PASSWORD:-adobos}@postgres:5432/adobos
+      SERVE_STATIC: "false"
+      DATABASE_URL: postgresql://adobos:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/adobos
       DATA_DIR: /data
+      NODE_OPTIONS: --dns-result-order=ipv4first
+    volumes:
+      - ./data:/data
     depends_on:
       postgres:
         condition: service_healthy
-    volumes:
-      - ./data:/data
     healthcheck:
       test:
         [
@@ -54,7 +59,30 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 20s
+      start_period: 25s
+    stop_grace_period: 20s
+    expose:
+      - "3000"
+    networks:
+      - adobos
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    image: adobos-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - adobos
 
 volumes:
   adobos_pgdata:
+
+networks:
+  adobos:
+    driver: bridge

@@ -14,12 +14,12 @@ Las comunidades de Discord actuales dependen de múltiples bots de terceros para
 
 ### 2. Arquitectura del Sistema e Infraestructura
 
-El sistema adopta una arquitectura "Todo en Uno" (All-in-One) empaquetada en un único contenedor Docker, optimizada para entornos auto-hospedados.
+El sistema se orquesta con Docker Compose en **tres servicios**: PostgreSQL, backend (Discord + API) y frontend (panel).
 
-* **Entorno de Desarrollo:** Computadora local con arquitectura ARM64 (Mac M1) utilizando OrbStack para virtualización de contenedores ligera y de alto rendimiento.
-* **Entorno de Producción:** Despliegue en servidor TrueNAS SCALE con arquitectura AMD64 (x86_64).
-* **Estrategia de Compilación:** Uso de `docker buildx` para compilación cruzada (cross-compilation), asegurando que las dependencias nativas (canvas) se compilen correctamente para el procesador del entorno de producción.
-* **Orquestación:** Un único `Dockerfile` multi-etapa construirá el frontend estático y lo inyectará en el backend. Un único proceso de Node.js mantendrá vivo el WebSocket de Discord y servirá el panel de administración web simultáneamente.
+* **Entorno de Desarrollo:** Computadora local (OrbStack / Docker Desktop). Astro en `:4321` hace proxy same-origin a la API.
+* **Entorno de Producción:** TrueNAS SCALE u otro host. nginx publica el panel y proxifica `/api`, `/auth` y `/uploads`; Postgres y el backend no se exponen al host.
+* **Estrategia de Compilación:** `docker buildx` para canvas nativo en ARM64 (dev) y AMD64 (prod).
+* **Orquestación:** `docker-compose.yml` (dev, hot reload) y `docker-compose.prod.yml` (imágenes multi-etapa).
 
 ---
 
@@ -103,8 +103,10 @@ adobos-bot/
 adobos-bot/
 ├── .env                        # Variables globales (Discord Token, Puertos)
 ├── .gitignore
-├── Dockerfile                  # El archivo mágico que une todo
-├── docker-compose.yml          # Para levantar el proyecto con OrbStack en 1 clic
+├── Dockerfile                  # Backend de producción (API + bot)
+├── docker-compose.yml          # Dev: postgres + backend + frontend
+├── docker-compose.prod.yml     # Prod: postgres interno + backend + nginx
+├── docker/                     # Dockerfile.dev, Dockerfile.frontend, nginx.conf
 ├── package.json                # Define los workspaces ("backend" y "frontend")
 │
 ├── backend/                    # EL CEREBRO (Bot + API + Base de datos)

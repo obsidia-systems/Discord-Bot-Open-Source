@@ -1,10 +1,9 @@
 # syntax=docker/dockerfile:1
-# Multi-stage + buildx: canvas nativo se compila en TARGETPLATFORM
-# (ARM64 local / AMD64 TrueNAS). Postgres llega por DATABASE_URL.
+# Backend prod: Discord gateway + API. El panel lo sirve el servicio `frontend`.
+# Canvas nativo se compila en TARGETPLATFORM (ARM64 local / AMD64 TrueNAS).
 
 ARG NODE_VERSION=22
 
-# ─── Base ───────────────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION}-bookworm-slim AS base
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates python3 make g++ fontconfig fonts-liberation \
@@ -12,51 +11,39 @@ RUN apt-get update \
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 WORKDIR /app
 
-# ─── Dependencias de workspace ───────────────────────────────────────────────
 FROM base AS deps
-COPY package.json pnpm-workspace.yaml .npmrc ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY packages/shared/package.json ./packages/shared/
 COPY backend/package.json ./backend/
 COPY frontend/package.json ./frontend/
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --filter @adobos/backend...
 
-# ─── Tipos compartidos ───────────────────────────────────────────────────────
 FROM deps AS shared-build
 COPY tsconfig.base.json ./
 COPY packages/shared ./packages/shared
 RUN pnpm --filter @adobos/shared build
 
-# ─── Frontend estático (Astro) ───────────────────────────────────────────────
-FROM shared-build AS frontend-build
-COPY frontend ./frontend
-RUN pnpm --filter @adobos/frontend build
-
-# ─── Backend TypeScript ──────────────────────────────────────────────────────
 FROM shared-build AS backend-build
 COPY backend ./backend
 RUN pnpm --filter @adobos/backend build
 
-# ─── Runtime (un solo proceso Node: Discord WS + panel web) ──────────────────
 FROM base AS runner
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
-ENV DATABASE_URL=postgresql://adobos:adobos@postgres:5432/adobos
+ENV SERVE_STATIC=false
 
 WORKDIR /app
 
-COPY package.json pnpm-workspace.yaml .npmrc ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY packages/shared/package.json ./packages/shared/
 COPY backend/package.json ./backend/
-
-# Instala prod deps en la arquitectura destino (canvas nativo correcto con buildx)
 RUN pnpm install --filter @adobos/backend... --prod --frozen-lockfile
 
 COPY --from=shared-build /app/packages/shared/dist ./packages/shared/dist
 COPY --from=backend-build /app/backend/dist ./backend/dist
 COPY --from=backend-build /app/backend/drizzle ./backend/drizzle
 COPY --from=backend-build /app/backend/assets ./backend/assets
-COPY --from=frontend-build /app/frontend/dist ./backend/public
 
 RUN mkdir -p /data \
   && chown -R node:node /app /data
