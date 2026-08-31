@@ -47,6 +47,38 @@ describe("mapHttpError", () => {
     expect(mapped.log).toBe(true);
   });
 
+  it("explica un price id inválido de Stripe", () => {
+    const error = Object.assign(new Error("No such price: 'prod_abc'"), {
+      name: "StripeInvalidRequestError",
+      type: "StripeInvalidRequestError",
+    });
+    const mapped = mapHttpError(error);
+    expect(mapped.status).toBe(400);
+    expect(mapped.body.code).toBe("STRIPE_INVALID_REQUEST");
+    expect(mapped.body.error).toMatch(/prod_/);
+    expect(mapped.log).toBe(false);
+  });
+
+  it("explica un price id de otra cuenta Stripe", () => {
+    const error = Object.assign(new Error("No such price: 'price_abc'"), {
+      name: "StripeInvalidRequestError",
+      type: "StripeInvalidRequestError",
+    });
+    const mapped = mapHttpError(error);
+    expect(mapped.status).toBe(400);
+    expect(mapped.body.error).toMatch(/misma cuenta/);
+  });
+
+  it("explica un customer de otra cuenta Stripe", () => {
+    const error = Object.assign(new Error("No such customer: 'cus_abc'"), {
+      name: "StripeInvalidRequestError",
+      type: "StripeInvalidRequestError",
+    });
+    const mapped = mapHttpError(error);
+    expect(mapped.status).toBe(400);
+    expect(mapped.body.error).toMatch(/customer/i);
+  });
+
   it("detecta límite de multer", () => {
     const error = Object.assign(new Error("too large"), {
       code: "LIMIT_FILE_SIZE",

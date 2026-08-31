@@ -1,8 +1,12 @@
 import type { Request } from "express";
 import rateLimit from "express-rate-limit";
 
-function skipHealth(req: Request): boolean {
-  return req.path === "/health" || req.path.startsWith("/health/");
+function skipPublic(req: Request): boolean {
+  return (
+    req.path === "/health" ||
+    req.path.startsWith("/health/") ||
+    req.path === "/billing/webhook"
+  );
 }
 
 /** Panel autenticado: 120 req/min por IP. */
@@ -11,7 +15,7 @@ export const apiRateLimiter = rateLimit({
   max: 120,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: skipHealth,
+  skip: skipPublic,
   message: {
     error: "Demasiadas peticiones. Espera un momento.",
     code: "RATE_LIMITED",

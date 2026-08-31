@@ -46,6 +46,16 @@ function isInvalidUpload(error: unknown): error is Error {
   );
 }
 
+function isStripeInvalidRequest(error: unknown): error is Error {
+  if (!(error instanceof Error)) return false;
+  const extra = error as Error & { type?: unknown; rawType?: unknown };
+  return (
+    error.name === "StripeInvalidRequestError" ||
+    extra.type === "StripeInvalidRequestError" ||
+    extra.rawType === "invalid_request_error"
+  );
+}
+
 export interface MappedHttpError {
   status: number;
   body: ApiErrorBody & {
@@ -107,6 +117,32 @@ export function mapHttpError(error: unknown): MappedHttpError {
       status: 400,
       body: { error: error.message, code: "INVALID_FILE" },
       log: false,
+    };
+  }
+
+  if (isStripeInvalidRequest(error)) {
+    const mentionsProd = /prod_/i.test(error.message);
+    const missingPrice = /No such price/i.test(error.message);
+    const missingCustomer = /No such customer/i.test(error.message);
+    let message =
+      "Stripe rechazó la petición. Revisa precios, Customer Portal o las claves de test.";
+    if (mentionsProd) {
+      message =
+        "Ese id es un producto de Stripe (prod_…), no un precio (price_…). Copia el Price ID en STRIPE_PRICE_PRO / STRIPE_PRICE_BUSINESS.";
+    } else if (missingPrice) {
+      message =
+        "Stripe no reconoce ese price id. Tiene que ser del mismo modo (Test) y de la misma cuenta que STRIPE_SECRET_KEY.";
+    } else if (missingCustomer) {
+      message =
+        "El customer de Stripe es de otra cuenta. Vuelve a intentar el checkout.";
+    }
+    return {
+      status: 400,
+      body: {
+        error: message,
+        code: "STRIPE_INVALID_REQUEST",
+      },
+      log: !mentionsProd && !missingPrice && !missingCustomer,
     };
   }
 

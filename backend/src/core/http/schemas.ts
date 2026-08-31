@@ -732,3 +732,7 @@ export const saveAutoJoinRolesSchema = z.object({
   humanRoles: snowflakeList,
   botRoles: snowflakeList,
 });
+
+export const billingCheckoutSchema = z.object({
+  tier: z.enum(["pro", "business"]),
+});

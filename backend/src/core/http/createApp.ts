@@ -11,6 +11,7 @@ import helmet from "helmet";
 import { healthRouter } from "../../api/routes/health.js";
 import { uploadRoutes } from "../../api/routes/uploads.routes.js";
 import { getUploadsRoot } from "../../lib/dataPaths.js";
+import { stripeWebhookHandler } from "../../modules/billing/webhook.js";
 import { authRouter, meRouter } from "../auth/oauth.js";
 import { entitlementsRoutes, requireFeature } from "../entitlements/index.js";
 import { logger } from "../log.js";
@@ -68,7 +69,11 @@ function corsOrigin(): string | string[] {
 }
 
 function isPublicApiPath(req: Request): boolean {
-  return req.path === "/health" || req.path.startsWith("/health/");
+  return (
+    req.path === "/health" ||
+    req.path.startsWith("/health/") ||
+    req.path === "/billing/webhook"
+  );
 }
 
 /**
@@ -85,7 +90,6 @@ export function createApp(options: CreateAppOptions): Express {
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(cors({ origin: corsOrigin(), credentials: true }));
   app.use(cookieParser());
-  app.use(express.json({ limit: "1mb" }));
   app.use((req, res, next) => {
     if (req.path === "/api/health" || req.path.startsWith("/api/health/")) {
       next();
@@ -106,6 +110,14 @@ export function createApp(options: CreateAppOptions): Express {
     });
     next();
   });
+
+  // Body crudo ANTES de express.json: constructEvent falla si el JSON ya está parseado.
+  app.post(
+    "/api/billing/webhook",
+    express.raw({ type: "application/json" }),
+    stripeWebhookHandler,
+  );
+  app.use(express.json({ limit: "1mb" }));
 
   app.use("/auth", authRateLimiter, authRouter());
   app.use("/api/health", healthRouter(options.bot));

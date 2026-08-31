@@ -1090,7 +1090,21 @@ export const oauthStates = pgTable("oauth_states", {
 });
 
 /**
- * Suscripción de un usuario Discord (Stripe rellenará status/periodo en 0.12).
+ * Usuario Discord ↔ customer de Stripe. El portal y checkout reutilizan este id.
+ */
+export const billingCustomers = pgTable("billing_customers", {
+  userId: text("user_id").primaryKey(),
+  stripeCustomerId: text("stripe_customer_id").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+/**
+ * Suscripción de un usuario Discord. Stripe (webhook) rellena status/periodo.
  * `can(guildId, feature)` no consulta esta tabla: lee `guild_entitlements`.
  */
 export const subscriptions = pgTable(
@@ -1098,6 +1112,9 @@ export const subscriptions = pgTable(
   {
     id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     userId: text("user_id").notNull(),
+    stripeCustomerId: text("stripe_customer_id"),
+    stripeSubscriptionId: text("stripe_subscription_id").unique(),
+    stripePriceId: text("stripe_price_id"),
     tier: text("tier").notNull().default("pro"),
     /** active | trialing | past_due | canceled | unpaid */
     status: text("status").notNull().default("active"),
@@ -1138,8 +1155,21 @@ export const guildEntitlements = pgTable(
   ],
 );
 
+/**
+ * Idempotencia de webhooks de Stripe (`event.id`).
+ */
+export const webhookEvents = pgTable("webhook_events", {
+  eventId: text("event_id").primaryKey(),
+  eventType: text("event_type").notNull(),
+  processedAt: timestamp("processed_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
 export type SubscriptionRow = typeof subscriptions.$inferSelect;
 export type GuildEntitlementRow = typeof guildEntitlements.$inferSelect;
+export type BillingCustomerRow = typeof billingCustomers.$inferSelect;
+export type WebhookEventRow = typeof webhookEvents.$inferSelect;
 
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [
