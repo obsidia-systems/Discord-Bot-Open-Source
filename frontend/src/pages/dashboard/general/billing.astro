@@ -1,0 +1,11 @@
+---
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { BillingDashboard } from "../../../features/billing";
+---
+
+<DashboardLayout
+  title="Plan y facturación"
+  description="Planes Gratis, Pro y Business. Una suscripción cubre varios servidores."
+>
+  <BillingDashboard client:load />
+</DashboardLayout>

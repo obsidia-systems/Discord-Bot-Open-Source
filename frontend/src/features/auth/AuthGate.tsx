@@ -104,9 +104,12 @@ export function AuthGate() {
         </select>
       </label>
       <div className="flex items-center gap-3">
-        <span className="rounded-md border border-border bg-background px-2 py-0.5 text-xs font-medium text-muted-foreground">
+        <a
+          href="/dashboard/general/billing"
+          className="rounded-md border border-border bg-background px-2 py-0.5 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-foreground"
+        >
           {PLAN_TIER_LABEL[tier]}
-        </span>
+        </a>
         <span className="truncate text-muted-foreground">{me.user.username}</span>
         <button
           type="button"

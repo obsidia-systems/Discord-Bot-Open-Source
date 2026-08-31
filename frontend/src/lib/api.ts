@@ -2,6 +2,13 @@
 export { API_BASE, apiFetch, readApiError, resolvePublicAssetUrl } from "./api/client";
 export { fetchMe, logout } from "./api/me";
 export { fetchEntitlements } from "./api/entitlements";
+export {
+  assignGuildToPlan,
+  fetchBilling,
+  startBillingPortal,
+  startCheckout,
+  unassignGuildFromPlan,
+} from "./api/billing";
 export { fetchHealth, fetchGuildAssets } from "./api/health";
 export { sendChannelMessage, sendEmbedMessage } from "./api/messages";
 export {

@@ -5,6 +5,7 @@ import {
   CalendarClock,
   CircleDollarSign,
   ClipboardList,
+  CreditCard,
   Dices,
   Gamepad2,
   Gift,
@@ -77,6 +78,12 @@ export const dashboardNav: NavCategoryConfig[] = [
         href: "/dashboard",
         icon: LayoutDashboard,
         blurb: "Estado del bot, API y accesos rápidos.",
+      },
+      {
+        label: "Plan y facturación",
+        href: "/dashboard/general/billing",
+        icon: CreditCard,
+        blurb: "Planes Gratis, Pro y Business. Checkout y portal de Stripe.",
       },
       {
         label: "Perfil del bot",
