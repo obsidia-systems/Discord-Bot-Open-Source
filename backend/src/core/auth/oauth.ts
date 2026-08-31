@@ -37,6 +37,12 @@ function clientId(): string {
 function clientSecret(): string {
   const secret = process.env.DISCORD_CLIENT_SECRET?.trim();
   if (!secret) throw new Error("DISCORD_CLIENT_SECRET no está definido.");
+  const botToken = process.env.DISCORD_TOKEN?.trim();
+  if (botToken && secret === botToken) {
+    throw new Error(
+      "DISCORD_CLIENT_SECRET no puede ser el token del bot. Usa OAuth2 → Client Secret en el portal de Discord.",
+    );
+  }
   return secret;
 }
 
@@ -119,7 +125,9 @@ export function authRouter(): Router {
       if (!tokenRes.ok) {
         const detail = await tokenRes.text();
         console.error("[adobos] Discord token error:", tokenRes.status, detail);
-        res.redirect("/login?error=oauth_token");
+        const isClient =
+          tokenRes.status === 401 || detail.includes("invalid_client");
+        res.redirect(`/login?error=${isClient ? "oauth_client" : "oauth_token"}`);
         return;
       }
       const tokenJson = (await tokenRes.json()) as { access_token?: string };
