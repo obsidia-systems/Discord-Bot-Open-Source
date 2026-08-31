@@ -6,8 +6,8 @@ export type ActionLogRoutingMode = "SIMPLE" | "ADVANCED";
 /** Alias legacy (migración GLOBAL→SIMPLE, CATEGORY→ADVANCED). */
 export type ActionLogRoutingModeLegacy = "GLOBAL" | "CATEGORY";
 
-/** 0 = sin límite (no recomendado). */
-export type ActionLogRetentionDays = 0 | 7 | 14 | 30;
+/** 0 = sin límite (legacy). 14 free · 90 pro · 365 business. */
+export type ActionLogRetentionDays = 0 | 7 | 14 | 30 | 90 | 365;
 
 export type ActionLogCategory =
   | "MESSAGES"
@@ -218,7 +218,8 @@ export const ACTION_LOG_RETENTION_OPTIONS: readonly {
   { value: 7, label: "7 días" },
   { value: 14, label: "14 días" },
   { value: 30, label: "30 días" },
-  { value: 0, label: "Sin límite (No recomendado)" },
+  { value: 90, label: "90 días" },
+  { value: 365, label: "1 año" },
 ] as const;
 
 export const ACTION_LOG_EMBED_COLORS: Record<ActionLogEmbedTone, number> = {
@@ -245,14 +246,26 @@ export function defaultActionLogChannelsMapping(): ActionLogChannelsMapping {
   };
 }
 
+const RETENTION_ALLOWED = new Set<number>([0, 7, 14, 30, 90, 365]);
+
 export function normalizeRetentionDays(
   value: unknown,
 ): ActionLogRetentionDays {
-  if (value === 0 || value === 7 || value === 14 || value === 30) return value;
-  if (value === "0" || value === "7" || value === "14" || value === "30") {
-    return Number(value) as ActionLogRetentionDays;
+  const n = typeof value === "string" ? Number(value) : value;
+  if (typeof n === "number" && RETENTION_ALLOWED.has(n)) {
+    return n as ActionLogRetentionDays;
   }
   return 14;
+}
+
+/** Recorta la retención configurada al tope del plan (`maxDays` < 0 = ilimitado). */
+export function clampRetentionDays(
+  configured: number,
+  maxDays: number,
+): number {
+  if (maxDays < 0) return configured;
+  if (configured <= 0) return maxDays;
+  return Math.min(configured, maxDays);
 }
 
 export function normalizeRoutingMode(
