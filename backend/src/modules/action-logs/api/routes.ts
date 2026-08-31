@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
+import { sendIfEntitlementError } from "../../../core/entitlements/service.js";
 import type {
   ApiErrorBody,
   UpdateActionLogsConfigRequest,
@@ -14,6 +15,7 @@ import {
 } from "../service.js";
 
 function handleError(error: unknown, res: import("express").Response): void {
+  if (sendIfEntitlementError(error, res)) return;
   if (error instanceof ActionLogsError) {
     const body: ApiErrorBody = {
       error: error.message,

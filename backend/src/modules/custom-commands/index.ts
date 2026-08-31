@@ -14,7 +14,9 @@ export const customCommandsModule: AdobosModule = {
     // Reservar nombres del catálogo nativo (no usables como custom).
     setReservedSlashCommandNames(listSystemCommandNames());
 
-    ctx.route("/api/custom-commands", customCommandsRoutes(ctx.client));
+    ctx.route("/api/custom-commands", customCommandsRoutes(ctx.client), {
+      feature: "custom-commands",
+    });
 
     ctx.once("ready", async () => {
       void (async () => {

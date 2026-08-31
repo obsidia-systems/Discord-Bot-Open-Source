@@ -1,6 +1,12 @@
 import type { ChatInputCommandInteraction, GuildMember } from "discord.js";
 import { PermissionFlagsBits } from "discord.js";
-import { getSystemCommandDefinition } from "@adobos/shared";
+import {
+  featureLockedMessage,
+  getSystemCommandDefinition,
+  tierHasFeature,
+} from "@adobos/shared";
+import { getGuildTier } from "../../core/entitlements/service.js";
+import { featureForCommandCategory } from "../../core/entitlements/features.js";
 import { getCommandPermission } from "./service.js";
 import { setInteractionEphemeral } from "./ephemeral.js";
 
@@ -86,6 +92,15 @@ export async function assertSystemCommandAllowed(
     return {
       ok: false,
       message: "❌ Este comando ha sido desactivado por los administradores.",
+    };
+  }
+
+  const tier = await getGuildTier(guildId);
+  const feature = featureForCommandCategory(def.category);
+  if (!tierHasFeature(tier, feature)) {
+    return {
+      ok: false,
+      message: `🔒 ${featureLockedMessage(tier, feature)}`,
     };
   }
 

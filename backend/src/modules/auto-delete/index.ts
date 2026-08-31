@@ -23,7 +23,9 @@ export const autoDeleteModule: AdobosModule = {
       await syncAutoDeleteJobsForConfig(config);
     });
 
-    ctx.route("/api/auto-delete", autoDeleteRoutes(ctx.client));
+    ctx.route("/api/auto-delete", autoDeleteRoutes(ctx.client), {
+      feature: "auto-delete",
+    });
     registerAutoDeleteListeners(ctx);
 
     ctx.once("ready", async () => {

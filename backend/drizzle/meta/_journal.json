@@ -8,6 +8,13 @@
       "when": 1788163506725,
       "tag": "0000_initial_postgres",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788165600024,
+      "tag": "0001_guild_entitlements",
+      "breakpoints": true
     }
   ]
 }

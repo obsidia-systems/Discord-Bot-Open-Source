@@ -7,7 +7,9 @@ export const systemCommandsModule: AdobosModule = {
   name: "Comandos del Sistema",
   intents: [GatewayIntentBits.Guilds],
   register(ctx) {
-    ctx.route("/api/system-commands", systemCommandsRoutes(ctx.client));
+    ctx.route("/api/system-commands", systemCommandsRoutes(ctx.client), {
+      feature: "system-commands",
+    });
   },
 };
 

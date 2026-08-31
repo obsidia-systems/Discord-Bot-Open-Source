@@ -1089,6 +1089,58 @@ export const oauthStates = pgTable("oauth_states", {
   expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
 });
 
+/**
+ * Suscripción de un usuario Discord (Stripe rellenará status/periodo en 0.12).
+ * `can(guildId, feature)` no consulta esta tabla: lee `guild_entitlements`.
+ */
+export const subscriptions = pgTable(
+  "subscriptions",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    userId: text("user_id").notNull(),
+    tier: text("tier").notNull().default("pro"),
+    /** active | trialing | past_due | canceled | unpaid */
+    status: text("status").notNull().default("active"),
+    currentPeriodEnd: timestamp("current_period_end", {
+      withTimezone: true,
+      mode: "date",
+    }),
+    cancelAt: timestamp("cancel_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [index("idx_subscriptions_user").on(table.userId)],
+);
+
+/**
+ * Plan efectivo por servidor. Fuente de verdad de `can()` / `limit()`.
+ * Sin fila = free. Stripe (0.12) actualiza esta tabla, nunca se consulta en caliente.
+ */
+export const guildEntitlements = pgTable(
+  "guild_entitlements",
+  {
+    guildId: text("guild_id").primaryKey(),
+    subscriptionId: integer("subscription_id").references(
+      () => subscriptions.id,
+      { onDelete: "set null" },
+    ),
+    tier: text("tier").notNull().default("free"),
+    assignedAt: timestamp("assigned_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index("idx_guild_entitlements_subscription").on(table.subscriptionId),
+  ],
+);
+
+export type SubscriptionRow = typeof subscriptions.$inferSelect;
+export type GuildEntitlementRow = typeof guildEntitlements.$inferSelect;
+
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [
   "minecraft",

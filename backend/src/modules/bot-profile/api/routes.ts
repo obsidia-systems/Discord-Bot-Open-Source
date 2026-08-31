@@ -3,6 +3,7 @@ import { Router } from "express";
 import type { Client } from "discord.js";
 import type { ApiErrorBody, UpdateBotGuildProfileRequest } from "@adobos/shared";
 import { guildIdOf } from "../../../core/http/guildContext.js";
+import { requireFeature } from "../../../core/entitlements/service.js";
 import {
   BotProfileError,
   getGuildBotProfile,
@@ -119,7 +120,7 @@ export function botProfileRoutes(bot: Client): Router {
     }
   });
 
-  router.post("/", async (req, res) => {
+  router.post("/", requireFeature("branding"), async (req, res) => {
     avatarUpload.single("serverAvatar")(req, res, async (err: unknown) => {
       if (err) {
         handleError(err, res);

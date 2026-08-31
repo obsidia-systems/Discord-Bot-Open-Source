@@ -10,9 +10,10 @@ import {
   normalizeScheduledFrequency,
   normalizeScheduledTimezone,
 } from "@adobos/shared";
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import { getDb, one } from "../../db/client.js";
 import { guildSettings, scheduledMessages } from "../../db/schema.js";
+import { assertWithinLimit } from "../../core/entitlements/service.js";
 
 export class ScheduledMessagesError extends Error {
   constructor(
@@ -186,6 +187,12 @@ export async function createScheduledMessage(
 ): Promise<ScheduledMessage> {
   const id = resolveGuildId(guildId);
   await ensureGuildRow(id);
+
+  const [usage] = await getDb()
+    .select({ n: count() })
+    .from(scheduledMessages)
+    .where(eq(scheduledMessages.guildId, id));
+  await assertWithinLimit(id, "scheduledMessages", usage?.n ?? 0);
 
   const channelId = normalizeSnowflake(input.channelId);
   const timezone = normalizeScheduledTimezone(input.timezone);

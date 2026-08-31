@@ -26,8 +26,14 @@ export const canvasEventsModule: AdobosModule = {
       void onGuildMemberUpdate(oldMember, newMember);
     });
 
-    ctx.route("/api/bot/leave", canvasEventSettingsRoutes("leave", ctx.client));
-    ctx.route("/api/bot/ban", canvasEventSettingsRoutes("ban", ctx.client));
-    ctx.route("/api/bot/boost", canvasEventSettingsRoutes("boost", ctx.client));
+    ctx.route("/api/bot/leave", canvasEventSettingsRoutes("leave", ctx.client), {
+      feature: "welcome",
+    });
+    ctx.route("/api/bot/ban", canvasEventSettingsRoutes("ban", ctx.client), {
+      feature: "welcome",
+    });
+    ctx.route("/api/bot/boost", canvasEventSettingsRoutes("boost", ctx.client), {
+      feature: "welcome",
+    });
   },
 };

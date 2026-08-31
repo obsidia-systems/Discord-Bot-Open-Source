@@ -13,7 +13,6 @@ import type {
   ActionLogEntry,
   ActionLogEventKey,
   ActionLogEventType,
-  ActionLogRetentionDays,
   ActionLogsConfig,
   ActionLogsHistoryQuery,
   ActionLogsHistoryResponse,
@@ -23,12 +22,20 @@ import type {
 import {
   defaultActionLogChannelsMapping,
   defaultActionLogEnabledEvents,
+  clampRetentionDays,
+  isUnlimited,
+  limitExceededMessage,
   normalizeChannelsMapping,
   normalizeRetentionDays,
   normalizeRoutingMode,
   type ActionLogEmbedTone,
 } from "@adobos/shared";
 import { getDb, one } from "../../db/client.js";
+import {
+  EntitlementError,
+  getGuildTier,
+  limit as guildLimit,
+} from "../../core/entitlements/service.js";
 import {
   actionLogs,
   actionLogsConfig,
@@ -271,6 +278,21 @@ export async function updateActionLogsConfig(
     ),
     updatedAt: new Date().toISOString(),
   };
+
+  const maxDays = await guildLimit(id, "logRetentionDays");
+  if (
+    !isUnlimited(maxDays) &&
+    (next.dataRetentionDays === 0 || next.dataRetentionDays > maxDays)
+  ) {
+    const tier = await getGuildTier(id);
+    throw new EntitlementError(
+      limitExceededMessage(tier, "logRetentionDays", maxDays),
+      403,
+      "LIMIT_EXCEEDED",
+      undefined,
+      "logRetentionDays",
+    );
+  }
 
   if (next.routingMode !== "SIMPLE" && next.routingMode !== "ADVANCED") {
     throw new ActionLogsError(
@@ -589,7 +611,8 @@ export async function recordActionLog(
 export async function purgeExpiredActionLogs(guildId?: string): Promise<number> {
   const id = resolveGuildId(guildId);
   const config = await getActionLogsConfig(id);
-  const days = config.dataRetentionDays as ActionLogRetentionDays;
+  const maxDays = await guildLimit(id, "logRetentionDays");
+  const days = clampRetentionDays(config.dataRetentionDays, maxDays);
   if (!days || days <= 0) return 0;
 
   const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);

@@ -1,3 +1,4 @@
+import type { FeatureKey } from "@adobos/shared";
 import type {
   APIApplicationCommandOption,
   ButtonInteraction,
@@ -39,7 +40,7 @@ export interface ModuleContext {
     event: K,
     handler: (...args: ClientEvents[K]) => void,
   ) => void;
-  route: (basePath: string, router: Router) => void;
+  route: (basePath: string, router: Router, opts?: { feature?: FeatureKey }) => void;
   command: (def: ChatInputCommandDefinition) => void;
   /** Prefijo o customId exacto. Prefijos terminan en `_` (ej. `autorole_`). */
   button: (prefixOrId: string, handler: ButtonHandler) => void;
@@ -59,4 +60,5 @@ export interface AdobosModule {
 export interface RegisteredRoute {
   basePath: string;
   router: Router;
+  feature?: FeatureKey;
 }

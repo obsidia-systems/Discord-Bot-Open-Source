@@ -70,11 +70,11 @@ export function createModuleRegistry(
           handler: handler as (...args: never[]) => void,
         });
       },
-      route(basePath, router) {
+      route(basePath, router, opts) {
         const normalized = basePath.startsWith("/")
           ? basePath
           : `/${basePath}`;
-        routes.push({ basePath: normalized, router });
+        routes.push({ basePath: normalized, router, feature: opts?.feature });
       },
       command(def) {
         if (commands.some((c) => c.name === def.name)) {

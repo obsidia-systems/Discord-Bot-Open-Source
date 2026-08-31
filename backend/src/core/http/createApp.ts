@@ -1,5 +1,5 @@
 import path from "node:path";
-import express, { type Express, type Request } from "express";
+import express, { type Express, type Request, type RequestHandler } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
@@ -10,6 +10,7 @@ import { uploadRoutes } from "../../api/routes/uploads.routes.js";
 import { getUploadsRoot } from "../../lib/dataPaths.js";
 import { authRouter, meRouter } from "../auth/oauth.js";
 import { requireAuth, requireGuildAccess } from "./guildContext.js";
+import { entitlementsRoutes, requireFeature } from "../entitlements/index.js";
 import {
   apiRateLimiter,
   authRateLimiter,
@@ -83,6 +84,7 @@ export function createApp(options: CreateAppOptions): Express {
     return requireAuth()(req, res, next);
   });
   app.use("/api/me", meRouter());
+  app.use("/api/entitlements", requireGuildAccess(), entitlementsRoutes());
   app.use(
     "/api/uploads",
     uploadRateLimiter,
@@ -91,7 +93,9 @@ export function createApp(options: CreateAppOptions): Express {
   );
 
   for (const entry of options.registry.routes) {
-    app.use(entry.basePath, requireGuildAccess(), entry.router);
+    const guards: RequestHandler[] = [requireGuildAccess()];
+    if (entry.feature) guards.push(requireFeature(entry.feature));
+    app.use(entry.basePath, ...guards, entry.router);
   }
 
   app.use("/uploads", requireAuth(), express.static(getUploadsRoot()));

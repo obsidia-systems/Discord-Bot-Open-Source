@@ -11,7 +11,9 @@ export const welcomeModule: AdobosModule = {
     ctx.on("guildMemberAdd", (member) => {
       void onGuildMemberAdd(member);
     });
-    ctx.route("/api/welcome-settings", welcomeSettingsRoutes(ctx.client));
+    ctx.route("/api/welcome-settings", welcomeSettingsRoutes(ctx.client), {
+      feature: "welcome",
+    });
   },
 };
 

@@ -1,3 +1,5 @@
+import type { FeatureKey, LimitKey, PlanTier } from "@adobos/shared";
+
 export interface PanelUser {
   id: string;
   username: string;
@@ -17,8 +19,9 @@ export interface ManagedGuild {
 export interface GuildContext {
   guildId: string;
   userId: string;
-  /** Stub hasta la capa de entitlements (Fase 3). */
-  tier: "free" | "pro" | "business";
+  tier: PlanTier;
+  can: (feature: FeatureKey) => boolean;
+  limit: (key: LimitKey) => number;
 }
 
 export interface StoredSession {

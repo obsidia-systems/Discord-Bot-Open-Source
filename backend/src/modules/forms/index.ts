@@ -12,7 +12,7 @@ export const formsModule: AdobosModule = {
     GatewayIntentBits.GuildMessages,
   ],
   register(ctx) {
-    ctx.route("/api/forms", formsRoutes(ctx.client));
+    ctx.route("/api/forms", formsRoutes(ctx.client), { feature: "forms" });
     ctx.button(FORM_OPEN_PREFIX, (interaction) => onFormsOpenButton(interaction),
     );
     ctx.modal(FORM_SUBMIT_PREFIX, (interaction) => onFormsModalSubmit(interaction, ctx.client),

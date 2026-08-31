@@ -26,7 +26,9 @@ export const scheduledMessagesModule: AdobosModule = {
       if (message) await syncScheduledJob(message);
     });
 
-    ctx.route("/api/scheduled-messages", scheduledMessagesRoutes(ctx.client));
+    ctx.route("/api/scheduled-messages", scheduledMessagesRoutes(ctx.client), {
+      feature: "scheduled-messages",
+    });
 
     ctx.once("ready", async () => {
       await rehydrateAllScheduledJobs();

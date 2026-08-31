@@ -13,7 +13,7 @@ export const pokemonModule: AdobosModule = {
   id: "pokemon",
   name: "Pokémon",
   register(ctx) {
-    ctx.route("/api/pokemon", pokemonRoutes(ctx.client));
+    ctx.route("/api/pokemon", pokemonRoutes(ctx.client), { feature: "pokemon" });
     ctx.button(LOCATION_PAGE_PREFIX, (interaction) => handleLocationPageButton(interaction),
     );
     // Select menus: mismo patrón que autoroles (no hay registry de selects).

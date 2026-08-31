@@ -4,6 +4,8 @@ import {
   type ChatInputCommandInteraction,
 } from "discord.js";
 import type { CustomCommand } from "@adobos/shared";
+import { featureLockedMessage } from "@adobos/shared";
+import { can, getGuildTier } from "../../core/entitlements/service.js";
 import { resolveEmbedMedia } from "../../lib/embedMedia.js";
 import { getCustomCommandByName } from "./service.js";
 import { parseCustomCommandVariables } from "./variables.js";
@@ -112,6 +114,15 @@ export async function handleCustomChatCommand(
     interaction.commandName,
   );
   if (!command) return false;
+
+  if (!(await can(interaction.guildId, "custom-commands"))) {
+    const tier = await getGuildTier(interaction.guildId);
+    await interaction.reply({
+      content: `🔒 ${featureLockedMessage(tier, "custom-commands")}`,
+      ephemeral: true,
+    });
+    return true;
+  }
 
   const permError = checkPermissions(interaction, command);
   if (permError) {

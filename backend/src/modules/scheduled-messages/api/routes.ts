@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
+import { sendIfEntitlementError } from "../../../core/entitlements/service.js";
 import { ChannelScopeError, fetchChannelInGuild } from "../../../core/http/channelScope.js";
 import type {
   ApiErrorBody,
@@ -18,6 +19,7 @@ import {
 } from "../service.js";
 
 function handleError(error: unknown, res: import("express").Response): void {
+  if (sendIfEntitlementError(error, res)) return;
   if (error instanceof ChannelScopeError) {
     const body: ApiErrorBody = {
       error: error.message,

@@ -3,6 +3,7 @@ import { decryptSecret } from "../auth/crypto.js";
 import { userManagesGuild } from "../auth/discordGuilds.js";
 import { readSessionFromRequest, redirectToLogin } from "../auth/oauth.js";
 import type { GuildContext } from "../auth/types.js";
+import { entitlementsOf, getGuildTier } from "../entitlements/service.js";
 import { isSnowflake } from "./snowflake.js";
 
 function extractGuildId(req: Request): unknown {
@@ -63,10 +64,14 @@ export function requireGuildAccess(): RequestHandler {
         return;
       }
 
+      const tier = await getGuildTier(raw);
+      const access = entitlementsOf(tier);
       const guild: GuildContext = {
         guildId: raw,
         userId: session.userId,
-        tier: "free",
+        tier,
+        can: access.can,
+        limit: access.limit,
       };
       req.guild = guild;
       // Canonizar: los servicios no deben leer un guildId distinto del autorizado.
