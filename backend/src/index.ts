@@ -35,8 +35,11 @@ async function main(): Promise<void> {
     );
   }
 
+  const servingPanel =
+    process.env.SERVE_STATIC !== "false" && process.env.SERVE_STATIC !== "0";
   app.listen(PORT, HOST, () => {
-    console.log(`[adobos] Panel + API en http://${HOST}:${PORT}`);
+    const kind = servingPanel ? "Panel + API" : "API";
+    console.log(`[adobos] ${kind} en http://${HOST}:${PORT}`);
   });
 }
 

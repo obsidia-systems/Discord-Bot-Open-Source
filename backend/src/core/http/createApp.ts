@@ -60,8 +60,10 @@ function isPublicApiPath(req: Request): boolean {
 }
 
 /**
- * Express kernel: health + auth + uploads + rutas de módulos + estáticos.
+ * Express kernel: health + auth + uploads + rutas de módulos.
  * /api/* (salvo health) exige sesión. Rutas de dominio exigen guild.
+ * El panel estático (Astro) lo sirve el servicio `frontend`, salvo SERVE_STATIC
+ * (p. ej. `pnpm start` local copiando frontend/dist → backend/public).
  */
 export function createApp(options: CreateAppOptions): Express {
   assertPanelEnv();
@@ -93,6 +95,12 @@ export function createApp(options: CreateAppOptions): Express {
   }
 
   app.use("/uploads", requireAuth(), express.static(getUploadsRoot()));
+
+  const serveStatic =
+    process.env.SERVE_STATIC !== "false" && process.env.SERVE_STATIC !== "0";
+  if (!serveStatic) {
+    return app;
+  }
 
   app.use((req, res, next) => {
     if (!req.path.startsWith("/dashboard")) return next();

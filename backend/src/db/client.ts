@@ -30,19 +30,46 @@ export async function initDatabase(): Promise<AppDatabase> {
   if (db) return db;
 
   const url = resolveDatabaseUrl();
-  const migrationClient = postgres(url, { max: 1 });
-  try {
-    await migrate(drizzle(migrationClient, { schema }), {
-      migrationsFolder: migrationsFolder(),
-    });
-  } finally {
-    await migrationClient.end({ timeout: 5 });
+  const folder = migrationsFolder();
+
+  for (let attempt = 1; attempt <= 8; attempt++) {
+    const migrationClient = postgres(url, { max: 1, connect_timeout: 10 });
+    try {
+      await migrate(drizzle(migrationClient, { schema }), {
+        migrationsFolder: folder,
+      });
+      await migrationClient.end({ timeout: 5 });
+
+      sql = postgres(url, { max: 10, idle_timeout: 20, max_lifetime: 60 * 30 });
+      db = drizzle(sql, { schema });
+      console.log("[adobos] Postgres listo");
+      return db;
+    } catch (error: unknown) {
+      await migrationClient.end({ timeout: 5 }).catch(() => undefined);
+      const code = errorCode(error);
+      const retryable =
+        code === "EAI_AGAIN" ||
+        code === "ECONNREFUSED" ||
+        code === "ENOTFOUND" ||
+        code === "ETIMEDOUT" ||
+        code === "CONNECT_TIMEOUT";
+      if (!retryable || attempt === 8) throw error;
+      const delay = Math.min(500 * 2 ** (attempt - 1), 5000);
+      console.warn(
+        `[adobos] Postgres no alcanzable (${code}); reintento ${attempt}/8 en ${delay}ms`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
   }
 
-  sql = postgres(url, { max: 10, idle_timeout: 20, max_lifetime: 60 * 30 });
-  db = drizzle(sql, { schema });
-  console.log("[adobos] Postgres listo");
-  return db;
+  throw new Error("No se pudo conectar a Postgres.");
+}
+
+function errorCode(error: unknown): string {
+  if (error && typeof error === "object" && "code" in error) {
+    return String((error as { code: unknown }).code);
+  }
+  return "";
 }
 
 export function getDb(): AppDatabase {
