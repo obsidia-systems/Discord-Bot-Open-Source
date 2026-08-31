@@ -18,7 +18,12 @@
     "start": "pnpm --filter @adobos/backend start",
     "db:generate": "pnpm --filter @adobos/backend db:generate",
     "db:migrate": "pnpm --filter @adobos/backend db:migrate",
-    "lint": "pnpm -r --if-present lint",
-    "typecheck": "pnpm -r --if-present typecheck"
+    "lint": "biome check backend/src/core packages/shared/src",
+    "format": "biome check --write backend/src/core packages/shared/src",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm --filter @adobos/backend test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.11"
   }
 }

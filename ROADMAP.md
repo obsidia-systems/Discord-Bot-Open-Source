@@ -24,7 +24,7 @@ línea de autenticación en el repo (`grep -riE "oauth|jwt|session|cookie"` → 
 | 0.7 | **Tabla `guild_entitlements` + capa de entitlements** (`can(guildId, "feature")`). Hecho: `core/entitlements/`, `GET /api/entitlements`, tiers free/pro/business, límites de retención y mensajes programados, branding Pro. Stripe (0.12) solo rellenará las filas. | `core/entitlements/` | M | INFRA |
 | 0.8 | **Validación con zod en el borde HTTP.** Hecho: `core/http/validate.ts` + `schemas.ts`, `parse`/`parseQuery` en las rutas JSON; 400 `{ error, issues }`. `guildId` sigue saliendo de `guildIdOf(req)`. Uploads multipart no tienen body JSON. | todos los `modules/*/api/routes.ts` | M | INFRA |
 | 0.9 | **Rate limiting** por IP + por usuario + por guild en la API, y por usuario en comandos costosos (canvas, leaderboards, Pokémon). | `core/http/`, `core/bot/interactionRouter.ts` | M | INFRA |
-| 0.10 | **Error handler centralizado + logging estructurado** (pino). Hoy cada módulo repite su propio `handleError` y usa `console.*`. | `core/http/`, 18 módulos | M | INFRA |
+| 0.10 | **Error handler centralizado + logging estructurado** (pino). Hecho: `core/http/errorHandler.ts` + `mapHttpError`, `core/log.ts` (pino). Las rutas hacen `next(err)`; 500 genérico, 4xx de dominio. | `core/http/`, 18 módulos | M | INFRA |
 | 0.11 | **Migración SQLite → Postgres.** Hecho: `pgTable`, pool `postgres.js`, queries async, Compose `postgres:16`, migración inicial `0000_initial_postgres.sql`. SQLite ya no arranca. | `db/client.ts`, `db/schema.ts`, `drizzle.config.ts`, `docker-compose.yml` | L | INFRA |
 | 0.12 | **Stripe Billing + webhook con verificación de firma** (`stripe.webhooks.constructEvent`, raw body). | nuevo `modules/billing/` | L | INFRA |
 
@@ -41,7 +41,7 @@ línea de autenticación en el repo (`grep -riE "oauth|jwt|session|cookie"` → 
 | 1.5 | **`cors({ origin: true })`** refleja cualquier `Origin` (`core/http/createApp.ts:22`). Con cookies de sesión sería CSRF trivial. Allowlist explícita. | `core/http/createApp.ts` | S | INFRA |
 | 1.6 | **`helmet({ contentSecurityPolicy: false })`** — CSP desactivada. | `core/http/createApp.ts:21` | S | INFRA |
 | 1.7 | **Uploads sin verificación de contenido real:** se confía en `file.mimetype` (cabecera del cliente) y se sirve el directorio entero con `express.static`. Validar magic bytes y re-encodear. Sin auth, hoy es un file-drop abierto. | `api/routes/uploads.routes.ts` | M | INFRA |
-| 1.8 | **Sin linter, sin formatter, sin tests, sin CI.** No hay `.eslintrc`, `.prettierrc`, `biome.json`, `.github/`, ni un solo `*.test.ts`. | raíz | M | INFRA |
+| 1.8 | **Sin linter, sin formatter, sin tests, sin CI.** Hecho: `biome.json` (core + shared), Vitest en `@adobos/backend`, GitHub Actions (typecheck + lint + test). | raíz | M | INFRA |
 | 1.9 | **`interactionRouter.ts` usa `await import()` dinámico en el hot path** de cada interacción (4 sitios). Mover a imports estáticos. | `core/bot/interactionRouter.ts` | S | INFRA |
 | 1.10 | **Handler de prueba en producción:** `test_button_1` responde "¡El botón interactivo funciona!" a cualquiera. | `core/bot/interactionRouter.ts:160` | S | INFRA |
 | 1.11 | **`ephemeral: true` está deprecado** en discord.js v14.17+; migrar a `flags: MessageFlags.Ephemeral` (≈50 usos). | transversal | S | INFRA |
