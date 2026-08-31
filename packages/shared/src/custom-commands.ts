@@ -154,8 +154,12 @@ export function normalizeCustomCommandEmbed(
   input: Partial<CustomCommandEmbed> | null | undefined,
 ): CustomCommandEmbed | null {
   if (!input) return null;
-  const title = String(input.title ?? "").trim().slice(0, 256);
-  const description = String(input.description ?? "").trim().slice(0, 4000);
+  const title = String(input.title ?? "")
+    .trim()
+    .slice(0, 256);
+  const description = String(input.description ?? "")
+    .trim()
+    .slice(0, 4000);
   const imageUrl = normalizeMediaRef(input.imageUrl);
   if (!title && !description && !imageUrl) return null;
   return {
@@ -247,7 +251,10 @@ export const CUSTOM_COMMAND_VARIABLE_GROUPS: {
       { token: "{user.username}", description: "Username" },
       { token: "{user.nick}", description: "Apodo en el servidor" },
       { token: "{user.avatar}", description: "URL del avatar" },
-      { token: "{user.createdAt}", description: "Fecha de creación de la cuenta" },
+      {
+        token: "{user.createdAt}",
+        description: "Fecha de creación de la cuenta",
+      },
       { token: "{user.joinedAt}", description: "Fecha de ingreso al servidor" },
       { token: "{user.level}", description: "Nivel (módulo Rangos)" },
       { token: "{user.xp}", description: "XP (módulo Rangos)" },

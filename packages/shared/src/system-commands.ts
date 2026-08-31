@@ -134,9 +134,7 @@ export function formatSystemCommandSyntax(
   const parts = def.options.map((p) =>
     p.required ? `<${p.name}>` : `[${p.name}]`,
   );
-  return parts.length > 0
-    ? `/${def.name} ${parts.join(" ")}`
-    : `/${def.name}`;
+  return parts.length > 0 ? `/${def.name} ${parts.join(" ")}` : `/${def.name}`;
 }
 
 function opt(
@@ -167,10 +165,16 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     options: [
       opt("usuario", "USER", true, "Miembro a banear."),
       opt("razon", "STRING", false, "Motivo del baneo."),
-      opt("borrar_dias", "INTEGER", false, "Borrar mensajes de los últimos N días (0–7).", {
-        minValue: 0,
-        maxValue: 7,
-      }),
+      opt(
+        "borrar_dias",
+        "INTEGER",
+        false,
+        "Borrar mensajes de los últimos N días (0–7).",
+        {
+          minValue: 0,
+          maxValue: 7,
+        },
+      ),
     ],
     supportsEphemeral: false,
     defaultEphemeral: false,
@@ -191,8 +195,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "timeout",
-    description:
-      "Aísla al usuario (mute nativo). Duración: 10m, 1h, 24h, etc.",
+    description: "Aísla al usuario (mute nativo). Duración: 10m, 1h, 24h, etc.",
     category: "moderation",
     defaultEnabled: true,
     options: [
@@ -289,7 +292,12 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     category: "moderation",
     defaultEnabled: true,
     options: [
-      opt("canal", "CHANNEL", false, "Canal a bloquear (por defecto el actual)."),
+      opt(
+        "canal",
+        "CHANNEL",
+        false,
+        "Canal a bloquear (por defecto el actual).",
+      ),
     ],
     supportsEphemeral: false,
     defaultEphemeral: false,
@@ -301,7 +309,12 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     category: "moderation",
     defaultEnabled: true,
     options: [
-      opt("canal", "CHANNEL", false, "Canal a desbloquear (por defecto el actual)."),
+      opt(
+        "canal",
+        "CHANNEL",
+        false,
+        "Canal a desbloquear (por defecto el actual).",
+      ),
     ],
     supportsEphemeral: false,
     defaultEphemeral: false,
@@ -314,9 +327,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     description: "Muestra el nivel, XP y ranking del usuario.",
     category: "levels",
     defaultEnabled: true,
-    options: [
-      opt("usuario", "USER", false, "Miembro a consultar (opcional)."),
-    ],
+    options: [opt("usuario", "USER", false, "Miembro a consultar (opcional).")],
     supportsEphemeral: true,
     defaultEphemeral: true,
     requiresAdminByDefault: false,
@@ -381,9 +392,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     description: "Muestra el dinero en cartera y banco.",
     category: "economy",
     defaultEnabled: true,
-    options: [
-      opt("usuario", "USER", false, "Miembro a consultar (opcional)."),
-    ],
+    options: [opt("usuario", "USER", false, "Miembro a consultar (opcional).")],
     supportsEphemeral: true,
     defaultEphemeral: true,
     requiresAdminByDefault: false,
@@ -733,17 +742,14 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
       "Muestra fecha de creación, ingreso, roles y permisos de un usuario.",
     category: "utilities",
     defaultEnabled: true,
-    options: [
-      opt("usuario", "USER", false, "Miembro a consultar (opcional)."),
-    ],
+    options: [opt("usuario", "USER", false, "Miembro a consultar (opcional).")],
     supportsEphemeral: true,
     defaultEphemeral: false,
     requiresAdminByDefault: false,
   },
   {
     name: "serverinfo",
-    description:
-      "Muestra boost, canales, roles, emojis y dueño del servidor.",
+    description: "Muestra boost, canales, roles, emojis y dueño del servidor.",
     category: "utilities",
     defaultEnabled: true,
     options: [],
@@ -756,9 +762,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     description: "Muestra el avatar global y de servidor en alta resolución.",
     category: "utilities",
     defaultEnabled: true,
-    options: [
-      opt("usuario", "USER", false, "Miembro a consultar (opcional)."),
-    ],
+    options: [opt("usuario", "USER", false, "Miembro a consultar (opcional).")],
     supportsEphemeral: true,
     defaultEphemeral: false,
     requiresAdminByDefault: false,

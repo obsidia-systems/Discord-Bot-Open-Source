@@ -85,7 +85,8 @@ export type CreateEconomyShopItemRequest = {
   guildId?: string;
 };
 
-export type UpdateEconomyShopItemRequest = Partial<CreateEconomyShopItemRequest>;
+export type UpdateEconomyShopItemRequest =
+  Partial<CreateEconomyShopItemRequest>;
 
 export type EconomyPurchaseStatus =
   | "fulfilled"
@@ -191,9 +192,7 @@ export function summarizeShopRewards(rewards: EconomyShopRewards): string[] {
   if (rewards.hasBoost) {
     const mod = rewards.boostConfig.module === "xp" ? "XP" : "Economía";
     const label = `Multiplicador x${rewards.boostConfig.multiplier} (${mod})`;
-    lines.push(
-      rewards.boostConfig.temporary ? `${label} · temporal` : label,
-    );
+    lines.push(rewards.boostConfig.temporary ? `${label} · temporal` : label);
   }
   if (rewards.hasManual) {
     lines.push("Entrega manual (staff)");

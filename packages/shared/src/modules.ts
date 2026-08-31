@@ -17,12 +17,7 @@ export type ModuleId =
   | "levels"
   | "roles-builder";
 
-export type PluginId =
-  | "minecraft"
-  | "osu"
-  | "valorant"
-  | "gachas"
-  | "alerts";
+export type PluginId = "minecraft" | "osu" | "valorant" | "gachas" | "alerts";
 
 export interface PluginMeta {
   id: PluginId;

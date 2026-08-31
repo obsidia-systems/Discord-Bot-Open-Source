@@ -175,9 +175,7 @@ export type AutoModFilterKey = keyof typeof AUTO_MOD_FILTER_LABELS;
 
 export const AUTO_MOD_TOGGLE_FILTER_COUNT = 9;
 
-export function normalizeWarnDecayDays(
-  value: unknown,
-): AutoModWarnDecayDays {
+export function normalizeWarnDecayDays(value: unknown): AutoModWarnDecayDays {
   const n = Math.round(Number(value));
   if (n === 0 || n === 14 || n === 30 || n === 60 || n === 90) return n;
   return 30;

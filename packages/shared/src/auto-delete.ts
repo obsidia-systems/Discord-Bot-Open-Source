@@ -98,7 +98,9 @@ export function clampCountdownDelay(
 export function normalizeAutoDeleteDelayUnit(
   value: unknown,
 ): AutoDeleteDelayUnit {
-  const raw = String(value ?? "").trim().toLowerCase();
+  const raw = String(value ?? "")
+    .trim()
+    .toLowerCase();
   if (raw === "minutes" || raw === "minutos" || raw === "m") return "minutes";
   if (raw === "hours" || raw === "horas" || raw === "h") return "hours";
   return "seconds";
@@ -107,7 +109,9 @@ export function normalizeAutoDeleteDelayUnit(
 export function normalizeAutoDeleteFilterType(
   value: unknown,
 ): AutoDeleteFilterType {
-  const raw = String(value ?? "").trim().toLowerCase();
+  const raw = String(value ?? "")
+    .trim()
+    .toLowerCase();
   if (raw === "bots_only" || raw === "bots" || raw === "solo_bots") {
     return "bots_only";
   }
@@ -122,7 +126,9 @@ export function normalizeAutoDeleteFilterType(
 }
 
 export function normalizeAutoDeleteMode(value: unknown): AutoDeleteMode {
-  const raw = String(value ?? "").trim().toUpperCase();
+  const raw = String(value ?? "")
+    .trim()
+    .toUpperCase();
   if (
     raw === "SCHEDULED" ||
     raw === "SCHEDULE" ||

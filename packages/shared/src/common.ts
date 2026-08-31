@@ -36,6 +36,9 @@ export interface ApiErrorBody {
   code?: string;
   /** Problemas de validación zod (borde HTTP). */
   issues?: Array<{ path: Array<string | number>; message: string }>;
+  feature?: string;
+  limit?: string;
+  tier?: string;
 }
 
 export interface GuildChannelAsset {

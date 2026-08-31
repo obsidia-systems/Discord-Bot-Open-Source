@@ -121,8 +121,7 @@ export function defaultInteractiveForm(guildId = ""): InteractiveForm {
     modalTitle: "Formulario",
     buttonLabel: "Abrir formulario",
     embedTitle: "Formulario del servidor",
-    embedDescription:
-      "Haz clic en el botón para completar el formulario.",
+    embedDescription: "Haz clic en el botón para completar el formulario.",
     embedColor: DEFAULT_FORMS_EMBED_COLOR,
     embedImageUrl: null,
     embedThumbnailUrl: null,
@@ -143,10 +142,10 @@ export function defaultFormsConfig(guildId = ""): InteractiveForm {
   return defaultInteractiveForm(guildId);
 }
 
-export function normalizeFormQuestionStyle(
-  value: unknown,
-): FormQuestionStyle {
-  const raw = String(value ?? "").trim().toUpperCase();
+export function normalizeFormQuestionStyle(value: unknown): FormQuestionStyle {
+  const raw = String(value ?? "")
+    .trim()
+    .toUpperCase();
   if (raw === "PARAGRAPH" || raw === "LONG" || raw === "MULTI") {
     return "PARAGRAPH";
   }

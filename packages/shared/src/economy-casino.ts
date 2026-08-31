@@ -89,9 +89,7 @@ export function defaultCasinoBlackjack(): EconomyCasinoBlackjackConfig {
   };
 }
 
-export function defaultEconomyCasinoConfig(
-  guildId = "",
-): EconomyCasinoConfig {
+export function defaultEconomyCasinoConfig(guildId = ""): EconomyCasinoConfig {
   return {
     guildId,
     isActive: false,

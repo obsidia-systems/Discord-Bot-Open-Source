@@ -173,9 +173,7 @@ export function defaultEconomyCrime(
   };
 }
 
-export function defaultEconomyIncomeConfig(
-  guildId = "",
-): EconomyIncomeConfig {
+export function defaultEconomyIncomeConfig(guildId = ""): EconomyIncomeConfig {
   return {
     guildId,
     dailyPay: 100,

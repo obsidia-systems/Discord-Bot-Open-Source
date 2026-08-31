@@ -142,7 +142,10 @@ export function detectLocalTimezone(): string {
 export function normalizeScheduledFrequencyType(
   value: unknown,
 ): ScheduledFrequencyType {
-  const raw = String(value ?? "").trim().toLowerCase().replace(/-/g, "_");
+  const raw = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/-/g, "_");
   if (raw === "weekly" || raw === "semanal") return "weekly";
   if (raw === "monthly" || raw === "mensual") return "monthly";
   if (
@@ -190,7 +193,14 @@ export function normalizeScheduledDate(
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
-  if (year < 1970 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) {
+  if (
+    year < 1970 ||
+    year > 2100 ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
+  ) {
     return fallback;
   }
   return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -232,10 +242,14 @@ export function normalizeScheduledEmbedData(
   const colorRaw = String(input.color ?? base.color).trim();
   let color = DEFAULT_SCHEDULED_EMBED_COLOR;
   if (/^#[0-9A-Fa-f]{6}$/.test(colorRaw)) color = colorRaw.toUpperCase();
-  else if (/^[0-9A-Fa-f]{6}$/.test(colorRaw)) color = `#${colorRaw.toUpperCase()}`;
+  else if (/^[0-9A-Fa-f]{6}$/.test(colorRaw))
+    color = `#${colorRaw.toUpperCase()}`;
 
   return {
-    title: String(input.title ?? base.title).trim().slice(0, 256) || base.title,
+    title:
+      String(input.title ?? base.title)
+        .trim()
+        .slice(0, 256) || base.title,
     description: String(input.description ?? base.description)
       .trim()
       .slice(0, 4000),

@@ -248,9 +248,7 @@ export function defaultActionLogChannelsMapping(): ActionLogChannelsMapping {
 
 const RETENTION_ALLOWED = new Set<number>([0, 7, 14, 30, 90, 365]);
 
-export function normalizeRetentionDays(
-  value: unknown,
-): ActionLogRetentionDays {
+export function normalizeRetentionDays(value: unknown): ActionLogRetentionDays {
   const n = typeof value === "string" ? Number(value) : value;
   if (typeof n === "number" && RETENTION_ALLOWED.has(n)) {
     return n as ActionLogRetentionDays;
@@ -268,9 +266,7 @@ export function clampRetentionDays(
   return Math.min(configured, maxDays);
 }
 
-export function normalizeRoutingMode(
-  value: unknown,
-): ActionLogRoutingMode {
+export function normalizeRoutingMode(value: unknown): ActionLogRoutingMode {
   if (value === "SIMPLE" || value === "ADVANCED") return value;
   if (value === "GLOBAL") return "SIMPLE";
   if (value === "CATEGORY") return "ADVANCED";

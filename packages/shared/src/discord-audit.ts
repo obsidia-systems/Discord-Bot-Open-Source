@@ -56,10 +56,7 @@ export interface DiscordAuditChangeItem {
 }
 
 /** Clasificación tras consolidar MemberRoleUpdate. */
-export type DiscordAuditRoleKind =
-  | "ROLE_ADD"
-  | "ROLE_REMOVE"
-  | "ROLE_UPDATE";
+export type DiscordAuditRoleKind = "ROLE_ADD" | "ROLE_REMOVE" | "ROLE_UPDATE";
 
 /** Rol resuelto desde caché de Discord (audit $add / $remove). */
 export interface DiscordAuditRoleRef {

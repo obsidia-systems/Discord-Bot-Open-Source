@@ -208,7 +208,10 @@ export function resolvePokeinfoFormat(
   value: string | null | undefined,
   defaultGeneration: number = 9,
 ): ResolvedPokeinfoFormat {
-  const genDefault = Math.max(1, Math.min(9, Math.floor(defaultGeneration) || 9));
+  const genDefault = Math.max(
+    1,
+    Math.min(9, Math.floor(defaultGeneration) || 9),
+  );
   const key = (value ?? "").trim().toLowerCase();
 
   if (!key) {
@@ -249,4 +252,3 @@ export function resolvePokeinfoFormat(
     useNatDex: false,
   };
 }
-

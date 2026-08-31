@@ -202,9 +202,7 @@ export function calculateBaseXPForLevel(level: number): number {
   if (n <= 0) return 0;
   // Σ_{i=0}^{n-1} (5i² + 50i + 100)
   return (
-    Math.floor((5 * n * (n - 1) * (2 * n - 1)) / 6) +
-    25 * n * (n - 1) +
-    100 * n
+    Math.floor((5 * n * (n - 1) * (2 * n - 1)) / 6) + 25 * n * (n - 1) + 100 * n
   );
 }
 
