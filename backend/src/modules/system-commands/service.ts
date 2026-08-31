@@ -9,7 +9,7 @@ import {
   getSystemCommandDefinition,
 } from "@adobos/shared";
 import { and, eq } from "drizzle-orm";
-import { getDb } from "../../db/client.js";
+import { getDb, one } from "../../db/client.js";
 import {
   defaultCommandPermissions,
   guildSettings,
@@ -51,14 +51,14 @@ function resolveGuildId(guildId?: string): string {
   return id;
 }
 
-function ensureGuildRow(guildId: string): void {
-  const existing = getDb()
+async function ensureGuildRow(guildId: string): Promise<void> {
+  const existing = await one(getDb()
     .select({ guildId: guildSettings.guildId })
     .from(guildSettings)
     .where(eq(guildSettings.guildId, guildId))
-    .get();
+    .limit(1));
   if (!existing) {
-    getDb()
+    await getDb()
       .insert(guildSettings)
       .values({
         guildId,
@@ -66,7 +66,7 @@ function ensureGuildRow(guildId: string): void {
         welcomeEnabled: false,
         updatedAt: new Date(),
       })
-      .run();
+      ;
   }
 }
 
@@ -105,11 +105,11 @@ function rowToPermission(
 }
 
 /** Permiso efectivo de un comando (defaults del catálogo si no hay fila). */
-export function getCommandPermission(
+export async function getCommandPermission(
   guildId: string,
   commandName: string,
-): SystemCommandPermission {
-  const row = getDb()
+): Promise<SystemCommandPermission> {
+  const row = await one(getDb()
     .select()
     .from(defaultCommandPermissions)
     .where(
@@ -118,21 +118,21 @@ export function getCommandPermission(
         eq(defaultCommandPermissions.commandName, commandName),
       ),
     )
-    .get();
+    .limit(1));
 
   return rowToPermission(guildId, commandName, row);
 }
 
 /** Lista catálogo + permisos guardados para el dashboard. */
-export function listSystemCommandConfigs(
+export async function listSystemCommandConfigs(
   guildId?: string,
-): SystemCommandConfig[] {
+): Promise<SystemCommandConfig[]> {
   const id = resolveGuildId(guildId);
-  const rows = getDb()
+  const rows = await getDb()
     .select()
     .from(defaultCommandPermissions)
     .where(eq(defaultCommandPermissions.guildId, id))
-    .all();
+    ;
 
   const byName = new Map(rows.map((r) => [r.commandName, r]));
 
@@ -150,12 +150,12 @@ export function listSystemCommandConfigs(
 }
 
 /** Upsert masivo de permisos (solo nombres del catálogo). */
-export function updateSystemCommandPermissions(
+export async function updateSystemCommandPermissions(
   input: UpdateSystemCommandsRequest,
   guildId?: string,
-): SystemCommandConfig[] {
+): Promise<SystemCommandConfig[]> {
   const id = resolveGuildId(guildId);
-  ensureGuildRow(id);
+  await ensureGuildRow(id);
 
   if (!Array.isArray(input.commands)) {
     throw new SystemCommandsError(
@@ -194,7 +194,7 @@ export function updateSystemCommandPermissions(
     const ephemeral = Boolean(item.ephemeral);
     const def = getSystemCommandDefinition(name)!;
 
-    getDb()
+    await getDb()
       .insert(defaultCommandPermissions)
       .values({
         guildId: id,
@@ -218,8 +218,8 @@ export function updateSystemCommandPermissions(
           updatedAt: now,
         },
       })
-      .run();
+      ;
   }
 
-  return listSystemCommandConfigs(id);
+  return await listSystemCommandConfigs(id);
 }

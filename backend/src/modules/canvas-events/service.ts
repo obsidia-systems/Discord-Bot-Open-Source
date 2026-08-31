@@ -7,7 +7,7 @@ import type {
   WelcomeTextLayer,
 } from "@adobos/shared";
 import { CANVAS_EVENT_TYPES } from "@adobos/shared";
-import { getDb } from "../../db/client.js";
+import { getDb, one } from "../../db/client.js";
 import { canvasEventSettings, guildSettings } from "../../db/schema.js";
 import {
   AVATAR_SIZE_MAX,
@@ -154,23 +154,25 @@ function normalizeHexColor(raw: string | undefined): string {
   );
 }
 
-function ensureGuildRow(guildId: string): void {
+async function ensureGuildRow(guildId: string): Promise<void> {
   const db = getDb();
-  const existing = db
+  const existing = await one(
+    db
     .select()
     .from(guildSettings)
     .where(eq(guildSettings.guildId, guildId))
-    .get();
+    .limit(1)
+  );
 
   if (!existing) {
-    db.insert(guildSettings)
+    await db.insert(guildSettings)
       .values({
         guildId,
         prefix: "!",
         welcomeEnabled: false,
         updatedAt: new Date(),
       })
-      .run();
+      ;
   }
 }
 
@@ -178,17 +180,17 @@ function defaultLayers(eventType: CanvasEventType): WelcomeTextLayer[] {
   return DEFAULT_LAYERS_BY_TYPE[eventType].map((layer) => ({ ...layer }));
 }
 
-export function getCanvasEventSettings(
+export async function getCanvasEventSettings(
   eventTypeRaw: string,
   guildIdRaw?: string,
-): CanvasEventSettingsResponse {
+): Promise<CanvasEventSettingsResponse> {
   const eventType = assertEventType(eventTypeRaw);
   const guildId = assertSnowflake(
     guildIdRaw?.trim() || "",
     "guildId",
   );
 
-  const row = getDb()
+  const row = await one(getDb()
     .select()
     .from(canvasEventSettings)
     .where(
@@ -197,7 +199,7 @@ export function getCanvasEventSettings(
         eq(canvasEventSettings.eventType, eventType),
       ),
     )
-    .get();
+    .limit(1));
 
   if (!row) {
     return {
@@ -246,10 +248,10 @@ export function getCanvasEventSettings(
   };
 }
 
-export function saveCanvasEventSettings(
+export async function saveCanvasEventSettings(
   eventTypeRaw: string,
   input: SaveCanvasEventSettingsRequest,
-): SaveCanvasEventSettingsResponse {
+): Promise<SaveCanvasEventSettingsResponse> {
   const eventType = assertEventType(eventTypeRaw);
   const guildId = assertSnowflake(input.guildId, "guildId");
   const channelIdRaw = input.channelId?.trim() || "";
@@ -315,7 +317,7 @@ export function saveCanvasEventSettings(
     );
   }
 
-  ensureGuildRow(guildId);
+  await ensureGuildRow(guildId);
 
   const first = textLayers[0];
   const second = textLayers[1];
@@ -343,7 +345,7 @@ export function saveCanvasEventSettings(
     updatedAt: now,
   };
 
-  const existing = db
+  const existing = await db
     .select()
     .from(canvasEventSettings)
     .where(
@@ -352,10 +354,10 @@ export function saveCanvasEventSettings(
         eq(canvasEventSettings.eventType, eventType),
       ),
     )
-    .get();
+    .limit(1);
 
   if (existing) {
-    db.update(canvasEventSettings)
+    await db.update(canvasEventSettings)
       .set(payload)
       .where(
         and(
@@ -363,25 +365,25 @@ export function saveCanvasEventSettings(
           eq(canvasEventSettings.eventType, eventType),
         ),
       )
-      .run();
+      ;
   } else {
-    db.insert(canvasEventSettings)
+    await db.insert(canvasEventSettings)
       .values({
         guildId,
         eventType,
         ...payload,
       })
-      .run();
+      ;
   }
 
   return { ok: true };
 }
 
-export function disableCanvasEventSettings(
+export async function disableCanvasEventSettings(
   eventType: CanvasEventType,
   guildId: string,
-): void {
-  getDb()
+): Promise<void> {
+  await getDb()
     .update(canvasEventSettings)
     .set({ isEnabled: false, updatedAt: new Date() })
     .where(
@@ -390,5 +392,5 @@ export function disableCanvasEventSettings(
         eq(canvasEventSettings.eventType, eventType),
       ),
     )
-    .run();
+    ;
 }

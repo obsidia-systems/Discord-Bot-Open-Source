@@ -23,7 +23,7 @@ async function replyPurchaseResult(
   member: GuildMember,
   itemId: string,
 ): Promise<void> {
-  const economy = getEconomyConfig(guild.id);
+  const economy = await getEconomyConfig(guild.id);
   const result = await purchaseShopItem(guild, member, itemId);
   const currency = economy.currencyName || "monedas";
   const statusNote =
@@ -94,7 +94,7 @@ export async function handleBuyAutocomplete(
   }
 
   const query = focused.value.trim().toLowerCase();
-  const matches = listShopItems(guildId, { enabledOnly: true })
+  const matches = (await listShopItems(guildId, { enabledOnly: true }))
     .filter((item) => item.stock === null || item.stock > 0)
     .filter(
       (item) => !query || item.name.toLowerCase().includes(query),
@@ -125,7 +125,7 @@ export async function handleBuyCommand(
     return;
   }
 
-  const economy = getEconomyConfig(interaction.guildId);
+  const economy = await getEconomyConfig(interaction.guildId);
   if (!economy.isActive) {
     await interaction.reply({
       content: "⛔ La economía está desactivada en este servidor.",
@@ -180,7 +180,7 @@ export async function handleBuyButton(
     return;
   }
 
-  const economy = getEconomyConfig(interaction.guildId);
+  const economy = await getEconomyConfig(interaction.guildId);
   if (!economy.isActive) {
     await interaction.reply({
       content: "⛔ La economía está desactivada en este servidor.",

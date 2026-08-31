@@ -22,7 +22,7 @@ export async function handleGiveXpCommand(
     return;
   }
 
-  const config = getLevelsConfigCached(interaction.guildId);
+  const config = await getLevelsConfigCached(interaction.guildId);
   if (!config.enabled) {
     await interaction.reply({
       content: "El módulo de Rangos y XP está desactivado en este servidor.",
@@ -42,7 +42,7 @@ export async function handleGiveXpCommand(
   }
 
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
-  const result = addUserXp(interaction.guildId, target.id, amount);
+  const result = await addUserXp(interaction.guildId, target.id, amount);
 
   const embed = new EmbedBuilder()
     .setColor(0x57f287)
@@ -87,7 +87,7 @@ export async function handleRemoveXpCommand(
     return;
   }
 
-  const config = getLevelsConfigCached(interaction.guildId);
+  const config = await getLevelsConfigCached(interaction.guildId);
   if (!config.enabled) {
     await interaction.reply({
       content: "El módulo de Rangos y XP está desactivado en este servidor.",
@@ -107,7 +107,7 @@ export async function handleRemoveXpCommand(
   }
 
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
-  const result = deductUserXp(interaction.guildId, target.id, amount);
+  const result = await deductUserXp(interaction.guildId, target.id, amount);
   const removed = Math.abs(result.gained);
 
   const embed = new EmbedBuilder()
@@ -153,7 +153,7 @@ export async function handleSetLevelCommand(
     return;
   }
 
-  const config = getLevelsConfigCached(interaction.guildId);
+  const config = await getLevelsConfigCached(interaction.guildId);
   if (!config.enabled) {
     await interaction.reply({
       content: "El módulo de Rangos y XP está desactivado en este servidor.",
@@ -173,7 +173,7 @@ export async function handleSetLevelCommand(
   }
 
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
-  const result = setUserLevel(interaction.guildId, target.id, level);
+  const result = await setUserLevel(interaction.guildId, target.id, level);
 
   const embed = new EmbedBuilder()
     .setColor(0x3b82f6)

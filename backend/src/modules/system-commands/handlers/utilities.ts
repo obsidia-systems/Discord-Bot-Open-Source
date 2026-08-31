@@ -97,7 +97,7 @@ export async function handleHelpCommand(
 
   const lines: string[] = [];
   for (const def of SYSTEM_COMMAND_CATALOG) {
-    const perm = getCommandPermission(guildId, def.name);
+    const perm = await getCommandPermission(guildId, def.name);
     if (!perm.enabled) continue;
     if (
       def.requiresAdminByDefault &&

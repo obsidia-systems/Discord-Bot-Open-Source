@@ -7,7 +7,7 @@ import {
 } from "discord.js";
 import { eq } from "drizzle-orm";
 import type { ActionLogWebhooksMapping } from "@adobos/shared";
-import { getDb } from "../../db/client.js";
+import { getDb, one } from "../../db/client.js";
 import { actionLogsConfig } from "../../db/schema.js";
 
 /** Nombre de creación del webhook en el canal (fallback legacy). */
@@ -25,45 +25,45 @@ function parseMapping(raw: string | undefined | null): ActionLogWebhooksMapping 
   }
 }
 
-function readWebhooksMapping(guildId: string): ActionLogWebhooksMapping {
-  const row = getDb()
+async function readWebhooksMapping(guildId: string): Promise<ActionLogWebhooksMapping> {
+  const row = await one(getDb()
     .select({ webhooksMapping: actionLogsConfig.webhooksMapping })
     .from(actionLogsConfig)
     .where(eq(actionLogsConfig.guildId, guildId))
-    .get();
+    .limit(1));
   return parseMapping(row?.webhooksMapping);
 }
 
-function writeWebhooksMapping(
+async function writeWebhooksMapping(
   guildId: string,
   mapping: ActionLogWebhooksMapping,
-): void {
-  getDb()
+): Promise<void> {
+  await getDb()
     .update(actionLogsConfig)
     .set({
       webhooksMapping: JSON.stringify(mapping),
       updatedAt: new Date(),
     })
     .where(eq(actionLogsConfig.guildId, guildId))
-    .run();
+    ;
 }
 
-function forgetWebhook(guildId: string, channelId: string): void {
-  const mapping = readWebhooksMapping(guildId);
+async function forgetWebhook(guildId: string, channelId: string): Promise<void> {
+  const mapping = await readWebhooksMapping(guildId);
   if (!(channelId in mapping)) return;
   delete mapping[channelId];
-  writeWebhooksMapping(guildId, mapping);
+  await writeWebhooksMapping(guildId, mapping);
 }
 
-function rememberWebhook(
+async function rememberWebhook(
   guildId: string,
   channelId: string,
   webhookId: string,
-): void {
-  const mapping = readWebhooksMapping(guildId);
+): Promise<void> {
+  const mapping = await readWebhooksMapping(guildId);
   if (mapping[channelId] === webhookId) return;
   mapping[channelId] = webhookId;
-  writeWebhooksMapping(guildId, mapping);
+  await writeWebhooksMapping(guildId, mapping);
 }
 
 function isUnknownWebhook(error: unknown): boolean {
@@ -119,21 +119,21 @@ async function resolveOrCreateWebhook(
   guildId: string,
   botAvatarURL?: string | null,
 ): Promise<Webhook> {
-  const mapping = readWebhooksMapping(guildId);
+  const mapping = await readWebhooksMapping(guildId);
   const cachedId = mapping[channel.id];
 
   const hooks = await channel.fetchWebhooks();
   if (cachedId) {
     const cached = hooks.get(cachedId);
     if (cached) return cached;
-    forgetWebhook(guildId, channel.id);
+    await forgetWebhook(guildId, channel.id);
   }
 
   const existing = [...hooks.values()].find(
     (hook) => LEGACY_WEBHOOK_NAMES.has(hook.name) && hook.token,
   );
   if (existing) {
-    rememberWebhook(guildId, channel.id, existing.id);
+    await rememberWebhook(guildId, channel.id, existing.id);
     return existing;
   }
 
@@ -142,7 +142,7 @@ async function resolveOrCreateWebhook(
     avatar: botAvatarURL ?? undefined,
     reason: "Adobos Action Logs — envío vía webhook",
   });
-  rememberWebhook(guildId, channel.id, created.id);
+  await rememberWebhook(guildId, channel.id, created.id);
   return created;
 }
 
@@ -202,7 +202,7 @@ export async function sendActionLogWebhook(
   } catch (error) {
     if (!isUnknownWebhook(error)) throw error;
 
-    forgetWebhook(input.guildId, input.channelId);
+    await forgetWebhook(input.guildId, input.channelId);
     webhook = await resolveOrCreateWebhook(
       textChannel,
       input.guildId,

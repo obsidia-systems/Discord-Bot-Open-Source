@@ -21,7 +21,7 @@ import type {
   SendMessageRequest,
   SendMessageResponse,
 } from "@adobos/shared";
-import { getDb } from "../../../db/client.js";
+import { getDb, one } from "../../../db/client.js";
 import { guildSettings, sentEmbeds } from "../../../db/schema.js";
 import {
   EmbedMediaError,
@@ -464,13 +464,13 @@ export async function sendEmbedMessage(
 
     let sentId: string | undefined;
     if (/^\d{17,20}$/.test(guildId)) {
-      const existingGuild = getDb()
+      const existingGuild = await one(getDb()
         .select()
         .from(guildSettings)
         .where(eq(guildSettings.guildId, guildId))
-        .get();
+        .limit(1));
       if (!existingGuild) {
-        getDb()
+        await getDb()
           .insert(guildSettings)
           .values({
             guildId,
@@ -478,7 +478,7 @@ export async function sendEmbedMessage(
             welcomeEnabled: false,
             updatedAt: new Date(),
           })
-          .run();
+          ;
       }
 
       sentId = randomUUID();
@@ -498,7 +498,7 @@ export async function sendEmbedMessage(
         components: input.components,
       };
       const now = new Date();
-      getDb()
+      await getDb()
         .insert(sentEmbeds)
         .values({
           id: sentId,
@@ -510,7 +510,7 @@ export async function sendEmbedMessage(
           createdAt: now,
           updatedAt: now,
         })
-        .run();
+        ;
     }
 
     return {

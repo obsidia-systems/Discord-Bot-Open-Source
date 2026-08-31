@@ -11,8 +11,8 @@ export const botProfileModule: AdobosModule = {
     // Alias de compatibilidad con el path anterior.
     ctx.route("/api/bot/profile", routes);
 
-    ctx.once("ready", () => {
-      restorePersistedPresence(ctx.client);
+    ctx.once("ready", async () => {
+      await restorePersistedPresence(ctx.client);
     });
   },
 };

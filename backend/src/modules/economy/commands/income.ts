@@ -70,8 +70,8 @@ export async function handleBalanceCommand(
 
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
   const target = interaction.options.getUser("usuario") ?? interaction.user;
-  const economy = getEconomyConfig(interaction.guildId);
-  const bal = getUserEconomyBalance(interaction.guildId, target.id);
+  const economy = await getEconomyConfig(interaction.guildId);
+  const bal = await getUserEconomyBalance(interaction.guildId, target.id);
   const currency = economy.currencyName || "monedas";
 
   const embed = new EmbedBuilder()
@@ -123,12 +123,12 @@ export async function handleDepositCommand(
   try {
     const raw = interaction.options.getString("cantidad", true);
     const amount = parseBankAmountInput(raw);
-    const result = depositToBank(
+    const result = await depositToBank(
       interaction.guildId,
       interaction.user.id,
       amount,
     );
-    const economy = getEconomyConfig(interaction.guildId);
+    const economy = await getEconomyConfig(interaction.guildId);
     const currency = economy.currencyName || "monedas";
 
     const embed = new EmbedBuilder()
@@ -182,12 +182,12 @@ export async function handleWithdrawCommand(
   try {
     const raw = interaction.options.getString("cantidad", true);
     const amount = parseBankAmountInput(raw);
-    const result = withdrawFromBank(
+    const result = await withdrawFromBank(
       interaction.guildId,
       interaction.user.id,
       amount,
     );
-    const economy = getEconomyConfig(interaction.guildId);
+    const economy = await getEconomyConfig(interaction.guildId);
     const currency = economy.currencyName || "monedas";
 
     const embed = new EmbedBuilder()
@@ -249,8 +249,8 @@ export async function handlePayCommand(
   await interaction.deferReply({ ephemeral });
 
   try {
-    const economy = getEconomyConfig(interaction.guildId);
-    const result = transferWalletPay(
+    const economy = await getEconomyConfig(interaction.guildId);
+    const result = await transferWalletPay(
       interaction.guildId,
       interaction.user.id,
       target.id,
@@ -301,8 +301,8 @@ async function handleFixedIncome(
   await interaction.deferReply({ ephemeral });
 
   try {
-    const economy = getEconomyConfig(interaction.guildId);
-    const income = getEconomyIncomeConfig(interaction.guildId);
+    const economy = await getEconomyConfig(interaction.guildId);
+    const income = await getEconomyIncomeConfig(interaction.guildId);
     const basePay =
       incomeType === "daily"
         ? income.dailyPay
@@ -310,7 +310,7 @@ async function handleFixedIncome(
           ? income.weeklyPay
           : income.monthlyPay;
 
-    const result = claimFixedIncome(
+    const result = await claimFixedIncome(
       interaction.guildId,
       interaction.user.id,
       incomeType,
@@ -396,10 +396,10 @@ export async function handleWorkCommand(
   await interaction.deferReply({ ephemeral });
 
   try {
-    assertCooldownAvailable(interaction.guildId, interaction.user.id, "work");
+    await assertCooldownAvailable(interaction.guildId, interaction.user.id, "work");
 
-    const economy = getEconomyConfig(interaction.guildId);
-    const income = getEconomyIncomeConfig(interaction.guildId);
+    const economy = await getEconomyConfig(interaction.guildId);
+    const income = await getEconomyIncomeConfig(interaction.guildId);
     if (income.jobs.length === 0) {
       throw new EconomyError(
         "No hay trabajos configurados. Un admin puede crearlos en el panel (Ingresos y Trabajos).",
@@ -410,8 +410,8 @@ export async function handleWorkCommand(
 
     const job = pickRandom(income.jobs);
     const payout = randomInt(job.minPay, job.maxPay);
-    const bal = creditWallet(interaction.guildId, interaction.user.id, payout);
-    setCooldownMinutes(
+    const bal = await creditWallet(interaction.guildId, interaction.user.id, payout);
+    await setCooldownMinutes(
       interaction.guildId,
       interaction.user.id,
       "work",
@@ -462,10 +462,10 @@ export async function handleCrimeCommand(
   await interaction.deferReply({ ephemeral });
 
   try {
-    assertCooldownAvailable(interaction.guildId, interaction.user.id, "crime");
+    await assertCooldownAvailable(interaction.guildId, interaction.user.id, "crime");
 
-    const economy = getEconomyConfig(interaction.guildId);
-    const income = getEconomyIncomeConfig(interaction.guildId);
+    const economy = await getEconomyConfig(interaction.guildId);
+    const income = await getEconomyIncomeConfig(interaction.guildId);
     if (income.crimes.length === 0) {
       throw new EconomyError(
         "No hay crímenes configurados. Un admin puede crearlos en el panel (Ingresos y Trabajos).",
@@ -485,7 +485,7 @@ export async function handleCrimeCommand(
 
     if (success) {
       const payout = randomInt(crime.minReward, crime.maxReward);
-      const bal = creditWallet(
+      const bal = await creditWallet(
         interaction.guildId,
         interaction.user.id,
         payout,
@@ -500,7 +500,7 @@ export async function handleCrimeCommand(
       color = 0x57f287;
     } else {
       const fine = randomInt(crime.minFine, crime.maxFine);
-      const bal = debitWallet(interaction.guildId, interaction.user.id, fine);
+      const bal = await debitWallet(interaction.guildId, interaction.user.id, fine);
       wallet = bal.wallet;
       description = applyEconomyMessageTemplate(crime.failMessage, {
         crime: crime.name,
@@ -511,7 +511,7 @@ export async function handleCrimeCommand(
       color = 0xef4444;
     }
 
-    setCooldownMinutes(
+    await setCooldownMinutes(
       interaction.guildId,
       interaction.user.id,
       "crime",
@@ -562,9 +562,9 @@ export async function handleBaltopCommand(
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
   await interaction.deferReply({ ephemeral });
 
-  const economy = getEconomyConfig(interaction.guildId);
+  const economy = await getEconomyConfig(interaction.guildId);
   const currency = economy.currencyName || "monedas";
-  const rows = listEconomyLeaderboardRows(interaction.guildId, 10);
+  const rows = await listEconomyLeaderboardRows(interaction.guildId, 10);
 
   if (rows.length === 0) {
     await interaction.editReply({
@@ -618,14 +618,14 @@ export async function handleAddMoneyCommand(
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
 
   try {
-    const result = adjustEconomyFunds({
+    const result = await adjustEconomyFunds({
       guildId: interaction.guildId,
       userId: target.id,
       target: "wallet",
       action: "add",
       amount,
     });
-    const economy = getEconomyConfig(interaction.guildId);
+    const economy = await getEconomyConfig(interaction.guildId);
     await interaction.reply({
       content: `Añadiste **${amount.toLocaleString("es-MX")}** ${economy.currencyName} a <@${target.id}>. Cartera: \`${result.wallet.toLocaleString("es-MX")}\`.`,
       ephemeral,
@@ -654,14 +654,14 @@ export async function handleRemoveMoneyCommand(
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
 
   try {
-    const result = adjustEconomyFunds({
+    const result = await adjustEconomyFunds({
       guildId: interaction.guildId,
       userId: target.id,
       target: "wallet",
       action: "remove",
       amount,
     });
-    const economy = getEconomyConfig(interaction.guildId);
+    const economy = await getEconomyConfig(interaction.guildId);
     await interaction.reply({
       content: `Quitaste **${amount.toLocaleString("es-MX")}** ${economy.currencyName} a <@${target.id}>. Cartera: \`${result.wallet.toLocaleString("es-MX")}\`.`,
       ephemeral,

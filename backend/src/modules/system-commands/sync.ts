@@ -53,18 +53,21 @@ function toSlashBody(
  * Catálogo filtrado por permisos de la guild (`enabled !== false`).
  * El registro en Discord es global; esto solo alimenta el panel / guard.
  */
-export function listEnabledDefaultCommands(guildId: string) {
-  return SYSTEM_COMMAND_CATALOG.filter((def) => {
-    const perm = getCommandPermission(guildId, def.name);
-    return perm.enabled;
-  });
+export async function listEnabledDefaultCommands(guildId: string) {
+  const enabled: SystemCommandDefinition[] = [];
+  for (const def of SYSTEM_COMMAND_CATALOG) {
+    const perm = await getCommandPermission(guildId, def.name);
+    if (perm.enabled) enabled.push(def);
+  }
+  return enabled;
 }
 
 /** Cuerpos REST de slash nativos habilitados en una guild (panel / compat). */
-export function buildEnabledDefaultSlashBodies(
+export async function buildEnabledDefaultSlashBodies(
   guildId: string,
-): RESTPostAPIChatInputApplicationCommandsJSONBody[] {
-  return listEnabledDefaultCommands(guildId).map(toSlashBody);
+): Promise<RESTPostAPIChatInputApplicationCommandsJSONBody[]> {
+  const cmds = await listEnabledDefaultCommands(guildId);
+  return cmds.map(toSlashBody);
 }
 
 /** Catálogo nativo completo para registro global (enable/disable es el guard). */
@@ -100,5 +103,5 @@ export async function syncDefaultCommands(
   client: Client,
   _guildId?: string,
 ): Promise<number> {
-  return syncGlobalCommands(client);
+  return await syncGlobalCommands(client);
 }

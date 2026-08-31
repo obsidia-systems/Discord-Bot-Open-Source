@@ -6,7 +6,7 @@ import type {
   SaveEmbedTemplateRequest,
   SaveEmbedTemplateResponse,
 } from "@adobos/shared";
-import { getDb } from "../../../db/client.js";
+import { getDb, one } from "../../../db/client.js";
 import { embedTemplates, guildSettings } from "../../../db/schema.js";
 
 export class EmbedTemplateError extends Error {
@@ -39,22 +39,24 @@ function resolveGuildId(guildIdRaw?: string): string {
   );
 }
 
-function ensureGuildRow(guildId: string): void {
+async function ensureGuildRow(guildId: string): Promise<void> {
   const db = getDb();
-  const existing = db
+  const existing = await one(
+    db
     .select()
     .from(guildSettings)
     .where(eq(guildSettings.guildId, guildId))
-    .get();
+    .limit(1)
+  );
   if (!existing) {
-    db.insert(guildSettings)
+    await db.insert(guildSettings)
       .values({
         guildId,
         prefix: "!",
         welcomeEnabled: false,
         updatedAt: new Date(),
       })
-      .run();
+      ;
   }
 }
 
@@ -159,16 +161,16 @@ function toDetail(row: {
   };
 }
 
-export function listEmbedTemplates(
+export async function listEmbedTemplates(
   guildIdRaw?: string,
-): EmbedTemplateListResponse {
+): Promise<EmbedTemplateListResponse> {
   const guildId = resolveGuildId(guildIdRaw);
-  const rows = getDb()
+  const rows = await getDb()
     .select()
     .from(embedTemplates)
     .where(eq(embedTemplates.guildId, guildId))
     .orderBy(desc(embedTemplates.updatedAt))
-    .all();
+    ;
 
   return {
     templates: rows.map((row) => {
@@ -184,18 +186,18 @@ export function listEmbedTemplates(
   };
 }
 
-export function getEmbedTemplate(
+export async function getEmbedTemplate(
   id: number,
   guildIdRaw?: string,
-): EmbedTemplateDetail {
+): Promise<EmbedTemplateDetail> {
   const guildId = resolveGuildId(guildIdRaw);
-  const row = getDb()
+  const row = await one(getDb()
     .select()
     .from(embedTemplates)
     .where(
       and(eq(embedTemplates.id, id), eq(embedTemplates.guildId, guildId)),
     )
-    .get();
+    .limit(1));
 
   if (!row) {
     throw new EmbedTemplateError(
@@ -208,7 +210,7 @@ export function getEmbedTemplate(
   return toDetail(row);
 }
 
-export function saveEmbedTemplate(
+export async function saveEmbedTemplate(
   input: SaveEmbedTemplateRequest,
   uploadedPaths?: {
     imageUrl?: string;
@@ -216,7 +218,7 @@ export function saveEmbedTemplate(
     authorIconUrl?: string;
     footerIconUrl?: string;
   },
-): SaveEmbedTemplateResponse {
+): Promise<SaveEmbedTemplateResponse> {
   const guildId = resolveGuildId(input.guildId);
   const name = input.name.trim().slice(0, 80);
   if (!name) {
@@ -261,7 +263,7 @@ export function saveEmbedTemplate(
     );
   }
 
-  ensureGuildRow(guildId);
+  await ensureGuildRow(guildId);
   const db = getDb();
   const now = new Date();
   const json = JSON.stringify(embedData);
@@ -271,13 +273,13 @@ export function saveEmbedTemplate(
     if (!Number.isFinite(id)) {
       throw new EmbedTemplateError("id inválido.", 400, "INVALID_ID");
     }
-    const existing = db
+    const existing = await db
       .select()
       .from(embedTemplates)
       .where(
         and(eq(embedTemplates.id, id), eq(embedTemplates.guildId, guildId)),
       )
-      .get();
+      .limit(1);
     if (!existing) {
       throw new EmbedTemplateError(
         "Plantilla no encontrada.",
@@ -285,14 +287,14 @@ export function saveEmbedTemplate(
         "TEMPLATE_NOT_FOUND",
       );
     }
-    db.update(embedTemplates)
+    await db.update(embedTemplates)
       .set({ name, embedData: json, updatedAt: now })
       .where(eq(embedTemplates.id, id))
-      .run();
-    return { ok: true, template: getEmbedTemplate(id, guildId) };
+      ;
+    return { ok: true, template: await getEmbedTemplate(id, guildId) };
   }
 
-  const result = db
+  const [inserted] = await db
     .insert(embedTemplates)
     .values({
       guildId,
@@ -301,29 +303,34 @@ export function saveEmbedTemplate(
       createdAt: now,
       updatedAt: now,
     })
-    .run();
-
-  const insertedId = Number(result.lastInsertRowid);
-  return { ok: true, template: getEmbedTemplate(insertedId, guildId) };
+    .returning({ id: embedTemplates.id });
+  if (!inserted) {
+    throw new EmbedTemplateError(
+      "No se pudo guardar la plantilla.",
+      500,
+      "INSERT_FAILED",
+    );
+  }
+  return { ok: true, template: await getEmbedTemplate(inserted.id, guildId) };
 }
 
-export function deleteEmbedTemplate(
+export async function deleteEmbedTemplate(
   idRaw: string,
   guildIdRaw?: string,
-): { ok: true } {
+): Promise<{ ok: true }> {
   const guildId = resolveGuildId(guildIdRaw);
   const id = Number.parseInt(idRaw, 10);
   if (!Number.isFinite(id)) {
     throw new EmbedTemplateError("id inválido.", 400, "INVALID_ID");
   }
 
-  const existing = getDb()
+  const existing = await one(getDb()
     .select()
     .from(embedTemplates)
     .where(
       and(eq(embedTemplates.id, id), eq(embedTemplates.guildId, guildId)),
     )
-    .get();
+    .limit(1));
 
   if (!existing) {
     throw new EmbedTemplateError(
@@ -333,6 +340,6 @@ export function deleteEmbedTemplate(
     );
   }
 
-  getDb().delete(embedTemplates).where(eq(embedTemplates.id, id)).run();
+  await getDb().delete(embedTemplates).where(eq(embedTemplates.id, id));
   return { ok: true };
 }

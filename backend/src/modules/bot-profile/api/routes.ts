@@ -119,7 +119,7 @@ export function botProfileRoutes(bot: Client): Router {
     }
   });
 
-  router.post("/", (req, res) => {
+  router.post("/", async (req, res) => {
     avatarUpload.single("serverAvatar")(req, res, async (err: unknown) => {
       if (err) {
         handleError(err, res);

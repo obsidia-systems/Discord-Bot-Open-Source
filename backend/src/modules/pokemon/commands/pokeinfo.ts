@@ -88,7 +88,7 @@ export async function handlePokeinfoCommand(
   let defaultGeneration = 9;
 
   try {
-    const config = assertPokemonCommandAllowed(
+    const config = await assertPokemonCommandAllowed(
       interaction.guildId,
       "pokeinfo",
       interaction.channelId,
@@ -130,7 +130,7 @@ export async function handlePokeinfoCommand(
       /* nombre / formas / evolución opcionales */
     }
 
-    const displayName = resolveDisplayName(species, data.name, language);
+    const displayName = await resolveDisplayName(species, data.name, language);
     const idPadded = String(snapshot.id).padStart(3, "0");
     const primaryType = snapshot.types[0];
     const color = getTypeColor(primaryType, fallbackColor);

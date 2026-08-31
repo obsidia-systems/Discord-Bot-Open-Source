@@ -14,7 +14,7 @@ import {
   POKEMON_COMMAND_NAMES,
 } from "@adobos/shared";
 import { eq } from "drizzle-orm";
-import { getDb } from "../../db/client.js";
+import { getDb, one } from "../../db/client.js";
 import { guildSettings, pluginPokemonConfig } from "../../db/schema.js";
 
 export class PokemonError extends Error {
@@ -40,14 +40,14 @@ function resolveGuildId(guildId?: string): string {
   return id;
 }
 
-function ensureGuildRow(guildId: string): void {
-  const existing = getDb()
+async function ensureGuildRow(guildId: string): Promise<void> {
+  const existing = await one(getDb()
     .select({ guildId: guildSettings.guildId })
     .from(guildSettings)
     .where(eq(guildSettings.guildId, guildId))
-    .get();
+    .limit(1));
   if (!existing) {
-    getDb()
+    await getDb()
       .insert(guildSettings)
       .values({
         guildId,
@@ -55,7 +55,7 @@ function ensureGuildRow(guildId: string): void {
         welcomeEnabled: false,
         updatedAt: new Date(),
       })
-      .run();
+      ;
   }
 }
 
@@ -101,22 +101,22 @@ function rowToConfig(
   };
 }
 
-export function getPokemonConfig(guildId?: string): PokemonConfig {
+export async function getPokemonConfig(guildId?: string): Promise<PokemonConfig> {
   const id = resolveGuildId(guildId);
-  const row = getDb()
+  const row = await one(getDb()
     .select()
     .from(pluginPokemonConfig)
     .where(eq(pluginPokemonConfig.guildId, id))
-    .get();
-  return rowToConfig(id, row);
+    .limit(1));
+  return await rowToConfig(id, row);
 }
 
-export function updatePokemonConfig(
+export async function updatePokemonConfig(
   input: UpdatePokemonConfigRequest,
-): PokemonConfig {
+): Promise<PokemonConfig> {
   const id = resolveGuildId(input.guildId);
-  ensureGuildRow(id);
-  const current = getPokemonConfig(id);
+  await ensureGuildRow(id);
+  const current = await getPokemonConfig(id);
 
   const next: PokemonConfig = {
     guildId: id,
@@ -153,7 +153,7 @@ export function updatePokemonConfig(
   };
 
   const now = new Date();
-  getDb()
+  await getDb()
     .insert(pluginPokemonConfig)
     .values({
       guildId: id,
@@ -181,7 +181,7 @@ export function updatePokemonConfig(
         updatedAt: now,
       },
     })
-    .run();
+    ;
 
   return next;
 }
@@ -197,13 +197,13 @@ export interface PokemonAccessContext {
  * Valida plugin activo, comando habilitado, canal y roles permitidos.
  * `allowedRoles` vacío = cualquiera del servidor.
  */
-export function assertPokemonCommandAllowed(
+export async function assertPokemonCommandAllowed(
   guildId: string,
   commandName: string,
   channelId: string | null,
   access: PokemonAccessContext = {},
-): PokemonConfig {
-  const config = getPokemonConfig(guildId);
+): Promise<PokemonConfig> {
+  const config = await getPokemonConfig(guildId);
   if (!config.isActive) {
     throw new PokemonError(
       "⛔ El plugin Pokémon está desactivado en este servidor.",

@@ -10,7 +10,7 @@ import {
   defaultEconomyConfig,
 } from "@adobos/shared";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { getDb } from "../../db/client.js";
+import { getDb, one } from "../../db/client.js";
 import {
   economyConfig,
   guildSettings,
@@ -40,14 +40,14 @@ function resolveGuildId(guildId?: string): string {
   return id;
 }
 
-function ensureGuildRow(guildId: string): void {
-  const existing = getDb()
+async function ensureGuildRow(guildId: string): Promise<void> {
+  const existing = await one(getDb()
     .select({ guildId: guildSettings.guildId })
     .from(guildSettings)
     .where(eq(guildSettings.guildId, guildId))
-    .get();
+    .limit(1));
   if (!existing) {
-    getDb()
+    await getDb()
       .insert(guildSettings)
       .values({
         guildId,
@@ -55,7 +55,7 @@ function ensureGuildRow(guildId: string): void {
         welcomeEnabled: false,
         updatedAt: new Date(),
       })
-      .run();
+      ;
   }
 }
 
@@ -74,22 +74,22 @@ function rowToConfig(
   };
 }
 
-export function getEconomyConfig(guildId?: string): EconomyConfig {
+export async function getEconomyConfig(guildId?: string): Promise<EconomyConfig> {
   const id = resolveGuildId(guildId);
-  const row = getDb()
+  const row = await one(getDb()
     .select()
     .from(economyConfig)
     .where(eq(economyConfig.guildId, id))
-    .get();
-  return rowToConfig(id, row);
+    .limit(1));
+  return await rowToConfig(id, row);
 }
 
-export function updateEconomyConfig(
+export async function updateEconomyConfig(
   input: UpdateEconomyConfigRequest,
-): EconomyConfig {
+): Promise<EconomyConfig> {
   const id = resolveGuildId(input.guildId);
-  ensureGuildRow(id);
-  const current = getEconomyConfig(id);
+  await ensureGuildRow(id);
+  const current = await getEconomyConfig(id);
 
   const next: EconomyConfig = {
     guildId: id,
@@ -115,7 +115,7 @@ export function updateEconomyConfig(
   };
 
   const now = new Date();
-  getDb()
+  await getDb()
     .insert(economyConfig)
     .values({
       guildId: id,
@@ -137,23 +137,23 @@ export function updateEconomyConfig(
         updatedAt: now,
       },
     })
-    .run();
+    ;
 
   return next;
 }
 
-export function listEconomyLeaderboardRows(
+export async function listEconomyLeaderboardRows(
   guildId: string,
   limit = 100,
-): Array<{
+): Promise<Array<{
   rank: number;
   userId: string;
   wallet: number;
   bank: number;
   total: number;
-}> {
+}>> {
   const id = resolveGuildId(guildId);
-  const rows = getDb()
+  const rows = await getDb()
     .select({
       userId: userEconomy.userId,
       wallet: userEconomy.wallet,
@@ -166,7 +166,7 @@ export function listEconomyLeaderboardRows(
     .where(eq(userEconomy.guildId, id))
     .orderBy(desc(sql`(${userEconomy.wallet} + ${userEconomy.bank})`))
     .limit(Math.min(Math.max(limit, 1), 100))
-    .all();
+    ;
 
   return rows.map((row, i) => ({
     rank: i + 1,
@@ -177,34 +177,34 @@ export function listEconomyLeaderboardRows(
   }));
 }
 
-export function getEconomyLeaderboardTotal(guildId?: string): number {
+export async function getEconomyLeaderboardTotal(guildId?: string): Promise<number> {
   const id = resolveGuildId(guildId);
-  const row = getDb()
+  const row = await one(getDb()
     .select({ count: sql<number>`count(*)` })
     .from(userEconomy)
     .where(eq(userEconomy.guildId, id))
-    .get();
+    .limit(1));
   return Number(row?.count ?? 0);
 }
 
-function getOrCreateUserEconomy(
+async function getOrCreateUserEconomy(
   guildId: string,
   userId: string,
-): {
+): Promise<{
   wallet: number;
   bank: number;
   dailyStreak: number;
   lastDailyAt: Date | null;
   lastWeeklyAt: Date | null;
   lastMonthlyAt: Date | null;
-} {
-  const existing = getDb()
+}> {
+  const existing = await one(getDb()
     .select()
     .from(userEconomy)
     .where(
       and(eq(userEconomy.guildId, guildId), eq(userEconomy.userId, userId)),
     )
-    .get();
+    .limit(1));
   if (existing) {
     return {
       wallet: existing.wallet,
@@ -216,10 +216,10 @@ function getOrCreateUserEconomy(
     };
   }
 
-  const config = getEconomyConfig(guildId);
+  const config = await getEconomyConfig(guildId);
   const wallet = config.startBalance;
   const now = new Date();
-  getDb()
+  await getDb()
     .insert(userEconomy)
     .values({
       guildId,
@@ -232,7 +232,7 @@ function getOrCreateUserEconomy(
       lastMonthlyAt: null,
       updatedAt: now,
     })
-    .run();
+    ;
   return {
     wallet,
     bank: 0,
@@ -243,11 +243,11 @@ function getOrCreateUserEconomy(
   };
 }
 
-export function getUserEconomyBalance(
+export async function getUserEconomyBalance(
   guildId: string,
   userId: string,
-): { wallet: number; bank: number; total: number } {
-  const row = getOrCreateUserEconomy(guildId, userId);
+): Promise<{ wallet: number; bank: number; total: number }> {
+  const row = await getOrCreateUserEconomy(guildId, userId);
   return {
     wallet: row.wallet,
     bank: row.bank,
@@ -291,12 +291,12 @@ export function parseBankAmountInput(raw: string): number | "all" {
 }
 
 /** Cartera → banco (síncrono: validar + actualizar). */
-export function depositToBank(
+export async function depositToBank(
   guildId: string,
   userId: string,
   amountOrAll: number | "all",
-): BankTransferResult {
-  const current = getOrCreateUserEconomy(guildId, userId);
+): Promise<BankTransferResult> {
+  const current = await getOrCreateUserEconomy(guildId, userId);
   const moved =
     amountOrAll === "all" ? current.wallet : Math.floor(amountOrAll);
 
@@ -319,24 +319,24 @@ export function depositToBank(
   const bank = current.bank + moved;
   const now = new Date();
 
-  getDb()
+  await getDb()
     .update(userEconomy)
     .set({ wallet, bank, updatedAt: now })
     .where(
       and(eq(userEconomy.guildId, guildId), eq(userEconomy.userId, userId)),
     )
-    .run();
+    ;
 
   return { moved, wallet, bank, total: wallet + bank };
 }
 
 /** Banco → cartera (síncrono: validar + actualizar). */
-export function withdrawFromBank(
+export async function withdrawFromBank(
   guildId: string,
   userId: string,
   amountOrAll: number | "all",
-): BankTransferResult {
-  const current = getOrCreateUserEconomy(guildId, userId);
+): Promise<BankTransferResult> {
+  const current = await getOrCreateUserEconomy(guildId, userId);
   const moved = amountOrAll === "all" ? current.bank : Math.floor(amountOrAll);
 
   if (moved < 1) {
@@ -358,29 +358,29 @@ export function withdrawFromBank(
   const bank = current.bank - moved;
   const now = new Date();
 
-  getDb()
+  await getDb()
     .update(userEconomy)
     .set({ wallet, bank, updatedAt: now })
     .where(
       and(eq(userEconomy.guildId, guildId), eq(userEconomy.userId, userId)),
     )
-    .run();
+    ;
 
   return { moved, wallet, bank, total: wallet + bank };
 }
 
 /** Suma a la cartera (nunca negativo). */
-export function creditWallet(
+export async function creditWallet(
   guildId: string,
   userId: string,
   amount: number,
-): { wallet: number; bank: number } {
+): Promise<{ wallet: number; bank: number }> {
   const qty = Math.max(0, Math.floor(amount));
-  const current = getOrCreateUserEconomy(guildId, userId);
+  const current = await getOrCreateUserEconomy(guildId, userId);
   const wallet = current.wallet + qty;
   const bank = current.bank;
   const now = new Date();
-  getDb()
+  await getDb()
     .insert(userEconomy)
     .values({
       guildId,
@@ -397,29 +397,29 @@ export function creditWallet(
       target: [userEconomy.guildId, userEconomy.userId],
       set: { wallet, bank, updatedAt: now },
     })
-    .run();
+    ;
   return { wallet, bank };
 }
 
 /** Resta de la cartera; no baja de 0. */
-export function debitWallet(
+export async function debitWallet(
   guildId: string,
   userId: string,
   amount: number,
-): { wallet: number; bank: number; taken: number } {
+): Promise<{ wallet: number; bank: number; taken: number }> {
   const qty = Math.max(0, Math.floor(amount));
-  const current = getOrCreateUserEconomy(guildId, userId);
+  const current = await getOrCreateUserEconomy(guildId, userId);
   const taken = Math.min(current.wallet, qty);
   const wallet = current.wallet - taken;
   const bank = current.bank;
   const now = new Date();
-  getDb()
+  await getDb()
     .update(userEconomy)
     .set({ wallet, bank, updatedAt: now })
     .where(
       and(eq(userEconomy.guildId, guildId), eq(userEconomy.userId, userId)),
     )
-    .run();
+    ;
   return { wallet, bank, taken };
 }
 
@@ -427,11 +427,11 @@ export function debitWallet(
  * Descuenta exactamente `amount` de la cartera o lanza si no hay saldo.
  * Transacción SQLite para evitar condiciones de carrera simples.
  */
-export function debitWalletStrict(
+export async function debitWalletStrict(
   guildId: string,
   userId: string,
   amount: number,
-): { wallet: number; bank: number } {
+): Promise<{ wallet: number; bank: number }> {
   const qty = Math.floor(amount);
   if (!Number.isFinite(qty) || qty < 1) {
     throw new EconomyError(
@@ -441,8 +441,35 @@ export function debitWalletStrict(
     );
   }
 
-  return getDb().transaction(() => {
-    const current = getOrCreateUserEconomy(guildId, userId);
+  return getDb().transaction(async (tx) => {
+    const existing = await one(
+      tx
+        .select()
+        .from(userEconomy)
+        .where(
+          and(eq(userEconomy.guildId, guildId), eq(userEconomy.userId, userId)),
+        )
+        .limit(1),
+    );
+    let current = existing
+      ? { wallet: existing.wallet, bank: existing.bank }
+      : null;
+    if (!current) {
+      const config = await getEconomyConfig(guildId);
+      const nowInsert = new Date();
+      await tx.insert(userEconomy).values({
+        guildId,
+        userId,
+        wallet: config.startBalance,
+        bank: 0,
+        dailyStreak: 0,
+        lastDailyAt: null,
+        lastWeeklyAt: null,
+        lastMonthlyAt: null,
+        updatedAt: nowInsert,
+      });
+      current = { wallet: config.startBalance, bank: 0 };
+    }
     if (current.wallet < qty) {
       throw new EconomyError(
         `Saldo insuficiente en cartera (tienes ${current.wallet.toLocaleString("es-MX")}).`,
@@ -453,30 +480,29 @@ export function debitWalletStrict(
     const wallet = current.wallet - qty;
     const bank = current.bank;
     const now = new Date();
-    getDb()
+    await tx
       .update(userEconomy)
       .set({ wallet, bank, updatedAt: now })
       .where(
         and(eq(userEconomy.guildId, guildId), eq(userEconomy.userId, userId)),
-      )
-      .run();
+      );
     return { wallet, bank };
   });
 }
 
-export function transferWalletPay(
+export async function transferWalletPay(
   guildId: string,
   fromUserId: string,
   toUserId: string,
   amount: number,
   taxPercent: number,
-): {
+): Promise<{
   sent: number;
   tax: number;
   received: number;
   fromWallet: number;
   toWallet: number;
-} {
+}> {
   const qty = Math.floor(amount);
   if (!Number.isFinite(qty) || qty < 1) {
     throw new EconomyError(
@@ -493,7 +519,7 @@ export function transferWalletPay(
     );
   }
 
-  const from = getOrCreateUserEconomy(guildId, fromUserId);
+  const from = await getOrCreateUserEconomy(guildId, fromUserId);
   if (from.wallet < qty) {
     throw new EconomyError(
       `Saldo insuficiente en cartera (tienes ${from.wallet}).`,
@@ -508,11 +534,11 @@ export function transferWalletPay(
   );
   const received = qty - tax;
 
-  getOrCreateUserEconomy(guildId, toUserId);
+  await getOrCreateUserEconomy(guildId, toUserId);
   const now = new Date();
   const fromWallet = from.wallet - qty;
 
-  getDb()
+  await getDb()
     .update(userEconomy)
     .set({ wallet: fromWallet, updatedAt: now })
     .where(
@@ -521,17 +547,17 @@ export function transferWalletPay(
         eq(userEconomy.userId, fromUserId),
       ),
     )
-    .run();
+    ;
 
-  const to = getOrCreateUserEconomy(guildId, toUserId);
+  const to = await getOrCreateUserEconomy(guildId, toUserId);
   const toWallet = to.wallet + received;
-  getDb()
+  await getDb()
     .update(userEconomy)
     .set({ wallet: toWallet, updatedAt: now })
     .where(
       and(eq(userEconomy.guildId, guildId), eq(userEconomy.userId, toUserId)),
     )
-    .run();
+    ;
 
   return {
     sent: qty,
@@ -568,15 +594,15 @@ const FIXED_INCOME_COOLDOWN_MS: Record<FixedIncomeType, number> = {
  * Reclama /daily, /weekly o /monthly (DRY).
  * Solo `daily` aplica sistema de rachas.
  */
-export function claimFixedIncome(
+export async function claimFixedIncome(
   guildId: string,
   userId: string,
   type: FixedIncomeType,
   basePay: number,
   streakEnabled: boolean,
   streakBonusPercent: number,
-): ClaimFixedIncomeResult {
-  const current = getOrCreateUserEconomy(guildId, userId);
+): Promise<ClaimFixedIncomeResult> {
+  const current = await getOrCreateUserEconomy(guildId, userId);
   const now = Date.now();
   const cooldownMs = FIXED_INCOME_COOLDOWN_MS[type];
 
@@ -618,7 +644,7 @@ export function claimFixedIncome(
   const bank = current.bank;
   const claimedAt = new Date(now);
 
-  getDb()
+  await getDb()
     .update(userEconomy)
     .set({
       wallet,
@@ -633,7 +659,7 @@ export function claimFixedIncome(
     .where(
       and(eq(userEconomy.guildId, guildId), eq(userEconomy.userId, userId)),
     )
-    .run();
+    ;
 
   return {
     type,
@@ -647,15 +673,15 @@ export function claimFixedIncome(
   };
 }
 
-/** @deprecated Usar `claimFixedIncome(..., "daily", ...)`. */
-export function claimDailyReward(
+/** @deprecated Usar `await claimFixedIncome(..., "daily", ...)`. */
+export async function claimDailyReward(
   guildId: string,
   userId: string,
   dailyPay: number,
   streakEnabled: boolean,
   streakBonusPercent: number,
-): ClaimFixedIncomeResult {
-  return claimFixedIncome(
+): Promise<ClaimFixedIncomeResult> {
+  return await claimFixedIncome(
     guildId,
     userId,
     "daily",
@@ -687,11 +713,11 @@ export function formatRemaining(ms: number): string {
   return `${seconds}s`;
 }
 
-export function adjustEconomyFunds(
+export async function adjustEconomyFunds(
   input: AdjustEconomyFundsRequest,
-): AdjustEconomyFundsResponse {
+): Promise<AdjustEconomyFundsResponse> {
   const id = resolveGuildId(input.guildId);
-  ensureGuildRow(id);
+  await ensureGuildRow(id);
 
   const userId = (input.userId ?? "").trim();
   if (!/^\d{17,20}$/.test(userId)) {
@@ -719,7 +745,7 @@ export function adjustEconomyFunds(
     throw new EconomyError("action inválida.", 400, "INVALID_ACTION");
   }
 
-  const current = getOrCreateUserEconomy(id, userId);
+  const current = await getOrCreateUserEconomy(id, userId);
   let wallet = current.wallet;
   let bank = current.bank;
 
@@ -733,7 +759,7 @@ export function adjustEconomyFunds(
   else bank = apply(bank);
 
   const now = new Date();
-  getDb()
+  await getDb()
     .insert(userEconomy)
     .values({
       guildId: id,
@@ -746,7 +772,7 @@ export function adjustEconomyFunds(
       target: [userEconomy.guildId, userEconomy.userId],
       set: { wallet, bank, updatedAt: now },
     })
-    .run();
+    ;
 
   return {
     ok: true,

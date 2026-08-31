@@ -14,7 +14,7 @@ import type {
   UpdateBotGuildProfileRequest,
   UpdateBotGuildProfileResponse,
 } from "@adobos/shared";
-import { getDb } from "../../db/client.js";
+import { getDb, one } from "../../db/client.js";
 import { botPresenceSettings } from "../../db/schema.js";
 import { resolvePublicUploadPath } from "../../lib/dataPaths.js";
 
@@ -116,13 +116,15 @@ function parseActivityType(raw: string): ActivityTypeName {
   return "Playing";
 }
 
-export function readPersistedPresence(): PersistedPresence | null {
+export async function readPersistedPresence(): Promise<PersistedPresence | null> {
   const db = getDb();
-  const row = db
+  const row = await one(
+    db
     .select()
     .from(botPresenceSettings)
     .where(eq(botPresenceSettings.id, PRESENCE_ROW_ID))
-    .get();
+    .limit(1)
+  );
 
   if (!row) return null;
 
@@ -173,10 +175,10 @@ function buildActivities(data: PersistedPresence): ActivitiesOptions[] {
 }
 
 /** Reaplica presencia guardada tras `ready` / reinicio (sin UI global). */
-export function restorePersistedPresence(bot: Client): void {
+export async function restorePersistedPresence(bot: Client): Promise<void> {
   try {
     if (!bot.isReady() || !bot.user) return;
-    const saved = readPersistedPresence();
+    const saved = await readPersistedPresence();
     if (!saved) {
       console.log("[adobos] Sin presencia persistida; se omite restore.");
       return;
@@ -232,7 +234,7 @@ export async function getBotProfile(
   bot: Client,
   guildId?: string,
 ): Promise<BotGuildProfileResponse> {
-  return getGuildBotProfile(bot, guildId);
+  return await getGuildBotProfile(bot, guildId);
 }
 
 function mapDiscordError(error: unknown): never {
@@ -388,5 +390,5 @@ export async function updateBotProfile(
   bot: Client,
   options: UpdateGuildBotProfileOptions,
 ): Promise<UpdateBotGuildProfileResponse> {
-  return updateGuildBotProfile(bot, options);
+  return await updateGuildBotProfile(bot, options);
 }

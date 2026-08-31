@@ -10,7 +10,7 @@ import {
   normalizeWarnDecayDays,
 } from "@adobos/shared";
 import { and, eq, gte, sql } from "drizzle-orm";
-import { getDb } from "../../db/client.js";
+import { getDb, one } from "../../db/client.js";
 import { autoModConfig, guildSettings, warnings } from "../../db/schema.js";
 import { actionLogsConfig } from "../../db/schema.js";
 import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
@@ -49,14 +49,14 @@ function resolveGuildId(guildId?: string): string {
   return id;
 }
 
-function ensureGuildRow(guildId: string): void {
-  const existing = getDb()
+async function ensureGuildRow(guildId: string): Promise<void> {
+  const existing = await one(getDb()
     .select({ guildId: guildSettings.guildId })
     .from(guildSettings)
     .where(eq(guildSettings.guildId, guildId))
-    .get();
+    .limit(1));
   if (!existing) {
-    getDb()
+    await getDb()
       .insert(guildSettings)
       .values({
         guildId,
@@ -64,7 +64,7 @@ function ensureGuildRow(guildId: string): void {
         welcomeEnabled: false,
         updatedAt: new Date(),
       })
-      .run();
+      ;
   }
 }
 
@@ -164,33 +164,33 @@ export function invalidateAutoModConfigCache(guildId?: string): void {
 }
 
 /** Lectura con caché en memoria; se invalida al guardar desde el Dashboard. */
-export function getAutoModConfigCached(guildId?: string): AutoModConfig {
+export async function getAutoModConfigCached(guildId?: string): Promise<AutoModConfig> {
   const id = resolveGuildId(guildId);
   const cached = configCache.get(id);
   if (cached) return cached;
 
-  const config = getAutoModConfig(id);
+  const config = await getAutoModConfig(id);
   configCache.set(id, config);
   return config;
 }
 
-export function getAutoModConfig(guildId?: string): AutoModConfig {
+export async function getAutoModConfig(guildId?: string): Promise<AutoModConfig> {
   const id = resolveGuildId(guildId);
-  const row = getDb()
+  const row = await one(getDb()
     .select()
     .from(autoModConfig)
     .where(eq(autoModConfig.guildId, id))
-    .get();
-  return rowToConfig(id, row);
+    .limit(1));
+  return await rowToConfig(id, row);
 }
 
-export function updateAutoModConfig(
+export async function updateAutoModConfig(
   input: UpdateAutoModConfigRequest,
   guildId?: string,
-): AutoModConfig {
+): Promise<AutoModConfig> {
   const id = resolveGuildId(guildId);
-  ensureGuildRow(id);
-  const current = getAutoModConfig(id);
+  await ensureGuildRow(id);
+  const current = await getAutoModConfig(id);
 
   const next: AutoModConfig = {
     guildId: id,
@@ -217,7 +217,7 @@ export function updateAutoModConfig(
     updatedAt: new Date().toISOString(),
   };
 
-  getDb()
+  await getDb()
     .insert(autoModConfig)
     .values({
       guildId: id,
@@ -243,35 +243,35 @@ export function updateAutoModConfig(
         updatedAt: new Date(),
       },
     })
-    .run();
+    ;
 
   invalidateAutoModConfigCache(id);
   // Recalentar caché con la config ya mergeada (evita race en messageCreate).
-  const saved = getAutoModConfig(id);
+  const saved = await getAutoModConfig(id);
   configCache.set(id, saved);
   return saved;
 }
 
 /** Cascada: Auto Mod log → Action Logs global → null. */
-export function resolveAutoModLogChannelId(guildId: string): string | null {
-  const auto = getAutoModConfigCached(guildId);
+export async function resolveAutoModLogChannelId(guildId: string): Promise<string | null> {
+  const auto = await getAutoModConfigCached(guildId);
   if (auto.logChannelId?.trim()) return auto.logChannelId.trim();
 
-  const actionRow = getDb()
+  const actionRow = await one(getDb()
     .select({ globalChannelId: actionLogsConfig.globalChannelId })
     .from(actionLogsConfig)
     .where(eq(actionLogsConfig.guildId, guildId))
-    .get();
+    .limit(1));
   const fallback = actionRow?.globalChannelId?.trim();
   return fallback || null;
 }
 
 /** Warns activos respetando caducidad (`warnDecayDays`; 0 = todos). */
-export function countActiveWarns(
+export async function countActiveWarns(
   guildId: string,
   userId: string,
   warnDecayDays: number,
-): number {
+): Promise<number> {
   const conditions = [
     eq(warnings.guildId, guildId),
     eq(warnings.userId, userId),
@@ -280,10 +280,10 @@ export function countActiveWarns(
     const cutoff = new Date(Date.now() - warnDecayDays * 24 * 60 * 60 * 1000);
     conditions.push(gte(warnings.createdAt, cutoff));
   }
-  const row = getDb()
+  const row = await one(getDb()
     .select({ count: sql<number>`count(*)` })
     .from(warnings)
     .where(and(...conditions))
-    .get();
+    .limit(1));
   return Number(row?.count ?? 0);
 }

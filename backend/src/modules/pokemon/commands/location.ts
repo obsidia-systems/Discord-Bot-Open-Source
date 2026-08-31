@@ -332,7 +332,7 @@ export async function handleLocationCommand(
   let language: "es" | "en" = "es";
 
   try {
-    const config = assertPokemonCommandAllowed(
+    const config = await assertPokemonCommandAllowed(
       interaction.guildId,
       "location",
       interaction.channelId,
@@ -370,7 +370,7 @@ export async function handleLocationCommand(
       /* nombre localizado opcional */
     }
 
-    const displayName = resolveDisplayName(species, data.name, language);
+    const displayName = await resolveDisplayName(species, data.name, language);
     const color = getTypeColor(data.types[0], fallbackColor);
 
     if (encounters.length === 0) {
@@ -435,7 +435,7 @@ async function updateLocationMessage(
   let language: "es" | "en" = "es";
 
   try {
-    const config = assertPokemonCommandAllowed(
+    const config = await assertPokemonCommandAllowed(
       interaction.guildId,
       "location",
       interaction.channelId,
@@ -463,7 +463,7 @@ async function updateLocationMessage(
       /* opcional */
     }
 
-    const displayName = resolveDisplayName(species, data.name, language);
+    const displayName = await resolveDisplayName(species, data.name, language);
     const color = getTypeColor(data.types[0], fallbackColor);
     const pages = encountersToPages(encounters);
 

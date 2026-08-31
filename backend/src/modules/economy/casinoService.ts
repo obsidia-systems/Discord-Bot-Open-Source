@@ -16,7 +16,7 @@ import {
   defaultEconomyCasinoConfig,
 } from "@adobos/shared";
 import { eq } from "drizzle-orm";
-import { getDb } from "../../db/client.js";
+import { getDb, one } from "../../db/client.js";
 import { economyCasino, guildSettings } from "../../db/schema.js";
 import { EconomyError } from "./service.js";
 
@@ -32,14 +32,14 @@ function resolveGuildId(guildId?: string): string {
   return id;
 }
 
-function ensureGuildRow(guildId: string): void {
-  const existing = getDb()
+async function ensureGuildRow(guildId: string): Promise<void> {
+  const existing = await one(getDb()
     .select({ guildId: guildSettings.guildId })
     .from(guildSettings)
     .where(eq(guildSettings.guildId, guildId))
-    .get();
+    .limit(1));
   if (!existing) {
-    getDb()
+    await getDb()
       .insert(guildSettings)
       .values({
         guildId,
@@ -47,7 +47,7 @@ function ensureGuildRow(guildId: string): void {
         welcomeEnabled: false,
         updatedAt: new Date(),
       })
-      .run();
+      ;
   }
 }
 
@@ -149,22 +149,22 @@ function rowToConfig(
   };
 }
 
-export function getEconomyCasinoConfig(guildId?: string): EconomyCasinoConfig {
+export async function getEconomyCasinoConfig(guildId?: string): Promise<EconomyCasinoConfig> {
   const id = resolveGuildId(guildId);
-  const row = getDb()
+  const row = await one(getDb()
     .select()
     .from(economyCasino)
     .where(eq(economyCasino.guildId, id))
-    .get();
-  return rowToConfig(id, row);
+    .limit(1));
+  return await rowToConfig(id, row);
 }
 
-export function updateEconomyCasinoConfig(
+export async function updateEconomyCasinoConfig(
   input: UpdateEconomyCasinoRequest,
-): EconomyCasinoConfig {
+): Promise<EconomyCasinoConfig> {
   const id = resolveGuildId(input.guildId);
-  ensureGuildRow(id);
-  const current = getEconomyCasinoConfig(id);
+  await ensureGuildRow(id);
+  const current = await getEconomyCasinoConfig(id);
 
   let minBet =
     typeof input.minBet === "number"
@@ -201,7 +201,7 @@ export function updateEconomyCasinoConfig(
   };
 
   const now = new Date();
-  getDb()
+  await getDb()
     .insert(economyCasino)
     .values({
       guildId: id,
@@ -225,17 +225,17 @@ export function updateEconomyCasinoConfig(
         updatedAt: now,
       },
     })
-    .run();
+    ;
 
   return next;
 }
 
 /** Valida apuesta contra límites del casino (para slash stubs / juegos). */
-export function assertCasinoBetAllowed(
+export async function assertCasinoBetAllowed(
   guildId: string,
   amount: number,
-): EconomyCasinoConfig {
-  const config = getEconomyCasinoConfig(guildId);
+): Promise<EconomyCasinoConfig> {
+  const config = await getEconomyCasinoConfig(guildId);
   if (!config.isActive) {
     throw new EconomyError(
       "⛔ El casino está desactivado en este servidor.",

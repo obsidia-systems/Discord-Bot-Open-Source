@@ -14,7 +14,7 @@ import {
   normalizeFormQuestionStyle,
 } from "@adobos/shared";
 import { and, count, desc, eq } from "drizzle-orm";
-import { getDb } from "../../db/client.js";
+import { getDb, one } from "../../db/client.js";
 import {
   formResponses,
   guildForms,
@@ -56,14 +56,14 @@ function resolveGuildId(guildId?: string): string {
   return id;
 }
 
-function ensureGuildRow(guildId: string): void {
-  const existing = getDb()
+async function ensureGuildRow(guildId: string): Promise<void> {
+  const existing = await one(getDb()
     .select({ guildId: guildSettings.guildId })
     .from(guildSettings)
     .where(eq(guildSettings.guildId, guildId))
-    .get();
+    .limit(1));
   if (!existing) {
-    getDb()
+    await getDb()
       .insert(guildSettings)
       .values({
         guildId,
@@ -71,7 +71,7 @@ function ensureGuildRow(guildId: string): void {
         welcomeEnabled: false,
         updatedAt: new Date(),
       })
-      .run();
+      ;
   }
 }
 
@@ -169,63 +169,66 @@ export function invalidateFormsCache(formId?: number): void {
   else formCache.clear();
 }
 
-export function listForms(guildId?: string): InteractiveForm[] {
+export async function listForms(guildId?: string): Promise<InteractiveForm[]> {
   const id = resolveGuildId(guildId);
-  ensureGuildRow(id);
-  const rows = getDb()
+  await ensureGuildRow(id);
+  const rows = await getDb()
     .select()
     .from(guildForms)
     .where(eq(guildForms.guildId, id))
-    .orderBy(desc(guildForms.updatedAt))
-    .all();
+    .orderBy(desc(guildForms.updatedAt));
 
-  return rows.map((row) => {
-    const countRow = getDb()
-      .select({ c: count() })
-      .from(formResponses)
-      .where(eq(formResponses.formId, row.id))
-      .get();
+  const forms: InteractiveForm[] = [];
+  for (const row of rows) {
+    const countRow = await one(
+      getDb()
+        .select({ c: count() })
+        .from(formResponses)
+        .where(eq(formResponses.formId, row.id))
+        .limit(1),
+    );
     const mapped = rowToForm(row, countRow?.c ?? 0);
     formCache.set(mapped.id, mapped);
-    return mapped;
-  });
+    forms.push(mapped);
+  }
+  return forms;
 }
 
-export function getForm(formId: number, guildId?: string): InteractiveForm {
+export async function getForm(formId: number, guildId?: string): Promise<InteractiveForm> {
   const gid = resolveGuildId(guildId);
-  const row = getDb()
+  const row = await one(getDb()
     .select()
     .from(guildForms)
     .where(and(eq(guildForms.id, formId), eq(guildForms.guildId, gid)))
-    .get();
+    .limit(1));
   if (!row) {
     throw new FormsError("Formulario no encontrado.", 404, "NOT_FOUND");
   }
-  const countRow = getDb()
+  const countRow = await one(getDb()
     .select({ c: count() })
     .from(formResponses)
     .where(eq(formResponses.formId, formId))
-    .get();
+    .limit(1));
   const mapped = rowToForm(row, countRow?.c ?? 0);
   formCache.set(mapped.id, mapped);
   return mapped;
 }
 
 /** Lookup por id (handlers Discord) sin exigir guild query. */
-export function getFormById(formId: number): InteractiveForm | null {
+export async function getFormById(formId: number): Promise<InteractiveForm | null> {
   const cached = formCache.get(formId);
   if (cached) return cached;
-  const row = getDb()
+  const row = await one(getDb()
     .select()
     .from(guildForms)
     .where(eq(guildForms.id, formId))
-    .get();
+    .limit(1));
   if (!row) return null;
-  const countRow = getDb()
+  const countRow = await one(getDb()
     .select({ c: count() })
     .from(formResponses)
     .where(eq(formResponses.formId, formId))
-    .get();
+    .limit(1));
   const mapped = rowToForm(row, countRow?.c ?? 0);
   formCache.set(mapped.id, mapped);
   return mapped;
@@ -292,17 +295,17 @@ function applyInput(
   };
 }
 
-export function createForm(
+export async function createForm(
   input: CreateFormRequest,
   guildId?: string,
-): InteractiveForm {
+): Promise<InteractiveForm> {
   const id = resolveGuildId(guildId);
-  ensureGuildRow(id);
+  await ensureGuildRow(id);
   const defaults = defaultInteractiveForm(id);
   const next = applyInput(defaults, input);
   const now = new Date();
 
-  const result = getDb()
+  const [inserted] = await getDb()
     .insert(guildForms)
     .values({
       guildId: id,
@@ -322,21 +325,28 @@ export function createForm(
       createdAt: now,
       updatedAt: now,
     })
-    .run();
+    .returning({ id: guildForms.id });
+  if (!inserted) {
+    throw new FormsError(
+      "No se pudo crear el formulario.",
+      500,
+      "INSERT_FAILED",
+    );
+  }
 
-  return getForm(Number(result.lastInsertRowid), id);
+  return await getForm(inserted.id, id);
 }
 
-export function updateForm(
+export async function updateForm(
   formId: number,
   input: UpdateFormRequest,
   guildId?: string,
-): InteractiveForm {
+): Promise<InteractiveForm> {
   const id = resolveGuildId(guildId);
-  const current = getForm(formId, id);
+  const current = await getForm(formId, id);
   const next = applyInput(current, input);
 
-  getDb()
+  await getDb()
     .update(guildForms)
     .set({
       modalTitle: next.modalTitle,
@@ -353,21 +363,21 @@ export function updateForm(
       updatedAt: new Date(),
     })
     .where(and(eq(guildForms.id, formId), eq(guildForms.guildId, id)))
-    .run();
+    ;
 
   invalidateFormsCache(formId);
-  return getForm(formId, id);
+  return await getForm(formId, id);
 }
 
-export function setFormPublishedMessage(
+export async function setFormPublishedMessage(
   formId: number,
   channelId: string,
   messageId: string,
   guildId?: string,
-): InteractiveForm {
+): Promise<InteractiveForm> {
   const id = resolveGuildId(guildId);
-  getForm(formId, id);
-  getDb()
+  await getForm(formId, id);
+  await getDb()
     .update(guildForms)
     .set({
       publishedChannelId: channelId,
@@ -375,21 +385,21 @@ export function setFormPublishedMessage(
       updatedAt: new Date(),
     })
     .where(and(eq(guildForms.id, formId), eq(guildForms.guildId, id)))
-    .run();
+    ;
   invalidateFormsCache(formId);
-  return getForm(formId, id);
+  return await getForm(formId, id);
 }
 
-export function deleteForm(
+export async function deleteForm(
   formId: number,
   guildId?: string,
-): { publishedChannelId: string | null; publishedMessageId: string | null } {
+): Promise<{ publishedChannelId: string | null; publishedMessageId: string | null }> {
   const id = resolveGuildId(guildId);
-  const current = getForm(formId, id);
-  getDb()
+  const current = await getForm(formId, id);
+  await getDb()
     .delete(guildForms)
     .where(and(eq(guildForms.id, formId), eq(guildForms.guildId, id)))
-    .run();
+    ;
   invalidateFormsCache(formId);
   return {
     publishedChannelId: current.publishedChannelId,
@@ -397,13 +407,13 @@ export function deleteForm(
   };
 }
 
-export function getUserCooldownRemainingMs(
+export async function getUserCooldownRemainingMs(
   formId: number,
   userId: string,
   cooldownMinutes: number,
-): number {
+): Promise<number> {
   if (cooldownMinutes <= 0) return 0;
-  const last = getDb()
+  const last = await one(getDb()
     .select({ createdAt: formResponses.createdAt })
     .from(formResponses)
     .where(
@@ -413,15 +423,14 @@ export function getUserCooldownRemainingMs(
       ),
     )
     .orderBy(desc(formResponses.createdAt))
-    .limit(1)
-    .get();
+    .limit(1));
   if (!last) return 0;
   const elapsed = Date.now() - new Date(last.createdAt).getTime();
   const windowMs = cooldownMinutes * 60_000;
   return Math.max(0, windowMs - elapsed);
 }
 
-export function insertFormResponse(input: {
+export async function insertFormResponse(input: {
   formId: number;
   guildId: string;
   userId: string;
@@ -429,9 +438,9 @@ export function insertFormResponse(input: {
   displayName: string;
   avatarUrl: string | null;
   answers: FormAnswerEntry[];
-}): FormResponse {
+}): Promise<FormResponse> {
   const now = new Date();
-  const result = getDb()
+  const [inserted] = await getDb()
     .insert(formResponses)
     .values({
       formId: input.formId,
@@ -443,11 +452,18 @@ export function insertFormResponse(input: {
       answers: JSON.stringify(input.answers),
       createdAt: now,
     })
-    .run();
+    .returning({ id: formResponses.id });
+  if (!inserted) {
+    throw new FormsError(
+      "No se pudo guardar la respuesta.",
+      500,
+      "INSERT_FAILED",
+    );
+  }
 
   invalidateFormsCache(input.formId);
   return {
-    id: Number(result.lastInsertRowid),
+    id: inserted.id,
     formId: input.formId,
     guildId: input.guildId,
     userId: input.userId,
@@ -459,20 +475,20 @@ export function insertFormResponse(input: {
   };
 }
 
-export function listFormResponses(
+export async function listFormResponses(
   formId: number,
   guildId?: string,
-): FormResponse[] {
+): Promise<FormResponse[]> {
   const id = resolveGuildId(guildId);
-  getForm(formId, id);
-  const rows = getDb()
+  await getForm(formId, id);
+  const rows = await getDb()
     .select()
     .from(formResponses)
     .where(
       and(eq(formResponses.formId, formId), eq(formResponses.guildId, id)),
     )
     .orderBy(desc(formResponses.createdAt))
-    .all();
+    ;
 
   return rows.map((row) => ({
     id: row.id,

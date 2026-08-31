@@ -15,7 +15,7 @@ export async function dispatchAutoModAlert(
     content: string;
   },
 ): Promise<void> {
-  const channelId = resolveAutoModLogChannelId(input.guildId);
+  const channelId = await resolveAutoModLogChannelId(input.guildId);
   if (!channelId) return;
 
   const author = input.message.author;

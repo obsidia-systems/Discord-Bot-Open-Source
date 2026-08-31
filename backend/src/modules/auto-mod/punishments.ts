@@ -22,7 +22,7 @@ export async function applyAutoModPunishments(input: {
   const { guildId, member, config } = input;
   if (!config.punishments.length) return;
 
-  const activeWarns = countActiveWarns(
+  const activeWarns = await countActiveWarns(
     guildId,
     member.id,
     config.warnDecayDays,
@@ -65,7 +65,7 @@ async function executePunishment(
       return;
     }
     case "REMOVE_XP": {
-      const levels = getLevelsConfigCached(guildId);
+      const levels = await getLevelsConfigCached(guildId);
       if (!levels.enabled) {
         console.warn(
           "[adobos] auto-mod REMOVE_XP ignorado: Rangos y XP desactivado.",
@@ -77,14 +77,14 @@ async function executePunishment(
         Math.round(Number(punishment.actionParam) || 0),
       );
       try {
-        deductUserXp(guildId, member.id, amount);
+        await deductUserXp(guildId, member.id, amount);
       } catch (error) {
         console.warn("[adobos] auto-mod REMOVE_XP falló:", error);
       }
       return;
     }
     case "XP_FREEZE": {
-      const levels = getLevelsConfigCached(guildId);
+      const levels = await getLevelsConfigCached(guildId);
       if (!levels.enabled) {
         console.warn(
           "[adobos] auto-mod XP_FREEZE ignorado: Rangos y XP desactivado.",
@@ -94,7 +94,7 @@ async function executePunishment(
       const ms = Math.max(0, Number(punishment.actionParam) || 0);
       if (ms <= 0) return;
       try {
-        freezeUserXp(guildId, member.id, new Date(Date.now() + ms));
+        await freezeUserXp(guildId, member.id, new Date(Date.now() + ms));
       } catch (error) {
         console.warn("[adobos] auto-mod XP_FREEZE falló:", error);
       }

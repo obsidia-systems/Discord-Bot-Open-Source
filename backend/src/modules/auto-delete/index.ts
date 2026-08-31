@@ -19,15 +19,15 @@ export const autoDeleteModule: AdobosModule = {
   ],
   register(ctx) {
     bindAutoDeleteScheduler(ctx.client);
-    setAutoDeleteConfigChangeListener((config) => {
-      syncAutoDeleteJobsForConfig(config);
+    setAutoDeleteConfigChangeListener(async (config) => {
+      await syncAutoDeleteJobsForConfig(config);
     });
 
     ctx.route("/api/auto-delete", autoDeleteRoutes(ctx.client));
     registerAutoDeleteListeners(ctx);
 
-    ctx.once("ready", () => {
-      rehydrateAllAutoDeleteJobs();
+    ctx.once("ready", async () => {
+      await rehydrateAllAutoDeleteJobs();
       console.log("[adobos] auto-delete: crons rehidratados");
     });
   },

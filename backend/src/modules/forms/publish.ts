@@ -39,8 +39,8 @@ export async function publishFormMessage(
   }
 
   const form = input
-    ? updateForm(formId, input, guildId)
-    : getForm(formId, guildId);
+    ? await updateForm(formId, input, guildId)
+    : await getForm(formId, guildId);
 
   if (!form.publishChannelId) {
     throw new FormsError(
@@ -187,7 +187,7 @@ export async function publishFormMessage(
     channelId = textChannel.id;
   }
 
-  const next = setFormPublishedMessage(
+  const next = await setFormPublishedMessage(
     form.id,
     channelId,
     messageId!,

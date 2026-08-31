@@ -34,11 +34,11 @@ export function actionLogsRoutes(bot: Client): Router {
   const router = Router();
 
   /** GET /api/logs/config */
-  router.get("/config", (req, res) => {
+  router.get("/config", async (req, res) => {
     try {
       const guildId =
         guildIdOf(req);
-      const config = getActionLogsConfig(guildId);
+      const config = await getActionLogsConfig(guildId);
       res.json({ config });
     } catch (error) {
       handleError(error, res);
@@ -46,7 +46,7 @@ export function actionLogsRoutes(bot: Client): Router {
   });
 
   /** POST /api/logs/config */
-  router.post("/config", (req, res) => {
+  router.post("/config", async (req, res) => {
     try {
       const guildId =
         typeof req.body?.guildId === "string"
@@ -55,7 +55,7 @@ export function actionLogsRoutes(bot: Client): Router {
             ? req.query.guildId
             : undefined;
       const body = (req.body ?? {}) as UpdateActionLogsConfigRequest;
-      const config = updateActionLogsConfig(body, guildId);
+      const config = await updateActionLogsConfig(body, guildId);
       res.json({ config });
     } catch (error) {
       handleError(error, res);
@@ -63,7 +63,7 @@ export function actionLogsRoutes(bot: Client): Router {
   });
 
   /** GET /api/logs/history */
-  router.get("/history", (req, res) => {
+  router.get("/history", async (req, res) => {
     try {
       const guildId =
         guildIdOf(req);
@@ -81,7 +81,7 @@ export function actionLogsRoutes(bot: Client): Router {
           ? Number.parseInt(req.query.limit, 10)
           : undefined;
 
-      const result = listActionLogsHistory({
+      const result = await listActionLogsHistory({
         guildId,
         category: category as never,
         q,

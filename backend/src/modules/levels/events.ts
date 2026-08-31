@@ -90,7 +90,7 @@ async function applyLevelRewards(
   fromLevel: number,
   toLevel: number,
 ): Promise<void> {
-  const rewards = rewardsBetweenLevels(guildId, fromLevel, toLevel);
+  const rewards = await rewardsBetweenLevels(guildId, fromLevel, toLevel);
   for (const reward of rewards) {
     if (member.roles.cache.has(reward.roleId)) continue;
     await member.roles
@@ -99,15 +99,15 @@ async function applyLevelRewards(
   }
 }
 
-function buildLevelUpRewardsField(
+async function buildLevelUpRewardsField(
   guildId: string,
   newLevel: number,
-): string {
-  const current = rewardAtLevel(guildId, newLevel);
+): Promise<string> {
+  const current = await rewardAtLevel(guildId, newLevel);
   if (current) {
     return `🎉 Desbloqueaste el rol: <@&${current.roleId}>`;
   }
-  const next = nextRewardAfter(guildId, newLevel);
+  const next = await nextRewardAfter(guildId, newLevel);
   if (next) {
     return `🔒 Próxima recompensa: <@&${next.roleId}> al Nivel **${next.level}**.`;
   }
@@ -120,7 +120,7 @@ async function announceLevelUp(input: {
   member: GuildMember;
   newLevel: number;
 }): Promise<void> {
-  const config = getLevelsConfigCached(input.guildId);
+  const config = await getLevelsConfigCached(input.guildId);
   if (!config.levelUpChannelId) return;
 
   const dedicated = await input.client.channels
@@ -138,7 +138,7 @@ async function announceLevelUp(input: {
     )
     .addFields({
       name: "Recompensas",
-      value: buildLevelUpRewardsField(input.guildId, input.newLevel),
+      value: await buildLevelUpRewardsField(input.guildId, input.newLevel),
     })
     .setTimestamp(new Date());
 
@@ -159,10 +159,10 @@ async function grantXpAndHandleLevelUp(input: {
   amount: number;
 }): Promise<void> {
   if (input.amount <= 0) return;
-  if (isUserXpFrozen(input.guildId, input.member.id)) return;
-  const result = addUserXp(input.guildId, input.member.id, input.amount);
+  if (await isUserXpFrozen(input.guildId, input.member.id)) return;
+  const result = await addUserXp(input.guildId, input.member.id, input.amount);
 
-  scheduleLiveLeaderboardRefresh(input.client, input.guildId);
+  await scheduleLiveLeaderboardRefresh(input.client, input.guildId);
 
   if (!result.leveledUp) return;
 
@@ -188,7 +188,7 @@ export async function onLevelsMessageCreate(
     if (!message.channel.isTextBased()) return;
 
     const guildId = message.guild.id;
-    const config = getLevelsConfigCached(guildId);
+    const config = await getLevelsConfigCached(guildId);
     if (!config.enabled) return;
 
     const parentId =
@@ -254,7 +254,7 @@ async function settleVoiceSession(
   if (!session) return 0;
   voiceSessions.delete(key);
 
-  const config = getLevelsConfigCached(guildId);
+  const config = await getLevelsConfigCached(guildId);
   if (!config.enabled || !config.voiceEnabled) return 0;
 
   const parentId = state.channel?.parentId ?? null;
@@ -312,7 +312,7 @@ export async function onLevelsVoiceStateUpdate(
     if (newState.member?.user.bot || oldState.member?.user.bot) return;
 
     const guildId = newState.guild.id;
-    const config = getLevelsConfigCached(guildId);
+    const config = await getLevelsConfigCached(guildId);
     if (!config.enabled || !config.voiceEnabled) {
       if (oldState.channelId && !newState.channelId) {
         const key = voiceKey(guildId, newState.id);

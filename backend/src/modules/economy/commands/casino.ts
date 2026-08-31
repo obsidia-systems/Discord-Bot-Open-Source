@@ -101,11 +101,11 @@ async function replyError(
   }
 }
 
-function assertEconomyAndCasino(
+async function assertEconomyAndCasino(
   guildId: string,
   bet: number,
-): { economy: ReturnType<typeof getEconomyConfig>; casino: EconomyCasinoConfig } {
-  const economy = getEconomyConfig(guildId);
+): Promise<{ economy: Awaited<ReturnType<typeof getEconomyConfig>>; casino: EconomyCasinoConfig }> {
+  const economy = await getEconomyConfig(guildId);
   if (!economy.isActive) {
     throw new EconomyError(
       "⛔ La economía está desactivada en este servidor.",
@@ -113,11 +113,11 @@ function assertEconomyAndCasino(
       "ECONOMY_INACTIVE",
     );
   }
-  const casino = assertCasinoBetAllowed(guildId, bet);
+  const casino = await assertCasinoBetAllowed(guildId, bet);
   return { economy, casino };
 }
 
-function currencyOf(economy: ReturnType<typeof getEconomyConfig>): string {
+function currencyOf(economy: Awaited<ReturnType<typeof getEconomyConfig>>): string {
   return economy.currencyName || "monedas";
 }
 
@@ -153,9 +153,9 @@ export async function handleCoinflipCommand(
   }
 
   try {
-    const { economy, casino } = assertEconomyAndCasino(guildId, bet);
-    assertCooldownAvailable(guildId, userId, "coinflip");
-    debitWalletStrict(guildId, userId, bet);
+    const { economy, casino } = await assertEconomyAndCasino(guildId, bet);
+    await assertCooldownAvailable(guildId, userId, "coinflip");
+    await debitWalletStrict(guildId, userId, bet);
 
     const result: "cara" | "cruz" = Math.random() < 0.5 ? "cara" : "cruz";
     const won = result === side;
@@ -163,13 +163,13 @@ export async function handleCoinflipCommand(
     const sideLabel = result === "cara" ? "Cara" : "Cruz";
 
     let payout = 0;
-    let wallet = getUserEconomyBalance(guildId, userId).wallet;
+    let wallet = (await getUserEconomyBalance(guildId, userId)).wallet;
     if (won) {
       payout = Math.floor(bet * casino.coinflip.multiplier);
-      wallet = creditWallet(guildId, userId, payout).wallet;
+      wallet = (await creditWallet(guildId, userId, payout)).wallet;
     }
 
-    setCooldownMs(
+    await setCooldownMs(
       guildId,
       userId,
       "coinflip",
@@ -264,8 +264,8 @@ export async function handleRouletteCommand(
   }
 
   try {
-    const { economy, casino } = assertEconomyAndCasino(guildId, bet);
-    debitWalletStrict(guildId, userId, bet);
+    const { economy, casino } = await assertEconomyAndCasino(guildId, bet);
+    await debitWalletStrict(guildId, userId, bet);
 
     const spun = spinEuropeanRoulette();
     const color = rouletteColor(spun);
@@ -286,10 +286,10 @@ export async function handleRouletteCommand(
     }
 
     let payout = 0;
-    let wallet = getUserEconomyBalance(guildId, userId).wallet;
+    let wallet = (await getUserEconomyBalance(guildId, userId)).wallet;
     if (won) {
       payout = Math.floor(bet * multiplier);
-      wallet = creditWallet(guildId, userId, payout).wallet;
+      wallet = (await creditWallet(guildId, userId, payout)).wallet;
     }
 
     const betLabel =
@@ -430,7 +430,7 @@ function buildBlackjackEmbed(input: {
 
 type BjOutcome = "win" | "lose" | "push" | "blackjack";
 
-function settleBlackjack(input: {
+async function settleBlackjack(input: {
   guildId: string;
   userId: string;
   bet: number;
@@ -438,19 +438,19 @@ function settleBlackjack(input: {
   dealer: PlayingCard[];
   naturalMultiplier: number;
   wasNaturalWin: boolean;
-}): {
+}): Promise<{
   outcome: BjOutcome;
   payout: number;
   wallet: number;
   title: string;
   color: number;
-} {
+}> {
   const player = evaluateHand(input.player);
   const dealer = evaluateHand(input.dealer);
 
   if (input.wasNaturalWin) {
     const payout = Math.floor(input.bet * input.naturalMultiplier);
-    const wallet = creditWallet(input.guildId, input.userId, payout).wallet;
+    const wallet = (await creditWallet(input.guildId, input.userId, payout)).wallet;
     return {
       outcome: "blackjack",
       payout,
@@ -464,7 +464,7 @@ function settleBlackjack(input: {
     return {
       outcome: "lose",
       payout: 0,
-      wallet: getUserEconomyBalance(input.guildId, input.userId).wallet,
+      wallet: (await getUserEconomyBalance(input.guildId, input.userId)).wallet,
       title: "🃏 Blackjack — Bust",
       color: LOSE,
     };
@@ -472,7 +472,7 @@ function settleBlackjack(input: {
 
   if (dealer.isBust) {
     const payout = input.bet * 2;
-    const wallet = creditWallet(input.guildId, input.userId, payout).wallet;
+    const wallet = (await creditWallet(input.guildId, input.userId, payout)).wallet;
     return {
       outcome: "win",
       payout,
@@ -484,7 +484,7 @@ function settleBlackjack(input: {
 
   if (player.total > dealer.total) {
     const payout = input.bet * 2;
-    const wallet = creditWallet(input.guildId, input.userId, payout).wallet;
+    const wallet = (await creditWallet(input.guildId, input.userId, payout)).wallet;
     return {
       outcome: "win",
       payout,
@@ -498,13 +498,13 @@ function settleBlackjack(input: {
     return {
       outcome: "lose",
       payout: 0,
-      wallet: getUserEconomyBalance(input.guildId, input.userId).wallet,
+      wallet: (await getUserEconomyBalance(input.guildId, input.userId)).wallet,
       title: "🃏 Blackjack — Perdiste",
       color: LOSE,
     };
   }
 
-  const wallet = creditWallet(input.guildId, input.userId, input.bet).wallet;
+  const wallet = (await creditWallet(input.guildId, input.userId, input.bet)).wallet;
   return {
     outcome: "push",
     payout: input.bet,
@@ -526,11 +526,11 @@ function playDealer(
   return hand;
 }
 
-function settlementPayload(session: BlackjackSession): {
+async function settlementPayload(session: BlackjackSession): Promise<{
   embeds: EmbedBuilder[];
   components: ActionRowBuilder<ButtonBuilder>[];
-} {
-  const settled = settleBlackjack({
+}> {
+  const settled = await settleBlackjack({
     guildId: session.guildId,
     userId: session.userId,
     bet: session.bet,
@@ -576,7 +576,7 @@ async function finishSession(
   if (session.finished) return;
   session.finished = true;
   const key = bjKey(session.guildId, session.userId);
-  const payload = settlementPayload(session);
+  const payload = await settlementPayload(session);
   clearSession(key);
 
   if (via && !via.replied && !via.deferred) {
@@ -596,8 +596,8 @@ async function finishSession(
   }
 }
 
-function scheduleTimeout(session: BlackjackSession): ReturnType<typeof setTimeout> {
-  return setTimeout(() => {
+async function scheduleTimeout(session: BlackjackSession): Promise<ReturnType<typeof setTimeout>> {
+  return setTimeout(async () => {
     void (async () => {
       const key = bjKey(session.guildId, session.userId);
       const current = sessions.get(key);
@@ -651,13 +651,13 @@ export async function handleBlackjackCommand(
   let allowDoubleDown = true;
 
   try {
-    const { economy, casino } = assertEconomyAndCasino(guildId, bet);
+    const { economy, casino } = await assertEconomyAndCasino(guildId, bet);
     currency = currencyOf(economy);
     naturalMultiplier = casino.blackjack.blackjackMultiplier;
     standOnSoft17 = casino.blackjack.standOnSoft17;
     allowDoubleDown = casino.blackjack.allowDoubleDown;
 
-    debitWalletStrict(guildId, userId, bet);
+    await debitWalletStrict(guildId, userId, bet);
     deck = shuffleDeck(createShoe(casino.blackjack.deckCount));
     player = [drawCard(deck), drawCard(deck)];
     dealer = [drawCard(deck), drawCard(deck)];
@@ -671,7 +671,7 @@ export async function handleBlackjackCommand(
 
   if (playerEval.isBlackjack || dealerEval.isBlackjack) {
     if (playerEval.isBlackjack && dealerEval.isBlackjack) {
-      const wallet = creditWallet(guildId, userId, bet).wallet;
+      const wallet = (await creditWallet(guildId, userId, bet)).wallet;
       await interaction.reply({
         embeds: [
           buildBlackjackEmbed({
@@ -692,7 +692,7 @@ export async function handleBlackjackCommand(
     }
     if (playerEval.isBlackjack) {
       const payout = Math.floor(bet * naturalMultiplier);
-      const wallet = creditWallet(guildId, userId, payout).wallet;
+      const wallet = (await creditWallet(guildId, userId, payout)).wallet;
       await interaction.reply({
         embeds: [
           buildBlackjackEmbed({
@@ -711,7 +711,7 @@ export async function handleBlackjackCommand(
       });
       return;
     }
-    const wallet = getUserEconomyBalance(guildId, userId).wallet;
+    const wallet = (await getUserEconomyBalance(guildId, userId)).wallet;
     await interaction.reply({
       embeds: [
         buildBlackjackEmbed({
@@ -732,7 +732,7 @@ export async function handleBlackjackCommand(
   }
 
   const canAffordDouble =
-    allowDoubleDown && getUserEconomyBalance(guildId, userId).wallet >= bet;
+    allowDoubleDown && (await getUserEconomyBalance(guildId, userId)).wallet >= bet;
 
   await interaction.reply({
     embeds: [
@@ -744,7 +744,7 @@ export async function handleBlackjackCommand(
         hideDealerHole: true,
         bet,
         currency,
-        wallet: getUserEconomyBalance(guildId, userId).wallet,
+        wallet: (await getUserEconomyBalance(guildId, userId)).wallet,
       }),
     ],
     components: [
@@ -773,7 +773,7 @@ export async function handleBlackjackCommand(
     finished: false,
     timeout: null as unknown as ReturnType<typeof setTimeout>,
   };
-  session.timeout = scheduleTimeout(session);
+  session.timeout = await scheduleTimeout(session);
   sessions.set(key, session);
 }
 
@@ -837,7 +837,7 @@ export async function handleBlackjackButton(
             hideDealerHole: true,
             bet: session.bet,
             currency: session.currency,
-            wallet: getUserEconomyBalance(session.guildId, session.userId)
+            wallet: (await getUserEconomyBalance(session.guildId, session.userId))
               .wallet,
           }),
         ],
@@ -866,7 +866,7 @@ export async function handleBlackjackButton(
         return;
       }
       try {
-        debitWalletStrict(session.guildId, session.userId, session.bet);
+        await debitWalletStrict(session.guildId, session.userId, session.bet);
       } catch (error) {
         const msg =
           error instanceof EconomyError

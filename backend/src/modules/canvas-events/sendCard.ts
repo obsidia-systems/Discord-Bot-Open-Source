@@ -1,7 +1,7 @@
 import { AttachmentBuilder, type Guild, type User } from "discord.js";
 import { and, eq } from "drizzle-orm";
 import type { CanvasEventType } from "@adobos/shared";
-import { getDb } from "../../db/client.js";
+import { getDb, one } from "../../db/client.js";
 import { canvasEventSettings } from "../../db/schema.js";
 import { buildWelcomeCard } from "../welcome/card/WelcomeCardBuilder.js";
 import {
@@ -44,7 +44,7 @@ export async function dispatchCanvasEventCard(options: {
   try {
     const { eventType, guild, user, logLabel } = options;
 
-    const row = getDb()
+    const row = await one(getDb()
       .select()
       .from(canvasEventSettings)
       .where(
@@ -53,13 +53,13 @@ export async function dispatchCanvasEventCard(options: {
           eq(canvasEventSettings.eventType, eventType),
         ),
       )
-      .get();
+      .limit(1));
 
     if (!row?.isEnabled || !row.channelId) return;
 
     const channel = await guild.channels.fetch(row.channelId).catch(() => null);
     if (!channel || !isSendableTextChannel(channel)) {
-      disableCanvasEventSettings(eventType, guild.id);
+      await disableCanvasEventSettings(eventType, guild.id);
       console.warn(
         `[adobos] ${logLabel} desactivado en ${guild.id}: canal inválido o borrado.`,
       );

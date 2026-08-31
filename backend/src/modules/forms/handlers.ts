@@ -61,7 +61,7 @@ export async function onFormsOpenButton(
     return;
   }
 
-  const form = getFormById(formId);
+  const form = await getFormById(formId);
   if (!form || form.guildId !== interaction.guildId) {
     await interaction.reply({
       content: "Este formulario está inactivo o fue eliminado.",
@@ -78,7 +78,7 @@ export async function onFormsOpenButton(
     return;
   }
 
-  const remaining = getUserCooldownRemainingMs(
+  const remaining = await getUserCooldownRemainingMs(
     form.id,
     interaction.user.id,
     form.cooldownMinutes,
@@ -139,7 +139,7 @@ export async function onFormsModalSubmit(
     return;
   }
 
-  const form = getFormById(formId);
+  const form = await getFormById(formId);
   if (!form || form.guildId !== interaction.guildId) {
     await interaction.reply({
       content: "Este formulario está inactivo o fue eliminado.",
@@ -148,7 +148,7 @@ export async function onFormsModalSubmit(
     return;
   }
 
-  const remaining = getUserCooldownRemainingMs(
+  const remaining = await getUserCooldownRemainingMs(
     form.id,
     interaction.user.id,
     form.cooldownMinutes,
@@ -197,7 +197,7 @@ export async function onFormsModalSubmit(
     forceStatic: true,
   });
 
-  insertFormResponse({
+  await insertFormResponse({
     formId: form.id,
     guildId: form.guildId,
     userId: interaction.user.id,

@@ -38,7 +38,7 @@ export async function syncGuildSlashCommands(
   const gid = resolveGuildId(guildId);
   const clientId = discordApplicationId(client);
   const reserved = new Set(listSystemCommandNames());
-  const customs = listCustomCommands(gid);
+  const customs = await listCustomCommands(gid);
 
   const body: RESTPostAPIChatInputApplicationCommandsJSONBody[] = customs
     .filter((c) => !reserved.has(c.name))

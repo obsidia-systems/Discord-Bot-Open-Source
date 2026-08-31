@@ -47,9 +47,9 @@ export function formsRoutes(bot: Client): Router {
   const router = Router();
 
   /** GET /api/forms */
-  router.get("/", (req, res) => {
+  router.get("/", async (req, res) => {
     try {
-      const forms = listForms(guildIdOf(req));
+      const forms = await listForms(guildIdOf(req));
       res.json({ forms });
     } catch (error) {
       handleError(error, res);
@@ -57,10 +57,10 @@ export function formsRoutes(bot: Client): Router {
   });
 
   /** POST /api/forms */
-  router.post("/", (req, res) => {
+  router.post("/", async (req, res) => {
     try {
       const body = (req.body ?? {}) as CreateFormRequest;
-      const form = createForm(body, guildIdOf(req));
+      const form = await createForm(body, guildIdOf(req));
       res.status(201).json({ form });
     } catch (error) {
       handleError(error, res);
@@ -68,10 +68,10 @@ export function formsRoutes(bot: Client): Router {
   });
 
   /** GET /api/forms/:id/responses — antes de /:id genérico */
-  router.get("/:id/responses", (req, res) => {
+  router.get("/:id/responses", async (req, res) => {
     try {
       const formId = parseFormId(req.params.id);
-      const responses = listFormResponses(formId, guildIdOf(req));
+      const responses = await listFormResponses(formId, guildIdOf(req));
       res.json({ responses });
     } catch (error) {
       handleError(error, res);
@@ -79,7 +79,7 @@ export function formsRoutes(bot: Client): Router {
   });
 
   /** POST /api/forms/:id/publish */
-  router.post("/:id/publish", (req, res) => {
+  router.post("/:id/publish", async (req, res) => {
     void (async () => {
       try {
         const formId = parseFormId(req.params.id);
@@ -98,10 +98,10 @@ export function formsRoutes(bot: Client): Router {
   });
 
   /** GET /api/forms/:id */
-  router.get("/:id", (req, res) => {
+  router.get("/:id", async (req, res) => {
     try {
       const formId = parseFormId(req.params.id);
-      const form = getForm(formId, guildIdOf(req));
+      const form = await getForm(formId, guildIdOf(req));
       res.json({ form });
     } catch (error) {
       handleError(error, res);
@@ -109,11 +109,11 @@ export function formsRoutes(bot: Client): Router {
   });
 
   /** PATCH /api/forms/:id */
-  router.patch("/:id", (req, res) => {
+  router.patch("/:id", async (req, res) => {
     try {
       const formId = parseFormId(req.params.id);
       const body = (req.body ?? {}) as UpdateFormRequest;
-      const form = updateForm(formId, body, guildIdOf(req));
+      const form = await updateForm(formId, body, guildIdOf(req));
       res.json({ form });
     } catch (error) {
       handleError(error, res);
@@ -121,11 +121,11 @@ export function formsRoutes(bot: Client): Router {
   });
 
   /** DELETE /api/forms/:id */
-  router.delete("/:id", (req, res) => {
+  router.delete("/:id", async (req, res) => {
     void (async () => {
       try {
         const formId = parseFormId(req.params.id);
-        const meta = deleteForm(formId, guildIdOf(req));
+        const meta = await deleteForm(formId, guildIdOf(req));
         if (
           bot.isReady() &&
           meta.publishedChannelId &&

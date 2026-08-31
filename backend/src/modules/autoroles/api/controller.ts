@@ -21,7 +21,7 @@ import type {
   SaveReactionRolesResponse,
 } from "@adobos/shared";
 import { eq } from "drizzle-orm";
-import { getDb } from "../../../db/client.js";
+import { getDb, one } from "../../../db/client.js";
 import { guildSettings, reactionRolesMenus } from "../../../db/schema.js";
 import {
   deleteReactionRolesForMessage,
@@ -59,23 +59,25 @@ const BUTTON_STYLE_MAP: Record<
   Danger: ButtonStyle.Danger,
 };
 
-function ensureGuildRow(guildId: string): void {
+async function ensureGuildRow(guildId: string): Promise<void> {
   const db = getDb();
-  const existing = db
+  const existing = await one(
+    db
     .select()
     .from(guildSettings)
     .where(eq(guildSettings.guildId, guildId))
-    .get();
+    .limit(1)
+  );
 
   if (!existing) {
-    db.insert(guildSettings)
+    await db.insert(guildSettings)
       .values({
         guildId,
         prefix: "!",
         welcomeEnabled: false,
         updatedAt: new Date(),
       })
-      .run();
+      ;
   }
 }
 
@@ -280,9 +282,9 @@ async function resolveSendableChannel(
   return channel as SendableChannels & TextChannel;
 }
 
-export function saveReactionRoleMappings(
+export async function saveReactionRoleMappings(
   input: SaveReactionRolesRequest,
-): SaveReactionRolesResponse {
+): Promise<SaveReactionRolesResponse> {
   const guildId = assertSnowflake(input.guildId, "guildId");
   const channelId = assertSnowflake(input.channelId, "channelId");
   const messageId = assertSnowflake(input.messageId, "messageId");
@@ -300,9 +302,9 @@ export function saveReactionRoleMappings(
     roleId: assertSnowflake(mapping.roleId, "roleId"),
   }));
 
-  ensureGuildRow(guildId);
-  deleteReactionRolesForMessage(messageId);
-  upsertReactionRoles(
+  await ensureGuildRow(guildId);
+  await deleteReactionRolesForMessage(messageId);
+  await upsertReactionRoles(
     normalized.map((mapping) => ({
       guildId,
       channelId,
@@ -327,25 +329,27 @@ async function placeReactions(
   }
 }
 
-function saveInteractiveMenu(input: {
+async function saveInteractiveMenu(input: {
   guildId: string;
   channelId: string;
   messageId: string;
   mode: "buttons" | "reactions";
   rolesMapping: unknown;
-}): void {
-  ensureGuildRow(input.guildId);
+}): Promise<void> {
+  await ensureGuildRow(input.guildId);
   const db = getDb();
   const now = new Date();
   const json = JSON.stringify(input.rolesMapping);
-  const existing = db
+  const existing = await one(
+    db
     .select()
     .from(reactionRolesMenus)
     .where(eq(reactionRolesMenus.messageId, input.messageId))
-    .get();
+    .limit(1)
+  );
 
   if (existing) {
-    db.update(reactionRolesMenus)
+    await db.update(reactionRolesMenus)
       .set({
         channelId: input.channelId,
         mode: input.mode,
@@ -353,11 +357,11 @@ function saveInteractiveMenu(input: {
         updatedAt: now,
       })
       .where(eq(reactionRolesMenus.id, existing.id))
-      .run();
+      ;
     return;
   }
 
-  db.insert(reactionRolesMenus)
+  await db.insert(reactionRolesMenus)
     .values({
       guildId: input.guildId,
       channelId: input.channelId,
@@ -367,7 +371,7 @@ function saveInteractiveMenu(input: {
       createdAt: now,
       updatedAt: now,
     })
-    .run();
+    ;
 }
 
 /** Endpoint todo-en-uno: crea mensaje (opcional) + guarda mappings. */
@@ -399,7 +403,7 @@ export async function createAutoRoleSetup(
 
     if (input.mode === "reactions") {
       const mappings = input.reactionMappings ?? [];
-      const result = saveReactionRoleMappings({
+      const result = await saveReactionRoleMappings({
         guildId,
         channelId,
         messageId,
@@ -407,7 +411,7 @@ export async function createAutoRoleSetup(
       });
       await placeReactions(existing, mappings);
       saved = result.saved;
-      saveInteractiveMenu({
+      await saveInteractiveMenu({
         guildId,
         channelId,
         messageId,
@@ -434,7 +438,7 @@ export async function createAutoRoleSetup(
         );
       });
       saved = buttons.length;
-      saveInteractiveMenu({
+      await saveInteractiveMenu({
         guildId,
         channelId,
         messageId,
@@ -474,14 +478,14 @@ export async function createAutoRoleSetup(
       files: files.length > 0 ? files : undefined,
     });
 
-    const result = saveReactionRoleMappings({
+    const result = await saveReactionRoleMappings({
       guildId,
       channelId,
       messageId: message.id,
       mappings,
     });
     await placeReactions(message, mappings);
-    saveInteractiveMenu({
+    await saveInteractiveMenu({
       guildId,
       channelId,
       messageId: message.id,
@@ -515,7 +519,7 @@ export async function createAutoRoleSetup(
     files: files.length > 0 ? files : undefined,
   });
 
-  saveInteractiveMenu({
+  await saveInteractiveMenu({
     guildId,
     channelId,
     messageId: message.id,

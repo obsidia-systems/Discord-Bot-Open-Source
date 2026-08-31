@@ -14,12 +14,12 @@ import {
 export function welcomeSettingsRoutes(_bot: Client): Router {
   const router = Router();
 
-  router.get("/", (req, res) => {
+  router.get("/", async (req, res) => {
     const guildId =
       guildIdOf(req);
 
     try {
-      res.json(getWelcomeSettings(guildId));
+      res.json(await getWelcomeSettings(guildId));
     } catch (error: unknown) {
       if (error instanceof WelcomeSettingsError) {
         const body: ApiErrorBody = {
@@ -39,10 +39,10 @@ export function welcomeSettingsRoutes(_bot: Client): Router {
     }
   });
 
-  router.post("/", (req, res) => {
+  router.post("/", async (req, res) => {
     try {
       const payload = req.body as SaveWelcomeSettingsRequest;
-      const result = saveWelcomeSettings({ ...payload, guildId: guildIdOf(req) });
+      const result = await saveWelcomeSettings({ ...payload, guildId: guildIdOf(req) });
       res.json(result);
     } catch (error: unknown) {
       if (error instanceof WelcomeSettingsError) {

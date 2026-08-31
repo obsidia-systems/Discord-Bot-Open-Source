@@ -32,11 +32,11 @@ export function autoModRoutes(_bot: Client): Router {
   const router = Router();
 
   /** GET /api/auto-mod/config */
-  router.get("/config", (req, res) => {
+  router.get("/config", async (req, res) => {
     try {
       const guildId =
         guildIdOf(req);
-      const config = getAutoModConfig(guildId);
+      const config = await getAutoModConfig(guildId);
       res.json({ config });
     } catch (error) {
       handleError(error, res);
@@ -44,7 +44,7 @@ export function autoModRoutes(_bot: Client): Router {
   });
 
   /** POST /api/auto-mod/config */
-  router.post("/config", (req, res) => {
+  router.post("/config", async (req, res) => {
     try {
       const guildId =
         typeof req.body?.guildId === "string"
@@ -53,7 +53,7 @@ export function autoModRoutes(_bot: Client): Router {
             ? req.query.guildId
             : undefined;
       const body = (req.body ?? {}) as UpdateAutoModConfigRequest;
-      const config = updateAutoModConfig(body, guildId);
+      const config = await updateAutoModConfig(body, guildId);
       res.json({ config });
     } catch (error) {
       handleError(error, res);

@@ -61,8 +61,8 @@ function buyButtonLabel(name: string): string {
   return `${prefix}${truncated}`;
 }
 
-function loadCatalogItems(guildId: string): EconomyShopItem[] {
-  return listShopItems(guildId, { enabledOnly: true }).filter(
+async function loadCatalogItems(guildId: string): Promise<EconomyShopItem[]> {
+  return (await listShopItems(guildId, { enabledOnly: true })).filter(
     (item) => item.stock === null || item.stock > 0,
   );
 }
@@ -147,7 +147,7 @@ export async function handleShopCommand(
     return;
   }
 
-  const economy = getEconomyConfig(interaction.guildId);
+  const economy = await getEconomyConfig(interaction.guildId);
   if (!economy.isActive) {
     await interaction.reply({
       content: "⛔ La economía está desactivada en este servidor.",
@@ -159,7 +159,7 @@ export async function handleShopCommand(
   const ephemeral = consumeInteractionEphemeral(interaction.id, false);
   await interaction.deferReply({ ephemeral });
 
-  const items = loadCatalogItems(interaction.guildId);
+  const items = await loadCatalogItems(interaction.guildId);
   if (items.length === 0) {
     await interaction.editReply({
       content:
@@ -187,7 +187,7 @@ export async function handleShopPageButton(
     return;
   }
 
-  const economy = getEconomyConfig(interaction.guildId);
+  const economy = await getEconomyConfig(interaction.guildId);
   if (!economy.isActive) {
     await interaction.update({
       content: "⛔ La economía está desactivada en este servidor.",
@@ -207,7 +207,7 @@ export async function handleShopPageButton(
     return;
   }
 
-  const items = loadCatalogItems(interaction.guildId);
+  const items = await loadCatalogItems(interaction.guildId);
   if (items.length === 0) {
     await interaction.update({
       content:

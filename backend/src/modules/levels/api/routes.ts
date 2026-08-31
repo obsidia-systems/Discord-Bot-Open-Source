@@ -39,8 +39,8 @@ async function resolveLeaderboardEntries(
   guildId: string,
   limit: number,
 ): Promise<LevelsLeaderboardResponse> {
-  const rows = listLeaderboardRows(guildId, limit);
-  const total = getLeaderboardTotal(guildId);
+  const rows = await listLeaderboardRows(guildId, limit);
+  const total = await getLeaderboardTotal(guildId);
   const guild =
     bot.guilds.cache.get(guildId) ??
     (await bot.guilds.fetch(guildId).catch(() => null));
@@ -71,11 +71,11 @@ export function levelsRoutes(bot: Client): Router {
   const router = Router();
 
   /** GET /api/levels/config */
-  router.get("/config", (req, res) => {
+  router.get("/config", async (req, res) => {
     try {
       const guildId =
         guildIdOf(req);
-      const config = getLevelsConfig(guildId);
+      const config = await getLevelsConfig(guildId);
       res.json({ config });
     } catch (error) {
       handleError(error, res);
@@ -83,7 +83,7 @@ export function levelsRoutes(bot: Client): Router {
   });
 
   /** POST /api/levels/config */
-  router.post("/config", (req, res) => {
+  router.post("/config", async (req, res) => {
     try {
       const guildId =
         typeof req.body?.guildId === "string"
@@ -92,15 +92,15 @@ export function levelsRoutes(bot: Client): Router {
             ? req.query.guildId
             : undefined;
       const body = (req.body ?? {}) as UpdateLevelsConfigRequest;
-      const before = getLevelsConfig(guildId);
-      const config = updateLevelsConfig(body, guildId);
+      const before = await getLevelsConfig(guildId);
+      const config = await updateLevelsConfig(body, guildId);
 
       if (
         body.liveLeaderboardChannelId !== undefined &&
         body.liveLeaderboardChannelId !== before.liveLeaderboardChannelId &&
         config.liveLeaderboardChannelId
       ) {
-        forceLiveLeaderboardRefresh(bot, config.guildId);
+        await forceLiveLeaderboardRefresh(bot, config.guildId);
       }
 
       res.json({ config });
@@ -110,7 +110,7 @@ export function levelsRoutes(bot: Client): Router {
   });
 
   /** GET /api/levels/leaderboard?limit=100 */
-  router.get("/leaderboard", (req, res) => {
+  router.get("/leaderboard", async (req, res) => {
     void (async () => {
       try {
         const guildId = guildIdOf(req);

@@ -44,7 +44,7 @@ export async function buildLiveLeaderboardEmbed(
   client: Client,
   guildId: string,
 ): Promise<EmbedBuilder> {
-  const rows = getTopUserXpRows(guildId, 10);
+  const rows = await getTopUserXpRows(guildId, 10);
   const lines: string[] = [];
 
   for (let i = 0; i < rows.length; i += 1) {
@@ -95,7 +95,7 @@ async function flushLiveLeaderboard(
     return;
   }
 
-  const config = getLevelsConfigCached(guildId);
+  const config = await getLevelsConfigCached(guildId);
   if (!config.enabled || !config.liveLeaderboardChannelId) {
     dirtyGuilds.delete(guildId);
     return;
@@ -111,7 +111,7 @@ async function flushLiveLeaderboard(
 
   const textChannel = channel as TextChannel;
   const embed = await buildLiveLeaderboardEmbed(client, guildId);
-  const rows = getTopUserXpRows(guildId, 10);
+  const rows = await getTopUserXpRows(guildId, 10);
   const fp = topFingerprint(rows);
 
   try {
@@ -123,11 +123,11 @@ async function flushLiveLeaderboard(
         await existing.edit({ embeds: [embed] });
       } else {
         const sent = await textChannel.send({ embeds: [embed] });
-        setLiveLeaderboardMessageId(guildId, sent.id);
+        await setLiveLeaderboardMessageId(guildId, sent.id);
       }
     } else {
       const sent = await textChannel.send({ embeds: [embed] });
-      setLiveLeaderboardMessageId(guildId, sent.id);
+      await setLiveLeaderboardMessageId(guildId, sent.id);
     }
 
     lastFingerprint.set(guildId, fp);
@@ -145,14 +145,14 @@ async function flushLiveLeaderboard(
  * Tras ganar XP: solo marca dirty si el Top 10 cambia.
  * El edit real va con debounce + intervalo mínimo de 5 min.
  */
-export function scheduleLiveLeaderboardRefresh(
+export async function scheduleLiveLeaderboardRefresh(
   client: Client,
   guildId: string,
-): void {
-  const config = getLevelsConfigCached(guildId);
+): Promise<void> {
+  const config = await getLevelsConfigCached(guildId);
   if (!config.enabled || !config.liveLeaderboardChannelId) return;
 
-  const rows = getTopUserXpRows(guildId, 10);
+  const rows = await getTopUserXpRows(guildId, 10);
   const fp = topFingerprint(rows);
   const prev = lastFingerprint.get(guildId);
   if (prev !== undefined && prev === fp) return;
@@ -172,14 +172,14 @@ export function scheduleLiveLeaderboardRefresh(
     }, DEBOUNCE_MS),
   );
 
-  ensureFlushInterval(client);
+  await ensureFlushInterval(client);
 }
 
 /** Fuerza un refresh (p. ej. al cambiar el canal en el dashboard). */
-export function forceLiveLeaderboardRefresh(
+export async function forceLiveLeaderboardRefresh(
   client: Client,
   guildId: string,
-): void {
+): Promise<void> {
   dirtyGuilds.add(guildId);
   lastEditAt.delete(guildId);
   clearTimeout(debounceTimers.get(guildId));
@@ -189,10 +189,10 @@ export function forceLiveLeaderboardRefresh(
       void flushLiveLeaderboard(client, guildId);
     }, 1_500),
   );
-  ensureFlushInterval(client);
+  await ensureFlushInterval(client);
 }
 
-function ensureFlushInterval(client: Client): void {
+async function ensureFlushInterval(client: Client): Promise<void> {
   if (flushIntervalStarted) return;
   flushIntervalStarted = true;
   setInterval(() => {

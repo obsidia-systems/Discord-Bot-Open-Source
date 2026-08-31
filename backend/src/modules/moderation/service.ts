@@ -24,7 +24,7 @@ import type {
   ModMemberSearchResponse,
 } from "@adobos/shared";
 import { MOD_ACTION_TYPES } from "@adobos/shared";
-import { getDb } from "../../db/client.js";
+import { getDb, one } from "../../db/client.js";
 import {
   safeMemberAvatarURL,
   safeUserAvatarURL,
@@ -97,22 +97,24 @@ function assertSnowflake(value: string, field: string): string {
   return trimmed;
 }
 
-function ensureGuildRow(guildId: string): void {
+async function ensureGuildRow(guildId: string): Promise<void> {
   const db = getDb();
-  const existing = db
+  const existing = await one(
+    db
     .select()
     .from(guildSettings)
     .where(eq(guildSettings.guildId, guildId))
-    .get();
+    .limit(1)
+  );
   if (!existing) {
-    db.insert(guildSettings)
+    await db.insert(guildSettings)
       .values({
         guildId,
         prefix: "!",
         welcomeEnabled: false,
         updatedAt: new Date(),
       })
-      .run();
+      ;
   }
 }
 
@@ -282,24 +284,23 @@ export async function getMemberInfo(
   const guild = resolveGuild(bot, guildId);
   const userId = assertSnowflake(userIdRaw, "userId");
 
-  const warningRows = () =>
-    getDb()
+  const warningRows = (
+    await getDb()
       .select()
       .from(warnings)
       .where(
         and(eq(warnings.guildId, guild.id), eq(warnings.userId, userId)),
       )
       .orderBy(desc(warnings.createdAt))
-      .all()
-      .map((row) => ({
-        id: row.id,
-        reason: row.reason,
-        moderatorId: row.moderatorId,
-        createdAt:
-          row.createdAt instanceof Date
-            ? row.createdAt.toISOString()
-            : new Date(row.createdAt).toISOString(),
-      }));
+  ).map((row) => ({
+    id: row.id,
+    reason: row.reason,
+    moderatorId: row.moderatorId,
+    createdAt:
+      row.createdAt instanceof Date
+        ? row.createdAt.toISOString()
+        : new Date(row.createdAt).toISOString(),
+  }));
 
   try {
     const member = await guild.members.fetch(userId);
@@ -318,7 +319,7 @@ export async function getMemberInfo(
           color: role.hexColor === "#000000" ? null : role.hexColor,
         }))
         .slice(0, 12),
-      warnings: warningRows(),
+      warnings: warningRows,
       timedOutUntil: member.communicationDisabledUntil?.toISOString() ?? null,
     };
   } catch (memberError: unknown) {
@@ -332,7 +333,7 @@ export async function getMemberInfo(
         avatarUrl: safeUserAvatarURL(user, 256),
         joinedAt: null,
         roles: [],
-        warnings: warningRows(),
+        warnings: warningRows,
         timedOutUntil: null,
       };
     } catch {
@@ -447,7 +448,7 @@ function assertAction(raw: string): ModActionType {
   throw new ModerationError("Acción inválida.", 400, "INVALID_ACTION");
 }
 
-function writeModLog(input: {
+async function writeModLog(input: {
   guildId: string;
   action: string;
   targetUserId?: string | null;
@@ -455,8 +456,8 @@ function writeModLog(input: {
   moderatorId: string;
   reason: string;
   meta?: Record<string, unknown>;
-}): void {
-  getDb()
+}): Promise<void> {
+  await getDb()
     .insert(modLogs)
     .values({
       guildId: input.guildId,
@@ -468,7 +469,7 @@ function writeModLog(input: {
       meta: input.meta ? JSON.stringify(input.meta) : null,
       createdAt: new Date(),
     })
-    .run();
+    ;
 }
 
 async function sendSanctionDm(options: {
@@ -533,7 +534,7 @@ async function sendSanctionDm(options: {
         "INVALID_TEMPLATE",
       );
     }
-    const template = getEmbedTemplate(templateId, guild.id);
+    const template = await getEmbedTemplate(templateId, guild.id);
     const interpolated = interpolateEmbedPayload(template.embedData, vars);
     const built = buildEmbedFromPayload(interpolated);
     let content = built.content
@@ -587,7 +588,7 @@ export async function executeModAction(
   const moderatorId = actorUserId ?? bot.user?.id ?? "dashboard";
 
   try {
-    ensureGuildRow(guild.id);
+    await ensureGuildRow(guild.id);
 
     const userActions = new Set([
       "warn",
@@ -636,7 +637,7 @@ export async function executeModAction(
             "MEMBER_NOT_FOUND",
           );
         });
-        getDb()
+        await getDb()
           .insert(warnings)
           .values({
             guildId: guild.id,
@@ -645,7 +646,7 @@ export async function executeModAction(
             reason: auditReason,
             createdAt: new Date(),
           })
-          .run();
+          ;
         message = `Advertencia registrada para <@${userId}>.`;
         break;
       }
@@ -771,7 +772,7 @@ export async function executeModAction(
         throw new ModerationError("Acción no implementada.", 400, "INVALID_ACTION");
     }
 
-    writeModLog({
+    await writeModLog({
       guildId: guild.id,
       action,
       targetUserId,
@@ -923,16 +924,18 @@ export async function fetchDiscordMessage(
     }
 
     const alreadyConfigured = Boolean(
-      getDb()
-        .select({ id: autorolesRegistry.id })
-        .from(autorolesRegistry)
-        .where(
-          and(
-            eq(autorolesRegistry.guildId, guild.id),
-            eq(autorolesRegistry.messageId, message.id),
-          ),
-        )
-        .get(),
+      await one(
+        getDb()
+          .select({ id: autorolesRegistry.id })
+          .from(autorolesRegistry)
+          .where(
+            and(
+              eq(autorolesRegistry.guildId, guild.id),
+              eq(autorolesRegistry.messageId, message.id),
+            ),
+          )
+          .limit(1),
+      ),
     );
 
     return {

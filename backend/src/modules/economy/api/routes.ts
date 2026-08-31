@@ -58,8 +58,8 @@ async function resolveLeaderboard(
   guildId: string,
   limit: number,
 ): Promise<EconomyLeaderboardResponse> {
-  const rows = listEconomyLeaderboardRows(guildId, limit);
-  const total = getEconomyLeaderboardTotal(guildId);
+  const rows = await listEconomyLeaderboardRows(guildId, limit);
+  const total = await getEconomyLeaderboardTotal(guildId);
   const guild =
     bot.guilds.cache.get(guildId) ??
     (await bot.guilds.fetch(guildId).catch(() => null));
@@ -91,9 +91,9 @@ export function economyRoutes(bot: Client): Router {
   const router = Router();
 
   /** GET /api/economy/config */
-  router.get("/config", (req, res) => {
+  router.get("/config", async (req, res) => {
     try {
-      const config = getEconomyConfig(guildIdOf(req));
+      const config = await getEconomyConfig(guildIdOf(req));
       res.json({ config });
     } catch (error) {
       handleError(error, res);
@@ -101,10 +101,10 @@ export function economyRoutes(bot: Client): Router {
   });
 
   /** PUT /api/economy/config */
-  router.put("/config", (req, res) => {
+  router.put("/config", async (req, res) => {
     try {
       const body = req.body as UpdateEconomyConfigRequest;
-      const config = updateEconomyConfig({
+      const config = await updateEconomyConfig({
         ...body,
         guildId: guildIdOf(req) ?? body.guildId,
       });
@@ -115,9 +115,9 @@ export function economyRoutes(bot: Client): Router {
   });
 
   /** GET /api/economy/income */
-  router.get("/income", (req, res) => {
+  router.get("/income", async (req, res) => {
     try {
-      const config = getEconomyIncomeConfig(guildIdOf(req));
+      const config = await getEconomyIncomeConfig(guildIdOf(req));
       res.json({ config });
     } catch (error) {
       handleError(error, res);
@@ -125,10 +125,10 @@ export function economyRoutes(bot: Client): Router {
   });
 
   /** PUT /api/economy/income */
-  router.put("/income", (req, res) => {
+  router.put("/income", async (req, res) => {
     try {
       const body = req.body as UpdateEconomyIncomeRequest;
-      const config = updateEconomyIncomeConfig({
+      const config = await updateEconomyIncomeConfig({
         ...body,
         guildId: guildIdOf(req) ?? body.guildId,
       });
@@ -139,9 +139,9 @@ export function economyRoutes(bot: Client): Router {
   });
 
   /** GET /api/economy/casino */
-  router.get("/casino", (req, res) => {
+  router.get("/casino", async (req, res) => {
     try {
-      const config = getEconomyCasinoConfig(guildIdOf(req));
+      const config = await getEconomyCasinoConfig(guildIdOf(req));
       res.json({ config });
     } catch (error) {
       handleError(error, res);
@@ -149,10 +149,10 @@ export function economyRoutes(bot: Client): Router {
   });
 
   /** PUT /api/economy/casino */
-  router.put("/casino", (req, res) => {
+  router.put("/casino", async (req, res) => {
     try {
       const body = req.body as UpdateEconomyCasinoRequest;
-      const config = updateEconomyCasinoConfig({
+      const config = await updateEconomyCasinoConfig({
         ...body,
         guildId: guildIdOf(req) ?? body.guildId,
       });
@@ -163,9 +163,9 @@ export function economyRoutes(bot: Client): Router {
   });
 
   /** GET /api/economy/shop/items */
-  router.get("/shop/items", (req, res) => {
+  router.get("/shop/items", async (req, res) => {
     try {
-      const items = listShopItems(guildIdOf(req));
+      const items = await listShopItems(guildIdOf(req));
       res.json({ items });
     } catch (error) {
       handleError(error, res);
@@ -173,10 +173,10 @@ export function economyRoutes(bot: Client): Router {
   });
 
   /** POST /api/economy/shop/items */
-  router.post("/shop/items", (req, res) => {
+  router.post("/shop/items", async (req, res) => {
     try {
       const body = req.body as CreateEconomyShopItemRequest;
-      const item = createShopItem({
+      const item = await createShopItem({
         ...body,
         guildId: guildIdOf(req) ?? body.guildId,
       });
@@ -187,10 +187,10 @@ export function economyRoutes(bot: Client): Router {
   });
 
   /** PUT /api/economy/shop/items/:id */
-  router.put("/shop/items/:id", (req, res) => {
+  router.put("/shop/items/:id", async (req, res) => {
     try {
       const body = req.body as UpdateEconomyShopItemRequest;
-      const item = updateShopItem(req.params.id, {
+      const item = await updateShopItem(req.params.id, {
         ...body,
         guildId: guildIdOf(req) ?? body.guildId,
       });
@@ -201,9 +201,9 @@ export function economyRoutes(bot: Client): Router {
   });
 
   /** DELETE /api/economy/shop/items/:id */
-  router.delete("/shop/items/:id", (req, res) => {
+  router.delete("/shop/items/:id", async (req, res) => {
     try {
-      deleteShopItem(req.params.id, guildIdOf(req));
+      await deleteShopItem(req.params.id, guildIdOf(req));
       res.json({ ok: true });
     } catch (error) {
       handleError(error, res);
@@ -211,7 +211,7 @@ export function economyRoutes(bot: Client): Router {
   });
 
   /** GET /api/economy/leaderboard?limit=100 */
-  router.get("/leaderboard", (req, res) => {
+  router.get("/leaderboard", async (req, res) => {
     void (async () => {
       try {
         const guildId = guildIdOf(req);
@@ -226,10 +226,10 @@ export function economyRoutes(bot: Client): Router {
   });
 
   /** POST /api/economy/funds — override admin de saldos */
-  router.post("/funds", (req, res) => {
+  router.post("/funds", async (req, res) => {
     try {
       const body = req.body as AdjustEconomyFundsRequest;
-      const result = adjustEconomyFunds({
+      const result = await adjustEconomyFunds({
         ...body,
         guildId: guildIdOf(req),
       });

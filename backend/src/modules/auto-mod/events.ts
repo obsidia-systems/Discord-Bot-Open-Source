@@ -35,7 +35,7 @@ async function handleAutoModMessage(
   if (!message.channel.isTextBased()) return;
 
   const guildId = message.guild.id;
-  const config = getAutoModConfigCached(guildId);
+  const config = await getAutoModConfigCached(guildId);
   if (!config.enabled) return;
 
   const parentId =
@@ -99,7 +99,7 @@ async function handleAutoModMessage(
     console.warn("[adobos] auto-mod: no se pudo registrar warn:", error);
   }
 
-  await applyAutoModPunishments({
+  void applyAutoModPunishments({
     client: message.client as Client,
     guildId,
     member,

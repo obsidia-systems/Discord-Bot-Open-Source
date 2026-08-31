@@ -14,7 +14,7 @@ import {
   normalizeCustomCommandResponseData,
 } from "@adobos/shared";
 import { and, desc, eq } from "drizzle-orm";
-import { getDb } from "../../db/client.js";
+import { getDb, one } from "../../db/client.js";
 import { customCommands, guildSettings } from "../../db/schema.js";
 
 export class CustomCommandsError extends Error {
@@ -62,14 +62,14 @@ function resolveGuildId(guildId?: string): string {
   return id;
 }
 
-function ensureGuildRow(guildId: string): void {
-  const existing = getDb()
+async function ensureGuildRow(guildId: string): Promise<void> {
+  const existing = await one(getDb()
     .select({ guildId: guildSettings.guildId })
     .from(guildSettings)
     .where(eq(guildSettings.guildId, guildId))
-    .get();
+    .limit(1));
   if (!existing) {
-    getDb()
+    await getDb()
       .insert(guildSettings)
       .values({
         guildId,
@@ -77,7 +77,7 @@ function ensureGuildRow(guildId: string): void {
         welcomeEnabled: false,
         updatedAt: new Date(),
       })
-      .run();
+      ;
   }
 }
 
@@ -120,30 +120,30 @@ function assertValidName(name: string): void {
   }
 }
 
-export function listCustomCommands(guildId?: string): CustomCommand[] {
+export async function listCustomCommands(guildId?: string): Promise<CustomCommand[]> {
   const id = resolveGuildId(guildId);
-  ensureGuildRow(id);
-  const rows = getDb()
+  await ensureGuildRow(id);
+  const rows = await getDb()
     .select()
     .from(customCommands)
     .where(eq(customCommands.guildId, id))
     .orderBy(desc(customCommands.updatedAt))
-    .all();
+    ;
   return rows.map(rowToCommand);
 }
 
-export function getCustomCommand(
+export async function getCustomCommand(
   commandId: number,
   guildId?: string,
-): CustomCommand {
+): Promise<CustomCommand> {
   const id = resolveGuildId(guildId);
-  const row = getDb()
+  const row = await one(getDb()
     .select()
     .from(customCommands)
     .where(
       and(eq(customCommands.id, commandId), eq(customCommands.guildId, id)),
     )
-    .get();
+    .limit(1));
   if (!row) {
     throw new CustomCommandsError(
       "Comando no encontrado.",
@@ -154,11 +154,11 @@ export function getCustomCommand(
   return rowToCommand(row);
 }
 
-export function getCustomCommandByName(
+export async function getCustomCommandByName(
   guildId: string,
   name: string,
-): CustomCommand | null {
-  const row = getDb()
+): Promise<CustomCommand | null> {
+  const row = await one(getDb()
     .select()
     .from(customCommands)
     .where(
@@ -167,21 +167,21 @@ export function getCustomCommandByName(
         eq(customCommands.name, name.toLowerCase()),
       ),
     )
-    .get();
+    .limit(1));
   return row ? rowToCommand(row) : null;
 }
 
-export function createCustomCommand(
+export async function createCustomCommand(
   input: CreateCustomCommandRequest,
   guildId?: string,
-): CustomCommand {
+): Promise<CustomCommand> {
   const id = resolveGuildId(guildId);
-  ensureGuildRow(id);
+  await ensureGuildRow(id);
 
   const name = normalizeCustomCommandName(input.name);
   assertValidName(name);
 
-  const existing = getCustomCommandByName(id, name);
+  const existing = await getCustomCommandByName(id, name);
   if (existing) {
     throw new CustomCommandsError(
       `Ya existe un comando \`/${name}\`.`,
@@ -206,7 +206,7 @@ export function createCustomCommand(
   const permissions = normalizeCustomCommandPermissions(input.permissions);
   const now = new Date();
 
-  const result = getDb()
+  const [inserted] = await getDb()
     .insert(customCommands)
     .values({
       guildId: id,
@@ -218,25 +218,32 @@ export function createCustomCommand(
       createdAt: now,
       updatedAt: now,
     })
-    .run();
+    .returning({ id: customCommands.id });
+  if (!inserted) {
+    throw new CustomCommandsError(
+      "No se pudo crear el comando.",
+      500,
+      "INSERT_FAILED",
+    );
+  }
 
-  return getCustomCommand(Number(result.lastInsertRowid), id);
+  return await getCustomCommand(inserted.id, id);
 }
 
-export function updateCustomCommand(
+export async function updateCustomCommand(
   commandId: number,
   input: UpdateCustomCommandRequest,
   guildId?: string,
-): CustomCommand {
+): Promise<CustomCommand> {
   const id = resolveGuildId(guildId);
-  const current = getCustomCommand(commandId, id);
+  const current = await getCustomCommand(commandId, id);
 
   let nextName = current.name;
   if (input.name !== undefined) {
     nextName = normalizeCustomCommandName(input.name);
     assertValidName(nextName);
     if (nextName !== current.name) {
-      const clash = getCustomCommandByName(id, nextName);
+      const clash = await getCustomCommandByName(id, nextName);
       if (clash && clash.id !== commandId) {
         throw new CustomCommandsError(
           `Ya existe un comando \`/${nextName}\`.`,
@@ -281,7 +288,7 @@ export function updateCustomCommand(
         })
       : current.permissions;
 
-  getDb()
+  await getDb()
     .update(customCommands)
     .set({
       name: nextName,
@@ -294,21 +301,21 @@ export function updateCustomCommand(
     .where(
       and(eq(customCommands.id, commandId), eq(customCommands.guildId, id)),
     )
-    .run();
+    ;
 
-  return getCustomCommand(commandId, id);
+  return await getCustomCommand(commandId, id);
 }
 
-export function deleteCustomCommand(
+export async function deleteCustomCommand(
   commandId: number,
   guildId?: string,
-): void {
+): Promise<void> {
   const id = resolveGuildId(guildId);
-  getCustomCommand(commandId, id);
-  getDb()
+  await getCustomCommand(commandId, id);
+  await getDb()
     .delete(customCommands)
     .where(
       and(eq(customCommands.id, commandId), eq(customCommands.guildId, id)),
     )
-    .run();
+    ;
 }

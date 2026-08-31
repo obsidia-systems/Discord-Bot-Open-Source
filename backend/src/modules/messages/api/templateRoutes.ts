@@ -156,18 +156,18 @@ function assertSniffedTemplateFiles(
 export function embedTemplateRoutes(_bot: Client): Router {
   const router = Router();
 
-  router.get("/", (req, res) => {
+  router.get("/", async (req, res) => {
     const guildId =
       guildIdOf(req);
     try {
-      res.json(listEmbedTemplates(guildId));
+      res.json(await listEmbedTemplates(guildId));
     } catch (error: unknown) {
       handleError(error, res);
     }
   });
 
-  router.post("/", (req, res) => {
-    templateUpload(req, res, (err: unknown) => {
+  router.post("/", async (req, res) => {
+    templateUpload(req, res, async (err: unknown) => {
       if (err) {
         handleError(err, res);
         return;
@@ -225,14 +225,14 @@ export function embedTemplateRoutes(_bot: Client): Router {
           uploadedPaths.footerIconUrl = publicTemplatePath(footerIcon.filename);
         }
 
-        res.json(saveEmbedTemplate(payload, uploadedPaths));
+        res.json(await saveEmbedTemplate(payload, uploadedPaths));
       } catch (error: unknown) {
         handleError(error, res);
       }
     });
   });
 
-  router.get("/:id", (req, res) => {
+  router.get("/:id", async (req, res) => {
     const guildId =
       guildIdOf(req);
     try {
@@ -240,17 +240,17 @@ export function embedTemplateRoutes(_bot: Client): Router {
       if (!Number.isFinite(id)) {
         throw new EmbedTemplateError("id inválido.", 400, "INVALID_ID");
       }
-      res.json(getEmbedTemplate(id, guildId));
+      res.json(await getEmbedTemplate(id, guildId));
     } catch (error: unknown) {
       handleError(error, res);
     }
   });
 
-  router.delete("/:id", (req, res) => {
+  router.delete("/:id", async (req, res) => {
     const guildId =
       guildIdOf(req);
     try {
-      res.json(deleteEmbedTemplate(req.params.id ?? "", guildId));
+      res.json(await deleteEmbedTemplate(req.params.id ?? "", guildId));
     } catch (error: unknown) {
       handleError(error, res);
     }

@@ -3,7 +3,7 @@ import {
   type GuildMember,
 } from "discord.js";
 import { eq } from "drizzle-orm";
-import { getDb } from "../../../db/client.js";
+import { getDb, one } from "../../../db/client.js";
 import { welcomeSettings } from "../../../db/schema.js";
 import {
   disableWelcomeSettings,
@@ -24,11 +24,11 @@ export async function onGuildMemberAdd(member: GuildMember): Promise<void> {
   try {
     if (member.user.bot) return;
 
-    const row = getDb()
+    const row = await one(getDb()
       .select()
       .from(welcomeSettings)
       .where(eq(welcomeSettings.guildId, member.guild.id))
-      .get();
+      .limit(1));
 
     if (!row?.isEnabled || !row.channelId) return;
 
@@ -37,7 +37,7 @@ export async function onGuildMemberAdd(member: GuildMember): Promise<void> {
       .catch(() => null);
 
     if (!channel || !isSendableTextChannel(channel)) {
-      disableWelcomeSettings(member.guild.id);
+      await disableWelcomeSettings(member.guild.id);
       console.warn(
         `[adobos] Bienvenida desactivada en ${member.guild.id}: canal inválido o borrado.`,
       );

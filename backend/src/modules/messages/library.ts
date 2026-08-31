@@ -12,7 +12,7 @@ import type {
   SendEmbedResponse,
   SentEmbedRecord,
 } from "@adobos/shared";
-import { getDb } from "../../db/client.js";
+import { getDb, one } from "../../db/client.js";
 import { sentEmbeds } from "../../db/schema.js";
 import { listEmbedTemplates } from "./templates/service.js";
 import {
@@ -69,17 +69,17 @@ function toSentRecord(
   };
 }
 
-export function getEmbedLibrary(
+export async function getEmbedLibrary(
   bot: Client,
   guildIdRaw?: string,
-): EmbedLibraryResponse {
+): Promise<EmbedLibraryResponse> {
   const guildId = resolveGuildId(guildIdRaw);
-  const rows = getDb()
+  const rows = await getDb()
     .select()
     .from(sentEmbeds)
     .where(eq(sentEmbeds.guildId, guildId))
     .orderBy(desc(sentEmbeds.createdAt))
-    .all();
+    ;
 
   const guild = bot.guilds.cache.get(guildId);
   const sentMessages = rows.map((row) => {
@@ -90,7 +90,7 @@ export function getEmbedLibrary(
     );
   });
 
-  const { templates } = listEmbedTemplates(guildId);
+  const { templates } = await listEmbedTemplates(guildId);
 
   return { sentMessages, templates };
 }
@@ -102,7 +102,7 @@ export async function sendAndRegisterEmbed(
   guildIdRaw?: string,
 ): Promise<SendEmbedResponse> {
   const guildId = resolveGuildId(guildIdRaw);
-  return sendEmbedMessage(bot, input, uploaded, guildId);
+  return await sendEmbedMessage(bot, input, uploaded, guildId);
 }
 
 export async function editSentEmbed(
@@ -113,11 +113,11 @@ export async function editSentEmbed(
   guildIdRaw?: string,
 ): Promise<EditSentEmbedResponse> {
   const guildId = resolveGuildId(guildIdRaw);
-  const row = getDb()
+  const row = await one(getDb()
     .select()
     .from(sentEmbeds)
     .where(eq(sentEmbeds.id, id))
-    .get();
+    .limit(1));
 
   if (!row || row.guildId !== guildId) {
     throw new MessageSendError("Mensaje enviado no encontrado.", 404, "NOT_FOUND");
@@ -150,7 +150,7 @@ export async function editSentEmbed(
   );
 
   if (orphaned) {
-    getDb().delete(sentEmbeds).where(eq(sentEmbeds.id, id)).run();
+    await getDb().delete(sentEmbeds).where(eq(sentEmbeds.id, id));
     return {
       ok: true,
       orphaned: true,
@@ -175,7 +175,7 @@ export async function editSentEmbed(
   };
 
   const now = new Date();
-  getDb()
+  await getDb()
     .update(sentEmbeds)
     .set({
       title: payload.title?.trim() || payload.content?.slice(0, 80) || row.title,
@@ -184,13 +184,16 @@ export async function editSentEmbed(
       channelId: payload.channelId,
     })
     .where(eq(sentEmbeds.id, id))
-    .run();
+    ;
 
-  const updated = getDb()
+  const updated = await one(getDb()
     .select()
     .from(sentEmbeds)
     .where(eq(sentEmbeds.id, id))
-    .get()!;
+    .limit(1));
+  if (!updated) {
+    throw new MessageSendError("Mensaje no encontrado.", 404, "NOT_FOUND");
+  }
 
   return { ok: true, entry: toSentRecord(updated), orphaned: false };
 }
@@ -201,11 +204,11 @@ export async function deleteSentEmbed(
   guildIdRaw?: string,
 ): Promise<DeleteSentEmbedResponse> {
   const guildId = resolveGuildId(guildIdRaw);
-  const row = getDb()
+  const row = await one(getDb()
     .select()
     .from(sentEmbeds)
     .where(eq(sentEmbeds.id, id))
-    .get();
+    .limit(1));
 
   if (!row || row.guildId !== guildId) {
     throw new MessageSendError("Mensaje enviado no encontrado.", 404, "NOT_FOUND");
@@ -218,7 +221,7 @@ export async function deleteSentEmbed(
     guildId,
   );
 
-  getDb().delete(sentEmbeds).where(eq(sentEmbeds.id, id)).run();
+  await getDb().delete(sentEmbeds).where(eq(sentEmbeds.id, id));
 
   return { ok: true, deletedId: id, orphaned };
 }

@@ -61,9 +61,9 @@ function memberHasModPermission(
  * Valida enabled / canales ignorados / roles / admin-by-default
  * antes de ejecutar un slash nativo.
  */
-export function assertSystemCommandAllowed(
+export async function assertSystemCommandAllowed(
   interaction: ChatInputCommandInteraction,
-): SystemCommandGuardResult {
+): Promise<SystemCommandGuardResult> {
   const def = getSystemCommandDefinition(interaction.commandName);
   if (!def) {
     return { ok: true, ephemeral: false };
@@ -77,7 +77,7 @@ export function assertSystemCommandAllowed(
     };
   }
 
-  const perm = getCommandPermission(guildId, interaction.commandName);
+  const perm = await getCommandPermission(guildId, interaction.commandName);
   const ephemeral = def.supportsEphemeral
     ? perm.ephemeral
     : def.defaultEphemeral;

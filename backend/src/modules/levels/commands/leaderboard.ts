@@ -20,7 +20,7 @@ export async function handleLeaderboardCommand(
     return;
   }
 
-  const config = getLevelsConfigCached(interaction.guildId);
+  const config = await getLevelsConfigCached(interaction.guildId);
   if (!config.enabled) {
     await interaction.reply({
       content: "El módulo de Rangos y XP está desactivado en este servidor.",
@@ -32,7 +32,7 @@ export async function handleLeaderboardCommand(
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
   await interaction.deferReply({ ephemeral });
 
-  const rows = listLeaderboardRows(interaction.guildId, 10);
+  const rows = await listLeaderboardRows(interaction.guildId, 10);
   if (rows.length === 0) {
     await interaction.editReply({
       content: "Aún no hay XP registrada en este servidor.",

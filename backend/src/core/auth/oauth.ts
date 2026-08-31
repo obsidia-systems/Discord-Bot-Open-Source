@@ -71,10 +71,10 @@ function sessionIdFrom(req: Request): string | undefined {
 export function authRouter(): Router {
   const router = Router();
 
-  router.get("/discord", (_req, res) => {
+  router.get("/discord", async (_req, res) => {
     try {
       const { verifier, challenge } = pkcePair();
-      const state = createOauthState(verifier);
+      const state = await createOauthState(verifier);
       const params = new URLSearchParams({
         client_id: clientId(),
         redirect_uri: redirectUri(),
@@ -103,7 +103,7 @@ export function authRouter(): Router {
       return;
     }
 
-    const verifier = consumeOauthState(state);
+    const verifier = await consumeOauthState(state);
     if (!verifier) {
       res.redirect("/login?error=oauth_state");
       return;
@@ -151,13 +151,13 @@ export function authRouter(): Router {
         avatar: string | null;
       };
 
-      upsertPanelUser({
+      await upsertPanelUser({
         userId: me.id,
         username: me.username,
         globalName: me.global_name,
         avatar: me.avatar,
       });
-      const sessionId = createSession({
+      const sessionId = await createSession({
         userId: me.id,
         username: me.username,
         globalName: me.global_name,
@@ -172,16 +172,16 @@ export function authRouter(): Router {
     }
   });
 
-  router.post("/logout", (req, res) => {
+  router.post("/logout", async (req, res) => {
     const sid = sessionIdFrom(req);
-    if (sid) deleteSession(sid);
+    if (sid) await deleteSession(sid);
     res.clearCookie(SESSION_COOKIE, { path: "/" });
     res.status(204).end();
   });
 
-  router.get("/logout", (req, res) => {
+  router.get("/logout", async (req, res) => {
     const sid = sessionIdFrom(req);
-    if (sid) deleteSession(sid);
+    if (sid) await deleteSession(sid);
     res.clearCookie(SESSION_COOKIE, { path: "/" });
     res.redirect("/login");
   });
@@ -217,10 +217,12 @@ export function meRouter(): Router {
   return router;
 }
 
-export function readSessionFromRequest(req: Request): ReturnType<typeof getSession> {
+export async function readSessionFromRequest(
+  req: Request,
+): Promise<Awaited<ReturnType<typeof getSession>>> {
   const sid = sessionIdFrom(req);
   if (!sid) return null;
-  return getSession(sid);
+  return await getSession(sid);
 }
 
 export function redirectToLogin(req: Request, res: Response): void {

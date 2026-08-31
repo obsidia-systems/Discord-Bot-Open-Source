@@ -91,7 +91,7 @@ async function resolveLevelStats(
 ): Promise<{ level: number | null; xp: number | null }> {
   try {
     const { getUserRankStats } = await import("../levels/service.js");
-    const stats = getUserRankStats(guildId, userId);
+    const stats = await getUserRankStats(guildId, userId);
     return { level: stats?.level ?? null, xp: stats?.xp ?? null };
   } catch {
     return { level: null, xp: null };
@@ -107,7 +107,7 @@ export async function handleCustomChatCommand(
 ): Promise<boolean> {
   if (!interaction.guildId) return false;
 
-  const command = getCustomCommandByName(
+  const command = await getCustomCommandByName(
     interaction.guildId,
     interaction.commandName,
   );

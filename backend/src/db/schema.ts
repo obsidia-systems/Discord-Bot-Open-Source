@@ -1,25 +1,27 @@
 import {
+  boolean,
   index,
   integer,
+  pgTable,
   primaryKey,
   real,
-  sqliteTable,
   text,
-} from "drizzle-orm/sqlite-core";
+  timestamp,
+} from "drizzle-orm/pg-core";
 
 /**
  * Configuración por guild (núcleo).
  * Extensible sin romper plugins: campos nuevos se añaden aquí; flags de features van a plugins_enabled.
  */
-export const guildSettings = sqliteTable("guild_settings", {
+export const guildSettings = pgTable("guild_settings", {
   guildId: text("guild_id").primaryKey(),
   prefix: text("prefix").notNull().default("!"),
   /** Canal principal de Action Logs (null = sin logs configurados). */
   logChannelId: text("log_channel_id"),
-  welcomeEnabled: integer("welcome_enabled", { mode: "boolean" })
+  welcomeEnabled: boolean("welcome_enabled")
     .notNull()
     .default(false),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -28,15 +30,15 @@ export const guildSettings = sqliteTable("guild_settings", {
  * Plugins opcionales por guild (minecraft, osu, valorant, gachas, alerts…).
  * PK compuesta: un registro por (servidor, plugin).
  */
-export const pluginsEnabled = sqliteTable(
+export const pluginsEnabled = pgTable(
   "plugins_enabled",
   {
     guildId: text("guild_id")
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
     pluginName: text("plugin_name").notNull(),
-    enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    enabled: boolean("enabled").notNull().default(false),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -49,7 +51,7 @@ export const pluginsEnabled = sqliteTable(
  * Autoroles por reacción: un emoji en un mensaje concreto asigna/quita un rol.
  * emojiKey: `custom:<id>` o `unicode:<char>`
  */
-export const reactionRoles = sqliteTable(
+export const reactionRoles = pgTable(
   "reaction_roles",
   {
     guildId: text("guild_id")
@@ -59,7 +61,7 @@ export const reactionRoles = sqliteTable(
     messageId: text("message_id").notNull(),
     emojiKey: text("emoji_key").notNull(),
     roleId: text("role_id").notNull(),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -71,7 +73,7 @@ export const reactionRoles = sqliteTable(
 /**
  * Roles automáticos al unirse (humanos vs bots).
  */
-export const autoRoles = sqliteTable("auto_roles", {
+export const autoRoles = pgTable("auto_roles", {
   guildId: text("guild_id")
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
@@ -79,7 +81,7 @@ export const autoRoles = sqliteTable("auto_roles", {
   humanRoles: text("human_roles").notNull().default("[]"),
   /** JSON: string[] role IDs */
   botRoles: text("bot_roles").notNull().default("[]"),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -88,8 +90,8 @@ export const autoRoles = sqliteTable("auto_roles", {
  * Menú interactivo de autoroles (metadatos + mapping JSON).
  * @deprecated Preferir `autoroles_registry`.
  */
-export const reactionRolesMenus = sqliteTable("reaction_roles_menus", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const reactionRolesMenus = pgTable("reaction_roles_menus", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   guildId: text("guild_id")
     .notNull()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
@@ -98,10 +100,10 @@ export const reactionRolesMenus = sqliteTable("reaction_roles_menus", {
   mode: text("mode").notNull().default("reactions"),
   /** JSON: mappings (emoji/button → role) */
   rolesMapping: text("roles_mapping").notNull().default("[]"),
-  createdAt: integer("created_at", { mode: "timestamp_ms" })
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -109,8 +111,8 @@ export const reactionRolesMenus = sqliteTable("reaction_roles_menus", {
 /**
  * Registro persistente de menús de autoroles publicados.
  */
-export const autorolesRegistry = sqliteTable("autoroles_registry", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const autorolesRegistry = pgTable("autoroles_registry", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   guildId: text("guild_id")
     .notNull()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
@@ -121,10 +123,10 @@ export const autorolesRegistry = sqliteTable("autoroles_registry", {
   type: text("type").notNull().default("BUTTONS"),
   /** JSON: [{ id, roleId, label, emojiKey, style }] */
   rolesMapping: text("roles_mapping").notNull().default("[]"),
-  createdAt: integer("created_at", { mode: "timestamp_ms" })
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -132,12 +134,12 @@ export const autorolesRegistry = sqliteTable("autoroles_registry", {
 /**
  * Tarjeta de bienvenida por servidor (imagen PNG generada).
  */
-export const welcomeSettings = sqliteTable("welcome_settings", {
+export const welcomeSettings = pgTable("welcome_settings", {
   guildId: text("guild_id")
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
   channelId: text("channel_id"),
-  isEnabled: integer("is_enabled", { mode: "boolean" })
+  isEnabled: boolean("is_enabled")
     .notNull()
     .default(false),
   /** Legacy: el módulo siempre opera como canvas (`card`). */
@@ -171,7 +173,7 @@ export const welcomeSettings = sqliteTable("welcome_settings", {
   textColor: text("text_color").notNull().default("#FFFFFF"),
   /** JSON: WelcomeTextLayer[] */
   textLayers: text("text_layers"),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -180,7 +182,7 @@ export const welcomeSettings = sqliteTable("welcome_settings", {
  * Config canvas para eventos automatizados: leave | ban | boost.
  * Misma forma que welcome_settings (sin welcome_mode).
  */
-export const canvasEventSettings = sqliteTable(
+export const canvasEventSettings = pgTable(
   "canvas_event_settings",
   {
     guildId: text("guild_id")
@@ -189,7 +191,7 @@ export const canvasEventSettings = sqliteTable(
     /** `leave` | `ban` | `boost` */
     eventType: text("event_type").notNull(),
     channelId: text("channel_id"),
-    isEnabled: integer("is_enabled", { mode: "boolean" })
+    isEnabled: boolean("is_enabled")
       .notNull()
       .default(false),
     backgroundUrl: text("background_url"),
@@ -208,7 +210,7 @@ export const canvasEventSettings = sqliteTable(
     fontSize: integer("font_size").notNull().default(64),
     textColor: text("text_color").notNull().default("#FFFFFF"),
     textLayers: text("text_layers"),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -221,7 +223,7 @@ export const canvasEventSettings = sqliteTable(
  * Presencia global del bot (singleton).
  * Discord limpia Presence al reiniciar → se reaplica desde esta tabla en `ready`.
  */
-export const botPresenceSettings = sqliteTable("bot_presence_settings", {
+export const botPresenceSettings = pgTable("bot_presence_settings", {
   /** Siempre `default` (una sola fila). */
   id: text("id").primaryKey().default("default"),
   status: text("status").notNull().default("online"),
@@ -229,7 +231,7 @@ export const botPresenceSettings = sqliteTable("bot_presence_settings", {
   activityName: text("activity_name").notNull().default(""),
   streamUrl: text("stream_url"),
   state: text("state").notNull().default(""),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -237,17 +239,17 @@ export const botPresenceSettings = sqliteTable("bot_presence_settings", {
 /**
  * Advertencias de moderación por usuario/servidor.
  */
-export const warnings = sqliteTable(
+export const warnings = pgTable(
   "warnings",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     guildId: text("guild_id")
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
     userId: text("user_id").notNull(),
     moderatorId: text("moderator_id").notNull(),
     reason: text("reason").notNull(),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -257,18 +259,18 @@ export const warnings = sqliteTable(
 /**
  * Plantillas de embed reutilizables (moderación DM, anuncios, etc.).
  */
-export const embedTemplates = sqliteTable("embed_templates", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const embedTemplates = pgTable("embed_templates", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   guildId: text("guild_id")
     .notNull()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
   name: text("name").notNull(),
   /** JSON: EmbedPayload */
   embedData: text("embed_data").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp_ms" })
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -276,7 +278,7 @@ export const embedTemplates = sqliteTable("embed_templates", {
 /**
  * Mensajes embed enviados desde el panel (edición/borrado en vivo).
  */
-export const sentEmbeds = sqliteTable(
+export const sentEmbeds = pgTable(
   "sent_embeds",
   {
     id: text("id").primaryKey(),
@@ -288,10 +290,10 @@ export const sentEmbeds = sqliteTable(
     title: text("title"),
     /** JSON: EmbedPayload + components */
     embedData: text("embed_data").notNull(),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -303,10 +305,10 @@ export const sentEmbeds = sqliteTable(
 /**
  * Registro de acciones de moderación del panel.
  */
-export const modLogs = sqliteTable(
+export const modLogs = pgTable(
   "mod_logs",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     guildId: text("guild_id")
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
@@ -316,7 +318,7 @@ export const modLogs = sqliteTable(
     moderatorId: text("moderator_id").notNull(),
     reason: text("reason").notNull().default(""),
     meta: text("meta"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -328,11 +330,11 @@ export const modLogs = sqliteTable(
 /**
  * Configuración de Action Logs por guild (canales, filtros, eventos).
  */
-export const actionLogsConfig = sqliteTable("action_logs_config", {
+export const actionLogsConfig = pgTable("action_logs_config", {
   guildId: text("guild_id")
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
+  enabled: boolean("enabled").notNull().default(false),
   /** GLOBAL | CATEGORY */
   routingMode: text("routing_mode").notNull().default("GLOBAL"),
   globalChannelId: text("global_channel_id"),
@@ -342,16 +344,16 @@ export const actionLogsConfig = sqliteTable("action_logs_config", {
   ignoredChannels: text("ignored_channels").notNull().default("[]"),
   /** JSON: string[] */
   ignoredRoles: text("ignored_roles").notNull().default("[]"),
-  ignoreBots: integer("ignore_bots", { mode: "boolean" })
+  ignoreBots: boolean("ignore_bots")
     .notNull()
     .default(true),
   /** JSON: Record<eventKey, boolean> */
   enabledEvents: text("enabled_events").notNull().default("{}"),
-  /** Días de retención en SQLite; 0 = sin límite. */
+  /** Días de retención del historial; 0 = sin límite. */
   dataRetentionDays: integer("data_retention_days").notNull().default(14),
   /** JSON: { [channelId]: webhookId } */
   webhooksMapping: text("webhooks_mapping").notNull().default("{}"),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -359,7 +361,7 @@ export const actionLogsConfig = sqliteTable("action_logs_config", {
 /**
  * Historial de Action Logs capturados por discord.js.
  */
-export const actionLogs = sqliteTable(
+export const actionLogs = pgTable(
   "action_logs",
   {
     id: text("id").primaryKey(),
@@ -376,7 +378,7 @@ export const actionLogs = sqliteTable(
     summary: text("summary").notNull().default(""),
     /** JSON con detalles / diff */
     details: text("details").notNull().default("{}"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -389,11 +391,11 @@ export const actionLogs = sqliteTable(
  * Configuración de Auto Mod por guild (filtros, exclusiones, canal de alertas).
  * Las infracciones se registran en `warnings` (sin tabla de strikes propia).
  */
-export const autoModConfig = sqliteTable("auto_mod_config", {
+export const autoModConfig = pgTable("auto_mod_config", {
   guildId: text("guild_id")
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
+  enabled: boolean("enabled").notNull().default(false),
   /** JSON: AutoModFilters */
   filters: text("filters").notNull().default("{}"),
   /** JSON: string[] */
@@ -405,7 +407,7 @@ export const autoModConfig = sqliteTable("auto_mod_config", {
   warnDecayDays: integer("warn_decay_days").notNull().default(30),
   /** JSON: AutoModPunishment[] */
   punishments: text("punishments").notNull().default("[]"),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -444,14 +446,14 @@ export type NewAutoModConfigRow = typeof autoModConfig.$inferInsert;
 /**
  * Configuración de Auto-delete por guild (reglas de borrado por canal).
  */
-export const autoDeleteConfig = sqliteTable("auto_delete_config", {
+export const autoDeleteConfig = pgTable("auto_delete_config", {
   guildId: text("guild_id")
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
+  enabled: boolean("enabled").notNull().default(false),
   /** JSON: AutoDeleteRule[] */
   rules: text("rules").notNull().default("[]"),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -462,15 +464,15 @@ export type NewAutoDeleteConfigRow = typeof autoDeleteConfig.$inferInsert;
 /**
  * Configuración de Rangos y XP por guild.
  */
-export const xpConfig = sqliteTable("xp_config", {
+export const xpConfig = pgTable("xp_config", {
   guildId: text("guild_id")
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
+  enabled: boolean("enabled").notNull().default(false),
   textXpMin: integer("text_xp_min").notNull().default(15),
   textXpMax: integer("text_xp_max").notNull().default(25),
   cooldownSeconds: integer("cooldown_seconds").notNull().default(60),
-  voiceEnabled: integer("voice_enabled", { mode: "boolean" })
+  voiceEnabled: boolean("voice_enabled")
     .notNull()
     .default(false),
   voiceXpPerMinute: integer("voice_xp_per_minute").notNull().default(10),
@@ -499,7 +501,7 @@ export const xpConfig = sqliteTable("xp_config", {
   levelUpEmbedColor: text("level_up_embed_color")
     .notNull()
     .default("#34E21D"),
-  levelUpShowThumbnail: integer("level_up_show_thumbnail", { mode: "boolean" })
+  levelUpShowThumbnail: boolean("level_up_show_thumbnail")
     .notNull()
     .default(true),
   levelUpImage: text("level_up_image"),
@@ -514,19 +516,17 @@ export const xpConfig = sqliteTable("xp_config", {
   leaderboardEmbedColor: text("leaderboard_embed_color")
     .notNull()
     .default("#CA7AFF"),
-  leaderboardShowThumbnail: integer("leaderboard_show_thumbnail", {
-    mode: "boolean",
-  })
+  leaderboardShowThumbnail: boolean("leaderboard_show_thumbnail")
     .notNull()
     .default(false),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
 
 /** Recompensas de rol por nivel. */
-export const xpRewards = sqliteTable("xp_rewards", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const xpRewards = pgTable("xp_rewards", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   guildId: text("guild_id")
     .notNull()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
@@ -535,7 +535,7 @@ export const xpRewards = sqliteTable("xp_rewards", {
 });
 
 /** Progreso de XP por usuario en un guild. */
-export const userXp = sqliteTable(
+export const userXp = pgTable(
   "user_xp",
   {
     guildId: text("guild_id")
@@ -545,11 +545,11 @@ export const userXp = sqliteTable(
     xp: integer("xp").notNull().default(0),
     level: integer("level").notNull().default(0),
     /** Si está en el futuro, el usuario no gana XP (Auto Mod XP_FREEZE). */
-    xpFrozenUntil: integer("xp_frozen_until", { mode: "timestamp_ms" }),
+    xpFrozenUntil: timestamp("xp_frozen_until", { withTimezone: true, mode: "date" }),
   },
-  (table) => ({
-    pk: primaryKey({ columns: [table.guildId, table.userId] }),
-  }),
+  (table) => [
+    primaryKey({ columns: [table.guildId, table.userId] }),
+  ],
 );
 
 export type XpConfigRow = typeof xpConfig.$inferSelect;
@@ -562,8 +562,8 @@ export type NewUserXpRow = typeof userXp.$inferInsert;
 /**
  * Formularios interactivos (Discord Modals) — varios por guild.
  */
-export const guildForms = sqliteTable("guild_forms", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const guildForms = pgTable("guild_forms", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   guildId: text("guild_id")
     .notNull()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
@@ -583,10 +583,10 @@ export const guildForms = sqliteTable("guild_forms", {
   cooldownMinutes: integer("cooldown_minutes").notNull().default(0),
   publishedChannelId: text("published_channel_id"),
   publishedMessageId: text("published_message_id"),
-  createdAt: integer("created_at", { mode: "timestamp_ms" })
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -597,10 +597,10 @@ export type NewGuildFormRow = typeof guildForms.$inferInsert;
 /**
  * Respuestas enviadas a formularios.
  */
-export const formResponses = sqliteTable(
+export const formResponses = pgTable(
   "form_responses",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     formId: integer("form_id")
       .notNull()
       .references(() => guildForms.id, { onDelete: "cascade" }),
@@ -613,7 +613,7 @@ export const formResponses = sqliteTable(
     avatarUrl: text("avatar_url"),
     /** JSON: FormAnswerEntry[] */
     answers: text("answers").notNull().default("[]"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -628,7 +628,7 @@ export type NewFormResponseRow = typeof formResponses.$inferInsert;
 /**
  * @deprecated Tabla legacy 1:1 por guild. Migrada a `guild_forms`.
  */
-export const interactiveForms = sqliteTable("interactive_forms", {
+export const interactiveForms = pgTable("interactive_forms", {
   guildId: text("guild_id")
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
@@ -644,7 +644,7 @@ export const interactiveForms = sqliteTable("interactive_forms", {
   questions: text("questions").notNull().default("[]"),
   publishedChannelId: text("published_channel_id"),
   publishedMessageId: text("published_message_id"),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -655,8 +655,8 @@ export type NewInteractiveFormsRow = typeof interactiveForms.$inferInsert;
 /**
  * Mensajes programados (cron) por guild.
  */
-export const scheduledMessages = sqliteTable("scheduled_messages", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const scheduledMessages = pgTable("scheduled_messages", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   guildId: text("guild_id")
     .notNull()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
@@ -667,11 +667,11 @@ export const scheduledMessages = sqliteTable("scheduled_messages", {
   frequency: text("frequency").notNull().default("{}"),
   /** JSON: ScheduledEmbedData */
   embedData: text("embed_data").notNull().default("{}"),
-  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
-  createdAt: integer("created_at", { mode: "timestamp_ms" })
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -682,8 +682,8 @@ export type NewScheduledMessageRow = typeof scheduledMessages.$inferInsert;
 /**
  * Slash commands personalizados por guild.
  */
-export const customCommands = sqliteTable("custom_commands", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const customCommands = pgTable("custom_commands", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   guildId: text("guild_id")
     .notNull()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
@@ -695,10 +695,10 @@ export const customCommands = sqliteTable("custom_commands", {
   options: text("options").notNull().default("{}"),
   /** JSON: CustomCommandPermissions */
   permissions: text("permissions").notNull().default("{}"),
-  createdAt: integer("created_at", { mode: "timestamp_ms" })
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -709,20 +709,20 @@ export type NewCustomCommandRow = typeof customCommands.$inferInsert;
 /**
  * Permisos/visibilidad de slash commands nativos por guild.
  */
-export const defaultCommandPermissions = sqliteTable(
+export const defaultCommandPermissions = pgTable(
   "default_command_permissions",
   {
     guildId: text("guild_id")
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
     commandName: text("command_name").notNull(),
-    enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+    enabled: boolean("enabled").notNull().default(true),
     /** JSON: string[] role IDs */
     allowedRoles: text("allowed_roles").notNull().default("[]"),
     /** JSON: string[] channel IDs donde el comando no se puede usar */
     ignoredChannels: text("ignored_channels").notNull().default("[]"),
-    ephemeral: integer("ephemeral", { mode: "boolean" }).notNull().default(false),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    ephemeral: boolean("ephemeral").notNull().default(false),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -739,16 +739,16 @@ export type NewDefaultCommandPermissionRow =
 /**
  * Configuración global de economía por guild.
  */
-export const economyConfig = sqliteTable("economy_config", {
+export const economyConfig = pgTable("economy_config", {
   guildId: text("guild_id")
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  isActive: integer("is_active", { mode: "boolean" }).notNull().default(false),
+  isActive: boolean("is_active").notNull().default(false),
   currencyName: text("currency_name").notNull().default("Adobos Coins"),
   currencySymbol: text("currency_symbol").notNull().default("🪙"),
   startBalance: integer("start_balance").notNull().default(0),
   transferTax: integer("transfer_tax").notNull().default(0),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -759,7 +759,7 @@ export type NewEconomyConfigRow = typeof economyConfig.$inferInsert;
 /**
  * Saldos de economía por usuario/guild.
  */
-export const userEconomy = sqliteTable(
+export const userEconomy = pgTable(
   "user_economy",
   {
     guildId: text("guild_id")
@@ -771,12 +771,12 @@ export const userEconomy = sqliteTable(
     /** Racha de /daily. */
     dailyStreak: integer("daily_streak").notNull().default(0),
     /** Última reclamación de /daily (ms). null = nunca. */
-    lastDailyAt: integer("last_daily_at", { mode: "timestamp_ms" }),
+    lastDailyAt: timestamp("last_daily_at", { withTimezone: true, mode: "date" }),
     /** Última reclamación de /weekly. */
-    lastWeeklyAt: integer("last_weekly_at", { mode: "timestamp_ms" }),
+    lastWeeklyAt: timestamp("last_weekly_at", { withTimezone: true, mode: "date" }),
     /** Última reclamación de /monthly. */
-    lastMonthlyAt: integer("last_monthly_at", { mode: "timestamp_ms" }),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    lastMonthlyAt: timestamp("last_monthly_at", { withTimezone: true, mode: "date" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -791,7 +791,7 @@ export type NewUserEconomyRow = typeof userEconomy.$inferInsert;
 /**
  * Cooldowns de comandos de economía (`work`, `crime`, etc.).
  */
-export const economyCooldowns = sqliteTable(
+export const economyCooldowns = pgTable(
   "economy_cooldowns",
   {
     guildId: text("guild_id")
@@ -800,7 +800,7 @@ export const economyCooldowns = sqliteTable(
     userId: text("user_id").notNull(),
     /** Clave: `work` | `crime` | … */
     commandKey: text("command_key").notNull(),
-    availableAt: integer("available_at", { mode: "timestamp_ms" }).notNull(),
+    availableAt: timestamp("available_at", { withTimezone: true, mode: "date" }).notNull(),
   },
   (table) => [
     primaryKey({
@@ -815,14 +815,14 @@ export type EconomyCooldownRow = typeof economyCooldowns.$inferSelect;
  * Config de ingresos: daily/weekly/monthly, rachas, salarios por rol,
  * trabajos (`/work`) y crímenes (`/crime`) — arrays JSON.
  */
-export const economyIncome = sqliteTable("economy_income", {
+export const economyIncome = pgTable("economy_income", {
   guildId: text("guild_id")
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
   dailyPay: integer("daily_pay").notNull().default(100),
   weeklyPay: integer("weekly_pay").notNull().default(500),
   monthlyPay: integer("monthly_pay").notNull().default(2000),
-  streakEnabled: integer("streak_enabled", { mode: "boolean" })
+  streakEnabled: boolean("streak_enabled")
     .notNull()
     .default(false),
   streakBonusPercent: integer("streak_bonus_percent").notNull().default(5),
@@ -832,7 +832,7 @@ export const economyIncome = sqliteTable("economy_income", {
   jobs: text("jobs").notNull().default("[]"),
   /** EconomyCrime[] */
   crimes: text("crimes").notNull().default("[]"),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -843,7 +843,7 @@ export type NewEconomyIncomeRow = typeof economyIncome.$inferInsert;
 /**
  * Catálogo de la tienda del servidor (`/shop`, `/buy`).
  */
-export const economyShopItems = sqliteTable(
+export const economyShopItems = pgTable(
   "economy_shop_items",
   {
     id: text("id").primaryKey(),
@@ -864,12 +864,12 @@ export const economyShopItems = sqliteTable(
     rewardType: text("reward_type"),
     /** @deprecated */
     rewardConfig: text("reward_config").default("{}"),
-    enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+    enabled: boolean("enabled").notNull().default(true),
     sortOrder: integer("sort_order").notNull().default(0),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -882,7 +882,7 @@ export type NewEconomyShopItemRow = typeof economyShopItems.$inferInsert;
 /**
  * Historial de compras de la tienda.
  */
-export const economyPurchases = sqliteTable(
+export const economyPurchases = pgTable(
   "economy_purchases",
   {
     id: text("id").primaryKey(),
@@ -895,7 +895,7 @@ export const economyPurchases = sqliteTable(
     pricePaid: integer("price_paid").notNull(),
     status: text("status").notNull().default("fulfilled"),
     metadata: text("metadata").notNull().default("{}"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -910,7 +910,7 @@ export type NewEconomyPurchaseRow = typeof economyPurchases.$inferInsert;
 /**
  * Boosts temporales comprados (XP / economía).
  */
-export const economyUserBoosts = sqliteTable(
+export const economyUserBoosts = pgTable(
   "economy_user_boosts",
   {
     id: text("id").primaryKey(),
@@ -921,9 +921,9 @@ export const economyUserBoosts = sqliteTable(
     module: text("module").notNull(),
     multiplier: integer("multiplier").notNull(),
     /** null = boost permanente. */
-    expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
     purchaseId: text("purchase_id"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -941,7 +941,7 @@ export type EconomyUserBoostRow = typeof economyUserBoosts.$inferSelect;
 /**
  * Roles custom creados por la tienda (para /myrole).
  */
-export const economyOwnedRoles = sqliteTable(
+export const economyOwnedRoles = pgTable(
   "economy_owned_roles",
   {
     id: text("id").primaryKey(),
@@ -953,15 +953,15 @@ export const economyOwnedRoles = sqliteTable(
     itemId: text("item_id"),
     purchaseId: text("purchase_id"),
     /** null = permanente. */
-    expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
     /**
      * true = borrar el rol de Discord al expirar (creado por la tienda);
      * false = solo quitarlo del miembro (rol existente temporal).
      */
-    deleteRoleOnExpire: integer("delete_role_on_expire", { mode: "boolean" })
+    deleteRoleOnExpire: boolean("delete_role_on_expire")
       .notNull()
       .default(false),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -975,7 +975,7 @@ export type EconomyOwnedRoleRow = typeof economyOwnedRoles.$inferSelect;
 /**
  * Canales creados por la tienda (temporales o permanentes).
  */
-export const economyOwnedChannels = sqliteTable(
+export const economyOwnedChannels = pgTable(
   "economy_owned_channels",
   {
     id: text("id").primaryKey(),
@@ -987,8 +987,8 @@ export const economyOwnedChannels = sqliteTable(
     itemId: text("item_id"),
     purchaseId: text("purchase_id"),
     /** null = permanente. */
-    expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -1002,11 +1002,11 @@ export type EconomyOwnedChannelRow = typeof economyOwnedChannels.$inferSelect;
 /**
  * Config del Casino por guild (límites globales + reglas por juego).
  */
-export const economyCasino = sqliteTable("economy_casino", {
+export const economyCasino = pgTable("economy_casino", {
   guildId: text("guild_id")
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  isActive: integer("is_active", { mode: "boolean" }).notNull().default(false),
+  isActive: boolean("is_active").notNull().default(false),
   minBet: integer("min_bet").notNull().default(10),
   maxBet: integer("max_bet").notNull().default(10_000),
   /** EconomyCasinoCoinflipConfig JSON. */
@@ -1015,7 +1015,7 @@ export const economyCasino = sqliteTable("economy_casino", {
   roulette: text("roulette").notNull().default("{}"),
   /** EconomyCasinoBlackjackConfig JSON. */
   blackjack: text("blackjack").notNull().default("{}"),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -1026,15 +1026,15 @@ export type NewEconomyCasinoRow = typeof economyCasino.$inferInsert;
 /**
  * Config del plugin Pokémon por guild.
  */
-export const pluginPokemonConfig = sqliteTable("plugin_pokemon_config", {
+export const pluginPokemonConfig = pgTable("plugin_pokemon_config", {
   guildId: text("guild_id")
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  isActive: integer("is_active", { mode: "boolean" }).notNull().default(false),
+  isActive: boolean("is_active").notNull().default(false),
   defaultGeneration: integer("default_generation").notNull().default(9),
   language: text("language").notNull().default("es"),
   embedColor: text("embed_color").notNull().default("#EF4444"),
-  forceEphemeral: integer("force_ephemeral", { mode: "boolean" })
+  forceEphemeral: boolean("force_ephemeral")
     .notNull()
     .default(true),
   /** string[] JSON — lista blanca de canales. */
@@ -1043,7 +1043,7 @@ export const pluginPokemonConfig = sqliteTable("plugin_pokemon_config", {
   allowedRoles: text("allowed_roles").notNull().default("[]"),
   /** PokemonCommandsEnabled JSON. */
   commands: text("commands").notNull().default("{}"),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -1052,21 +1052,21 @@ export type PluginPokemonConfigRow = typeof pluginPokemonConfig.$inferSelect;
 export type NewPluginPokemonConfigRow = typeof pluginPokemonConfig.$inferInsert;
 
 /** Usuarios del panel (OAuth Discord). */
-export const panelUsers = sqliteTable("panel_users", {
+export const panelUsers = pgTable("panel_users", {
   userId: text("user_id").primaryKey(),
   username: text("username").notNull(),
   globalName: text("global_name"),
   avatar: text("avatar"),
-  createdAt: integer("created_at", { mode: "timestamp_ms" })
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
 
 /** Sesiones opacas del panel. */
-export const panelSessions = sqliteTable(
+export const panelSessions = pgTable(
   "panel_sessions",
   {
     id: text("id").primaryKey(),
@@ -1074,8 +1074,8 @@ export const panelSessions = sqliteTable(
       .notNull()
       .references(() => panelUsers.userId, { onDelete: "cascade" }),
     accessTokenEnc: text("access_token_enc").notNull(),
-    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -1083,10 +1083,10 @@ export const panelSessions = sqliteTable(
 );
 
 /** State OAuth de un solo uso (anti-CSRF + PKCE verifier). */
-export const oauthStates = sqliteTable("oauth_states", {
+export const oauthStates = pgTable("oauth_states", {
   state: text("state").primaryKey(),
   codeVerifier: text("code_verifier").notNull(),
-  expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
 });
 
 /** Valores semilla útiles en migraciones / seeds. */

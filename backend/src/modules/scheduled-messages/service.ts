@@ -11,7 +11,7 @@ import {
   normalizeScheduledTimezone,
 } from "@adobos/shared";
 import { and, desc, eq } from "drizzle-orm";
-import { getDb } from "../../db/client.js";
+import { getDb, one } from "../../db/client.js";
 import { guildSettings, scheduledMessages } from "../../db/schema.js";
 
 export class ScheduledMessagesError extends Error {
@@ -71,14 +71,14 @@ function resolveGuildId(guildId?: string): string {
   return id;
 }
 
-function ensureGuildRow(guildId: string): void {
-  const existing = getDb()
+async function ensureGuildRow(guildId: string): Promise<void> {
+  const existing = await one(getDb()
     .select({ guildId: guildSettings.guildId })
     .from(guildSettings)
     .where(eq(guildSettings.guildId, guildId))
-    .get();
+    .limit(1));
   if (!existing) {
-    getDb()
+    await getDb()
       .insert(guildSettings)
       .values({
         guildId,
@@ -86,7 +86,7 @@ function ensureGuildRow(guildId: string): void {
         welcomeEnabled: false,
         updatedAt: new Date(),
       })
-      .run();
+      ;
   }
 }
 
@@ -133,34 +133,34 @@ function rowToMessage(
   };
 }
 
-export function listScheduledMessages(guildId?: string): ScheduledMessage[] {
+export async function listScheduledMessages(guildId?: string): Promise<ScheduledMessage[]> {
   const id = resolveGuildId(guildId);
-  ensureGuildRow(id);
-  const rows = getDb()
+  await ensureGuildRow(id);
+  const rows = await getDb()
     .select()
     .from(scheduledMessages)
     .where(eq(scheduledMessages.guildId, id))
     .orderBy(desc(scheduledMessages.updatedAt))
-    .all();
+    ;
   return rows.map(rowToMessage);
 }
 
 /** Todos los mensajes activos (rehydrate al arranque). */
-export function listAllActiveScheduledMessages(): ScheduledMessage[] {
-  const rows = getDb()
+export async function listAllActiveScheduledMessages(): Promise<ScheduledMessage[]> {
+  const rows = await getDb()
     .select()
     .from(scheduledMessages)
     .where(eq(scheduledMessages.isActive, true))
-    .all();
+    ;
   return rows.map(rowToMessage);
 }
 
-export function getScheduledMessage(
+export async function getScheduledMessage(
   messageId: number,
   guildId?: string,
-): ScheduledMessage {
+): Promise<ScheduledMessage> {
   const id = resolveGuildId(guildId);
-  const row = getDb()
+  const row = await one(getDb()
     .select()
     .from(scheduledMessages)
     .where(
@@ -169,7 +169,7 @@ export function getScheduledMessage(
         eq(scheduledMessages.guildId, id),
       ),
     )
-    .get();
+    .limit(1));
   if (!row) {
     throw new ScheduledMessagesError(
       "Mensaje programado no encontrado.",
@@ -180,12 +180,12 @@ export function getScheduledMessage(
   return rowToMessage(row);
 }
 
-export function createScheduledMessage(
+export async function createScheduledMessage(
   input: CreateScheduledMessageRequest,
   guildId?: string,
-): ScheduledMessage {
+): Promise<ScheduledMessage> {
   const id = resolveGuildId(guildId);
-  ensureGuildRow(id);
+  await ensureGuildRow(id);
 
   const channelId = normalizeSnowflake(input.channelId);
   const timezone = normalizeScheduledTimezone(input.timezone);
@@ -194,7 +194,7 @@ export function createScheduledMessage(
   const isActive = input.isActive !== false;
   const now = new Date();
 
-  const result = getDb()
+  const [inserted] = await getDb()
     .insert(scheduledMessages)
     .values({
       guildId: id,
@@ -206,21 +206,27 @@ export function createScheduledMessage(
       createdAt: now,
       updatedAt: now,
     })
-    .run();
+    .returning({ id: scheduledMessages.id });
+  if (!inserted) {
+    throw new ScheduledMessagesError(
+      "No se pudo crear el mensaje programado.",
+      500,
+      "INSERT_FAILED",
+    );
+  }
 
-  const insertedId = Number(result.lastInsertRowid);
-  const message = getScheduledMessage(insertedId, id);
+  const message = await getScheduledMessage(inserted.id, id);
   notifyChanged(message);
   return message;
 }
 
-export function updateScheduledMessage(
+export async function updateScheduledMessage(
   messageId: number,
   input: UpdateScheduledMessageRequest,
   guildId?: string,
-): ScheduledMessage {
+): Promise<ScheduledMessage> {
   const id = resolveGuildId(guildId);
-  const current = getScheduledMessage(messageId, id);
+  const current = await getScheduledMessage(messageId, id);
 
   const nextChannelId =
     input.channelId !== undefined
@@ -241,7 +247,7 @@ export function updateScheduledMessage(
   const nextActive =
     input.isActive !== undefined ? Boolean(input.isActive) : current.isActive;
 
-  getDb()
+  await getDb()
     .update(scheduledMessages)
     .set({
       channelId: nextChannelId,
@@ -257,28 +263,28 @@ export function updateScheduledMessage(
         eq(scheduledMessages.guildId, id),
       ),
     )
-    .run();
+    ;
 
-  const message = getScheduledMessage(messageId, id);
+  const message = await getScheduledMessage(messageId, id);
   notifyChanged(message);
   return message;
 }
 
-export function setScheduledMessageActive(
+export async function setScheduledMessageActive(
   messageId: number,
   isActive: boolean,
   guildId?: string,
-): ScheduledMessage {
-  return updateScheduledMessage(messageId, { isActive }, guildId);
+): Promise<ScheduledMessage> {
+  return await updateScheduledMessage(messageId, { isActive }, guildId);
 }
 
-export function deleteScheduledMessage(
+export async function deleteScheduledMessage(
   messageId: number,
   guildId?: string,
-): void {
+): Promise<void> {
   const id = resolveGuildId(guildId);
-  const existing = getScheduledMessage(messageId, id);
-  getDb()
+  const existing = await getScheduledMessage(messageId, id);
+  await getDb()
     .delete(scheduledMessages)
     .where(
       and(
@@ -286,6 +292,6 @@ export function deleteScheduledMessage(
         eq(scheduledMessages.guildId, id),
       ),
     )
-    .run();
+    ;
   notifyChanged(null, existing.id);
 }

@@ -18,18 +18,18 @@ export const scheduledMessagesModule: AdobosModule = {
   ],
   register(ctx) {
     bindScheduledMessagesScheduler(ctx.client);
-    setScheduledMessageChangeListener((message, previousId) => {
+    setScheduledMessageChangeListener(async (message, previousId) => {
       if (!message && previousId != null) {
         onScheduledMessageRemoved(previousId);
         return;
       }
-      if (message) syncScheduledJob(message);
+      if (message) await syncScheduledJob(message);
     });
 
     ctx.route("/api/scheduled-messages", scheduledMessagesRoutes(ctx.client));
 
-    ctx.once("ready", () => {
-      rehydrateAllScheduledJobs();
+    ctx.once("ready", async () => {
+      await rehydrateAllScheduledJobs();
       console.log("[adobos] scheduled-messages: crons rehidratados");
     });
   },

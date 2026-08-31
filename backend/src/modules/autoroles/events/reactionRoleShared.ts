@@ -66,7 +66,7 @@ export async function applyReactionRoleChange(
   });
   if (!emojiKey) return;
 
-  const mapping = findReactionRole(message.id, emojiKey);
+  const mapping = await findReactionRole(message.id, emojiKey);
   if (!mapping) {
     // Mensaje no registrado como menú de reaction roles
     return;

@@ -1,11 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 
-/** Directorio de datos (mismo padre que SQLite). */
+/** Directorio de datos (uploads). Independiente de DATABASE_URL. */
 export function getDataRoot(): string {
-  const raw = process.env.DATABASE_URL ?? "file:./data/database.sqlite";
-  const dbPath = raw.startsWith("file:") ? raw.slice("file:".length) : raw;
-  return path.dirname(path.resolve(dbPath));
+  const raw = process.env.DATA_DIR?.trim();
+  if (raw) return path.resolve(raw);
+  return path.resolve("./data");
 }
 
 export function getUploadsRoot(): string {

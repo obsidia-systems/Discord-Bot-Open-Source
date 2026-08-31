@@ -110,7 +110,7 @@ export function autoroleRoutes(bot: Client): Router {
         payload.guildId,
       );
 
-      const result = saveReactionRoleMappings(payload);
+      const result = await saveReactionRoleMappings(payload);
 
       try {
         if (channel.isTextBased() && "messages" in channel) {

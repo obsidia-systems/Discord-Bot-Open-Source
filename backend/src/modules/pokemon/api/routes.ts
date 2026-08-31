@@ -29,9 +29,9 @@ export function pokemonRoutes(_bot: Client): Router {
   const router = Router();
 
   /** GET /api/pokemon/config */
-  router.get("/config", (req, res) => {
+  router.get("/config", async (req, res) => {
     try {
-      const config = getPokemonConfig(guildIdOf(req));
+      const config = await getPokemonConfig(guildIdOf(req));
       res.json({ config });
     } catch (error) {
       handleError(error, res);
@@ -39,10 +39,10 @@ export function pokemonRoutes(_bot: Client): Router {
   });
 
   /** PUT /api/pokemon/config */
-  router.put("/config", (req, res) => {
+  router.put("/config", async (req, res) => {
     try {
       const body = (req.body ?? {}) as UpdatePokemonConfigRequest;
-      const config = updatePokemonConfig({
+      const config = await updatePokemonConfig({
         ...body,
         guildId: guildIdOf(req) ?? body.guildId,
       });

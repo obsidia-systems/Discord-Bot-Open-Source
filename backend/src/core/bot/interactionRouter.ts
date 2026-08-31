@@ -125,7 +125,7 @@ async function handleChatInput(
       const { assertSystemCommandAllowed } = await import(
         "../../modules/system-commands/guard.js"
       );
-      const guard = assertSystemCommandAllowed(interaction);
+      const guard = await assertSystemCommandAllowed(interaction);
       if (!guard.ok) {
         await interaction.reply({
           content: guard.message,

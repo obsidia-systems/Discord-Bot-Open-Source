@@ -40,21 +40,21 @@ export function canvasEventSettingsRoutes(
 ): Router {
   const router = Router();
 
-  router.get("/", (req, res) => {
+  router.get("/", async (req, res) => {
     const guildId =
       guildIdOf(req);
 
     try {
-      res.json(getCanvasEventSettings(eventType, guildId));
+      res.json(await getCanvasEventSettings(eventType, guildId));
     } catch (error: unknown) {
       handleError(error, res, eventType);
     }
   });
 
-  router.post("/", (req, res) => {
+  router.post("/", async (req, res) => {
     try {
       const payload = req.body as SaveCanvasEventSettingsRequest;
-      const result = saveCanvasEventSettings(eventType, {
+      const result = await saveCanvasEventSettings(eventType, {
         ...payload,
         guildId: guildIdOf(req),
       });

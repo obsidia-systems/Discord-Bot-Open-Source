@@ -28,7 +28,7 @@ import {
   normalizeRoutingMode,
   type ActionLogEmbedTone,
 } from "@adobos/shared";
-import { getDb } from "../../db/client.js";
+import { getDb, one } from "../../db/client.js";
 import {
   actionLogs,
   actionLogsConfig,
@@ -115,22 +115,24 @@ function parseJson<T>(raw: string, fallback: T): T {
   }
 }
 
-function ensureGuildRow(guildId: string): void {
+async function ensureGuildRow(guildId: string): Promise<void> {
   const db = getDb();
-  const existing = db
+  const existing = await one(
+    db
     .select()
     .from(guildSettings)
     .where(eq(guildSettings.guildId, guildId))
-    .get();
+    .limit(1)
+  );
   if (!existing) {
-    db.insert(guildSettings)
+    await db.insert(guildSettings)
       .values({
         guildId,
         prefix: "!",
         welcomeEnabled: false,
         updatedAt: new Date(),
       })
-      .run();
+      ;
   }
 }
 
@@ -223,24 +225,24 @@ function rowToConfig(
   };
 }
 
-export function getActionLogsConfig(guildId?: string): ActionLogsConfig {
+export async function getActionLogsConfig(guildId?: string): Promise<ActionLogsConfig> {
   const id = resolveGuildId(guildId);
-  const row = getDb()
+  const row = await one(getDb()
     .select()
     .from(actionLogsConfig)
     .where(eq(actionLogsConfig.guildId, id))
-    .get();
-  return rowToConfig(id, row);
+    .limit(1));
+  return await rowToConfig(id, row);
 }
 
-export function updateActionLogsConfig(
+export async function updateActionLogsConfig(
   input: UpdateActionLogsConfigRequest,
   guildId?: string,
-): ActionLogsConfig {
+): Promise<ActionLogsConfig> {
   const id = resolveGuildId(guildId);
-  ensureGuildRow(id);
+  await ensureGuildRow(id);
 
-  const current = getActionLogsConfig(id);
+  const current = await getActionLogsConfig(id);
   const mappingPatch = {
     ...current.channelsMapping,
     ...(input.channelsMapping ?? {}),
@@ -279,7 +281,7 @@ export function updateActionLogsConfig(
   }
 
   const now = new Date();
-  getDb()
+  await getDb()
     .insert(actionLogsConfig)
     .values({
       guildId: id,
@@ -309,21 +311,21 @@ export function updateActionLogsConfig(
         updatedAt: now,
       },
     })
-    .run();
+    ;
 
   // Compat: sincroniza log_channel_id legacy con el canal global.
   if (next.globalChannelId) {
-    getDb()
+    await getDb()
       .update(guildSettings)
       .set({
         logChannelId: next.globalChannelId,
         updatedAt: now,
       })
       .where(eq(guildSettings.guildId, id))
-      .run();
+      ;
   }
 
-  return getActionLogsConfig(id);
+  return await getActionLogsConfig(id);
 }
 
 export function resolveLogChannelId(
@@ -339,7 +341,7 @@ export function resolveLogChannelId(
 }
 
 /** Chequeo barato para abortar listeners antes de audit/CPU. */
-export function passesActionLogFilters(
+export async function passesActionLogFilters(
   guildId: string,
   eventKey: ActionLogEventKey,
   ctx: {
@@ -349,8 +351,8 @@ export function passesActionLogFilters(
     actorIsBot?: boolean;
     actorRoleIds?: string[];
   } = {},
-): boolean {
-  const config = getActionLogsConfig(guildId);
+): Promise<boolean> {
+  const config = await getActionLogsConfig(guildId);
   if (!config.enabled) return false;
   if (config.ignoreBots && ctx.actorIsBot) return false;
   if (isChannelIgnored(config.ignoredChannels, ctx.channelId, ctx.parentId)) {
@@ -410,7 +412,7 @@ export async function recordActionLog(
   bot: Client,
   input: RecordActionLogInput,
 ): Promise<ActionLogEntry | null> {
-  const config = getActionLogsConfig(input.guildId);
+  const config = await getActionLogsConfig(input.guildId);
 
   // Pipeline: enabled → ignore bots → canales/categoría/roles → switch evento
   if (!config.enabled) return null;
@@ -439,7 +441,7 @@ export async function recordActionLog(
   const id = randomUUID();
   const createdAt = new Date();
 
-  getDb()
+  await getDb()
     .insert(actionLogs)
     .values({
       id,
@@ -455,7 +457,7 @@ export async function recordActionLog(
       details: JSON.stringify(details),
       createdAt,
     })
-    .run();
+    ;
 
   const entry: ActionLogEntry = {
     id,
@@ -584,29 +586,29 @@ export async function recordActionLog(
 }
 
 /** Borra logs SQLite anteriores a la retención del guild. */
-export function purgeExpiredActionLogs(guildId?: string): number {
+export async function purgeExpiredActionLogs(guildId?: string): Promise<number> {
   const id = resolveGuildId(guildId);
-  const config = getActionLogsConfig(id);
+  const config = await getActionLogsConfig(id);
   const days = config.dataRetentionDays as ActionLogRetentionDays;
   if (!days || days <= 0) return 0;
 
   const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-  const result = getDb()
+  const deleted = await getDb()
     .delete(actionLogs)
     .where(
       and(eq(actionLogs.guildId, id), lt(actionLogs.createdAt, cutoff)),
     )
-    .run();
-  return result.changes ?? 0;
+    .returning({ id: actionLogs.id });
+  return deleted.length;
 }
 
 /** Limpia retención de todos los guilds con config (job periódico). */
-export function purgeAllExpiredActionLogs(): number {
-  const rows = getDb().select({ guildId: actionLogsConfig.guildId }).from(actionLogsConfig).all();
+export async function purgeAllExpiredActionLogs(): Promise<number> {
+  const rows = await getDb().select({ guildId: actionLogsConfig.guildId }).from(actionLogsConfig);
   let total = 0;
   for (const row of rows) {
     try {
-      total += purgeExpiredActionLogs(row.guildId);
+      total += await purgeExpiredActionLogs(row.guildId);
     } catch (error) {
       console.warn(
         `[adobos] action-logs: purge falló para ${row.guildId}:`,
@@ -617,13 +619,13 @@ export function purgeAllExpiredActionLogs(): number {
   return total;
 }
 
-export function listActionLogsHistory(
+export async function listActionLogsHistory(
   query: ActionLogsHistoryQuery = {},
-): ActionLogsHistoryResponse {
+): Promise<ActionLogsHistoryResponse> {
   const guildId = resolveGuildId(query.guildId);
   // Limpieza oportunista al consultar historial
   try {
-    purgeExpiredActionLogs(guildId);
+    await purgeExpiredActionLogs(guildId);
   } catch {
     // ignore
   }
@@ -668,21 +670,23 @@ export function listActionLogsHistory(
   const where = and(...conditions);
   const db = getDb();
 
-  const totalRow = db
+  const totalRow = await one(
+    db
     .select({ count: sql<number>`count(*)` })
     .from(actionLogs)
     .where(where)
-    .get();
+    .limit(1)
+  );
   const total = Number(totalRow?.count ?? 0);
 
-  const rows = db
+  const rows = await db
     .select()
     .from(actionLogs)
     .where(where)
     .orderBy(desc(actionLogs.createdAt))
     .limit(limit)
     .offset(offset)
-    .all();
+    ;
 
   const entries: ActionLogEntry[] = rows.map((row) => ({
     id: row.id,
@@ -713,7 +717,7 @@ export async function sendActionLogsTestEmbed(
   guildId?: string,
 ): Promise<ActionLogsTestResponse> {
   const guild = resolveGuild(bot, guildId);
-  const config = getActionLogsConfig(guild.id);
+  const config = await getActionLogsConfig(guild.id);
   const channelId = resolveLogChannelId(config, "MESSAGES") ?? config.globalChannelId;
 
   if (!channelId) {

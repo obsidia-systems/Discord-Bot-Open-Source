@@ -14,7 +14,7 @@ const PORT = Number(process.env.PORT ?? 3000);
 const HOST = process.env.HOST ?? "0.0.0.0";
 
 async function main(): Promise<void> {
-  initDatabase();
+    await initDatabase();
 
   const registry = loadModules(ENABLED_MODULES);
   // Reserva nombres del catálogo nativo para custom-commands.

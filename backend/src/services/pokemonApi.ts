@@ -1401,7 +1401,7 @@ export async function resolveCompetitiveMeta(
   apiName: string,
   generation: number,
 ) {
-  return getCompetitiveData(apiName, generation);
+  return await getCompetitiveData(apiName, generation);
 }
 
 /** @deprecated Preferir `getCompetitiveData`. */

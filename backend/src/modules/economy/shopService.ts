@@ -12,7 +12,7 @@ import {
   rewardsFromActionSequence,
 } from "@adobos/shared";
 import { and, asc, eq } from "drizzle-orm";
-import { getDb } from "../../db/client.js";
+import { getDb, one } from "../../db/client.js";
 import { economyShopItems, guildSettings } from "../../db/schema.js";
 import { EconomyError } from "./service.js";
 
@@ -28,14 +28,14 @@ function resolveGuildId(guildId?: string): string {
   return id;
 }
 
-function ensureGuildRow(guildId: string): void {
-  const existing = getDb()
+async function ensureGuildRow(guildId: string): Promise<void> {
+  const existing = await one(getDb()
     .select({ guildId: guildSettings.guildId })
     .from(guildSettings)
     .where(eq(guildSettings.guildId, guildId))
-    .get();
+    .limit(1));
   if (!existing) {
-    getDb()
+    await getDb()
       .insert(guildSettings)
       .values({
         guildId,
@@ -43,7 +43,7 @@ function ensureGuildRow(guildId: string): void {
         welcomeEnabled: false,
         updatedAt: new Date(),
       })
-      .run();
+      ;
   }
 }
 
@@ -258,12 +258,12 @@ function rowToItem(row: typeof economyShopItems.$inferSelect): EconomyShopItem {
   };
 }
 
-export function listShopItems(
+export async function listShopItems(
   guildId?: string,
   opts?: { enabledOnly?: boolean },
-): EconomyShopItem[] {
+): Promise<EconomyShopItem[]> {
   const id = resolveGuildId(guildId);
-  const rows = getDb()
+  const rows = await getDb()
     .select()
     .from(economyShopItems)
     .where(
@@ -275,35 +275,35 @@ export function listShopItems(
         : eq(economyShopItems.guildId, id),
     )
     .orderBy(asc(economyShopItems.sortOrder), asc(economyShopItems.name))
-    .all();
+    ;
   return rows.map(rowToItem);
 }
 
-export function getShopItem(
+export async function getShopItem(
   itemId: string,
   guildId?: string,
-): EconomyShopItem | null {
+): Promise<EconomyShopItem | null> {
   const id = resolveGuildId(guildId);
-  const row = getDb()
+  const row = await one(getDb()
     .select()
     .from(economyShopItems)
     .where(
       and(eq(economyShopItems.id, itemId), eq(economyShopItems.guildId, id)),
     )
-    .get();
+    .limit(1));
   return row ? rowToItem(row) : null;
 }
 
 /** Nombres activos únicos (case-insensitive) por guild. */
-function assertUniqueActiveName(
+async function assertUniqueActiveName(
   guildId: string,
   name: string,
   excludeItemId?: string,
-): void {
+): Promise<void> {
   const normalized = name.trim().toLowerCase();
   if (!normalized) return;
 
-  const clash = listShopItems(guildId, { enabledOnly: true }).find(
+  const clash = (await listShopItems(guildId, { enabledOnly: true })).find(
     (item) =>
       item.id !== excludeItemId &&
       item.name.trim().toLowerCase() === normalized,
@@ -317,11 +317,11 @@ function assertUniqueActiveName(
   }
 }
 
-export function createShopItem(
+export async function createShopItem(
   input: CreateEconomyShopItemRequest,
-): EconomyShopItem {
+): Promise<EconomyShopItem> {
   const guildId = resolveGuildId(input.guildId);
-  ensureGuildRow(guildId);
+  await ensureGuildRow(guildId);
 
   const name = (input.name ?? "").trim().slice(0, 100);
   if (!name) {
@@ -333,7 +333,7 @@ export function createShopItem(
 
   const enabled = input.enabled !== false;
   if (enabled) {
-    assertUniqueActiveName(guildId, name);
+    await assertUniqueActiveName(guildId, name);
   }
 
   const now = new Date();
@@ -343,7 +343,7 @@ export function createShopItem(
       ? null
       : clampNonNegInt(Number(input.stock));
 
-  getDb()
+  await getDb()
     .insert(economyShopItems)
     .values({
       id,
@@ -362,21 +362,21 @@ export function createShopItem(
       createdAt: now,
       updatedAt: now,
     })
-    .run();
+    ;
 
-  const created = getShopItem(id, guildId);
+  const created = await getShopItem(id, guildId);
   if (!created) {
     throw new EconomyError("No se pudo crear el ítem.", 500, "CREATE_FAILED");
   }
   return created;
 }
 
-export function updateShopItem(
+export async function updateShopItem(
   itemId: string,
   input: UpdateEconomyShopItemRequest,
-): EconomyShopItem {
+): Promise<EconomyShopItem> {
   const guildId = resolveGuildId(input.guildId);
-  const current = getShopItem(itemId, guildId);
+  const current = await getShopItem(itemId, guildId);
   if (!current) {
     throw new EconomyError("Ítem no encontrado.", 404, "NOT_FOUND");
   }
@@ -398,7 +398,7 @@ export function updateShopItem(
   const enabled =
     typeof input.enabled === "boolean" ? input.enabled : current.enabled;
   if (enabled) {
-    assertUniqueActiveName(guildId, name, itemId);
+    await assertUniqueActiveName(guildId, name, itemId);
   }
 
   let stock = current.stock;
@@ -408,7 +408,7 @@ export function updateShopItem(
   }
 
   const now = new Date();
-  getDb()
+  await getDb()
     .update(economyShopItems)
     .set({
       name,
@@ -442,31 +442,31 @@ export function updateShopItem(
         eq(economyShopItems.guildId, guildId),
       ),
     )
-    .run();
+    ;
 
-  const updated = getShopItem(itemId, guildId);
+  const updated = await getShopItem(itemId, guildId);
   if (!updated) {
     throw new EconomyError("No se pudo actualizar el ítem.", 500, "UPDATE_FAILED");
   }
   return updated;
 }
 
-export function deleteShopItem(itemId: string, guildId?: string): void {
+export async function deleteShopItem(itemId: string, guildId?: string): Promise<void> {
   const id = resolveGuildId(guildId);
-  const current = getShopItem(itemId, id);
+  const current = await getShopItem(itemId, id);
   if (!current) {
     throw new EconomyError("Ítem no encontrado.", 404, "NOT_FOUND");
   }
-  getDb()
+  await getDb()
     .delete(economyShopItems)
     .where(
       and(eq(economyShopItems.id, itemId), eq(economyShopItems.guildId, id)),
     )
-    .run();
+    ;
 }
 
-export function decrementShopStock(itemId: string, guildId: string): void {
-  const row = getDb()
+export async function decrementShopStock(itemId: string, guildId: string): Promise<void> {
+  const row = await one(getDb()
     .select()
     .from(economyShopItems)
     .where(
@@ -475,14 +475,14 @@ export function decrementShopStock(itemId: string, guildId: string): void {
         eq(economyShopItems.guildId, guildId),
       ),
     )
-    .get();
+    .limit(1));
   if (!row || row.stock === null) return;
   if (row.stock <= 0) {
     throw new EconomyError("Sin stock disponible.", 400, "OUT_OF_STOCK");
   }
-  getDb()
+  await getDb()
     .update(economyShopItems)
     .set({ stock: row.stock - 1, updatedAt: new Date() })
     .where(eq(economyShopItems.id, itemId))
-    .run();
+    ;
 }

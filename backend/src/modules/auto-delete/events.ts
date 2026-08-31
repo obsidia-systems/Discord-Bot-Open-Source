@@ -11,7 +11,7 @@ export async function onAutoDeleteMessageCreate(
     if (message.pinned) return;
 
     const guildId = message.guild.id;
-    const config = getAutoDeleteConfigCached(guildId);
+    const config = await getAutoDeleteConfigCached(guildId);
     if (!config.enabled || config.rules.length === 0) return;
 
     const rule = config.rules.find((r) => r.channelId === message.channelId);

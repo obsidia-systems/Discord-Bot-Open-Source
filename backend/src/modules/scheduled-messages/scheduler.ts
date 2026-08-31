@@ -149,7 +149,7 @@ export function stopAllScheduledJobs(): void {
  * Registra o actualiza el cron de un mensaje.
  * Si `isActive` es false, solo detiene el job.
  */
-export function syncScheduledJob(message: ScheduledMessage | null): void {
+export async function syncScheduledJob(message: ScheduledMessage | null): Promise<void> {
   const client = botClient;
   if (!message) return;
 
@@ -178,10 +178,10 @@ export function syncScheduledJob(message: ScheduledMessage | null): void {
 
   const task = cron.schedule(
     expression,
-    () => {
+    async () => {
       void (async () => {
         try {
-          const fresh = getScheduledMessage(messageId, message.guildId);
+          const fresh = await getScheduledMessage(messageId, message.guildId);
           if (!fresh.isActive) {
             stopScheduledJob(messageId);
             return;
@@ -198,7 +198,7 @@ export function syncScheduledJob(message: ScheduledMessage | null): void {
             fresh.frequency.type === "specific_date" &&
             !fresh.frequency.repeatYearly
           ) {
-            setScheduledMessageActive(messageId, false, fresh.guildId);
+            await setScheduledMessageActive(messageId, false, fresh.guildId);
           }
         } catch (error) {
           console.warn(
@@ -219,12 +219,12 @@ export function onScheduledMessageRemoved(messageId: number): void {
 }
 
 /** Rehidrata todos los crons activos desde SQLite. */
-export function rehydrateAllScheduledJobs(): void {
+export async function rehydrateAllScheduledJobs(): Promise<void> {
   stopAllScheduledJobs();
   try {
-    const messages = listAllActiveScheduledMessages();
+    const messages = await listAllActiveScheduledMessages();
     for (const message of messages) {
-      syncScheduledJob(message);
+      await syncScheduledJob(message);
     }
   } catch (error) {
     console.warn("[adobos] scheduled-messages: rehydrate cron falló:", error);

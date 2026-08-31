@@ -18,17 +18,14 @@ export const economyModule: AdobosModule = {
   name: "Economía",
   register(ctx) {
     ctx.route("/api/economy", economyRoutes(ctx.client));
-    ctx.button(BUY_BUTTON_PREFIX, (interaction) =>
-      handleBuyButton(interaction),
+    ctx.button(BUY_BUTTON_PREFIX, (interaction) => handleBuyButton(interaction),
     );
-    ctx.button(SHOP_PAGE_PREFIX, (interaction) =>
-      handleShopPageButton(interaction),
+    ctx.button(SHOP_PAGE_PREFIX, (interaction) => handleShopPageButton(interaction),
     );
-    ctx.button(BJ_BUTTON_PREFIX, (interaction) =>
-      handleBlackjackButton(interaction),
+    ctx.button(BJ_BUTTON_PREFIX, (interaction) => handleBlackjackButton(interaction),
     );
-    ctx.once("ready", () => {
-      startShopExpirationSweeper(ctx.client);
+    ctx.once("ready", async () => {
+      await startShopExpirationSweeper(ctx.client);
       console.log("[adobos] economy: sweeper de grants temporales activo");
     });
   },

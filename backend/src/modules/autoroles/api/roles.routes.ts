@@ -25,11 +25,11 @@ export function rolesRoutes(bot: Client): Router {
   const router = Router();
 
   /** GET /api/roles/auto — config de roles al unirse */
-  router.get("/auto", (req, res) => {
+  router.get("/auto", async (req, res) => {
     try {
       const guildId =
         guildIdOf(req);
-      res.json(getAutoJoinRoles(guildId));
+      res.json(await getAutoJoinRoles(guildId));
     } catch (error: unknown) {
       if (error instanceof AutoRoleError) {
         res.status(error.status).json({
@@ -47,7 +47,7 @@ export function rolesRoutes(bot: Client): Router {
   });
 
   /** POST /api/roles/auto — guarda humanos/bots */
-  router.post("/auto", (req, res) => {
+  router.post("/auto", async (req, res) => {
     const body = req.body as Partial<SaveAutoJoinRolesRequest>;
     try {
       const payload: SaveAutoJoinRolesRequest = {
@@ -55,7 +55,7 @@ export function rolesRoutes(bot: Client): Router {
         humanRoles: parseRoleIdArray(body.humanRoles),
         botRoles: parseRoleIdArray(body.botRoles),
       };
-      const result = saveAutoJoinRoles(payload);
+      const result = await saveAutoJoinRoles(payload);
       res.status(200).json(result);
     } catch (error: unknown) {
       if (error instanceof AutoRoleError) {

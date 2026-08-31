@@ -54,9 +54,9 @@ export function customCommandsRoutes(bot: Client): Router {
   const router = Router();
 
   /** GET /api/custom-commands */
-  router.get("/", (req, res) => {
+  router.get("/", async (req, res) => {
     try {
-      const commands = listCustomCommands(guildIdOf(req));
+      const commands = await listCustomCommands(guildIdOf(req));
       res.json({ commands });
     } catch (error) {
       handleError(error, res);
@@ -64,7 +64,7 @@ export function customCommandsRoutes(bot: Client): Router {
   });
 
   /** POST /api/custom-commands/sync */
-  router.post("/sync", (req, res) => {
+  router.post("/sync", async (req, res) => {
     void (async () => {
       try {
         if (!bot.isReady()) {
@@ -86,12 +86,12 @@ export function customCommandsRoutes(bot: Client): Router {
   });
 
   /** POST /api/custom-commands */
-  router.post("/", (req, res) => {
+  router.post("/", async (req, res) => {
     void (async () => {
       try {
         const guildId = guildIdOf(req);
         const body = (req.body ?? {}) as CreateCustomCommandRequest;
-        const command = createCustomCommand(body, guildId);
+        const command = await createCustomCommand(body, guildId);
         await syncSafe(bot, guildId);
         res.status(201).json({ command });
       } catch (error) {
@@ -101,9 +101,9 @@ export function customCommandsRoutes(bot: Client): Router {
   });
 
   /** GET /api/custom-commands/:id */
-  router.get("/:id", (req, res) => {
+  router.get("/:id", async (req, res) => {
     try {
-      const command = getCustomCommand(
+      const command = await getCustomCommand(
         parseId(req.params.id),
         guildIdOf(req),
       );
@@ -114,12 +114,12 @@ export function customCommandsRoutes(bot: Client): Router {
   });
 
   /** PATCH /api/custom-commands/:id */
-  router.patch("/:id", (req, res) => {
+  router.patch("/:id", async (req, res) => {
     void (async () => {
       try {
         const guildId = guildIdOf(req);
         const body = (req.body ?? {}) as UpdateCustomCommandRequest;
-        const command = updateCustomCommand(
+        const command = await updateCustomCommand(
           parseId(req.params.id),
           body,
           guildId,
@@ -133,11 +133,11 @@ export function customCommandsRoutes(bot: Client): Router {
   });
 
   /** DELETE /api/custom-commands/:id */
-  router.delete("/:id", (req, res) => {
+  router.delete("/:id", async (req, res) => {
     void (async () => {
       try {
         const guildId = guildIdOf(req);
-        deleteCustomCommand(parseId(req.params.id), guildId);
+        await deleteCustomCommand(parseId(req.params.id), guildId);
         await syncSafe(bot, guildId);
         res.status(204).send();
       } catch (error) {

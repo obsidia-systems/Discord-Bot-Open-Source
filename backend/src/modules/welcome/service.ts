@@ -7,7 +7,7 @@ import type {
   WelcomeTextWeight,
   WelcomeSettingsResponse,
 } from "@adobos/shared";
-import { getDb } from "../../db/client.js";
+import { getDb, one } from "../../db/client.js";
 import { guildSettings, welcomeSettings } from "../../db/schema.js";
 import {
   AVATAR_SIZE_MAX,
@@ -215,37 +215,39 @@ export function normalizeTextLayers(raw: unknown[]): WelcomeTextLayer[] {
   return layers.length > 0 ? layers.slice(0, 12) : DEFAULT_LAYERS.map((l) => ({ ...l }));
 }
 
-function ensureGuildRow(guildId: string): void {
+async function ensureGuildRow(guildId: string): Promise<void> {
   const db = getDb();
-  const existing = db
+  const existing = await one(
+    db
     .select()
     .from(guildSettings)
     .where(eq(guildSettings.guildId, guildId))
-    .get();
+    .limit(1)
+  );
 
   if (!existing) {
-    db.insert(guildSettings)
+    await db.insert(guildSettings)
       .values({
         guildId,
         prefix: "!",
         welcomeEnabled: false,
         updatedAt: new Date(),
       })
-      .run();
+      ;
   }
 }
 
-export function getWelcomeSettings(guildIdRaw?: string): WelcomeSettingsResponse {
+export async function getWelcomeSettings(guildIdRaw?: string): Promise<WelcomeSettingsResponse> {
   const guildId = assertSnowflake(
     guildIdRaw?.trim() || "",
     "guildId",
   );
 
-  const row = getDb()
+  const row = await one(getDb()
     .select()
     .from(welcomeSettings)
     .where(eq(welcomeSettings.guildId, guildId))
-    .get();
+    .limit(1));
 
   if (!row) {
     return {
@@ -286,9 +288,9 @@ export function getWelcomeSettings(guildIdRaw?: string): WelcomeSettingsResponse
   };
 }
 
-export function saveWelcomeSettings(
+export async function saveWelcomeSettings(
   input: SaveWelcomeSettingsRequest,
-): SaveWelcomeSettingsResponse {
+): Promise<SaveWelcomeSettingsResponse> {
   const guildId = assertSnowflake(input.guildId, "guildId");
   const channelIdRaw = input.channelId?.trim() || "";
   const channelId = channelIdRaw
@@ -349,7 +351,7 @@ export function saveWelcomeSettings(
     );
   }
 
-  ensureGuildRow(guildId);
+  await ensureGuildRow(guildId);
 
   const first = textLayers[0];
   const second = textLayers[1];
@@ -380,43 +382,45 @@ export function saveWelcomeSettings(
     updatedAt: now,
   };
 
-  const existing = db
+  const existing = await one(
+    db
     .select()
     .from(welcomeSettings)
     .where(eq(welcomeSettings.guildId, guildId))
-    .get();
+    .limit(1)
+  );
 
   if (existing) {
-    db.update(welcomeSettings)
+    await db.update(welcomeSettings)
       .set(payload)
       .where(eq(welcomeSettings.guildId, guildId))
-      .run();
+      ;
   } else {
-    db.insert(welcomeSettings)
+    await db.insert(welcomeSettings)
       .values({
         guildId,
         ...payload,
       })
-      .run();
+      ;
   }
 
-  db.update(guildSettings)
+  await db.update(guildSettings)
     .set({ welcomeEnabled: isEnabled, updatedAt: now })
     .where(eq(guildSettings.guildId, guildId))
-    .run();
+    ;
 
   return { ok: true };
 }
 
-export function disableWelcomeSettings(guildId: string): void {
+export async function disableWelcomeSettings(guildId: string): Promise<void> {
   const db = getDb();
   const now = new Date();
-  db.update(welcomeSettings)
+  await db.update(welcomeSettings)
     .set({ isEnabled: false, updatedAt: now })
     .where(eq(welcomeSettings.guildId, guildId))
-    .run();
-  db.update(guildSettings)
+    ;
+  await db.update(guildSettings)
     .set({ welcomeEnabled: false, updatedAt: now })
     .where(eq(guildSettings.guildId, guildId))
-    .run();
+    ;
 }

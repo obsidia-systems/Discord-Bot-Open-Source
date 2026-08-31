@@ -19,7 +19,7 @@ const SWEEP_MS = 60_000;
 export async function sweepExpiredShopGrants(bot: Client): Promise<void> {
   const now = new Date();
 
-  const expiredRoles = getDb()
+  const expiredRoles = await getDb()
     .select()
     .from(economyOwnedRoles)
     .where(
@@ -28,7 +28,7 @@ export async function sweepExpiredShopGrants(bot: Client): Promise<void> {
         lte(economyOwnedRoles.expiresAt, now),
       ),
     )
-    .all();
+    ;
 
   for (const row of expiredRoles) {
     try {
@@ -54,13 +54,13 @@ export async function sweepExpiredShopGrants(bot: Client): Promise<void> {
     } catch (error) {
       console.warn("[adobos] shop expire role:", row.id, error);
     }
-    getDb()
+    await getDb()
       .delete(economyOwnedRoles)
       .where(eq(economyOwnedRoles.id, row.id))
-      .run();
+      ;
   }
 
-  const expiredChannels = getDb()
+  const expiredChannels = await getDb()
     .select()
     .from(economyOwnedChannels)
     .where(
@@ -69,7 +69,7 @@ export async function sweepExpiredShopGrants(bot: Client): Promise<void> {
         lte(economyOwnedChannels.expiresAt, now),
       ),
     )
-    .all();
+    ;
 
   for (const row of expiredChannels) {
     try {
@@ -87,13 +87,13 @@ export async function sweepExpiredShopGrants(bot: Client): Promise<void> {
     } catch (error) {
       console.warn("[adobos] shop expire channel:", row.id, error);
     }
-    getDb()
+    await getDb()
       .delete(economyOwnedChannels)
       .where(eq(economyOwnedChannels.id, row.id))
-      .run();
+      ;
   }
 
-  const expiredBoosts = getDb()
+  const expiredBoosts = await getDb()
     .select()
     .from(economyUserBoosts)
     .where(
@@ -102,19 +102,19 @@ export async function sweepExpiredShopGrants(bot: Client): Promise<void> {
         lte(economyUserBoosts.expiresAt, now),
       ),
     )
-    .all();
+    ;
 
   for (const row of expiredBoosts) {
-    getDb()
+    await getDb()
       .delete(economyUserBoosts)
       .where(eq(economyUserBoosts.id, row.id))
-      .run();
+      ;
   }
 }
 
 let sweepTimer: ReturnType<typeof setInterval> | null = null;
 
-export function startShopExpirationSweeper(bot: Client): void {
+export async function startShopExpirationSweeper(bot: Client): Promise<void> {
   if (sweepTimer) return;
   void sweepExpiredShopGrants(bot);
   sweepTimer = setInterval(() => {

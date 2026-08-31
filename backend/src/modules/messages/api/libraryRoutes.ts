@@ -94,11 +94,11 @@ export function embedLibraryRoutes(bot: Client): Router {
   const router = Router();
 
   /** GET /api/embeds/library */
-  router.get("/library", (req, res) => {
+  router.get("/library", async (req, res) => {
     const guildId =
       guildIdOf(req);
     try {
-      res.json(getEmbedLibrary(bot, guildId));
+      res.json(await getEmbedLibrary(bot, guildId));
     } catch (error: unknown) {
       handleError(error, res);
     }

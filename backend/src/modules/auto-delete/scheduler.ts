@@ -114,7 +114,7 @@ export function stopAllAutoDeleteJobs(): void {
  * Destruye jobs previos del guild y registra crons de reglas SCHEDULED.
  * Si el módulo está desactivado, solo limpia.
  */
-export function syncAutoDeleteJobsForConfig(config: AutoDeleteConfig): void {
+export async function syncAutoDeleteJobsForConfig(config: AutoDeleteConfig): Promise<void> {
   const client = botClient;
   stopAutoDeleteJobsForGuild(config.guildId);
   if (!client || !config.enabled) return;
@@ -146,12 +146,12 @@ export function syncAutoDeleteJobsForConfig(config: AutoDeleteConfig): void {
 }
 
 /** Rehidrata todos los crons desde SQLite (arranque del bot). */
-export function rehydrateAllAutoDeleteJobs(): void {
+export async function rehydrateAllAutoDeleteJobs(): Promise<void> {
   stopAllAutoDeleteJobs();
   try {
-    const configs = listAllAutoDeleteConfigs();
+    const configs = await listAllAutoDeleteConfigs();
     for (const config of configs) {
-      syncAutoDeleteJobsForConfig(config);
+      await syncAutoDeleteJobsForConfig(config);
     }
   } catch (error) {
     console.warn("[adobos] auto-delete: rehydrate cron falló:", error);

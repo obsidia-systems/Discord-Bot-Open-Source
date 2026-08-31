@@ -99,7 +99,7 @@ export async function onMessageDelete(
   const author = message.author;
 
   if (
-    !passesActionLogFilters(message.guild.id, "messageDelete", {
+    !await passesActionLogFilters(message.guild.id, "messageDelete", {
       channelId,
       parentId,
       actorIsBot: author?.bot,
@@ -207,7 +207,7 @@ export async function onMessageUpdate(
     if (removed.length === 0) return;
 
     if (
-      !passesActionLogFilters(newMessage.guild.id, "messageAttachmentDelete", {
+      !await passesActionLogFilters(newMessage.guild.id, "messageAttachmentDelete", {
         channelId: newMessage.channelId,
         parentId,
         actorIsBot: author?.bot,
@@ -239,7 +239,7 @@ export async function onMessageUpdate(
   }
 
   if (
-    !passesActionLogFilters(newMessage.guild.id, "messageUpdate", {
+    !await passesActionLogFilters(newMessage.guild.id, "messageUpdate", {
       channelId: newMessage.channelId,
       parentId,
       actorIsBot: author?.bot,
@@ -985,7 +985,7 @@ async function handleVoiceStateUpdate(
 
   if (!oldCh && newCh) {
     if (
-      !passesActionLogFilters(guild.id, "voiceJoin", {
+      !await passesActionLogFilters(guild.id, "voiceJoin", {
         channelId: newCh,
         parentId: newParent,
         actorIsBot: user.bot,
@@ -1019,13 +1019,13 @@ async function handleVoiceStateUpdate(
     const disconnectChannelId = oldCh ?? channelToAudit?.id ?? null;
     const disconnectParentId = oldParent ?? channelToAudit?.parentId ?? null;
 
-    const leaveOk = passesActionLogFilters(guild.id, "voiceLeave", {
+    const leaveOk = await passesActionLogFilters(guild.id, "voiceLeave", {
       channelId: disconnectChannelId,
       parentId: disconnectParentId,
       actorIsBot: user.bot,
       actorRoleIds: roleIds,
     });
-    const kickOk = passesActionLogFilters(guild.id, "voiceKick", {
+    const kickOk = await passesActionLogFilters(guild.id, "voiceKick", {
       channelId: disconnectChannelId,
       parentId: disconnectParentId,
       actorIsBot: false,
@@ -1125,7 +1125,7 @@ async function handleVoiceStateUpdate(
 
   if (oldCh && newCh) {
     if (
-      !passesActionLogFilters(guild.id, "voiceMove", {
+      !await passesActionLogFilters(guild.id, "voiceMove", {
         channelId: newCh,
         parentId: newParent,
         actorIsBot: user.bot,
@@ -1163,7 +1163,7 @@ export async function onInviteCreate(invite: Invite): Promise<void> {
   if (!invite.guild) return;
   const inviter = invite.inviter;
   if (
-    !passesActionLogFilters(invite.guild.id, "inviteCreate", {
+    !await passesActionLogFilters(invite.guild.id, "inviteCreate", {
       channelId: invite.channelId,
       actorIsBot: inviter?.bot,
     })
@@ -1193,7 +1193,7 @@ export async function onInviteCreate(invite: Invite): Promise<void> {
 export async function onInviteDelete(invite: Invite): Promise<void> {
   if (!invite.guild) return;
   if (
-    !passesActionLogFilters(invite.guild.id, "inviteDelete", {
+    !await passesActionLogFilters(invite.guild.id, "inviteDelete", {
       channelId: invite.channelId,
     })
   ) {
@@ -1294,7 +1294,7 @@ export function registerActionLogListeners(ctx: {
 
   // Soundboard: tipado débil — no todos los builds de d.js lo exponen en ClientEvents.
   const onAny = ctx.on as (event: string, handler: (...args: unknown[]) => void) => void;
-  onAny("guildSoundboardSoundCreate", (sound) => {
+  onAny("guildSoundboardSoundCreate", async (sound) => {
     const s = sound as {
       guildId?: string | null;
       guild?: { id: string };
@@ -1304,7 +1304,7 @@ export function registerActionLogListeners(ctx: {
     };
     const guildId = s.guildId ?? s.guild?.id;
     if (!guildId) return;
-    if (!passesActionLogFilters(guildId, "soundboardCreate")) return;
+    if (!await passesActionLogFilters(guildId, "soundboardCreate")) return;
     void recordActionLog(s.client, {
       guildId,
       eventKey: "soundboardCreate",
@@ -1315,7 +1315,7 @@ export function registerActionLogListeners(ctx: {
       actorIsBot: false,
     });
   });
-  onAny("guildSoundboardSoundDelete", (sound) => {
+  onAny("guildSoundboardSoundDelete", async (sound) => {
     const s = sound as {
       guildId?: string | null;
       guild?: { id: string };
@@ -1325,7 +1325,7 @@ export function registerActionLogListeners(ctx: {
     };
     const guildId = s.guildId ?? s.guild?.id;
     if (!guildId) return;
-    if (!passesActionLogFilters(guildId, "soundboardDelete")) return;
+    if (!await passesActionLogFilters(guildId, "soundboardDelete")) return;
     void recordActionLog(s.client, {
       guildId,
       eventKey: "soundboardDelete",
@@ -1336,7 +1336,7 @@ export function registerActionLogListeners(ctx: {
       actorIsBot: false,
     });
   });
-  onAny("guildSoundboardSoundUpdate", (_oldSound, sound) => {
+  onAny("guildSoundboardSoundUpdate", async (_oldSound, sound) => {
     const s = sound as {
       guildId?: string | null;
       guild?: { id: string };
@@ -1346,7 +1346,7 @@ export function registerActionLogListeners(ctx: {
     };
     const guildId = s.guildId ?? s.guild?.id;
     if (!guildId) return;
-    if (!passesActionLogFilters(guildId, "soundboardUpdate")) return;
+    if (!await passesActionLogFilters(guildId, "soundboardUpdate")) return;
     void recordActionLog(s.client, {
       guildId,
       eventKey: "soundboardUpdate",

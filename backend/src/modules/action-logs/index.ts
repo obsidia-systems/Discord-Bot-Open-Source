@@ -23,9 +23,9 @@ export const actionLogsModule: AdobosModule = {
     ctx.route("/api/logs", actionLogsRoutes(ctx.client));
     registerActionLogListeners(ctx);
 
-    ctx.once("ready", () => {
+    ctx.once("ready", async () => {
       try {
-        const n = purgeAllExpiredActionLogs();
+        const n = await purgeAllExpiredActionLogs();
         if (n > 0) {
           console.log(`[adobos] action-logs: purge inicial eliminó ${n} filas`);
         }
@@ -34,9 +34,9 @@ export const actionLogsModule: AdobosModule = {
       }
     });
 
-    const timer = setInterval(() => {
+    const timer = setInterval(async () => {
       try {
-        const n = purgeAllExpiredActionLogs();
+        const n = await purgeAllExpiredActionLogs();
         if (n > 0) {
           console.log(`[adobos] action-logs: purge periódico eliminó ${n} filas`);
         }

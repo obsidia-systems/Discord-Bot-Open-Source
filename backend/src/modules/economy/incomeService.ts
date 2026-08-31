@@ -12,7 +12,7 @@ import {
   normalizeMinMax,
 } from "@adobos/shared";
 import { eq } from "drizzle-orm";
-import { getDb } from "../../db/client.js";
+import { getDb, one } from "../../db/client.js";
 import { economyIncome, guildSettings } from "../../db/schema.js";
 import { EconomyError } from "./service.js";
 
@@ -28,14 +28,14 @@ function resolveGuildId(guildId?: string): string {
   return id;
 }
 
-function ensureGuildRow(guildId: string): void {
-  const existing = getDb()
+async function ensureGuildRow(guildId: string): Promise<void> {
+  const existing = await one(getDb()
     .select({ guildId: guildSettings.guildId })
     .from(guildSettings)
     .where(eq(guildSettings.guildId, guildId))
-    .get();
+    .limit(1));
   if (!existing) {
-    getDb()
+    await getDb()
       .insert(guildSettings)
       .values({
         guildId,
@@ -43,7 +43,7 @@ function ensureGuildRow(guildId: string): void {
         welcomeEnabled: false,
         updatedAt: new Date(),
       })
-      .run();
+      ;
   }
 }
 
@@ -183,22 +183,22 @@ function rowToConfig(
   };
 }
 
-export function getEconomyIncomeConfig(guildId?: string): EconomyIncomeConfig {
+export async function getEconomyIncomeConfig(guildId?: string): Promise<EconomyIncomeConfig> {
   const id = resolveGuildId(guildId);
-  const row = getDb()
+  const row = await one(getDb()
     .select()
     .from(economyIncome)
     .where(eq(economyIncome.guildId, id))
-    .get();
-  return rowToConfig(id, row);
+    .limit(1));
+  return await rowToConfig(id, row);
 }
 
-export function updateEconomyIncomeConfig(
+export async function updateEconomyIncomeConfig(
   input: UpdateEconomyIncomeRequest,
-): EconomyIncomeConfig {
+): Promise<EconomyIncomeConfig> {
   const id = resolveGuildId(input.guildId);
-  ensureGuildRow(id);
-  const current = getEconomyIncomeConfig(id);
+  await ensureGuildRow(id);
+  const current = await getEconomyIncomeConfig(id);
 
   const next: EconomyIncomeConfig = {
     guildId: id,
@@ -234,7 +234,7 @@ export function updateEconomyIncomeConfig(
   };
 
   const now = new Date();
-  getDb()
+  await getDb()
     .insert(economyIncome)
     .values({
       guildId: id,
@@ -262,7 +262,7 @@ export function updateEconomyIncomeConfig(
         updatedAt: now,
       },
     })
-    .run();
+    ;
 
   return next;
 }

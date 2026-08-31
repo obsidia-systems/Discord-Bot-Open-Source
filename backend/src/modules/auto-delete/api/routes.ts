@@ -33,11 +33,11 @@ export function autoDeleteRoutes(_bot: Client): Router {
   const router = Router();
 
   /** GET /api/auto-delete/config */
-  router.get("/config", (req, res) => {
+  router.get("/config", async (req, res) => {
     try {
       const guildId =
         guildIdOf(req);
-      const config = getAutoDeleteConfig(guildId);
+      const config = await getAutoDeleteConfig(guildId);
       res.json({ config, timezone: resolveSchedulerTimezone() });
     } catch (error) {
       handleError(error, res);
@@ -45,7 +45,7 @@ export function autoDeleteRoutes(_bot: Client): Router {
   });
 
   /** POST /api/auto-delete/config */
-  router.post("/config", (req, res) => {
+  router.post("/config", async (req, res) => {
     try {
       const guildId =
         typeof req.body?.guildId === "string"
@@ -54,7 +54,7 @@ export function autoDeleteRoutes(_bot: Client): Router {
             ? req.query.guildId
             : undefined;
       const body = (req.body ?? {}) as UpdateAutoDeleteConfigRequest;
-      const config = updateAutoDeleteConfig(body, guildId);
+      const config = await updateAutoDeleteConfig(body, guildId);
       res.json({ config, timezone: resolveSchedulerTimezone() });
     } catch (error) {
       handleError(error, res);

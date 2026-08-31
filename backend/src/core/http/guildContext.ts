@@ -15,14 +15,18 @@ function extractGuildId(req: Request): unknown {
 
 /** Sesión obligatoria. 401 JSON en /api, redirect a /login en HTML. */
 export function requireAuth(): RequestHandler {
-  return (req, res, next) => {
-    const session = readSessionFromRequest(req);
-    if (!session) {
-      redirectToLogin(req, res);
-      return;
+  return async (req, res, next) => {
+    try {
+      const session = await readSessionFromRequest(req);
+      if (!session) {
+        redirectToLogin(req, res);
+        return;
+      }
+      req.panelSession = session;
+      next();
+    } catch (error: unknown) {
+      next(error);
     }
-    req.panelSession = session;
-    next();
   };
 }
 
@@ -33,7 +37,7 @@ export function requireAuth(): RequestHandler {
 export function requireGuildAccess(): RequestHandler {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const session = req.panelSession ?? readSessionFromRequest(req);
+      const session = req.panelSession ?? (await readSessionFromRequest(req));
       if (!session) {
         redirectToLogin(req, res);
         return;

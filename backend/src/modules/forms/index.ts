@@ -13,11 +13,9 @@ export const formsModule: AdobosModule = {
   ],
   register(ctx) {
     ctx.route("/api/forms", formsRoutes(ctx.client));
-    ctx.button(FORM_OPEN_PREFIX, (interaction) =>
-      onFormsOpenButton(interaction),
+    ctx.button(FORM_OPEN_PREFIX, (interaction) => onFormsOpenButton(interaction),
     );
-    ctx.modal(FORM_SUBMIT_PREFIX, (interaction) =>
-      onFormsModalSubmit(interaction, ctx.client),
+    ctx.modal(FORM_SUBMIT_PREFIX, (interaction) => onFormsModalSubmit(interaction, ctx.client),
     );
   },
 };

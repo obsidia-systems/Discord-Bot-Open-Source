@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { getDb } from "../../db/client.js";
+import { getDb, one } from "../../db/client.js";
 import { economyCooldowns } from "../../db/schema.js";
 import { EconomyError, formatRemaining } from "./service.js";
 
@@ -7,12 +7,12 @@ import { EconomyError, formatRemaining } from "./service.js";
  * Lanza si el cooldown sigue activo.
  * @returns ms restantes (0 si disponible).
  */
-export function assertCooldownAvailable(
+export async function assertCooldownAvailable(
   guildId: string,
   userId: string,
   commandKey: string,
-): void {
-  const row = getDb()
+): Promise<void> {
+  const row = await one(getDb()
     .select()
     .from(economyCooldowns)
     .where(
@@ -22,7 +22,7 @@ export function assertCooldownAvailable(
         eq(economyCooldowns.commandKey, commandKey),
       ),
     )
-    .get();
+    .limit(1));
 
   if (!row) return;
   const remaining = row.availableAt.getTime() - Date.now();
@@ -35,27 +35,27 @@ export function assertCooldownAvailable(
   }
 }
 
-export function setCooldownMinutes(
+export async function setCooldownMinutes(
   guildId: string,
   userId: string,
   commandKey: string,
   minutes: number,
-): void {
+): Promise<void> {
   const mins = Math.max(1, Math.floor(minutes));
-  setCooldownMs(guildId, userId, commandKey, mins * 60_000);
+  await setCooldownMs(guildId, userId, commandKey, mins * 60_000);
 }
 
 /** Cooldown en milisegundos (mín. 0 = disponible de inmediato). */
-export function setCooldownMs(
+export async function setCooldownMs(
   guildId: string,
   userId: string,
   commandKey: string,
   ms: number,
-): void {
+): Promise<void> {
   const delay = Math.max(0, Math.floor(ms));
   if (delay === 0) return;
   const availableAt = new Date(Date.now() + delay);
-  getDb()
+  await getDb()
     .insert(economyCooldowns)
     .values({
       guildId,
@@ -71,5 +71,5 @@ export function setCooldownMs(
       ],
       set: { availableAt },
     })
-    .run();
+    ;
 }

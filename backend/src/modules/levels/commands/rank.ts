@@ -17,7 +17,7 @@ export async function handleRankCommand(
     return;
   }
 
-  const config = getLevelsConfigCached(interaction.guildId);
+  const config = await getLevelsConfigCached(interaction.guildId);
   if (!config.enabled) {
     await interaction.reply({
       content: "El módulo de Rangos y XP está desactivado en este servidor.",
@@ -30,7 +30,7 @@ export async function handleRankCommand(
   await interaction.deferReply({ ephemeral });
 
   const target = interaction.options.getUser("usuario") ?? interaction.user;
-  const stats = getUserRankStats(interaction.guildId, target.id);
+  const stats = await getUserRankStats(interaction.guildId, target.id);
 
   if (!stats) {
     await interaction.editReply({

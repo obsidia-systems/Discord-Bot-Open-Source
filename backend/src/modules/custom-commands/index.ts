@@ -16,7 +16,7 @@ export const customCommandsModule: AdobosModule = {
 
     ctx.route("/api/custom-commands", customCommandsRoutes(ctx.client));
 
-    ctx.once("ready", () => {
+    ctx.once("ready", async () => {
       void (async () => {
         try {
           await syncGlobalCommands(ctx.client);

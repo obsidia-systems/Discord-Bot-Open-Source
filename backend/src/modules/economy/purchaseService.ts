@@ -13,7 +13,7 @@ import {
   type TextChannel,
 } from "discord.js";
 import { and, eq } from "drizzle-orm";
-import { getDb } from "../../db/client.js";
+import { getDb, one } from "../../db/client.js";
 import {
   economyOwnedChannels,
   economyOwnedRoles,
@@ -28,22 +28,22 @@ import { decrementShopStock, getShopItem } from "./shopService.js";
 
 const PRIVATE_CATEGORY_NAME = "Zonas Privadas";
 
-function ensureUserEconomy(
+async function ensureUserEconomy(
   guildId: string,
   userId: string,
-): { wallet: number; bank: number } {
-  const existing = getDb()
+): Promise<{ wallet: number; bank: number }> {
+  const existing = await one(getDb()
     .select()
     .from(userEconomy)
     .where(
       and(eq(userEconomy.guildId, guildId), eq(userEconomy.userId, userId)),
     )
-    .get();
+    .limit(1));
   if (existing) return { wallet: existing.wallet, bank: existing.bank };
 
-  const config = getEconomyConfig(guildId);
+  const config = await getEconomyConfig(guildId);
   const now = new Date();
-  getDb()
+  await getDb()
     .insert(userEconomy)
     .values({
       guildId,
@@ -52,16 +52,16 @@ function ensureUserEconomy(
       bank: 0,
       updatedAt: now,
     })
-    .run();
+    ;
   return { wallet: config.startBalance, bank: 0 };
 }
 
-function debitFunds(
+async function debitFunds(
   guildId: string,
   userId: string,
   price: number,
-): { wallet: number; bank: number } {
-  const current = ensureUserEconomy(guildId, userId);
+): Promise<{ wallet: number; bank: number }> {
+  const current = await ensureUserEconomy(guildId, userId);
   const total = current.wallet + current.bank;
   if (total < price) {
     throw new EconomyError(
@@ -80,20 +80,20 @@ function debitFunds(
   remaining -= fromWallet;
   if (remaining > 0) bank -= remaining;
 
-  getDb()
+  await getDb()
     .update(userEconomy)
     .set({ wallet, bank, updatedAt: new Date() })
     .where(
       and(eq(userEconomy.guildId, guildId), eq(userEconomy.userId, userId)),
     )
-    .run();
+    ;
 
   return { wallet, bank };
 }
 
-function refundFunds(guildId: string, userId: string, amount: number): void {
-  const current = ensureUserEconomy(guildId, userId);
-  getDb()
+async function refundFunds(guildId: string, userId: string, amount: number): Promise<void> {
+  const current = await ensureUserEconomy(guildId, userId);
+  await getDb()
     .update(userEconomy)
     .set({
       wallet: current.wallet + amount,
@@ -102,7 +102,7 @@ function refundFunds(guildId: string, userId: string, amount: number): void {
     .where(
       and(eq(userEconomy.guildId, guildId), eq(userEconomy.userId, userId)),
     )
-    .run();
+    ;
 }
 
 async function ensurePrivateCategory(guild: Guild): Promise<string> {
@@ -147,7 +147,7 @@ async function fulfillRole(
     );
   }
 
-  getDb()
+  await getDb()
     .insert(economyOwnedRoles)
     .values({
       id: crypto.randomUUID(),
@@ -160,7 +160,7 @@ async function fulfillRole(
       deleteRoleOnExpire: false,
       createdAt: new Date(),
     })
-    .run();
+    ;
 
   return {
     meta: {
@@ -220,7 +220,7 @@ async function fulfillChannel(
     );
   }
 
-  getDb()
+  await getDb()
     .insert(economyOwnedChannels)
     .values({
       id: crypto.randomUUID(),
@@ -232,7 +232,7 @@ async function fulfillChannel(
       expiresAt,
       createdAt: new Date(),
     })
-    .run();
+    ;
 
   return {
     meta: {
@@ -253,7 +253,7 @@ async function fulfillBoost(
 ): Promise<RewardResult> {
   const cfg = item.rewards.boostConfig;
   if (cfg.module === "xp") {
-    const levels = getLevelsConfig(guild.id);
+    const levels = await getLevelsConfig(guild.id);
     if (!levels.enabled) {
       throw new EconomyError(
         "El módulo de Rangos y XP está desactivado. No se puede aplicar este boost.",
@@ -271,7 +271,7 @@ async function fulfillBoost(
     );
   }
 
-  getDb()
+  await getDb()
     .insert(economyUserBoosts)
     .values({
       id: crypto.randomUUID(),
@@ -283,7 +283,7 @@ async function fulfillBoost(
       purchaseId,
       createdAt: new Date(),
     })
-    .run();
+    ;
 
   return {
     meta: {
@@ -377,9 +377,9 @@ async function fulfillManual(
   };
 }
 
-function preflightRewards(guildId: string, rewards: EconomyShopRewards): void {
+async function preflightRewards(guildId: string, rewards: EconomyShopRewards): Promise<void> {
   if (rewards.hasBoost && rewards.boostConfig.module === "xp") {
-    const levels = getLevelsConfig(guildId);
+    const levels = await getLevelsConfig(guildId);
     if (!levels.enabled) {
       throw new EconomyError(
         "El módulo de Rangos y XP está desactivado. No se puede comprar este ítem.",
@@ -407,7 +407,7 @@ export async function purchaseShopItem(
   member: GuildMember,
   itemId: string,
 ): Promise<PurchaseResult> {
-  const config = getEconomyConfig(guild.id);
+  const config = await getEconomyConfig(guild.id);
   if (!config.isActive) {
     throw new EconomyError(
       "La economía está pausada en este servidor.",
@@ -416,7 +416,7 @@ export async function purchaseShopItem(
     );
   }
 
-  const item = getShopItem(itemId, guild.id);
+  const item = await getShopItem(itemId, guild.id);
   if (!item || !item.enabled) {
     throw new EconomyError("Ítem no disponible.", 404, "ITEM_UNAVAILABLE");
   }
@@ -424,10 +424,10 @@ export async function purchaseShopItem(
     throw new EconomyError("Sin stock disponible.", 400, "OUT_OF_STOCK");
   }
 
-  preflightRewards(guild.id, item.rewards);
+  await preflightRewards(guild.id, item.rewards);
 
-  const balances = debitFunds(guild.id, member.id, item.price);
-  decrementShopStock(item.id, guild.id);
+  const balances = await debitFunds(guild.id, member.id, item.price);
+  await decrementShopStock(item.id, guild.id);
 
   const purchaseId = crypto.randomUUID();
   const results: Record<string, unknown>[] = [];
@@ -455,23 +455,23 @@ export async function purchaseShopItem(
       if (result.pending) anyPending = true;
     }
   } catch (error) {
-    refundFunds(guild.id, member.id, item.price);
+    await refundFunds(guild.id, member.id, item.price);
     if (item.stock !== null) {
-      const current = getDb()
+      const current = await one(getDb()
         .select()
         .from(economyShopItems)
         .where(eq(economyShopItems.id, item.id))
-        .get();
+        .limit(1));
       if (current?.stock !== null && current?.stock !== undefined) {
-        getDb()
+        await getDb()
           .update(economyShopItems)
           .set({ stock: current.stock + 1, updatedAt: new Date() })
           .where(eq(economyShopItems.id, item.id))
-          .run();
+          ;
       }
     }
 
-    getDb()
+    await getDb()
       .insert(economyPurchases)
       .values({
         id: purchaseId,
@@ -487,7 +487,7 @@ export async function purchaseShopItem(
         }),
         createdAt: new Date(),
       })
-      .run();
+      ;
 
     throw error;
   }
@@ -495,7 +495,7 @@ export async function purchaseShopItem(
   const status: EconomyPurchaseStatus = anyPending ? "pending" : "fulfilled";
   const metadata = { rewards: results };
 
-  getDb()
+  await getDb()
     .insert(economyPurchases)
     .values({
       id: purchaseId,
@@ -508,7 +508,7 @@ export async function purchaseShopItem(
       metadata: JSON.stringify(metadata),
       createdAt: new Date(),
     })
-    .run();
+    ;
 
   return {
     purchaseId,

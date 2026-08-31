@@ -26,7 +26,7 @@ export async function handlePokemonStubCommand(
   let forceEphemeral = true;
 
   try {
-    const config = assertPokemonCommandAllowed(
+    const config = await assertPokemonCommandAllowed(
       interaction.guildId,
       commandName,
       interaction.channelId,

@@ -6,7 +6,7 @@ export async function onGuildMemberAddAutoRoles(
   member: GuildMember,
 ): Promise<void> {
   try {
-    const { config } = getAutoJoinRoles(member.guild.id);
+    const { config } = await getAutoJoinRoles(member.guild.id);
     const roleIds = member.user.bot ? config.botRoles : config.humanRoles;
     if (roleIds.length === 0) return;
 

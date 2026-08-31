@@ -27,7 +27,7 @@ import type {
   UpdateAutoroleMappingRequest,
   UpdateAutoroleMappingResponse,
 } from "@adobos/shared";
-import { getDb } from "../../db/client.js";
+import { getDb, one } from "../../db/client.js";
 import { autorolesRegistry, guildSettings } from "../../db/schema.js";
 import {
   deleteReactionRolesForMessage,
@@ -75,14 +75,14 @@ function resolveGuildId(raw?: string): string {
   );
 }
 
-function ensureGuildRow(guildId: string): void {
-  const existing = getDb()
+async function ensureGuildRow(guildId: string): Promise<void> {
+  const existing = await one(getDb()
     .select()
     .from(guildSettings)
     .where(eq(guildSettings.guildId, guildId))
-    .get();
+    .limit(1));
   if (!existing) {
-    getDb()
+    await getDb()
       .insert(guildSettings)
       .values({
         guildId,
@@ -90,7 +90,7 @@ function ensureGuildRow(guildId: string): void {
         welcomeEnabled: false,
         updatedAt: new Date(),
       })
-      .run();
+      ;
   }
 }
 
@@ -197,26 +197,28 @@ function toEntry(row: {
   };
 }
 
-function upsertRegistry(input: {
+async function upsertRegistry(input: {
   guildId: string;
   channelId: string;
   messageId: string;
   title: string;
   type: AutoroleRegistryType;
   mappings: AutoroleMappingItem[];
-}): number {
-  ensureGuildRow(input.guildId);
+}): Promise<number> {
+  await ensureGuildRow(input.guildId);
   const db = getDb();
   const now = new Date();
   const json = JSON.stringify(input.mappings);
-  const existing = db
+  const existing = await one(
+    db
     .select()
     .from(autorolesRegistry)
     .where(eq(autorolesRegistry.messageId, input.messageId))
-    .get();
+    .limit(1)
+  );
 
   if (existing) {
-    db.update(autorolesRegistry)
+    await db.update(autorolesRegistry)
       .set({
         channelId: input.channelId,
         title: input.title,
@@ -225,11 +227,11 @@ function upsertRegistry(input: {
         updatedAt: now,
       })
       .where(eq(autorolesRegistry.id, existing.id))
-      .run();
+      ;
     return existing.id;
   }
 
-  const result = db
+  const [inserted] = await db
     .insert(autorolesRegistry)
     .values({
       guildId: input.guildId,
@@ -241,9 +243,15 @@ function upsertRegistry(input: {
       createdAt: now,
       updatedAt: now,
     })
-    .run();
-
-  return Number(result.lastInsertRowid);
+    .returning({ id: autorolesRegistry.id });
+  if (!inserted) {
+    throw new AutoRoleError(
+      "No se pudo registrar el menú de autoroles.",
+      500,
+      "INSERT_FAILED",
+    );
+  }
+  return inserted.id;
 }
 
 async function resolveChannel(
@@ -353,8 +361,8 @@ async function applyComponentsOrReactions(
         "EMPTY_EMOJI",
       );
     }
-    deleteReactionRolesForMessage(message.id);
-    upsertReactionRoles(
+    await deleteReactionRolesForMessage(message.id);
+    await upsertReactionRoles(
       reactionMappings.map((m) => ({
         guildId,
         channelId,
@@ -384,12 +392,12 @@ export async function listActiveAutoroles(
   guildIdRaw?: string,
 ): Promise<ListActiveAutorolesResponse> {
   const guildId = resolveGuildId(guildIdRaw);
-  const rows = getDb()
+  const rows = await getDb()
     .select()
     .from(autorolesRegistry)
     .where(eq(autorolesRegistry.guildId, guildId))
     .orderBy(desc(autorolesRegistry.createdAt))
-    .all();
+    ;
 
   const guild = bot.guilds.cache.get(guildId);
   const botUserId = bot.user?.id ?? null;
@@ -457,7 +465,7 @@ export async function createAutoroleCompact(
   if (input.source === "existing") {
     messageSource = "existing";
     messageId = assertSnowflake(input.messageId ?? "", "messageId");
-    const duplicate = getDb()
+    const duplicate = await one(getDb()
       .select({ id: autorolesRegistry.id })
       .from(autorolesRegistry)
       .where(
@@ -466,7 +474,7 @@ export async function createAutoroleCompact(
           eq(autorolesRegistry.messageId, messageId),
         ),
       )
-      .get();
+      .limit(1));
     if (duplicate) {
       throw new AutoRoleError(
         "Este mensaje ya cuenta con un autorol activo. Visita «Mensajes Activos» para gestionarlo.",
@@ -482,7 +490,7 @@ export async function createAutoroleCompact(
         "MISSING_TEMPLATE",
       );
     }
-    const template = getEmbedTemplate(input.templateId, guildId);
+    const template = await getEmbedTemplate(input.templateId, guildId);
     embed = template.embedData;
   } else {
     const plain = input.plainContent?.trim();
@@ -530,7 +538,7 @@ export async function createAutoroleCompact(
     await message.edit({ components: buildSelectComponents(mappings) });
   }
 
-  const registryId = upsertRegistry({
+  const registryId = await upsertRegistry({
     guildId,
     channelId,
     messageId: result.messageId,
@@ -554,11 +562,11 @@ export async function updateAutoroleMapping(
     throw new AutoRoleError("ID inválido.", 400, "INVALID_ID");
   }
 
-  const row = getDb()
+  const row = await one(getDb()
     .select()
     .from(autorolesRegistry)
     .where(eq(autorolesRegistry.id, id))
-    .get();
+    .limit(1));
 
   if (!row || row.guildId !== guildId) {
     throw new AutoRoleError("Registro no encontrado.", 404, "NOT_FOUND");
@@ -593,20 +601,23 @@ export async function updateAutoroleMapping(
   }
 
   const now = new Date();
-  getDb()
+  await getDb()
     .update(autorolesRegistry)
     .set({
       rolesMapping: JSON.stringify(mappings),
       updatedAt: now,
     })
     .where(eq(autorolesRegistry.id, id))
-    .run();
+    ;
 
-  const updated = getDb()
+  const updated = await one(getDb()
     .select()
     .from(autorolesRegistry)
     .where(eq(autorolesRegistry.id, id))
-    .get()!;
+    .limit(1));
+  if (!updated) {
+    throw new AutoRoleError("Registro no encontrado.", 404, "NOT_FOUND");
+  }
 
   return {
     ok: true,
@@ -627,11 +638,11 @@ export async function updateAutoroleContent(
 ): Promise<UpdateAutoroleContentResponse> {
   const guildId = resolveGuildId(guildIdRaw);
   const id = Number(idRaw);
-  const row = getDb()
+  const row = await one(getDb()
     .select()
     .from(autorolesRegistry)
     .where(eq(autorolesRegistry.id, id))
-    .get();
+    .limit(1));
 
   if (!row || row.guildId !== guildId) {
     throw new AutoRoleError("Registro no encontrado.", 404, "NOT_FOUND");
@@ -730,18 +741,21 @@ export async function updateAutoroleContent(
 
   const title = input.title?.trim();
   if (title) {
-    getDb()
+    await getDb()
       .update(autorolesRegistry)
       .set({ title, updatedAt: new Date() })
       .where(eq(autorolesRegistry.id, id))
-      .run();
+      ;
   }
 
-  const updated = getDb()
+  const updated = await one(getDb()
     .select()
     .from(autorolesRegistry)
     .where(eq(autorolesRegistry.id, id))
-    .get()!;
+    .limit(1));
+  if (!updated) {
+    throw new AutoRoleError("Registro no encontrado.", 404, "NOT_FOUND");
+  }
 
   return {
     ok: true,
@@ -762,11 +776,11 @@ export async function deleteAutorole(
 ): Promise<DeleteAutoroleResponse> {
   const guildId = resolveGuildId(guildIdRaw);
   const id = Number(idRaw);
-  const row = getDb()
+  const row = await one(getDb()
     .select()
     .from(autorolesRegistry)
     .where(eq(autorolesRegistry.id, id))
-    .get();
+    .limit(1));
 
   if (!row || row.guildId !== guildId) {
     throw new AutoRoleError("Registro no encontrado.", 404, "NOT_FOUND");
@@ -777,7 +791,7 @@ export async function deleteAutorole(
     const channel = await resolveChannel(bot, row.channelId, guildId);
     const message = await channel.messages.fetch(row.messageId);
     if (row.type === "REACTIONS") {
-      deleteReactionRolesForMessage(row.messageId);
+      await deleteReactionRolesForMessage(row.messageId);
       await message.reactions.removeAll().catch(() => undefined);
     } else {
       await message.edit({ components: [] });
@@ -785,7 +799,7 @@ export async function deleteAutorole(
   } catch (error: unknown) {
     if (isUnknownMessage(error)) {
       orphaned = true;
-      deleteReactionRolesForMessage(row.messageId);
+      await deleteReactionRolesForMessage(row.messageId);
     } else {
       // Aun así limpiamos el registro local si el usuario confirma.
       console.warn("[adobos] deleteAutorole Discord:", error);
@@ -793,10 +807,10 @@ export async function deleteAutorole(
     }
   }
 
-  getDb()
+  await getDb()
     .delete(autorolesRegistry)
     .where(eq(autorolesRegistry.id, id))
-    .run();
+    ;
 
   return { ok: true, deletedId: id, orphaned };
 }

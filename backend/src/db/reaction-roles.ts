@@ -1,9 +1,9 @@
 import { and, eq } from "drizzle-orm";
 import type { EmojiIdentifierResolvable } from "discord.js";
-import { getDb } from "./client.js";
+import { getDb, one } from "./client.js";
 import { reactionRoles, type ReactionRole } from "./schema.js";
 
-/** Normaliza un emoji de reacción a la clave usada en SQLite. */
+/** Normaliza un emoji de reacción a la clave usada en la tabla. */
 export function toEmojiKey(emoji: {
   id: string | null;
   name: string | null;
@@ -24,13 +24,12 @@ export function emojiKeyToResolvable(emojiKey: string): EmojiIdentifierResolvabl
   return null;
 }
 
-export function findReactionRole(
+export async function findReactionRole(
   messageId: string,
   emojiKey: string,
-): ReactionRole | undefined {
-  const db = getDb();
-  return (
-    db
+): Promise<ReactionRole | undefined> {
+  return one(
+    getDb()
       .select()
       .from(reactionRoles)
       .where(
@@ -39,17 +38,17 @@ export function findReactionRole(
           eq(reactionRoles.emojiKey, emojiKey),
         ),
       )
-      .get() ?? undefined
+      .limit(1),
   );
 }
 
-export function listReactionRolesForMessage(messageId: string): ReactionRole[] {
-  const db = getDb();
-  return db
+export async function listReactionRolesForMessage(
+  messageId: string,
+): Promise<ReactionRole[]> {
+  return getDb()
     .select()
     .from(reactionRoles)
-    .where(eq(reactionRoles.messageId, messageId))
-    .all();
+    .where(eq(reactionRoles.messageId, messageId));
 }
 
 export interface UpsertReactionRoleInput {
@@ -60,13 +59,13 @@ export interface UpsertReactionRoleInput {
   roleId: string;
 }
 
-export function upsertReactionRoles(
+export async function upsertReactionRoles(
   entries: UpsertReactionRoleInput[],
-): void {
+): Promise<void> {
   const db = getDb();
-
   for (const entry of entries) {
-    db.insert(reactionRoles)
+    await db
+      .insert(reactionRoles)
       .values({
         guildId: entry.guildId,
         channelId: entry.channelId,
@@ -82,12 +81,14 @@ export function upsertReactionRoles(
           channelId: entry.channelId,
           roleId: entry.roleId,
         },
-      })
-      .run();
+      });
   }
 }
 
-export function deleteReactionRolesForMessage(messageId: string): void {
-  const db = getDb();
-  db.delete(reactionRoles).where(eq(reactionRoles.messageId, messageId)).run();
+export async function deleteReactionRolesForMessage(
+  messageId: string,
+): Promise<void> {
+  await getDb()
+    .delete(reactionRoles)
+    .where(eq(reactionRoles.messageId, messageId));
 }

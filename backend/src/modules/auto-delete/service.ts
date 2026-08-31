@@ -13,7 +13,7 @@ import {
   normalizeScheduledTime,
 } from "@adobos/shared";
 import { eq } from "drizzle-orm";
-import { getDb } from "../../db/client.js";
+import { getDb, one } from "../../db/client.js";
 import { autoDeleteConfig, guildSettings } from "../../db/schema.js";
 import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
 
@@ -62,14 +62,14 @@ function resolveGuildId(guildId?: string): string {
   return id;
 }
 
-function ensureGuildRow(guildId: string): void {
-  const existing = getDb()
+async function ensureGuildRow(guildId: string): Promise<void> {
+  const existing = await one(getDb()
     .select({ guildId: guildSettings.guildId })
     .from(guildSettings)
     .where(eq(guildSettings.guildId, guildId))
-    .get();
+    .limit(1));
   if (!existing) {
-    getDb()
+    await getDb()
       .insert(guildSettings)
       .values({
         guildId,
@@ -77,7 +77,7 @@ function ensureGuildRow(guildId: string): void {
         welcomeEnabled: false,
         updatedAt: new Date(),
       })
-      .run();
+      ;
   }
 }
 
@@ -135,33 +135,33 @@ export function invalidateAutoDeleteConfigCache(guildId?: string): void {
   else configCache.clear();
 }
 
-export function getAutoDeleteConfig(guildId?: string): AutoDeleteConfig {
+export async function getAutoDeleteConfig(guildId?: string): Promise<AutoDeleteConfig> {
   const id = resolveGuildId(guildId);
-  ensureGuildRow(id);
-  const row = getDb()
+  await ensureGuildRow(id);
+  const row = await one(getDb()
     .select()
     .from(autoDeleteConfig)
     .where(eq(autoDeleteConfig.guildId, id))
-    .get();
-  const config = rowToConfig(id, row);
+    .limit(1));
+  const config = await rowToConfig(id, row);
   configCache.set(id, config);
   return config;
 }
 
 /** Lectura rápida para messageCreate (sin I/O si hay caché). */
-export function getAutoDeleteConfigCached(guildId: string): AutoDeleteConfig {
+export async function getAutoDeleteConfigCached(guildId: string): Promise<AutoDeleteConfig> {
   const cached = configCache.get(guildId);
   if (cached) return cached;
   try {
-    return getAutoDeleteConfig(guildId);
+    return await getAutoDeleteConfig(guildId);
   } catch {
     return defaultAutoDeleteConfig(guildId);
   }
 }
 
 /** Todas las configs guardadas (para rehidratar crons al arranque). */
-export function listAllAutoDeleteConfigs(): AutoDeleteConfig[] {
-  const rows = getDb().select().from(autoDeleteConfig).all();
+export async function listAllAutoDeleteConfigs(): Promise<AutoDeleteConfig[]> {
+  const rows = await getDb().select().from(autoDeleteConfig);
   return rows.map((row) => {
     const config = rowToConfig(row.guildId, row);
     configCache.set(row.guildId, config);
@@ -169,13 +169,13 @@ export function listAllAutoDeleteConfigs(): AutoDeleteConfig[] {
   });
 }
 
-export function updateAutoDeleteConfig(
+export async function updateAutoDeleteConfig(
   input: UpdateAutoDeleteConfigRequest,
   guildId?: string,
-): AutoDeleteConfig {
+): Promise<AutoDeleteConfig> {
   const id = resolveGuildId(guildId);
-  ensureGuildRow(id);
-  const current = getAutoDeleteConfig(id);
+  await ensureGuildRow(id);
+  const current = await getAutoDeleteConfig(id);
 
   const next: AutoDeleteConfig = {
     guildId: id,
@@ -187,7 +187,7 @@ export function updateAutoDeleteConfig(
     updatedAt: new Date().toISOString(),
   };
 
-  getDb()
+  await getDb()
     .insert(autoDeleteConfig)
     .values({
       guildId: id,
@@ -203,7 +203,7 @@ export function updateAutoDeleteConfig(
         updatedAt: new Date(),
       },
     })
-    .run();
+    ;
 
   configCache.set(id, next);
   try {
