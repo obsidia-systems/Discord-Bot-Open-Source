@@ -6,10 +6,12 @@ const messages: Record<string, string> = {
   oauth_denied: "Cancelaste el acceso o Discord lo rechazó.",
   oauth_state: "La sesión de login expiró. Prueba otra vez.",
   oauth_token: "No se pudo intercambiar el código con Discord.",
+  oauth_client:
+    "Discord rechazó el cliente OAuth. DISCORD_CLIENT_SECRET debe ser el Client Secret de OAuth2 (portal → OAuth2), no el token del bot.",
   oauth_user: "No se pudo leer tu usuario de Discord.",
   oauth_callback: "Falló el callback de OAuth.",
   oauth_config:
-    "Falta configuración OAuth (CLIENT_ID, CLIENT_SECRET, PUBLIC_APP_URL, SESSION_SECRET).",
+    "Falta configuración OAuth (CLIENT_ID, CLIENT_SECRET, PUBLIC_APP_URL, SESSION_SECRET). El secret no puede ser el token del bot.",
 };
 const errorText = error ? (messages[error] ?? "No se pudo iniciar sesión.") : null;
 ---
@@ -40,6 +42,7 @@ const errorText = error ? (messages[error] ?? "No se pudo iniciar sesión.") : n
       }
       <a
         href="/auth/discord"
+        data-astro-reload
         class="mt-6 inline-flex w-full items-center justify-center rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
       >
         Continuar con Discord
