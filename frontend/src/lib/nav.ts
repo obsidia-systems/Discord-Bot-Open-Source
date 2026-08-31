@@ -37,7 +37,6 @@ import {
   Zap,
   Bot,
   Landmark,
-  Egg,
 } from "lucide-react";
 
 export interface NavItemConfig {
@@ -305,12 +304,6 @@ export const dashboardNav: NavCategoryConfig[] = [
     icon: Gamepad2,
     defaultCollapsed: true,
     items: [
-      {
-        label: "Pokémon",
-        href: "/dashboard/plugins/pokemon",
-        icon: Egg,
-        blurb: "PokéAPI, teambuilder y helpers competitivos.",
-      },
       {
         label: "Minecraft",
         href: "/dashboard/plugins/minecraft",
