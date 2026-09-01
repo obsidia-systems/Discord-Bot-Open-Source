@@ -5,7 +5,15 @@ import {
   freezeUserXp,
   getLevelsConfigCached,
 } from "../levels/service.js";
+import {
+  executeModAction,
+  ModerationError,
+} from "../moderation/service.js";
 import { countActiveWarns } from "./service.js";
+import {
+  findPunishmentForWarnCount,
+  timeoutMsToSeconds,
+} from "./punishmentMatch.js";
 import { logger } from "../../core/log.js";
 
 const AUDIT = "Sanción automática de Auto Mod";
@@ -20,7 +28,7 @@ export async function applyAutoModPunishments(input: {
   member: GuildMember;
   config: AutoModConfig;
 }): Promise<void> {
-  const { guildId, member, config } = input;
+  const { client, guildId, member, config } = input;
   if (!config.punishments.length) return;
 
   const activeWarns = await countActiveWarns(
@@ -29,15 +37,14 @@ export async function applyAutoModPunishments(input: {
     config.warnDecayDays,
   );
 
-  const match = config.punishments.find(
-    (p) => p.warnThreshold === activeWarns,
-  );
+  const match = findPunishmentForWarnCount(config.punishments, activeWarns);
   if (!match) return;
 
-  await executePunishment(member, match, guildId);
+  await executePunishment(client, member, match, guildId);
 }
 
 async function executePunishment(
+  client: Client,
   member: GuildMember,
   punishment: AutoModPunishment,
   guildId: string,
@@ -46,22 +53,35 @@ async function executePunishment(
 
   switch (punishment.actionType) {
     case "TIMEOUT": {
-      const ms = Math.max(0, Number(punishment.actionParam) || 0);
-      if (ms <= 0) return;
-      await member.timeout(ms, reason).catch((error) => {
-        logger.warn({ err: error }, "auto-mod TIMEOUT falló:");
+      const seconds = timeoutMsToSeconds(punishment.actionParam);
+      if (seconds === null) return;
+      await runDiscordAction(client, {
+        action: "timeout",
+        guildId,
+        userId: member.id,
+        reason,
+        durationSeconds: seconds,
+        dmMode: "none",
       });
       return;
     }
     case "KICK": {
-      await member.kick(reason).catch((error) => {
-        logger.warn({ err: error }, "auto-mod KICK falló:");
+      await runDiscordAction(client, {
+        action: "kick",
+        guildId,
+        userId: member.id,
+        reason,
+        dmMode: "none",
       });
       return;
     }
     case "BAN": {
-      await member.ban({ reason }).catch((error) => {
-        logger.warn({ err: error }, "auto-mod BAN falló:");
+      await runDiscordAction(client, {
+        action: "ban",
+        guildId,
+        userId: member.id,
+        reason,
+        dmMode: "none",
       });
       return;
     }
@@ -99,5 +119,23 @@ async function executePunishment(
     }
     default:
       return;
+  }
+}
+
+async function runDiscordAction(
+  client: Client,
+  input: Parameters<typeof executeModAction>[1],
+): Promise<void> {
+  try {
+    await executeModAction(client, input);
+  } catch (error) {
+    if (error instanceof ModerationError) {
+      logger.warn(
+        { code: error.code, err: error },
+        "auto-mod sanción Discord rechazada:",
+      );
+      return;
+    }
+    logger.warn({ err: error }, "auto-mod sanción Discord falló:");
   }
 }

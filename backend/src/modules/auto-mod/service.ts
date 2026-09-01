@@ -4,6 +4,10 @@ import type {
   UpdateAutoModConfigRequest,
 } from "@adobos/shared";
 import {
+  AUTO_MOD_MAX_ALLOWED_LINKS,
+  AUTO_MOD_MAX_BANNED_WORDS,
+  AUTO_MOD_MAX_LINK_LENGTH,
+  AUTO_MOD_MAX_WORD_LENGTH,
   defaultAutoModConfig,
   defaultAutoModFilters,
   normalizeAutoModPunishments,
@@ -68,7 +72,11 @@ async function ensureGuildRow(guildId: string): Promise<void> {
   }
 }
 
-function normalizeStringList(value: unknown): string[] {
+function normalizeStringList(
+  value: unknown,
+  maxItems: number,
+  maxLength: number,
+): string[] {
   const raw: string[] = Array.isArray(value)
     ? value.map((w) => String(w))
     : typeof value === "string"
@@ -78,12 +86,13 @@ function normalizeStringList(value: unknown): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const entry of raw) {
-    const word = entry.trim();
+    const word = entry.trim().slice(0, maxLength);
     if (!word) continue;
     const key = word.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(word);
+    if (out.length >= maxItems) break;
   }
   return out;
 }
@@ -96,9 +105,15 @@ function mergeFilters(
   const merged: AutoModFilters = {
     ...base,
     ...partial,
-    bannedWords: normalizeStringList(partial.bannedWords ?? base.bannedWords),
+    bannedWords: normalizeStringList(
+      partial.bannedWords ?? base.bannedWords,
+      AUTO_MOD_MAX_BANNED_WORDS,
+      AUTO_MOD_MAX_WORD_LENGTH,
+    ),
     allowedLinks: normalizeStringList(
       partial.allowedLinks ?? base.allowedLinks,
+      AUTO_MOD_MAX_ALLOWED_LINKS,
+      AUTO_MOD_MAX_LINK_LENGTH,
     ),
   };
 
@@ -148,6 +163,9 @@ function rowToConfig(
     ignoredChannels: parseJson<string[]>(row.ignoredChannels, []),
     logChannelId: row.logChannelId ?? null,
     warnDecayDays: normalizeWarnDecayDays(row.warnDecayDays),
+    warnOnHit: row.warnOnHit !== false,
+    dmOnHit: row.dmOnHit !== false,
+    skipStaff: Boolean(row.skipStaff),
     punishments: normalizeAutoModPunishments(
       parseJson(row.punishments, []),
     ),
@@ -210,6 +228,9 @@ export async function updateAutoModConfig(
         ? input.warnDecayDays
         : current.warnDecayDays,
     ),
+    warnOnHit: input.warnOnHit ?? current.warnOnHit,
+    dmOnHit: input.dmOnHit ?? current.dmOnHit,
+    skipStaff: input.skipStaff ?? current.skipStaff,
     punishments:
       input.punishments !== undefined
         ? normalizeAutoModPunishments(input.punishments)
@@ -227,6 +248,9 @@ export async function updateAutoModConfig(
       ignoredChannels: JSON.stringify(next.ignoredChannels),
       logChannelId: next.logChannelId,
       warnDecayDays: next.warnDecayDays,
+      warnOnHit: next.warnOnHit,
+      dmOnHit: next.dmOnHit,
+      skipStaff: next.skipStaff,
       punishments: JSON.stringify(next.punishments),
       updatedAt: new Date(),
     })
@@ -239,6 +263,9 @@ export async function updateAutoModConfig(
         ignoredChannels: JSON.stringify(next.ignoredChannels),
         logChannelId: next.logChannelId,
         warnDecayDays: next.warnDecayDays,
+        warnOnHit: next.warnOnHit,
+        dmOnHit: next.dmOnHit,
+        skipStaff: next.skipStaff,
         punishments: JSON.stringify(next.punishments),
         updatedAt: new Date(),
       },

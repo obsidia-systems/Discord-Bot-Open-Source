@@ -8,6 +8,8 @@ import type {
 } from "@adobos/shared";
 import {
   AUTO_MOD_DURATION_OPTIONS,
+  AUTO_MOD_MAX_ALLOWED_LINKS,
+  AUTO_MOD_MAX_BANNED_WORDS,
   AUTO_MOD_PUNISHMENT_ACTION_OPTIONS,
   AUTO_MOD_TOGGLE_FILTER_COUNT,
   AUTO_MOD_WARN_DECAY_OPTIONS,
@@ -77,6 +79,9 @@ function configFingerprint(config: AutoModConfig): string {
     ignoredRoles: [...config.ignoredRoles].sort(),
     logChannelId: config.logChannelId,
     warnDecayDays: config.warnDecayDays,
+    warnOnHit: config.warnOnHit,
+    dmOnHit: config.dmOnHit,
+    skipStaff: config.skipStaff,
     punishments: config.punishments,
   });
 }
@@ -139,6 +144,7 @@ function TagListInput({
   onChange,
   placeholder,
   emptyHint,
+  maxItems,
 }: {
   id: string;
   label: string;
@@ -146,12 +152,14 @@ function TagListInput({
   onChange: (next: string[]) => void;
   placeholder: string;
   emptyHint: string;
+  maxItems?: number;
 }) {
   const [draft, setDraft] = useState("");
 
   const addValue = () => {
     const next = draft.trim();
     if (!next) return;
+    if (maxItems !== undefined && values.length >= maxItems) return;
     const exists = values.some((v) => v.toLowerCase() === next.toLowerCase());
     if (!exists) onChange([...values, next]);
     setDraft("");
@@ -312,6 +320,9 @@ export function AutoModDashboard() {
         ignoredChannels: config.ignoredChannels,
         logChannelId: config.logChannelId,
         warnDecayDays: config.warnDecayDays,
+        warnOnHit: config.warnOnHit,
+        dmOnHit: config.dmOnHit,
+        skipStaff: config.skipStaff,
         punishments: config.punishments,
       });
       setConfig(res.config);
@@ -462,6 +473,7 @@ export function AutoModDashboard() {
                           }
                           placeholder="Escribe una palabra y presiona Enter..."
                           emptyHint="Añade palabras con Enter. Se guardan como etiquetas."
+                          maxItems={AUTO_MOD_MAX_BANNED_WORDS}
                         />
                       </FilterToggle>
                     </CardContent>
@@ -478,7 +490,7 @@ export function AutoModDashboard() {
                       <FilterToggle
                         id="antiInvites"
                         label="Anti-Invitaciones de Discord"
-                        description="Bloquea discord.gg y discord.com/invite."
+                        description="Bloquea discord.gg, discord.com/invite, ptb/canary y discord.new."
                         checked={config.filters.antiInvites}
                         onCheckedChange={(antiInvites) =>
                           patchFilters({ antiInvites })
@@ -502,6 +514,7 @@ export function AutoModDashboard() {
                           }
                           placeholder="dominio.com y Enter..."
                           emptyHint="Añade dominios con Enter (ej. youtube.com)."
+                          maxItems={AUTO_MOD_MAX_ALLOWED_LINKS}
                         />
                       </FilterToggle>
                     </CardContent>
@@ -665,6 +678,21 @@ export function AutoModDashboard() {
                           histórico.
                         </p>
                       </div>
+                      <FilterToggle
+                        id="warnOnHit"
+                        label="Registrar warn al filtrar"
+                        description="Si está apagado, Auto Mod solo borra el mensaje. El escalado no avanza."
+                        checked={config.warnOnHit !== false}
+                        onCheckedChange={(warnOnHit) => patch({ warnOnHit })}
+                      >
+                        <FilterToggle
+                          id="dmOnHit"
+                          label="Avisar por DM"
+                          description="Envía un mensaje privado cuando se registra el warn."
+                          checked={config.dmOnHit !== false}
+                          onCheckedChange={(dmOnHit) => patch({ dmOnHit })}
+                        />
+                      </FilterToggle>
                     </CardContent>
                   </Card>
 
@@ -864,6 +892,13 @@ export function AutoModDashboard() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                      <FilterToggle
+                        id="skipStaff"
+                        label="Ignorar staff"
+                        description="No actúa sobre miembros con Administrator o Manage Messages."
+                        checked={config.skipStaff}
+                        onCheckedChange={(skipStaff) => patch({ skipStaff })}
+                      />
                       <RoleMultiSelect
                         label="Roles inmunes"
                         roles={assignableRoles}
@@ -954,6 +989,17 @@ export function AutoModDashboard() {
                 <span className="text-muted-foreground">Filtros activos</span>
                 <span className="font-mono text-xs">
                   {activeFilterCount} / {AUTO_MOD_TOGGLE_FILTER_COUNT}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">Al filtrar</span>
+                <span className="text-xs">
+                  {config.warnOnHit
+                    ? config.dmOnHit
+                      ? "Borrar + warn + DM"
+                      : "Borrar + warn"
+                    : "Solo borrar"}
                 </span>
               </div>
 

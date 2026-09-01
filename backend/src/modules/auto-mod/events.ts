@@ -1,4 +1,11 @@
-import type { Client, Message, OmitPartialGroupDMChannel } from "discord.js";
+import {
+  PermissionFlagsBits,
+  type Client,
+  type GuildMember,
+  type Message,
+  type OmitPartialGroupDMChannel,
+  type PartialMessage,
+} from "discord.js";
 import { executeModAction } from "../moderation/service.js";
 import { evaluateAutoModFilters } from "./filters.js";
 import { dispatchAutoModAlert } from "./logs.js";
@@ -18,21 +25,53 @@ function isChannelIgnored(
   return false;
 }
 
+function isStaffMember(member: GuildMember): boolean {
+  return (
+    member.permissions.has(PermissionFlagsBits.Administrator) ||
+    member.permissions.has(PermissionFlagsBits.ManageMessages)
+  );
+}
+
+async function resolveFullMessage(
+  message: Message | PartialMessage | GuildMessage,
+): Promise<Message | null> {
+  if (message.partial) {
+    return await message.fetch().catch(() => null);
+  }
+  return message as Message;
+}
+
 export async function onAutoModMessageCreate(
   message: Message | GuildMessage,
 ): Promise<void> {
   try {
-    await handleAutoModMessage(message);
+    const resolved = await resolveFullMessage(message);
+    if (!resolved) return;
+    await handleAutoModMessage(resolved);
   } catch (error) {
     logger.warn({ err: error }, "auto-mod messageCreate falló:");
   }
 }
 
-async function handleAutoModMessage(
-  message: Message | GuildMessage,
+export async function onAutoModMessageUpdate(
+  oldMessage: Message | PartialMessage,
+  newMessage: Message | PartialMessage,
 ): Promise<void> {
+  try {
+    const resolved = await resolveFullMessage(newMessage);
+    if (!resolved) return;
+    const oldContent = oldMessage.partial ? null : oldMessage.content;
+    if (oldContent !== null && oldContent === resolved.content) return;
+    await handleAutoModMessage(resolved);
+  } catch (error) {
+    logger.warn({ err: error }, "auto-mod messageUpdate falló:");
+  }
+}
+
+async function handleAutoModMessage(message: Message): Promise<void> {
   // 1) Exclusiones
   if (!message.guild || message.author.bot) return;
+  if (message.system || message.webhookId) return;
   if (!message.channel.isTextBased()) return;
 
   const guildId = message.guild.id;
@@ -66,6 +105,8 @@ async function handleAutoModMessage(
     return;
   }
 
+  if (config.skipStaff && isStaffMember(member)) return;
+
   // 2) Heurística (un solo filtro por mensaje)
   const content = message.content ?? "";
   const mentionCount = message.mentions.users.size;
@@ -81,37 +122,45 @@ async function handleAutoModMessage(
   });
   if (!violation) return;
 
-  // 3) Mitigación: delete + warn + sanciones escaladas + log
+  // 3) Mitigación: delete + warn opcional + sanciones escaladas + log
   await message.delete().catch(() => {});
 
   const reason = `[AutoMod] Filtro detonado: ${violation.label}`;
   const guildName = message.guild.name;
 
-  try {
-    await executeModAction(message.client as Client, {
-      action: "warn",
-      guildId: message.guild.id,
-      userId: message.author.id,
-      reason,
-      dmMode: "text",
-      dmText: `Tu mensaje en el servidor **${guildName}** fue eliminado por el filtro de Auto Mod (Razón: ${violation.label}).`,
-    });
-  } catch (error) {
-    logger.warn({ err: error }, "auto-mod: no se pudo registrar warn:");
+  let warned = false;
+  if (config.warnOnHit) {
+    try {
+      await executeModAction(message.client as Client, {
+        action: "warn",
+        guildId: message.guild.id,
+        userId: message.author.id,
+        reason,
+        dmMode: config.dmOnHit ? "text" : "none",
+        dmText: config.dmOnHit
+          ? `Tu mensaje en el servidor **${guildName}** fue eliminado por el filtro de Auto Mod (Razón: ${violation.label}).`
+          : undefined,
+      });
+      warned = true;
+    } catch (error) {
+      logger.warn({ err: error }, "auto-mod: no se pudo registrar warn:");
+    }
   }
 
-  void applyAutoModPunishments({
-    client: message.client as Client,
-    guildId,
-    member,
-    config,
-  }).catch((error) => {
-    logger.warn({ err: error }, "auto-mod: sanción escalada falló:");
-  });
+  if (warned) {
+    await applyAutoModPunishments({
+      client: message.client as Client,
+      guildId,
+      member,
+      config,
+    }).catch((error) => {
+      logger.warn({ err: error }, "auto-mod: sanción escalada falló:");
+    });
+  }
 
   await dispatchAutoModAlert(message.client as Client, {
     guildId,
-    message: message as Message,
+    message,
     filterLabel: violation.label,
     content,
   });
@@ -125,5 +174,8 @@ export function registerAutoModListeners(ctx: {
 }): void {
   ctx.on("messageCreate", (message) => {
     void onAutoModMessageCreate(message);
+  });
+  ctx.on("messageUpdate", (oldMessage, newMessage) => {
+    void onAutoModMessageUpdate(oldMessage, newMessage);
   });
 }

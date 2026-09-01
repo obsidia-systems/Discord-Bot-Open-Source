@@ -405,6 +405,12 @@ export const autoModConfig = pgTable("auto_mod_config", {
   logChannelId: text("log_channel_id"),
   /** Días para caducidad de Warns activos; 0 = nunca. */
   warnDecayDays: integer("warn_decay_days").notNull().default(30),
+  /** Registrar warn en cada hit de filtro (default: sí, comportamiento histórico). */
+  warnOnHit: boolean("warn_on_hit").notNull().default(true),
+  /** DM al usuario junto al warn. Ignorado si warnOnHit es false. */
+  dmOnHit: boolean("dm_on_hit").notNull().default(true),
+  /** Saltar Administrator / ManageMessages. */
+  skipStaff: boolean("skip_staff").notNull().default(false),
   /** JSON: AutoModPunishment[] */
   punishments: text("punishments").notNull().default("[]"),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })

@@ -1,5 +1,11 @@
 import { z } from "zod";
 import {
+  AUTO_MOD_MAX_ALLOWED_LINKS,
+  AUTO_MOD_MAX_BANNED_WORDS,
+  AUTO_MOD_MAX_LINK_LENGTH,
+  AUTO_MOD_MAX_WORD_LENGTH,
+} from "@adobos/shared";
+import {
   nonNegInt,
   posInt,
   snowflakeList,
@@ -12,9 +18,15 @@ const autoModFiltersSchema = z.object({
   capsPercentage: z.number().int().min(0).max(100).optional(),
   capsMinLength: nonNegInt.optional(),
   bannedWordsEnabled: z.boolean().optional(),
-  bannedWords: z.array(z.string()).optional(),
+  bannedWords: z
+    .array(z.string().max(AUTO_MOD_MAX_WORD_LENGTH))
+    .max(AUTO_MOD_MAX_BANNED_WORDS)
+    .optional(),
   antiLinks: z.boolean().optional(),
-  allowedLinks: z.array(z.string()).optional(),
+  allowedLinks: z
+    .array(z.string().max(AUTO_MOD_MAX_LINK_LENGTH))
+    .max(AUTO_MOD_MAX_ALLOWED_LINKS)
+    .optional(),
   antiInvites: z.boolean().optional(),
   messageSpam: z.boolean().optional(),
   repeatedText: z.boolean().optional(),
@@ -40,6 +52,9 @@ export const updateAutoModConfigSchema = z.object({
       z.literal(90),
     ])
     .optional(),
+  warnOnHit: z.boolean().optional(),
+  dmOnHit: z.boolean().optional(),
+  skipStaff: z.boolean().optional(),
   punishments: z
     .array(
       z.object({
@@ -54,5 +69,6 @@ export const updateAutoModConfigSchema = z.object({
         actionParam: z.number().nullable(),
       }),
     )
+    .max(20)
     .optional(),
 });

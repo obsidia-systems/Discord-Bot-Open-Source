@@ -35,6 +35,15 @@ export interface AutoModFilters {
   floodMaxLines: number;
 }
 
+/** Tope de palabras prohibidas en un POST / guardado. */
+export const AUTO_MOD_MAX_BANNED_WORDS = 200;
+/** Tope de hosts/URLs en la allowlist de Anti-Links. */
+export const AUTO_MOD_MAX_ALLOWED_LINKS = 50;
+/** Longitud máxima por palabra prohibida. */
+export const AUTO_MOD_MAX_WORD_LENGTH = 64;
+/** Longitud máxima por entrada de allowlist. */
+export const AUTO_MOD_MAX_LINK_LENGTH = 256;
+
 /** Días de caducidad de Warns activos; 0 = nunca caducan. */
 export type AutoModWarnDecayDays = 0 | 14 | 30 | 60 | 90;
 
@@ -104,6 +113,15 @@ export interface AutoModConfig {
    * El expediente histórico se conserva completo. 0 = sin caducidad.
    */
   warnDecayDays: AutoModWarnDecayDays;
+  /**
+   * Si true, cada hit de filtro registra un Warn (cuenta para escalado).
+   * Si false, solo se borra el mensaje (modo “solo borrar”).
+   */
+  warnOnHit: boolean;
+  /** DM al usuario cuando se registra el Warn. Ignorado si `warnOnHit` es false. */
+  dmOnHit: boolean;
+  /** Saltar miembros con Administrator o ManageMessages. */
+  skipStaff: boolean;
   /** Escalado dinámico de sanciones por umbral de Warns. */
   punishments: AutoModPunishment[];
   updatedAt: string;
@@ -120,6 +138,9 @@ export type UpdateAutoModConfigRequest = Partial<{
   ignoredChannels: string[];
   logChannelId: string | null;
   warnDecayDays: AutoModWarnDecayDays;
+  warnOnHit: boolean;
+  dmOnHit: boolean;
+  skipStaff: boolean;
   punishments: AutoModPunishment[];
 }>;
 
@@ -153,6 +174,9 @@ export function defaultAutoModConfig(guildId = ""): AutoModConfig {
     ignoredChannels: [],
     logChannelId: null,
     warnDecayDays: 30,
+    warnOnHit: true,
+    dmOnHit: true,
+    skipStaff: false,
     punishments: [],
     updatedAt: new Date().toISOString(),
   };

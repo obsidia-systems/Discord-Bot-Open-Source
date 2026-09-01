@@ -145,7 +145,7 @@ export function detectAntiLinks(
 }
 
 export function detectAntiInvites(content: string): boolean {
-  return /(?:https?:\/\/)?(?:www\.)?(?:discord\.gg\/|discord(?:app)?\.com\/invite\/)[^\s<>\]]+/i.test(
+  return /(?:https?:\/\/)?(?:www\.)?(?:discord\.gg\/|(?:ptb\.|canary\.)?discord(?:app)?\.com\/invite\/|discord\.new\/)[^\s<>\]]+/i.test(
     content,
   );
 }
@@ -208,7 +208,8 @@ export function trackRepeatedText(
 
 /**
  * Evalúa filtros activos. Un solo hit por mensaje.
- * Prioridad: Links → Palabras → Mayúsculas/Zalgo → Spam.
+ * Prioridad: Links → Palabras → Mayúsculas/Zalgo → Flood → Spam/menciones.
+ * Sin texto aún evalúa menciones y ráfaga (adjuntos / stickers).
  */
 export function evaluateAutoModFilters(input: {
   filters: AutoModFilters;
@@ -227,43 +228,47 @@ export function evaluateAutoModFilters(input: {
     userId,
     attachmentUrls = [],
   } = input;
-  if (!content && mentionCount === 0) return null;
+  const hasText = content.length > 0;
 
-  // 1) Links
-  if (filters.antiInvites && detectAntiInvites(content)) {
-    return hit("antiInvites");
-  }
-  if (
-    filters.antiLinks &&
-    detectAntiLinks(content, filters.allowedLinks, attachmentUrls)
-  ) {
-    return hit("antiLinks");
+  if (hasText) {
+    // 1) Links
+    if (filters.antiInvites && detectAntiInvites(content)) {
+      return hit("antiInvites");
+    }
+    if (
+      filters.antiLinks &&
+      detectAntiLinks(content, filters.allowedLinks, attachmentUrls)
+    ) {
+      return hit("antiLinks");
+    }
+
+    // 2) Palabras
+    if (
+      filters.bannedWordsEnabled &&
+      detectBannedWords(content, filters.bannedWords)
+    ) {
+      return hit("bannedWords");
+    }
+
+    // 3) Mayúsculas / Zalgo
+    if (
+      filters.excessCaps &&
+      detectExcessCaps(content, filters.capsPercentage, filters.capsMinLength)
+    ) {
+      return hit("excessCaps");
+    }
+    if (filters.zalgo && detectZalgo(content)) return hit("zalgo");
+
+    // 4) Muros de texto
+    if (
+      filters.textFlood &&
+      detectTextFlood(content, filters.floodMaxChars, filters.floodMaxLines)
+    ) {
+      return hit("textFlood");
+    }
   }
 
-  // 2) Palabras
-  if (
-    filters.bannedWordsEnabled &&
-    detectBannedWords(content, filters.bannedWords)
-  ) {
-    return hit("bannedWords");
-  }
-
-  // 3) Mayúsculas / Zalgo
-  if (
-    filters.excessCaps &&
-    detectExcessCaps(content, filters.capsPercentage, filters.capsMinLength)
-  ) {
-    return hit("excessCaps");
-  }
-  if (filters.zalgo && detectZalgo(content)) return hit("zalgo");
-
-  // 4) Spam
-  if (
-    filters.textFlood &&
-    detectTextFlood(content, filters.floodMaxChars, filters.floodMaxLines)
-  ) {
-    return hit("textFlood");
-  }
+  // 5) Spam / menciones (también sin texto: adjuntos, stickers)
   if (
     filters.mentionSpam &&
     detectMentionSpam(mentionCount, filters.mentionSpamLimit)
@@ -273,7 +278,11 @@ export function evaluateAutoModFilters(input: {
   if (filters.messageSpam && trackMessageSpam(guildId, userId)) {
     return hit("messageSpam");
   }
-  if (filters.repeatedText && trackRepeatedText(guildId, userId, content)) {
+  if (
+    hasText &&
+    filters.repeatedText &&
+    trackRepeatedText(guildId, userId, content)
+  ) {
     return hit("repeatedText");
   }
   return null;

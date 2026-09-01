@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  AUTO_MOD_MAX_ALLOWED_LINKS,
+  AUTO_MOD_MAX_BANNED_WORDS,
   buildBotInviteUrl,
   calculateBaseXPForLevel,
   calculateLevel,
+  defaultAutoModConfig,
   isValidIanaTimezone,
   KERNEL_ERROR_CODES,
   MODULE_FEATURE,
@@ -76,6 +79,17 @@ describe("zona IANA", () => {
   it("normaliza inválidas a UTC", () => {
     expect(normalizeScheduledTimezone("garbage")).toBe("UTC");
     expect(normalizeScheduledTimezone("Europe/Madrid")).toBe("Europe/Madrid");
+  });
+});
+
+describe("auto-mod defaults", () => {
+  it("warn+DM encendidos y staff skip apagado; listas con tope", () => {
+    const config = defaultAutoModConfig("1");
+    expect(config.warnOnHit).toBe(true);
+    expect(config.dmOnHit).toBe(true);
+    expect(config.skipStaff).toBe(false);
+    expect(AUTO_MOD_MAX_BANNED_WORDS).toBe(200);
+    expect(AUTO_MOD_MAX_ALLOWED_LINKS).toBe(50);
   });
 });
 
