@@ -1,46 +1,203 @@
 import {
   ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   ChannelType,
   EmbedBuilder,
+  FileUploadBuilder,
+  LabelBuilder,
+  MessageFlags,
   ModalBuilder,
+  PermissionFlagsBits,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
   TextInputBuilder,
   TextInputStyle,
   type ButtonInteraction,
   type Client,
+  type GuildMember,
   type ModalSubmitInteraction,
+  type TextBasedChannel,
 } from "discord.js";
 import {
+  FORM_ACCEPT_PREFIX,
+  FORM_DENY_PREFIX,
   FORM_OPEN_PREFIX,
   FORM_QUESTION_PREFIX,
   FORM_SUBMIT_PREFIX,
+  formMemberGateReason,
+  parseFormNumericId,
   type FormAnswerEntry,
+  type FormQuestion,
+  type InteractiveForm,
 } from "@adobos/shared";
 import {
+  FormsError,
   getFormById,
+  getFormResponseById,
   getUserCooldownRemainingMs,
   insertFormResponse,
+  reviewFormResponse,
 } from "./service.js";
+
+const EPHEMERAL = { flags: MessageFlags.Ephemeral } as const;
 
 function embedColorInt(hex: string): number {
   const n = Number.parseInt(hex.replace("#", ""), 16);
   return Number.isFinite(n) ? n : 0x5865f2;
 }
 
-function parseFormId(customId: string, prefix: string): number | null {
-  if (!customId.startsWith(prefix)) return null;
-  const raw = customId.slice(prefix.length);
-  const id = Number.parseInt(raw, 10);
-  if (!Number.isFinite(id) || id < 1) return null;
-  return id;
-}
-
 function formatCooldown(ms: number): string {
+  if (!Number.isFinite(ms) || ms === Number.POSITIVE_INFINITY) {
+    return "ya enviaste este formulario";
+  }
   const totalSec = Math.ceil(ms / 1000);
   const minutes = Math.floor(totalSec / 60);
   const seconds = totalSec % 60;
   if (minutes <= 0) return `${seconds}s`;
   if (seconds === 0) return `${minutes} min`;
   return `${minutes} min ${seconds}s`;
+}
+
+function memberRoleIds(member: GuildMember | null): string[] {
+  if (!member) return [];
+  return [...member.roles.cache.keys()];
+}
+
+function asGuildMember(
+  member: ButtonInteraction["member"] | ModalSubmitInteraction["member"],
+): GuildMember | null {
+  if (member && "roles" in member && member.roles && "cache" in member.roles) {
+    return member as GuildMember;
+  }
+  return null;
+}
+
+async function reject(
+  interaction: ButtonInteraction | ModalSubmitInteraction,
+  content: string,
+): Promise<void> {
+  if (interaction.replied || interaction.deferred) {
+    await interaction.followUp({ content, ...EPHEMERAL });
+    return;
+  }
+  await interaction.reply({ content, ...EPHEMERAL });
+}
+
+function questionCustomId(question: FormQuestion): string {
+  return `${FORM_QUESTION_PREFIX}${question.id}`.slice(0, 100);
+}
+
+function buildQuestionLabel(question: FormQuestion): LabelBuilder {
+  const customId = questionCustomId(question);
+  const label = new LabelBuilder().setLabel(question.label.slice(0, 45));
+  if (question.style === "STRING_SELECT") {
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId(customId)
+      .setRequired(question.required)
+      .setMinValues(question.required ? 1 : 0)
+      .setMaxValues(1)
+      .addOptions(
+        question.options.slice(0, 25).map((opt) =>
+          new StringSelectMenuOptionBuilder()
+            .setLabel(opt.label.slice(0, 100))
+            .setValue(opt.value.slice(0, 100)),
+        ),
+      );
+    label.setStringSelectMenuComponent(menu);
+    return label;
+  }
+  if (question.style === "FILE_UPLOAD") {
+    const upload = new FileUploadBuilder()
+      .setCustomId(customId)
+      .setRequired(question.required)
+      .setMinValues(question.required ? 1 : 0)
+      .setMaxValues(1);
+    label.setFileUploadComponent(upload);
+    return label;
+  }
+  const input = new TextInputBuilder()
+    .setCustomId(customId)
+    .setStyle(
+      question.style === "PARAGRAPH"
+        ? TextInputStyle.Paragraph
+        : TextInputStyle.Short,
+    )
+    .setRequired(question.required)
+    .setMaxLength(question.style === "PARAGRAPH" ? 1000 : 256);
+  if (question.placeholder?.trim()) {
+    input.setPlaceholder(question.placeholder.trim().slice(0, 100));
+  }
+  label.setTextInputComponent(input);
+  return label;
+}
+
+function readAnswerValue(
+  interaction: ModalSubmitInteraction,
+  question: FormQuestion,
+): string {
+  const customId = questionCustomId(question);
+  const fields = interaction.fields;
+  if (question.style === "STRING_SELECT") {
+    try {
+      const values = fields.getStringSelectValues(customId);
+      return values.join(", ");
+    } catch {
+      return "";
+    }
+  }
+  if (question.style === "FILE_UPLOAD") {
+    try {
+      const files = fields.getUploadedFiles(customId);
+      if (!files || files.size === 0) return "";
+      return [...files.values()]
+        .map((file) => file.url)
+        .filter(Boolean)
+        .join("\n");
+    } catch {
+      return "";
+    }
+  }
+  try {
+    return fields.getTextInputValue(customId);
+  } catch {
+    return "";
+  }
+}
+
+async function assertCanSubmit(
+  interaction: ButtonInteraction | ModalSubmitInteraction,
+  form: InteractiveForm,
+): Promise<boolean> {
+  if (!form.enabled) {
+    await reject(interaction, "Este formulario está cerrado.");
+    return false;
+  }
+  const gate = formMemberGateReason({
+    memberRoleIds: memberRoleIds(asGuildMember(interaction.member)),
+    requiredRoleIds: form.requiredRoleIds,
+    blockedRoleIds: form.blockedRoleIds,
+  });
+  if (gate) {
+    await reject(interaction, gate);
+    return false;
+  }
+  const remaining = await getUserCooldownRemainingMs(
+    form.id,
+    interaction.user.id,
+    form.cooldownMinutes,
+    form.submitMode,
+  );
+  if (remaining > 0) {
+    await reject(
+      interaction,
+      form.submitMode === "once"
+        ? "Ya enviaste este formulario."
+        : `Debes esperar **${formatCooldown(remaining)}** antes de volver a enviar este formulario.`,
+    );
+    return false;
+  }
+  return true;
 }
 
 export async function onFormsOpenButton(
@@ -50,73 +207,69 @@ export async function onFormsOpenButton(
     return;
   }
 
-  const formId = parseFormId(interaction.customId, FORM_OPEN_PREFIX);
+  const formId = parseFormNumericId(interaction.customId, FORM_OPEN_PREFIX);
   if (formId == null) {
-    // Compat: botones legacy `form_open_<guildId>` (snowflake)
-    await interaction.reply({
-      content:
-        "Este formulario ya no está activo. Un administrador debe volver a publicarlo desde el panel.",
-      ephemeral: true,
-    });
+    await reject(
+      interaction,
+      "Este formulario ya no está activo. Un administrador debe volver a publicarlo desde el panel.",
+    );
     return;
   }
 
   const form = await getFormById(formId);
   if (!form || form.guildId !== interaction.guildId) {
-    await interaction.reply({
-      content: "Este formulario está inactivo o fue eliminado.",
-      ephemeral: true,
-    });
+    await reject(interaction, "Este formulario está inactivo o fue eliminado.");
     return;
   }
 
   if (form.questions.length === 0) {
-    await interaction.reply({
-      content: "Este formulario aún no tiene preguntas configuradas.",
-      ephemeral: true,
-    });
+    await reject(
+      interaction,
+      "Este formulario aún no tiene preguntas configuradas.",
+    );
     return;
   }
 
-  const remaining = await getUserCooldownRemainingMs(
-    form.id,
-    interaction.user.id,
-    form.cooldownMinutes,
+  const selectMissingOptions = form.questions.some(
+    (q) => q.style === "STRING_SELECT" && q.options.length === 0,
   );
-  if (remaining > 0) {
-    await interaction.reply({
-      content: `Debes esperar **${formatCooldown(remaining)}** antes de volver a enviar este formulario.`,
-      ephemeral: true,
-    });
+  if (selectMissingOptions) {
+    await reject(
+      interaction,
+      "Este formulario tiene un desplegable sin opciones. Avisa a un administrador.",
+    );
     return;
   }
 
-  const modal = new ModalBuilder()
+  if (!(await assertCanSubmit(interaction, form))) return;
+
+  const builder = new ModalBuilder()
     .setCustomId(`${FORM_SUBMIT_PREFIX}${form.id}`.slice(0, 100))
     .setTitle(form.modalTitle.slice(0, 45));
 
   for (const question of form.questions.slice(0, 5)) {
-    const input = new TextInputBuilder()
-      .setCustomId(`${FORM_QUESTION_PREFIX}${question.id}`.slice(0, 100))
-      .setLabel(question.label.slice(0, 45))
-      .setStyle(
-        question.style === "PARAGRAPH"
-          ? TextInputStyle.Paragraph
-          : TextInputStyle.Short,
-      )
-      .setRequired(question.required)
-      .setMaxLength(question.style === "PARAGRAPH" ? 1000 : 256);
-
-    if (question.placeholder?.trim()) {
-      input.setPlaceholder(question.placeholder.trim().slice(0, 100));
-    }
-
-    modal.addComponents(
-      new ActionRowBuilder<TextInputBuilder>().addComponents(input),
-    );
+    builder.addLabelComponents(buildQuestionLabel(question));
   }
 
-  await interaction.showModal(modal);
+  await interaction.showModal(builder);
+}
+
+function isSendableTextChannel(
+  channel: unknown,
+): channel is TextBasedChannel & { send: (...args: unknown[]) => Promise<unknown> } {
+  if (!channel || typeof channel !== "object") return false;
+  if (!("isTextBased" in channel)) return false;
+  const typed = channel as {
+    isTextBased: () => boolean;
+    type: ChannelType;
+    send?: unknown;
+  };
+  return (
+    typed.isTextBased() &&
+    (typed.type === ChannelType.GuildText ||
+      typed.type === ChannelType.GuildAnnouncement) &&
+    typeof typed.send === "function"
+  );
 }
 
 export async function onFormsModalSubmit(
@@ -130,112 +283,242 @@ export async function onFormsModalSubmit(
     return;
   }
 
-  const formId = parseFormId(interaction.customId, FORM_SUBMIT_PREFIX);
+  const formId = parseFormNumericId(interaction.customId, FORM_SUBMIT_PREFIX);
   if (formId == null) {
-    await interaction.reply({
-      content: "Formulario inválido.",
-      ephemeral: true,
-    });
+    await reject(interaction, "Formulario inválido.");
     return;
   }
 
   const form = await getFormById(formId);
   if (!form || form.guildId !== interaction.guildId) {
-    await interaction.reply({
-      content: "Este formulario está inactivo o fue eliminado.",
-      ephemeral: true,
-    });
+    await reject(interaction, "Este formulario está inactivo o fue eliminado.");
     return;
   }
 
-  const remaining = await getUserCooldownRemainingMs(
-    form.id,
-    interaction.user.id,
-    form.cooldownMinutes,
-  );
-  if (remaining > 0) {
-    await interaction.reply({
-      content: `Debes esperar **${formatCooldown(remaining)}** antes de volver a enviar este formulario.`,
-      ephemeral: true,
-    });
-    return;
-  }
+  if (!(await assertCanSubmit(interaction, form))) return;
 
   if (!form.receptionChannelId) {
-    await interaction.reply({
-      content:
-        "El formulario no tiene canal de recepción configurado. Avisa a un administrador.",
-      ephemeral: true,
-    });
+    await reject(
+      interaction,
+      "El formulario no tiene canal de recepción configurado. Avisa a un administrador.",
+    );
     return;
   }
 
   const answers: FormAnswerEntry[] = [];
   for (const question of form.questions) {
-    const customId = `${FORM_QUESTION_PREFIX}${question.id}`;
-    let value = "";
-    try {
-      value = interaction.fields.getTextInputValue(customId);
-    } catch {
-      value = "";
+    const value = readAnswerValue(interaction, question).trim();
+    if (question.required && !value) {
+      await reject(
+        interaction,
+        `Falta la respuesta de «${question.label}».`,
+      );
+      return;
     }
     answers.push({
       questionId: question.id,
       label: question.label.slice(0, 256),
-      value: (value.trim() || "—").slice(0, 1024),
+      value: (value || "—").slice(0, 1024),
     });
   }
 
-  const member = interaction.member;
+  const member = asGuildMember(interaction.member);
   const displayName =
-    member && "displayName" in member
-      ? String(member.displayName)
-      : interaction.user.globalName || interaction.user.username;
+    member?.displayName ||
+    interaction.user.globalName ||
+    interaction.user.username;
   const avatarUrl = interaction.user.displayAvatarURL({
     size: 128,
     extension: "png",
     forceStatic: true,
   });
 
-  await insertFormResponse({
-    formId: form.id,
-    guildId: form.guildId,
-    userId: interaction.user.id,
-    username: interaction.user.username,
-    displayName,
-    avatarUrl,
-    answers,
-  });
+  let saved;
+  try {
+    saved = await insertFormResponse({
+      formId: form.id,
+      guildId: form.guildId,
+      userId: interaction.user.id,
+      username: interaction.user.username,
+      displayName,
+      avatarUrl,
+      answers,
+      submitMode: form.submitMode,
+      cooldownMinutes: form.cooldownMinutes,
+    });
+  } catch (error) {
+    if (error instanceof FormsError && error.code === "COOLDOWN") {
+      await reject(
+        interaction,
+        form.submitMode === "once"
+          ? "Ya enviaste este formulario."
+          : "Debes esperar antes de volver a enviar este formulario.",
+      );
+      return;
+    }
+    throw error;
+  }
 
   const channel = await bot.channels
     .fetch(form.receptionChannelId)
     .catch(() => null);
-  if (
-    channel &&
-    channel.isTextBased() &&
-    (channel.type === ChannelType.GuildText ||
-      channel.type === ChannelType.GuildAnnouncement) &&
-    "send" in channel
-  ) {
-    const embed = new EmbedBuilder()
-      .setColor(embedColorInt(form.embedColor))
-      .setTitle("Nueva Respuesta de Formulario")
-      .setDescription(
-        `**Usuario:** ${displayName} (@${interaction.user.username})\n**ID:** \`${interaction.user.id}\``,
-      )
-      .setThumbnail(avatarUrl)
-      .setTimestamp(new Date())
-      .setFooter({ text: form.modalTitle.slice(0, 100) });
 
-    for (const answer of answers) {
-      embed.addFields({ name: answer.label, value: answer.value });
-    }
+  if (!isSendableTextChannel(channel)) {
+    await reject(
+      interaction,
+      "Tu respuesta se guardó en el panel, pero el canal de recepción no es válido. Avisa a un administrador.",
+    );
+    return;
+  }
 
-    await channel.send({ embeds: [embed] }).catch(() => null);
+  const embed = new EmbedBuilder()
+    .setColor(embedColorInt(form.embedColor))
+    .setTitle("Nueva respuesta de Forms")
+    .setDescription(
+      `**Usuario:** ${displayName} (@${interaction.user.username})\n**ID:** \`${interaction.user.id}\``,
+    )
+    .setThumbnail(avatarUrl)
+    .setTimestamp(new Date())
+    .setFooter({ text: form.modalTitle.slice(0, 100) });
+
+  for (const answer of answers) {
+    embed.addFields({
+      name: answer.label.slice(0, 256),
+      value: answer.value.slice(0, 1024) || "—",
+    });
+  }
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`${FORM_ACCEPT_PREFIX}${saved.id}`.slice(0, 100))
+      .setLabel("Aceptar")
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`${FORM_DENY_PREFIX}${saved.id}`.slice(0, 100))
+      .setLabel("Rechazar")
+      .setStyle(ButtonStyle.Danger),
+  );
+
+  const ping = form.pingRoleId ? `<@&${form.pingRoleId}>` : null;
+  const sent = await channel
+    .send({
+      content: ping ?? undefined,
+      embeds: [embed],
+      components: [row],
+      allowedMentions: form.pingRoleId
+        ? { roles: [form.pingRoleId] }
+        : { parse: [] },
+    })
+    .catch(() => null);
+
+  if (!sent) {
+    await reject(
+      interaction,
+      "Tu respuesta se guardó en el panel, pero no se pudo avisar al canal de recepción.",
+    );
+    return;
   }
 
   await interaction.reply({
-    content: "¡Formulario enviado con éxito!",
-    ephemeral: true,
+    content: form.thankYouMessage,
+    ...EPHEMERAL,
+  });
+}
+
+function canReview(member: GuildMember | null): boolean {
+  if (!member) return false;
+  return member.permissions.has(
+    PermissionFlagsBits.ManageGuild |
+      PermissionFlagsBits.ManageRoles |
+      PermissionFlagsBits.Administrator,
+  );
+}
+
+export async function onFormsReviewButton(
+  interaction: ButtonInteraction,
+): Promise<void> {
+  const accept = interaction.customId.startsWith(FORM_ACCEPT_PREFIX);
+  const prefix = accept ? FORM_ACCEPT_PREFIX : FORM_DENY_PREFIX;
+  if (!interaction.guildId || (!accept && !interaction.customId.startsWith(FORM_DENY_PREFIX))) {
+    return;
+  }
+  const responseId = parseFormNumericId(interaction.customId, prefix);
+  if (responseId == null) {
+    await reject(interaction, "Respuesta inválida.");
+    return;
+  }
+
+  const member = asGuildMember(interaction.member);
+  if (!canReview(member)) {
+    await reject(
+      interaction,
+      "Necesitas permiso de gestionar el servidor o roles para revisar.",
+    );
+    return;
+  }
+
+  const response = await getFormResponseById(responseId);
+  if (!response || response.guildId !== interaction.guildId) {
+    await reject(interaction, "Esta respuesta ya no existe.");
+    return;
+  }
+
+  const form = await getFormById(response.formId);
+  if (!form || form.guildId !== interaction.guildId) {
+    await reject(interaction, "El formulario ya no existe.");
+    return;
+  }
+
+  let reviewed;
+  try {
+    reviewed = await reviewFormResponse({
+      responseId,
+      guildId: interaction.guildId,
+      status: accept ? "accepted" : "rejected",
+      reviewerId: interaction.user.id,
+    });
+  } catch (error) {
+    if (error instanceof FormsError) {
+      await reject(interaction, error.message);
+      return;
+    }
+    throw error;
+  }
+
+  if (accept && form.acceptRoleId && interaction.guild) {
+    const target = await interaction.guild.members
+      .fetch(response.userId)
+      .catch(() => null);
+    if (target) {
+      await target.roles
+        .add(form.acceptRoleId, `Forms accept by ${interaction.user.id}`)
+        .catch(() => undefined);
+    }
+  }
+
+  const color = accept ? 0x57f287 : 0xed4245;
+  const statusLabel = accept ? "Aceptada" : "Rechazada";
+  const original = EmbedBuilder.from(interaction.message.embeds[0] ?? {});
+  original.setColor(color);
+  original.setFooter({
+    text: `${form.modalTitle.slice(0, 60)} · ${statusLabel} por ${interaction.user.username}`,
+  });
+
+  const disabled = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`${FORM_ACCEPT_PREFIX}${reviewed.id}`)
+      .setLabel("Aceptar")
+      .setStyle(ButtonStyle.Success)
+      .setDisabled(true),
+    new ButtonBuilder()
+      .setCustomId(`${FORM_DENY_PREFIX}${reviewed.id}`)
+      .setLabel("Rechazar")
+      .setStyle(ButtonStyle.Danger)
+      .setDisabled(true),
+  );
+
+  await interaction.update({
+    embeds: [original],
+    components: [disabled],
   });
 }

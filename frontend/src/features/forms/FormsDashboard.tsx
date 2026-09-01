@@ -4,9 +4,11 @@ import type {
   FormQuestionStyle,
   FormResponse,
   GuildChannelAsset,
+  GuildRoleAsset,
   InteractiveForm,
 } from "@adobos/shared";
 import {
+  FORMS_MAX_PER_GUILD,
   FORMS_MAX_QUESTIONS,
   defaultFormQuestion,
   defaultInteractiveForm,
@@ -15,6 +17,7 @@ import {
 import {
   createForm,
   deleteForm,
+  downloadFormResponsesCsv,
   fetchEmbedTemplate,
   fetchFormResponses,
   fetchForms,
@@ -24,6 +27,7 @@ import {
   resolvePublicAssetUrl,
   saveForm,
 } from "@/lib/api";
+import { RoleMultiSelect } from "@/components/shared/RoleMultiSelect";
 import {
   HybridImageInput,
   type HybridImageValue,
@@ -55,6 +59,7 @@ import { ToastBanner } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import {
   ClipboardList,
+  Download,
   Eye,
   Loader2,
   Pencil,
@@ -68,11 +73,13 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 type MainTab = "list" | "builder";
 type BuilderTab = "message" | "questions" | "reception";
 
-const TEXT_CHANNEL_TYPES = new Set([0, 5, 15]);
+const TEXT_CHANNEL_TYPES = new Set([0, 5]);
 
 const STYLE_LABELS: Record<FormQuestionStyle, string> = {
   SHORT: "Texto corto",
   PARAGRAPH: "Párrafo",
+  STRING_SELECT: "Desplegable",
+  FILE_UPLOAD: "Archivo",
 };
 
 function mediaToStored(value: HybridImageValue): string | null {
@@ -92,6 +99,13 @@ function formFingerprint(form: InteractiveForm): string {
     publishChannelId: form.publishChannelId,
     receptionChannelId: form.receptionChannelId,
     cooldownMinutes: form.cooldownMinutes,
+    submitMode: form.submitMode,
+    enabled: form.enabled,
+    requiredRoleIds: form.requiredRoleIds,
+    blockedRoleIds: form.blockedRoleIds,
+    pingRoleId: form.pingRoleId,
+    thankYouMessage: form.thankYouMessage,
+    acceptRoleId: form.acceptRoleId,
     questions: form.questions,
   });
 }
@@ -212,6 +226,7 @@ export function FormsDashboard() {
   const [imageValue, setImageValue] = useState<HybridImageValue>(null);
   const [thumbValue, setThumbValue] = useState<HybridImageValue>(null);
   const [channels, setChannels] = useState<GuildChannelAsset[]>([]);
+  const [roles, setRoles] = useState<GuildRoleAsset[]>([]);
   const [templates, setTemplates] = useState<EmbedTemplateSummary[]>([]);
   const [templateId, setTemplateId] = useState("none");
   const [builderTab, setBuilderTab] = useState<BuilderTab>("message");
@@ -281,10 +296,11 @@ export function FormsDashboard() {
       ]);
       setForms(listRes.forms);
       setChannels(assets.channels);
+      setRoles(assets.roles);
       setTemplates(templatesRes.templates);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "No se pudo cargar Formularios.",
+        err instanceof Error ? err.message : "No se pudo cargar Forms.",
       );
     } finally {
       setLoading(false);
@@ -406,6 +422,13 @@ export function FormsDashboard() {
     receptionChannelId: draft.receptionChannelId,
     questions: draft.questions,
     cooldownMinutes: draft.cooldownMinutes,
+    enabled: draft.enabled,
+    submitMode: draft.submitMode,
+    requiredRoleIds: draft.requiredRoleIds,
+    blockedRoleIds: draft.blockedRoleIds,
+    pingRoleId: draft.pingRoleId,
+    thankYouMessage: draft.thankYouMessage,
+    acceptRoleId: draft.acceptRoleId,
   });
 
   type UpdateFormPayload = Parameters<typeof saveForm>[1];
@@ -498,7 +521,7 @@ export function FormsDashboard() {
     return (
       <div className="flex min-h-[40vh] items-center justify-center gap-2 text-muted-foreground">
         <Loader2 className="size-5 animate-spin" aria-hidden />
-        Cargando Formularios…
+        Cargando Forms…
       </div>
     );
   }
@@ -545,9 +568,14 @@ export function FormsDashboard() {
               <p className="text-sm text-muted-foreground">
                 {forms.length === 0
                   ? "Aún no hay formularios."
-                  : `${forms.length} formulario${forms.length === 1 ? "" : "s"}`}
+                  : `${forms.length}/${FORMS_MAX_PER_GUILD} formulario${forms.length === 1 ? "" : "s"}`}
               </p>
-              <Button type="button" size="sm" onClick={() => void openCreate()}>
+              <Button
+                type="button"
+                size="sm"
+                disabled={forms.length >= FORMS_MAX_PER_GUILD}
+                onClick={() => void openCreate()}
+              >
                 <Plus className="size-4" aria-hidden />
                 Nuevo
               </Button>
@@ -582,6 +610,12 @@ export function FormsDashboard() {
                             <Badge>
                               {form.responseCount} resp.
                             </Badge>
+                            {form.enabled ? null : (
+                              <Badge>Cerrado</Badge>
+                            )}
+                            {form.submitMode === "once" ? (
+                              <Badge>Una vez</Badge>
+                            ) : null}
                             {form.publishedMessageId ? (
                               <Badge className="border-primary/40 bg-primary/15 text-primary">
                                 Publicado
@@ -835,8 +869,8 @@ export function FormsDashboard() {
                   {builderTab === "questions" ? (
                     <TabsContent className="mt-4 space-y-4">
                       <p className="text-sm text-muted-foreground">
-                        Discord permite máximo {FORMS_MAX_QUESTIONS} campos de
-                        texto por modal.
+                        Discord permite máximo {FORMS_MAX_QUESTIONS} campos por
+                        modal (texto, desplegable o archivo).
                       </p>
                       {draft.questions.map((question, index) => (
                         <Card key={question.id}>
@@ -872,6 +906,7 @@ export function FormsDashboard() {
                               <Input
                                 value={question.placeholder}
                                 maxLength={100}
+                                disabled={question.style === "FILE_UPLOAD"}
                                 placeholder="Texto de ayuda dentro del campo…"
                                 onChange={(e) =>
                                   updateQuestion(index, {
@@ -880,6 +915,30 @@ export function FormsDashboard() {
                                 }
                               />
                             </div>
+                            {question.style === "STRING_SELECT" ? (
+                              <div className="space-y-1.5">
+                                <Label>Opciones (una por línea)</Label>
+                                <Textarea
+                                  rows={4}
+                                  value={question.options
+                                    .map((opt) => opt.label)
+                                    .join("\n")}
+                                  placeholder={"PC\nPlayStation\nXbox"}
+                                  onChange={(e) =>
+                                    updateQuestion(index, {
+                                      options: e.target.value
+                                        .split("\n")
+                                        .map((line) => line.trim())
+                                        .filter(Boolean)
+                                        .map((label) => ({
+                                          label,
+                                          value: label,
+                                        })),
+                                    })
+                                  }
+                                />
+                              </div>
+                            ) : null}
                             <div className="grid gap-3 sm:grid-cols-2">
                               <div className="space-y-1.5">
                                 <Label>Tipo</Label>
@@ -954,6 +1013,18 @@ export function FormsDashboard() {
                           </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
+                          <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
+                            <div>
+                              <Label className="text-sm">Formulario abierto</Label>
+                              <p className="text-[11px] text-muted-foreground">
+                                Si está cerrado, el botón de Discord no acepta envíos.
+                              </p>
+                            </div>
+                            <Switch
+                              checked={draft.enabled}
+                              onCheckedChange={(enabled) => patch({ enabled })}
+                            />
+                          </div>
                           <div className="space-y-1.5">
                             <Label>Canal de logs</Label>
                             <Select
@@ -975,6 +1046,31 @@ export function FormsDashboard() {
                             </Select>
                           </div>
                           <div className="space-y-1.5">
+                            <Label>Envíos</Label>
+                            <Select
+                              value={draft.submitMode}
+                              onValueChange={(value) =>
+                                patch({
+                                  submitMode:
+                                    value === "once" ? "once" : "cooldown",
+                                })
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="cooldown">
+                                  Cooldown (minutos)
+                                </SelectItem>
+                                <SelectItem value="once">
+                                  Una sola vez por usuario
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {draft.submitMode === "cooldown" ? (
+                          <div className="space-y-1.5">
                             <Label>Cooldown (Minutos)</Label>
                             <Input
                               type="number"
@@ -994,6 +1090,80 @@ export function FormsDashboard() {
                               Tiempo que debe esperar un usuario antes de volver
                               a enviar este formulario. 0 = sin límite.
                             </p>
+                          </div>
+                          ) : null}
+                          <RoleMultiSelect
+                            label="Roles requeridos"
+                            roles={roles}
+                            value={draft.requiredRoleIds}
+                            onChange={(requiredRoleIds) =>
+                              patch({ requiredRoleIds })
+                            }
+                            emptyHint="Cualquiera puede enviar."
+                          />
+                          <RoleMultiSelect
+                            label="Roles bloqueados"
+                            roles={roles}
+                            value={draft.blockedRoleIds}
+                            onChange={(blockedRoleIds) =>
+                              patch({ blockedRoleIds })
+                            }
+                          />
+                          <div className="space-y-1.5">
+                            <Label>Ping al staff</Label>
+                            <Select
+                              value={draft.pingRoleId || "none"}
+                              onValueChange={(value) =>
+                                patch({
+                                  pingRoleId: value === "none" ? null : value,
+                                })
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Sin ping" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Sin ping</SelectItem>
+                                {roles.map((role) => (
+                                  <SelectItem key={role.id} value={role.id}>
+                                    @{role.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>Rol al aceptar</Label>
+                            <Select
+                              value={draft.acceptRoleId || "none"}
+                              onValueChange={(value) =>
+                                patch({
+                                  acceptRoleId: value === "none" ? null : value,
+                                })
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Ninguno" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Ninguno</SelectItem>
+                                {roles.map((role) => (
+                                  <SelectItem key={role.id} value={role.id}>
+                                    @{role.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>Mensaje de confirmación</Label>
+                            <Input
+                              value={draft.thankYouMessage}
+                              maxLength={500}
+                              onChange={(e) =>
+                                patch({ thankYouMessage: e.target.value })
+                              }
+                            />
                           </div>
                         </CardContent>
                       </Card>
@@ -1083,6 +1253,25 @@ export function FormsDashboard() {
         description={`${responses.length} envío${responses.length === 1 ? "" : "s"}`}
         className="max-w-3xl"
       >
+        <div className="flex items-center justify-end gap-2 border-b border-border px-4 py-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={!responsesForm || responses.length === 0}
+            onClick={() => {
+              if (!responsesForm) return;
+              void downloadFormResponsesCsv(responsesForm.id).catch((err) =>
+                setError(
+                  err instanceof Error ? err.message : "No se pudo exportar.",
+                ),
+              );
+            }}
+          >
+            <Download className="size-3.5" aria-hidden />
+            CSV
+          </Button>
+        </div>
         <div className="max-h-[70vh] overflow-y-auto p-4">
           {loadingResponses ? (
             <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
@@ -1103,6 +1292,9 @@ export function FormsDashboard() {
                     </th>
                     <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Fecha
+                    </th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Estado
                     </th>
                     <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Detalle
@@ -1134,6 +1326,15 @@ export function FormsDashboard() {
                           </td>
                           <td className="px-3 py-2.5 text-xs text-muted-foreground">
                             {new Date(row.createdAt).toLocaleString()}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <Badge>
+                              {row.status === "accepted"
+                                ? "Aceptada"
+                                : row.status === "rejected"
+                                  ? "Rechazada"
+                                  : "Pendiente"}
+                            </Badge>
                           </td>
                           <td className="px-3 py-2.5 text-right">
                             <Button

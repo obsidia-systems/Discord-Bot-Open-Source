@@ -1,21 +1,39 @@
 import { GatewayIntentBits } from "discord.js";
 import type { AdobosModule } from "../../core/modules/types.js";
-import { FORM_OPEN_PREFIX, FORM_SUBMIT_PREFIX } from "@adobos/shared";
+import {
+  FORM_ACCEPT_PREFIX,
+  FORM_DENY_PREFIX,
+  FORM_OPEN_PREFIX,
+  FORM_SUBMIT_PREFIX,
+} from "@adobos/shared";
 import { formsRoutes } from "./api/routes.js";
-import { onFormsModalSubmit, onFormsOpenButton } from "./handlers.js";
+import {
+  onFormsModalSubmit,
+  onFormsOpenButton,
+  onFormsReviewButton,
+} from "./handlers.js";
 
 export const formsModule: AdobosModule = {
   id: "forms",
-  name: "Formularios",
+  name: "Forms",
   intents: [
     GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
   ],
   register(ctx) {
     ctx.route("/api/forms", formsRoutes(ctx.client), { feature: "forms" });
-    ctx.button(FORM_OPEN_PREFIX, (interaction) => onFormsOpenButton(interaction),
+    ctx.button(FORM_OPEN_PREFIX, (interaction) =>
+      onFormsOpenButton(interaction),
     );
-    ctx.modal(FORM_SUBMIT_PREFIX, (interaction) => onFormsModalSubmit(interaction, ctx.client),
+    ctx.button(FORM_ACCEPT_PREFIX, (interaction) =>
+      onFormsReviewButton(interaction),
+    );
+    ctx.button(FORM_DENY_PREFIX, (interaction) =>
+      onFormsReviewButton(interaction),
+    );
+    ctx.modal(FORM_SUBMIT_PREFIX, (interaction) =>
+      onFormsModalSubmit(interaction, ctx.client),
     );
   },
 };

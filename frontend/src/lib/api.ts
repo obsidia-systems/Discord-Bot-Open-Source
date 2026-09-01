@@ -78,6 +78,7 @@ export {
   deleteForm,
   publishForm,
   fetchFormResponses,
+  downloadFormResponsesCsv,
   fetchFormsConfig,
   saveFormsConfig,
   publishFormsConfig,

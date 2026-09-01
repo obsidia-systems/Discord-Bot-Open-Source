@@ -210,10 +210,10 @@ export const dashboardNav: NavCategoryConfig[] = [
         blurb: "Crea roles con color, permisos y jerarquía.",
       },
       {
-        label: "Formularios",
+        label: "Forms",
         href: "/dashboard/community/forms",
         icon: ClipboardList,
-        blurb: "Encuestas y formularios interactivos.",
+        blurb: "Solicitudes y formularios en Discord.",
       },
       {
         label: "Sorteos",

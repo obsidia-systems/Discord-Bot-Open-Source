@@ -131,6 +131,27 @@ export async function fetchFormResponses(
   return response.json() as Promise<FormResponsesListResponse>;
 }
 
+export async function downloadFormResponsesCsv(id: number): Promise<void> {
+  const response = await apiFetch(`/api/forms/${id}/responses.csv`);
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(
+        response,
+        `No se pudo exportar el CSV (${response.status})`,
+      ),
+    );
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `form-${id}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 /** @deprecated */
 export async function fetchFormsConfig(): Promise<FormResponseBody> {
   const list = await fetchForms();

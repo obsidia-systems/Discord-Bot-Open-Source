@@ -612,6 +612,16 @@ export const guildForms = pgTable("guild_forms", {
   /** JSON: FormQuestion[] */
   questions: text("questions").notNull().default("[]"),
   cooldownMinutes: integer("cooldown_minutes").notNull().default(0),
+  enabled: boolean("enabled").notNull().default(true),
+  /** cooldown | once */
+  submitMode: text("submit_mode").notNull().default("cooldown"),
+  /** JSON: snowflake[] */
+  requiredRoleIds: text("required_role_ids").notNull().default("[]"),
+  /** JSON: snowflake[] */
+  blockedRoleIds: text("blocked_role_ids").notNull().default("[]"),
+  pingRoleId: text("ping_role_id"),
+  thankYouMessage: text("thank_you_message").notNull().default(""),
+  acceptRoleId: text("accept_role_id"),
   publishedChannelId: text("published_channel_id"),
   publishedMessageId: text("published_message_id"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
@@ -644,12 +654,21 @@ export const formResponses = pgTable(
     avatarUrl: text("avatar_url"),
     /** JSON: FormAnswerEntry[] */
     answers: text("answers").notNull().default("[]"),
+    /** pending | accepted | rejected */
+    status: text("status").notNull().default("pending"),
+    reviewedBy: text("reviewed_by"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
   (table) => [
     index("idx_form_responses_form").on(table.formId, table.createdAt),
+    index("idx_form_responses_user").on(
+      table.formId,
+      table.userId,
+      table.createdAt,
+    ),
   ],
 );
 
