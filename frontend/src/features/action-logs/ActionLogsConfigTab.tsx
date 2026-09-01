@@ -213,6 +213,7 @@ export function ActionLogsConfigTab({
       `Miembros: ${nameOf(config.channelsMapping.members)}`,
       `Roles: ${nameOf(config.channelsMapping.roles)}`,
       `Canales: ${nameOf(config.channelsMapping.channels)}`,
+      `Invitaciones: ${nameOf(config.channelsMapping.invites)}`,
       `Voz: ${nameOf(config.channelsMapping.voice)}`,
       `Recursos: ${nameOf(config.channelsMapping.assets)}`,
       `Reserva: ${nameOf(config.globalChannelId)}`,
@@ -249,7 +250,7 @@ export function ActionLogsConfigTab({
                   {
                     mode: "ADVANCED" as const,
                     title: "Enrutamiento avanzado",
-                    blurb: "6 canales: mensajes, miembros, roles, canales, voz y recursos.",
+                    blurb: "7 canales: mensajes, miembros, roles, canales, voz, invitaciones y recursos.",
                   },
                 ] as const
               ).map((opt) => (
@@ -305,10 +306,17 @@ export function ActionLogsConfigTab({
                 />
                 <ChannelSelect
                   id="map-channels"
-                  label="Canales / invitaciones"
+                  label="Canales"
                   value={config.channelsMapping.channels}
                   channels={textChannels}
                   onChange={(id) => setMapping("channels", id)}
+                />
+                <ChannelSelect
+                  id="map-invites"
+                  label="Invitaciones"
+                  value={config.channelsMapping.invites}
+                  channels={textChannels}
+                  onChange={(id) => setMapping("invites", id)}
                 />
                 <ChannelSelect
                   id="map-voice"

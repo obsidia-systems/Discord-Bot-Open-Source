@@ -12,6 +12,7 @@ const channelsMappingSchema = z.object({
   channels: snowflake.nullable().optional(),
   voice: snowflake.nullable().optional(),
   assets: snowflake.nullable().optional(),
+  invites: snowflake.nullable().optional(),
 });
 
 export const updateActionLogsConfigSchema = z.object({

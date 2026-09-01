@@ -22,10 +22,14 @@ export type ActionLogEventKey =
   | "messageDelete"
   | "messageUpdate"
   | "messageAttachmentDelete"
+  | "messageDeleteBulk"
   | "memberJoin"
   | "memberLeave"
+  | "memberKick"
   | "memberRoleUpdate"
   | "memberNicknameUpdate"
+  | "memberTimeout"
+  | "memberUntimeout"
   | "memberBan"
   | "memberUnban"
   | "roleCreate"
@@ -54,10 +58,14 @@ export type ActionLogEventType =
   | "MESSAGE_DELETE"
   | "MESSAGE_UPDATE"
   | "MESSAGE_ATTACHMENT_DELETE"
+  | "MESSAGE_DELETE_BULK"
   | "MEMBER_JOIN"
   | "MEMBER_LEAVE"
+  | "MEMBER_KICK"
   | "MEMBER_ROLE_UPDATE"
   | "MEMBER_NICKNAME_UPDATE"
+  | "MEMBER_TIMEOUT"
+  | "MEMBER_UNTIMEOUT"
   | "MEMBER_BAN"
   | "MEMBER_UNBAN"
   | "ROLE_CREATE"
@@ -87,7 +95,7 @@ export type ActionLogEmbedTone = "red" | "yellow" | "green" | "blue";
 
 /**
  * Mapa de canales en modo ADVANCED.
- * keys: messages | members | roles | channels | voice | assets
+ * keys: messages | members | roles | channels | voice | assets | invites
  */
 export interface ActionLogChannelsMapping {
   messages: string | null;
@@ -96,6 +104,7 @@ export interface ActionLogChannelsMapping {
   channels: string | null;
   voice: string | null;
   assets: string | null;
+  invites: string | null;
   /** @deprecated legacy — se migra a roles/channels */
   server?: string | null;
 }
@@ -116,7 +125,7 @@ export interface ActionLogsConfig {
   ignoredRoles: string[];
   ignoreBots: boolean;
   enabledEvents: ActionLogEnabledEvents;
-  /** Días a conservar en SQLite; 0 = sin límite. */
+  /** Días a conservar en Postgres; 0 = sin límite. */
   dataRetentionDays: ActionLogRetentionDays;
   updatedAt: string;
 }
@@ -182,10 +191,14 @@ export const ACTION_LOG_EVENT_KEYS: readonly ActionLogEventKey[] = [
   "messageDelete",
   "messageUpdate",
   "messageAttachmentDelete",
+  "messageDeleteBulk",
   "memberJoin",
   "memberLeave",
+  "memberKick",
   "memberRoleUpdate",
   "memberNicknameUpdate",
+  "memberTimeout",
+  "memberUntimeout",
   "memberBan",
   "memberUnban",
   "roleCreate",
@@ -243,6 +256,7 @@ export function defaultActionLogChannelsMapping(): ActionLogChannelsMapping {
     channels: null,
     voice: null,
     assets: null,
+    invites: null,
   };
 }
 
@@ -287,5 +301,6 @@ export function normalizeChannelsMapping(
     channels: raw.channels ?? server ?? base.channels,
     voice: raw.voice ?? base.voice,
     assets: raw.assets ?? base.assets,
+    invites: raw.invites ?? base.invites,
   };
 }

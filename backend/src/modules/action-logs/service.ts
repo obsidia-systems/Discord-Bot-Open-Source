@@ -41,9 +41,12 @@ import {
   actionLogsConfig,
   guildSettings,
 } from "../../db/schema.js";
+import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
 import { buildActionLogEmbed } from "./embeds.js";
 import { sendActionLogWebhook } from "./webhooks.js";
 import { logger } from "../../core/log.js";
+
+const configCache = new BoundedTtlMap<string, ActionLogsConfig>(5_000, 60_000);
 
 export class ActionLogsError extends Error {
   constructor(
@@ -66,7 +69,7 @@ const CATEGORY_ROUTE_KEY: Record<
   CHANNELS: "channels",
   ASSETS: "assets",
   VOICE: "voice",
-  INVITES: "channels",
+  INVITES: "invites",
 };
 
 const EVENT_META: Record<
@@ -82,10 +85,14 @@ const EVENT_META: Record<
   messageDelete: { eventType: "MESSAGE_DELETE", category: "MESSAGES", label: "Mensaje eliminado", tone: "red", emoji: "🗑️" },
   messageUpdate: { eventType: "MESSAGE_UPDATE", category: "MESSAGES", label: "Mensaje editado", tone: "yellow", emoji: "✏️" },
   messageAttachmentDelete: { eventType: "MESSAGE_ATTACHMENT_DELETE", category: "MESSAGES", label: "Adjunto eliminado", tone: "red", emoji: "🖼️" },
+  messageDeleteBulk: { eventType: "MESSAGE_DELETE_BULK", category: "MESSAGES", label: "Mensajes eliminados en masa", tone: "red", emoji: "🧹" },
   memberJoin: { eventType: "MEMBER_JOIN", category: "MEMBERS", label: "Miembro se une", tone: "green", emoji: "📥" },
   memberLeave: { eventType: "MEMBER_LEAVE", category: "MEMBERS", label: "Miembro sale", tone: "yellow", emoji: "🚪" },
+  memberKick: { eventType: "MEMBER_KICK", category: "MEMBERS", label: "Miembro expulsado", tone: "red", emoji: "👢" },
   memberRoleUpdate: { eventType: "MEMBER_ROLE_UPDATE", category: "MEMBERS", label: "Roles actualizados", tone: "blue", emoji: "🎭" },
   memberNicknameUpdate: { eventType: "MEMBER_NICKNAME_UPDATE", category: "MEMBERS", label: "Apodo cambiado", tone: "yellow", emoji: "🏷️" },
+  memberTimeout: { eventType: "MEMBER_TIMEOUT", category: "MEMBERS", label: "Timeout", tone: "red", emoji: "⏱️" },
+  memberUntimeout: { eventType: "MEMBER_UNTIMEOUT", category: "MEMBERS", label: "Timeout levantado", tone: "green", emoji: "⏱️" },
   memberBan: { eventType: "MEMBER_BAN", category: "MEMBERS", label: "Miembro baneado", tone: "red", emoji: "🔨" },
   memberUnban: { eventType: "MEMBER_UNBAN", category: "MEMBERS", label: "Miembro desbaneado", tone: "green", emoji: "🔓" },
   roleCreate: { eventType: "ROLE_CREATE", category: "ROLES", label: "Rol creado", tone: "green", emoji: "✨" },
@@ -235,12 +242,16 @@ function rowToConfig(
 
 export async function getActionLogsConfig(guildId?: string): Promise<ActionLogsConfig> {
   const id = resolveGuildId(guildId);
+  const cached = configCache.get(id);
+  if (cached) return cached;
   const row = await one(getDb()
     .select()
     .from(actionLogsConfig)
     .where(eq(actionLogsConfig.guildId, id))
     .limit(1));
-  return await rowToConfig(id, row);
+  const config = rowToConfig(id, row);
+  configCache.set(id, config);
+  return config;
 }
 
 export async function updateActionLogsConfig(
@@ -348,7 +359,8 @@ export async function updateActionLogsConfig(
       ;
   }
 
-  return await getActionLogsConfig(id);
+  configCache.set(id, next);
+  return next;
 }
 
 export function resolveLogChannelId(
@@ -356,26 +368,35 @@ export function resolveLogChannelId(
   category: ActionLogCategory,
 ): string | null {
   if (config.routingMode === "ADVANCED") {
-    const key = CATEGORY_ROUTE_KEY[category];
-    const mapped = config.channelsMapping[key];
-    if (typeof mapped === "string" && mapped) return mapped;
+    if (category === "INVITES") {
+      const invites = config.channelsMapping.invites;
+      if (typeof invites === "string" && invites) return invites;
+      // Compat: configs viejas mandaban invites al canal de channels.
+      const channels = config.channelsMapping.channels;
+      if (typeof channels === "string" && channels) return channels;
+    } else {
+      const key = CATEGORY_ROUTE_KEY[category];
+      const mapped = config.channelsMapping[key];
+      if (typeof mapped === "string" && mapped) return mapped;
+    }
   }
   return config.globalChannelId;
 }
 
-/** Chequeo barato para abortar listeners antes de audit/CPU. */
-export async function passesActionLogFilters(
-  guildId: string,
+export interface ActionLogFilterContext {
+  channelId?: string | null;
+  /** parentId del canal (categoría) — si está en ignoredChannels, se aborta. */
+  parentId?: string | null;
+  actorIsBot?: boolean;
+  actorRoleIds?: string[];
+}
+
+/** Filtros síncronos sobre una config ya cargada (tests + recordActionLog). */
+export function configPassesFilters(
+  config: ActionLogsConfig,
   eventKey: ActionLogEventKey,
-  ctx: {
-    channelId?: string | null;
-    /** parentId del canal (categoría) — si está en ignoredChannels, se aborta. */
-    parentId?: string | null;
-    actorIsBot?: boolean;
-    actorRoleIds?: string[];
-  } = {},
-): Promise<boolean> {
-  const config = await getActionLogsConfig(guildId);
+  ctx: ActionLogFilterContext = {},
+): boolean {
   if (!config.enabled) return false;
   if (config.ignoreBots && ctx.actorIsBot) return false;
   if (isChannelIgnored(config.ignoredChannels, ctx.channelId, ctx.parentId)) {
@@ -389,6 +410,16 @@ export async function passesActionLogFilters(
   }
   if (!config.enabledEvents[eventKey]) return false;
   return true;
+}
+
+/** Chequeo barato para abortar listeners antes de audit/CPU. */
+export async function passesActionLogFilters(
+  guildId: string,
+  eventKey: ActionLogEventKey,
+  ctx: ActionLogFilterContext = {},
+): Promise<boolean> {
+  const config = await getActionLogsConfig(guildId);
+  return configPassesFilters(config, eventKey, ctx);
 }
 
 function isChannelIgnored(
@@ -428,7 +459,7 @@ export interface RecordActionLogInput {
 }
 
 /**
- * Pipeline de filtros (temprano) + insert SQLite + embed Discord vía webhook.
+ * Pipeline de filtros (temprano) + insert Postgres + embed Discord vía webhook.
  * Retorna null si se aborta por filtros.
  */
 export async function recordActionLog(
@@ -436,28 +467,18 @@ export async function recordActionLog(
   input: RecordActionLogInput,
 ): Promise<ActionLogEntry | null> {
   const config = await getActionLogsConfig(input.guildId);
-
-  // Pipeline: enabled → ignore bots → canales/categoría/roles → switch evento
-  if (!config.enabled) return null;
-  if (config.ignoreBots && input.actorIsBot) return null;
   if (
-    isChannelIgnored(
-      config.ignoredChannels,
-      input.channelId,
-      input.parentId,
-    )
-  ) {
-    return null;
-  }
-  if (
-    input.actorRoleIds?.length &&
-    input.actorRoleIds.some((roleId) => config.ignoredRoles.includes(roleId))
+    !configPassesFilters(config, input.eventKey, {
+      channelId: input.channelId,
+      parentId: input.parentId,
+      actorIsBot: input.actorIsBot,
+      actorRoleIds: input.actorRoleIds,
+    })
   ) {
     return null;
   }
 
   const meta = EVENT_META[input.eventKey];
-  if (!config.enabledEvents[input.eventKey]) return null;
 
   const destinationId = resolveLogChannelId(config, meta.category);
   const details = input.details ?? {};
@@ -605,7 +626,7 @@ export async function recordActionLog(
   return entry;
 }
 
-/** Borra logs SQLite anteriores a la retención del guild. */
+/** Borra logs Postgres anteriores a la retención del guild. */
 export async function purgeExpiredActionLogs(guildId?: string): Promise<number> {
   const id = resolveGuildId(guildId);
   const config = await getActionLogsConfig(id);
