@@ -7,8 +7,10 @@ import {
   Eraser,
   Gavel,
   Loader2,
+  Lock,
   LogOut,
   Timer,
+  Unlock,
   UserX,
   XCircle,
 } from "lucide-react";
@@ -70,6 +72,7 @@ type Feedback =
 const TIMEOUT_OPTIONS = [
   { value: "60", label: "60 segundos" },
   { value: "300", label: "5 minutos" },
+  { value: "600", label: "10 minutos" },
   { value: "3600", label: "1 hora" },
   { value: "86400", label: "1 día" },
   { value: "604800", label: "1 semana" },
@@ -116,9 +119,13 @@ function FeedbackBanner({ feedback }: { feedback: Feedback }) {
 function MemberDossier({
   info,
   loading,
+  busy,
+  onClearWarns,
 }: {
   info: ModMemberInfoResponse | null;
   loading: boolean;
+  busy: boolean;
+  onClearWarns: () => void;
 }) {
   if (loading) {
     return (
@@ -201,20 +208,31 @@ function MemberDossier({
         {info.warnings.length === 0 ? (
           <p className="text-sm text-muted-foreground">Sin advertencias.</p>
         ) : (
-          <ul className="max-h-56 space-y-2 overflow-y-auto">
-            {info.warnings.map((warn) => (
-              <li
-                key={warn.id}
-                className="rounded-md border border-border bg-muted/20 px-3 py-2 text-sm"
-              >
-                <p>{warn.reason}</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {new Date(warn.createdAt).toLocaleString("es-MX")} · mod{" "}
-                  {warn.moderatorId.slice(-4)}
-                </p>
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul className="max-h-56 space-y-2 overflow-y-auto">
+              {info.warnings.map((warn) => (
+                <li
+                  key={warn.id}
+                  className="rounded-md border border-border bg-muted/20 px-3 py-2 text-sm"
+                >
+                  <p>{warn.reason}</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {new Date(warn.createdAt).toLocaleString("es-MX")} · mod{" "}
+                    {warn.moderatorId.slice(-4)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={onClearWarns}
+            >
+              Limpiar expediente
+            </Button>
+          </>
         )}
       </div>
     </div>
@@ -408,7 +426,8 @@ export function ModerationTools() {
           action === "kick" ||
           action === "ban" ||
           action === "unban" ||
-          action === "untimeout")
+          action === "untimeout" ||
+          action === "clearwarns")
       ) {
         const refreshed = await fetchModMemberInfo(memberOption.id).catch(
           () => null,
@@ -417,7 +436,10 @@ export function ModerationTools() {
       }
       if (
         channelOption &&
-        (action === "slowmode" || action === "purge")
+        (action === "slowmode" ||
+          action === "purge" ||
+          action === "lock" ||
+          action === "unlock")
       ) {
         const refreshed = await fetchModChannelInfo(channelOption.id).catch(
           () => null,
@@ -497,7 +519,7 @@ export function ModerationTools() {
           <CardHeader>
             <CardTitle>Herramientas de moderación</CardTitle>
             <CardDescription>
-              Acciones en vivo vía Discord.js · Ban, kick, timeout, warn, purge.
+              Acciones en vivo · Ban, kick, timeout, warn, purge, lock.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -866,6 +888,49 @@ export function ModerationTools() {
                           Aplicar slowmode
                         </Button>
                       </div>
+
+                      <div className="space-y-3 rounded-lg border border-border p-4">
+                        <div className="flex items-center gap-2">
+                          <Lock className="size-4 text-primary" aria-hidden />
+                          <p className="font-medium">Bloquear canal</p>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Quita a @everyone el permiso de escribir. Unlock lo
+                          restaura.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => {
+                              void runAction("lock", {
+                                action: "lock",
+                                channelId: channelOption.id,
+                                reason: reason.trim() || "Lock desde panel",
+                              });
+                            }}
+                          >
+                            <Lock className="size-4" aria-hidden />
+                            Lock
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => {
+                              void runAction("unlock", {
+                                action: "unlock",
+                                channelId: channelOption.id,
+                                reason: reason.trim() || "Unlock desde panel",
+                              });
+                            }}
+                          >
+                            <Unlock className="size-4" aria-hidden />
+                            Unlock
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   ) : null}
                 </TabsContent>
@@ -931,7 +996,19 @@ export function ModerationTools() {
                 loading={loadingChannel}
               />
             ) : (
-              <MemberDossier info={memberInfo} loading={loadingMember} />
+              <MemberDossier
+                info={memberInfo}
+                loading={loadingMember}
+                busy={busy}
+                onClearWarns={() => {
+                  if (!memberOption) return;
+                  void runAction("clearwarns", {
+                    action: "clearwarns",
+                    userId: memberOption.id,
+                    reason: "Limpieza de warns desde panel",
+                  });
+                }}
+              />
             )}
           </CardContent>
         </Card>

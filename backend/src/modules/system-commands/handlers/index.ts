@@ -9,8 +9,16 @@ import {
 } from "../../levels/commands/admin.js";
 import {
   handleBanCommand,
+  handleClearWarnsCommand,
   handleKickCommand,
+  handleLockCommand,
+  handlePurgeCommand,
+  handleSlowmodeCommand,
   handleTimeoutCommand,
+  handleUnlockCommand,
+  handleUntimeoutCommand,
+  handleWarnCommand,
+  handleWarnsCommand,
 } from "../../moderation/commands/slash.js";
 import { handleBuyCommand } from "../../economy/commands/buy.js";
 import {
@@ -57,14 +65,14 @@ export const DEFAULT_COMMAND_HANDLERS: Record<string, DefaultCommandHandler> = {
   ban: handleBanCommand,
   kick: handleKickCommand,
   timeout: handleTimeoutCommand,
-  untimeout: (i) => stubCommand(i, "Moderación"),
-  warn: (i) => stubCommand(i, "Moderación"),
-  warns: (i) => stubCommand(i, "Moderación"),
-  clearwarns: (i) => stubCommand(i, "Moderación"),
-  purge: (i) => stubCommand(i, "Moderación"),
-  slowmode: (i) => stubCommand(i, "Moderación"),
-  lock: (i) => stubCommand(i, "Moderación"),
-  unlock: (i) => stubCommand(i, "Moderación"),
+  untimeout: handleUntimeoutCommand,
+  warn: handleWarnCommand,
+  warns: handleWarnsCommand,
+  clearwarns: handleClearWarnsCommand,
+  purge: handlePurgeCommand,
+  slowmode: handleSlowmodeCommand,
+  lock: handleLockCommand,
+  unlock: handleUnlockCommand,
 
   // Rangos y XP
   rank: handleRankCommand,

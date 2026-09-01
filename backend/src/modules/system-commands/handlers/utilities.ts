@@ -3,7 +3,6 @@ import { EmbedBuilder, PermissionFlagsBits } from "discord.js";
 import { SYSTEM_COMMAND_CATALOG } from "@adobos/shared";
 import { consumeInteractionEphemeral } from "../ephemeral.js";
 import { getCommandPermission } from "../service.js";
-import { stubCommand } from "./stub.js";
 
 function asGuildMember(
   member: ChatInputCommandInteraction["member"],
@@ -125,10 +124,4 @@ export async function handleHelpCommand(
     });
 
   await interaction.reply({ embeds: [embed], ephemeral });
-}
-
-export async function handleEconomyStub(
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
-  await stubCommand(interaction, "Economía");
 }

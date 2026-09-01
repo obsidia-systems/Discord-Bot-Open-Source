@@ -37,6 +37,7 @@ import {
 } from "../../db/schema.js";
 import { getEmbedTemplate } from "../messages/templates/service.js";
 import { logger } from "../../core/log.js";
+import { clampTimeoutSeconds, everyoneSendMessagesOverwrite } from "./duration.js";
 import {
   applySanctionTextVars,
   buildEmbedFromPayload,
@@ -149,6 +150,56 @@ function mapDiscordError(error: unknown): never {
   }
 
   throw new ModerationError("Error desconocido.", 500, "INTERNAL_ERROR");
+}
+
+function assertBotCanAct(
+  member: GuildMember,
+  action: "ban" | "kick" | "timeout" | "untimeout",
+  actorUserId?: string,
+): void {
+  const me = member.guild.members.me;
+  if (me && member.id === me.id) {
+    throw new ModerationError(
+      "No puedes aplicar esta acción al bot.",
+      400,
+      "TARGET_IS_BOT",
+    );
+  }
+  if (
+    actorUserId &&
+    member.id === actorUserId &&
+    (action === "ban" || action === "kick" || action === "timeout")
+  ) {
+    throw new ModerationError(
+      "No puedes aplicarte esta acción a ti mismo.",
+      400,
+      "TARGET_IS_SELF",
+    );
+  }
+  if (action === "ban" && !member.bannable) {
+    throw new ModerationError(
+      "Jerarquía de roles: no puedo banear a ese miembro.",
+      403,
+      "MEMBER_NOT_BANNABLE",
+    );
+  }
+  if (action === "kick" && !member.kickable) {
+    throw new ModerationError(
+      "Jerarquía de roles: no puedo expulsar a ese miembro.",
+      403,
+      "MEMBER_NOT_KICKABLE",
+    );
+  }
+  if (
+    (action === "timeout" || action === "untimeout") &&
+    !member.moderatable
+  ) {
+    throw new ModerationError(
+      "Jerarquía de roles: no puedo aislar a ese miembro.",
+      403,
+      "MEMBER_NOT_MODERATABLE",
+    );
+  }
 }
 
 function memberHit(member: GuildMember) {
@@ -573,7 +624,10 @@ export async function executeModAction(
     action !== "purge" &&
     action !== "slowmode" &&
     action !== "unban" &&
-    action !== "untimeout"
+    action !== "untimeout" &&
+    action !== "lock" &&
+    action !== "unlock" &&
+    action !== "clearwarns"
   ) {
     throw new ModerationError(
       "La razón es obligatoria.",
@@ -653,6 +707,7 @@ export async function executeModAction(
         const userId = assertSnowflake(input.userId ?? "", "userId");
         targetUserId = userId;
         const member = await guild.members.fetch(userId);
+        assertBotCanAct(member, "kick", actorUserId);
         await member.kick(auditReason);
         message = `${member.user.username} fue expulsado.`;
         break;
@@ -665,6 +720,8 @@ export async function executeModAction(
           0,
           Math.min(7, Math.round(Number(input.deleteMessageDays ?? 0))),
         );
+        const member = await guild.members.fetch(userId).catch(() => null);
+        if (member) assertBotCanAct(member, "ban", actorUserId);
         await guild.members.ban(userId, {
           reason: auditReason,
           deleteMessageSeconds: days * 24 * 60 * 60,
@@ -685,15 +742,16 @@ export async function executeModAction(
       case "timeout": {
         const userId = assertSnowflake(input.userId ?? "", "userId");
         targetUserId = userId;
-        const seconds = Math.round(Number(input.durationSeconds ?? 0));
-        if (![60, 300, 3600, 86400, 604800].includes(seconds)) {
+        const seconds = clampTimeoutSeconds(input.durationSeconds);
+        if (seconds === null) {
           throw new ModerationError(
-            "Duración de timeout inválida.",
+            "Duración de timeout inválida. Usa entre 1 segundo y 28 días (ej. 10m, 1h, 24h).",
             400,
             "INVALID_TIMEOUT",
           );
         }
         const member = await guild.members.fetch(userId);
+        assertBotCanAct(member, "timeout", actorUserId);
         await member.timeout(seconds * 1000, auditReason);
         message = `${member.user.username} en timeout (${seconds}s).`;
         break;
@@ -703,9 +761,26 @@ export async function executeModAction(
         const userId = assertSnowflake(input.userId ?? "", "userId");
         targetUserId = userId;
         const member = await guild.members.fetch(userId);
+        assertBotCanAct(member, "untimeout", actorUserId);
         await member.timeout(null, auditReason);
         message = `Timeout removido de ${member.user.username}.`;
         dmResult = { dmSent: false, dmSkipped: true, dmFailed: false };
+        break;
+      }
+
+      case "clearwarns": {
+        const userId = assertSnowflake(input.userId ?? "", "userId");
+        targetUserId = userId;
+        const deleted = await getDb()
+          .delete(warnings)
+          .where(
+            and(eq(warnings.guildId, guild.id), eq(warnings.userId, userId)),
+          )
+          .returning({ id: warnings.id });
+        message =
+          deleted.length === 0
+            ? `No había advertencias para <@${userId}>.`
+            : `Se eliminaron ${deleted.length} advertencias de <@${userId}>.`;
         break;
       }
 
@@ -716,6 +791,9 @@ export async function executeModAction(
           1,
           Math.min(100, Math.round(Number(input.purgeLimit ?? 10))),
         );
+        const filterUserId = input.userId?.trim()
+          ? assertSnowflake(input.userId, "userId")
+          : null;
         const channel = await guild.channels.fetch(channelId);
         if (!channel || !channel.isTextBased() || channel.isDMBased()) {
           throw new ModerationError(
@@ -731,8 +809,22 @@ export async function executeModAction(
             "CHANNEL_NOT_TEXT",
           );
         }
-        const deleted = await channel.bulkDelete(limit, true);
-        message = `Se eliminaron ${deleted.size} mensajes en #${"name" in channel ? channel.name : channelId}.`;
+        const channelName = "name" in channel ? channel.name : channelId;
+        if (filterUserId) {
+          const fetched = await channel.messages.fetch({ limit: 100 });
+          const matched = [...fetched.values()]
+            .filter((msg) => msg.author.id === filterUserId)
+            .slice(0, limit);
+          if (matched.length === 0) {
+            message = `No hay mensajes recientes de <@${filterUserId}> en #${channelName} (máx. 14 días).`;
+            break;
+          }
+          const deleted = await channel.bulkDelete(matched, true);
+          message = `Se eliminaron ${deleted.size} mensajes de <@${filterUserId}> en #${channelName}.`;
+        } else {
+          const deleted = await channel.bulkDelete(limit, true);
+          message = `Se eliminaron ${deleted.size} mensajes en #${channelName}.`;
+        }
         break;
       }
 
@@ -763,6 +855,34 @@ export async function executeModAction(
           seconds === 0
             ? `Slowmode desactivado en #${channel.name}.`
             : `Slowmode de ${seconds}s en #${channel.name}.`;
+        break;
+      }
+
+      case "lock":
+      case "unlock": {
+        const channelId = assertSnowflake(input.channelId ?? "", "channelId");
+        targetChannelId = channelId;
+        const locked = action === "lock";
+        const channel = await guild.channels.fetch(channelId);
+        if (
+          !channel ||
+          (channel.type !== ChannelType.GuildText &&
+            channel.type !== ChannelType.GuildAnnouncement)
+        ) {
+          throw new ModerationError(
+            "Canal de texto no encontrado.",
+            404,
+            "CHANNEL_NOT_FOUND",
+          );
+        }
+        await (channel as TextChannel).permissionOverwrites.edit(
+          guild.roles.everyone,
+          everyoneSendMessagesOverwrite(locked),
+          { reason: auditReason },
+        );
+        message = locked
+          ? `Canal #${channel.name} bloqueado (@everyone no puede escribir).`
+          : `Canal #${channel.name} desbloqueado.`;
         break;
       }
 

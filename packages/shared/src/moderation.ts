@@ -6,7 +6,10 @@ export type ModActionType =
   | "warn"
   | "unban"
   | "purge"
-  | "slowmode";
+  | "slowmode"
+  | "lock"
+  | "unlock"
+  | "clearwarns";
 
 export const MOD_ACTION_TYPES: readonly ModActionType[] = [
   "ban",
@@ -17,6 +20,9 @@ export const MOD_ACTION_TYPES: readonly ModActionType[] = [
   "unban",
   "purge",
   "slowmode",
+  "lock",
+  "unlock",
+  "clearwarns",
 ] as const;
 
 export interface ModMemberSearchHit {
@@ -75,7 +81,7 @@ export interface ModActionRequest {
   guildId?: string;
   /** Miembro / usuario objetivo (ban, kick, timeout, warn, unban). */
   userId?: string;
-  /** Canal objetivo (purge, slowmode). */
+  /** Canal objetivo (purge, slowmode, lock, unlock). */
   channelId?: string;
   reason: string;
   /** Timeout duration en segundos. */

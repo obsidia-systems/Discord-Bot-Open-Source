@@ -23,16 +23,14 @@ export function systemCommandsRoutes(_bot: Client): Router {
 
   /** PUT /api/system-commands — permisos por guild (el registro Discord es global). */
   router.put("/", async (req, res, next) => {
-    void (async () => {
-      try {
-        const body = parse(updateSystemCommandsSchema, req.body);
-        const guildId = guildIdOf(req);
-        const commands = await updateSystemCommandPermissions(body, guildId);
-        res.json({ commands });
-      } catch (error) {
-        next(error);
-      }
-    })();
+    try {
+      const body = parse(updateSystemCommandsSchema, req.body);
+      const guildId = guildIdOf(req);
+      const commands = await updateSystemCommandPermissions(body, guildId);
+      res.json({ commands });
+    } catch (error) {
+      next(error);
+    }
   });
 
   return router;
