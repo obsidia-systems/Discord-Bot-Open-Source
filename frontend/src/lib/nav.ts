@@ -178,7 +178,7 @@ export const dashboardNav: NavCategoryConfig[] = [
         blurb: "Filtros anti-spam y palabras bloqueadas.",
       },
       {
-        label: "Auto-delete",
+        label: "Auto-Delete",
         href: "/dashboard/moderation/auto-delete",
         icon: Trash2,
         blurb: "Borrado automático en canales.",

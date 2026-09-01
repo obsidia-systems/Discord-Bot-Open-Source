@@ -16,7 +16,7 @@ import {
 } from "./punishmentMatch.js";
 import { logger } from "../../core/log.js";
 
-const AUDIT = "Sanción automática de Auto Mod";
+const AUDIT = "Sanción automática de Auto-Mod";
 
 /**
  * Tras registrar un Warn: si el total activo coincide con una regla,

@@ -37,7 +37,7 @@ export async function enforceAutoModHit(input: {
         reason,
         dmMode: input.config.dmOnHit ? "text" : "none",
         dmText: input.config.dmOnHit
-          ? `Tu mensaje en el servidor **${input.guildName}** fue bloqueado por Auto Mod (Razón: ${filterLabel}).`
+          ? `Tu mensaje en el servidor **${input.guildName}** fue bloqueado por Auto-Mod (Razón: ${filterLabel}).`
           : undefined,
       });
       warned = true;

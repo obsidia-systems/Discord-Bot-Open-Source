@@ -14,6 +14,7 @@ import {
 } from "@adobos/shared";
 import { timeAndDaysToCron } from "../../lib/schedulerTimezone.js";
 import { listAllAutoDeleteConfigs } from "./service.js";
+import { rememberBotMessageDeletes } from "../action-logs/audit.js";
 import { logger } from "../../core/log.js";
 
 const MAX_PAGES = 25;
@@ -69,6 +70,11 @@ async function sweepTextChannel(
     );
 
     if (young.size > 0) {
+      rememberBotMessageDeletes(
+        channel.client,
+        channel.guild.id,
+        young.keys(),
+      );
       await channel.bulkDelete(young, true).catch((error: unknown) => {
         logger.warn(
           { err: error },
@@ -79,6 +85,7 @@ async function sweepTextChannel(
     }
 
     for (const msg of old.values()) {
+      rememberBotMessageDeletes(channel.client, channel.guild.id, [msg.id]);
       await msg.delete().catch(() => undefined);
     }
     if (old.size > 0) await sleep(PAUSE_MS);

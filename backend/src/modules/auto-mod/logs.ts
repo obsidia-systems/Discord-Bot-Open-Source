@@ -37,7 +37,7 @@ export async function dispatchAutoModAlert(
 
   const headline = input.nativeBlock
     ? "**Mensaje bloqueado** por AutoMod nativo de Discord (Adobos)."
-    : "**Mensaje eliminado automáticamente** por Auto Mod.";
+    : "**Mensaje eliminado automáticamente** por Auto-Mod.";
 
   const embed = new EmbedBuilder()
     .setColor(0xed4245)

@@ -16,7 +16,7 @@ const COUNTDOWN_TICK_MS = 5_000;
 
 export const autoDeleteModule: AdobosModule = {
   id: "auto-delete",
-  name: "Auto-delete",
+  name: "Auto-Delete",
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,

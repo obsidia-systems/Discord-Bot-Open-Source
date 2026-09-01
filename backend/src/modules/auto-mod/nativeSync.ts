@@ -25,9 +25,9 @@ export interface NativeSyncResult {
   message: string;
 }
 
-const AUDIT = "Adobos Auto Mod";
+const AUDIT = "Adobos Auto-Mod";
 const BLOCK_MESSAGE =
-  "Tu mensaje lo bloqueó Auto Mod (Adobos).";
+  "Tu mensaje lo bloqueó Auto-Mod (Adobos).";
 
 /**
  * Espeja palabras / invitaciones / menciones en AutoMod nativo de Discord.

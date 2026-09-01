@@ -129,7 +129,7 @@ export function AutoModDashboard() {
       setLevelsEnabled(Boolean(levelsRes?.config.enabled));
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "No se pudo cargar Auto Mod",
+        err instanceof Error ? err.message : "No se pudo cargar Auto-Mod",
       );
     } finally {
       setLoading(false);
@@ -171,18 +171,18 @@ export function AutoModDashboard() {
       setConfig(res.config);
       setSavedFingerprint(configFingerprint(res.config));
       if (res.nativeSync && !res.nativeSync.ok) {
-        setSuccess("Configuración de Auto Mod guardada.");
+        setSuccess("Configuración de Auto-Mod guardada.");
         setError(res.nativeSync.message);
       } else {
         setSuccess(
           res.nativeSync?.message
             ? `Configuración guardada. ${res.nativeSync.message}`
-            : "Configuración de Auto Mod guardada.",
+            : "Configuración de Auto-Mod guardada.",
         );
       }
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "No se pudo guardar Auto Mod",
+        err instanceof Error ? err.message : "No se pudo guardar Auto-Mod",
       );
     } finally {
       setSaving(false);
@@ -193,7 +193,7 @@ export function AutoModDashboard() {
     return (
       <div className="flex min-h-[40vh] items-center justify-center gap-2 text-muted-foreground">
         <Loader2 className="size-5 animate-spin" aria-hidden />
-        Cargando Auto Mod…
+        Cargando Auto-Mod…
       </div>
     );
   }

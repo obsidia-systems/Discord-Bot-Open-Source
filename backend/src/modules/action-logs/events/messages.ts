@@ -5,7 +5,7 @@ import {
   type ReadonlyCollection,
   type Snowflake,
 } from "discord.js";
-import { resolveAuditExecutor } from "../audit.js";
+import { resolveAuditExecutor, takeBotMessageDelete } from "../audit.js";
 import { userTag } from "../helpers.js";
 import { passesActionLogFilters, recordActionLog } from "../service.js";
 
@@ -37,12 +37,16 @@ export async function onMessageDelete(
     ? [...message.attachments.values()].map((a) => a.url)
     : [];
 
-  const executor = await resolveAuditExecutor(
-    message.guild,
-    AuditLogEvent.MessageDelete,
-    author?.id,
-  );
+  const hinted = takeBotMessageDelete(message.guild.id, message.id);
+  const executor = hinted
+    ? { ...hinted.executor, roleIds: [] }
+    : await resolveAuditExecutor(
+        message.guild,
+        AuditLogEvent.MessageDelete,
+        author?.id,
+      );
   const executorUnknown = !executor;
+  const byAutoDelete = hinted?.source === "auto-delete";
 
   const channelName =
     message.channel && "name" in message.channel && message.channel.name
@@ -63,7 +67,9 @@ export async function onMessageDelete(
     channelId,
     parentId,
     summary: `Mensaje eliminado en ${channelPlain}`,
-    description: `🗑️ **Mensaje eliminado** en \`${channelPlain}\``,
+    description: byAutoDelete
+      ? `🗑️ **Mensaje eliminado** en \`${channelPlain}\` por Auto-Delete`
+      : `🗑️ **Mensaje eliminado** en \`${channelPlain}\``,
     details: {
       oldContent: content,
       newContent: null,
@@ -73,8 +79,9 @@ export async function onMessageDelete(
       channelLabel: channelPlain,
       channelPlain: true,
       targetKind: "user",
+      ...(byAutoDelete ? { source: "auto-delete" } : {}),
     },
-    actorIsBot: executor?.bot ?? false,
+    actorIsBot: author?.bot ?? false,
     actorRoleIds: executor?.roleIds,
     executorUnknown,
   });
@@ -99,7 +106,7 @@ export async function onMessageDelete(
         channelPlain: true,
         targetKind: "user",
       },
-      actorIsBot: executor?.bot ?? false,
+      actorIsBot: author?.bot ?? false,
       actorRoleIds: executor?.roleIds,
       executorUnknown,
     });
@@ -202,7 +209,8 @@ export async function onMessageDeleteBulk(
   messages: ReadonlyCollection<Snowflake, Message | PartialMessage>,
 ): Promise<void> {
   const first = messages.first();
-  if (!first?.guild) return;
+  const guild = first?.guild;
+  if (!first || !guild) return;
   const channelId = first.channelId;
   const parentId =
     first.channel && "parentId" in first.channel
@@ -210,7 +218,7 @@ export async function onMessageDeleteBulk(
       : null;
 
   if (
-    !await passesActionLogFilters(first.guild.id, "messageDeleteBulk", {
+    !await passesActionLogFilters(guild.id, "messageDeleteBulk", {
       channelId,
       parentId,
     })
@@ -218,12 +226,27 @@ export async function onMessageDeleteBulk(
     return;
   }
 
-  const executor = await resolveAuditExecutor(
-    first.guild,
-    AuditLogEvent.MessageBulkDelete,
-    channelId,
-    { allowMissingTarget: true },
+  const hintedIds = [...messages.keys()].filter((id) =>
+    takeBotMessageDelete(guild.id, id),
   );
+  const hinted = hintedIds.length > 0;
+  const botUser = first.client.user;
+  const executor = hinted
+    ? botUser
+      ? {
+          id: botUser.id,
+          tag: userTag(botUser),
+          bot: true,
+          roleIds: [] as string[],
+          avatarURL: botUser.displayAvatarURL({ size: 128 }),
+        }
+      : null
+    : await resolveAuditExecutor(
+        guild,
+        AuditLogEvent.MessageBulkDelete,
+        channelId,
+        { allowMissingTarget: true },
+      );
   const channelName =
     first.channel && "name" in first.channel && first.channel.name
       ? String(first.channel.name)
@@ -232,7 +255,7 @@ export async function onMessageDeleteBulk(
   const count = messages.size;
 
   await recordActionLog(first.client, {
-    guildId: first.guild.id,
+    guildId: guild.id,
     eventKey: "messageDeleteBulk",
     executorId: executor?.id ?? null,
     executorTag: executor?.tag ?? null,
@@ -242,15 +265,18 @@ export async function onMessageDeleteBulk(
     channelId,
     parentId,
     summary: `${count} mensajes eliminados en ${channelPlain}`,
-    description: `🧹 **${count} mensajes eliminados** en \`${channelPlain}\``,
+    description: hinted
+      ? `🧹 **${count} mensajes eliminados** en \`${channelPlain}\` por Auto-Delete`
+      : `🧹 **${count} mensajes eliminados** en \`${channelPlain}\``,
     details: {
       count,
       channelLabel: channelPlain,
       channelPlain: true,
       targetKind: "channel",
       messageIds: [...messages.keys()].slice(0, 50),
+      ...(hinted ? { source: "auto-delete" } : {}),
     },
-    actorIsBot: executor?.bot ?? false,
+    actorIsBot: false,
     actorRoleIds: executor?.roleIds,
     executorUnknown: !executor,
   });

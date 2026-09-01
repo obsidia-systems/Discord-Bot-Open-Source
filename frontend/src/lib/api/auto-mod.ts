@@ -10,7 +10,7 @@ export async function fetchAutoModConfig(): Promise<AutoModConfigResponse> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar Auto Mod (${response.status})`,
+        `No se pudo cargar Auto-Mod (${response.status})`,
       ),
     );
   }
@@ -32,7 +32,7 @@ export async function saveAutoModConfig(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo guardar Auto Mod (${response.status})`,
+        `No se pudo guardar Auto-Mod (${response.status})`,
       ),
     );
   }

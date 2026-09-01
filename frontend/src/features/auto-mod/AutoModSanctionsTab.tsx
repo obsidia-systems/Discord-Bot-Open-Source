@@ -78,7 +78,7 @@ export function AutoModSanctionsTab({
           <FilterToggle
             id="warnOnHit"
             label="Registrar warn al filtrar"
-            description="Si está apagado, Auto Mod solo bloquea el mensaje. El escalado no avanza."
+            description="Si está apagado, Auto-Mod solo bloquea el mensaje. El escalado no avanza."
             checked={config.warnOnHit !== false}
             onCheckedChange={(warnOnHit) => onPatch({ warnOnHit })}
           >

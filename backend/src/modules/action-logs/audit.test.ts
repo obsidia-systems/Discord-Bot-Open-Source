@@ -5,6 +5,8 @@ import {
   getCachedAuditEntry,
   pickRecentAuditEntry,
   rememberAuditEntry,
+  rememberBotMessageDeletes,
+  takeBotMessageDelete,
 } from "./audit.js";
 
 describe("pickRecentAuditEntry", () => {
@@ -69,6 +71,27 @@ describe("caché guildAuditLogEntryCreate", () => {
     });
     const cached = getCachedAuditEntry("g1", 20, "u1");
     expect(cached?.executor?.id).toBe("mod");
+    clearAuditCache();
+  });
+});
+
+describe("hint de borrado del bot", () => {
+  it("devuelve al bot como ejecutor y se consume", () => {
+    clearAuditCache();
+    const client = {
+      user: {
+        id: "bot-1",
+        tag: "Adobos#0",
+        username: "Adobos",
+        bot: true,
+        displayAvatarURL: () => "https://cdn.example/bot.png",
+      },
+    } as unknown as import("discord.js").Client;
+    rememberBotMessageDeletes(client, "g1", ["m1"]);
+    const hint = takeBotMessageDelete("g1", "m1");
+    expect(hint?.executor.id).toBe("bot-1");
+    expect(hint?.source).toBe("auto-delete");
+    expect(takeBotMessageDelete("g1", "m1")).toBeUndefined();
     clearAuditCache();
   });
 });

@@ -4,6 +4,7 @@ import { getDb } from "../../db/client.js";
 import { autoDeletePending } from "../../db/schema.js";
 import type { AutoDeleteConfig } from "@adobos/shared";
 import { logger } from "../../core/log.js";
+import { rememberBotMessageDeletes } from "../action-logs/audit.js";
 
 const DUE_BATCH = 50;
 
@@ -102,6 +103,7 @@ export async function processDueCountdownDeletes(
         await removePending(row.guildId, row.messageId);
         continue;
       }
+      rememberBotMessageDeletes(client, row.guildId, [row.messageId]);
       await message.delete();
       await removePending(row.guildId, row.messageId);
     } catch (error) {

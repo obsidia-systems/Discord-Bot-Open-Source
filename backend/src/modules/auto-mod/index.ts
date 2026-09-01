@@ -5,7 +5,7 @@ import { registerAutoModListeners } from "./events.js";
 
 export const autoModModule: AdobosModule = {
   id: "auto-mod",
-  name: "Auto Mod",
+  name: "Auto-Mod",
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,

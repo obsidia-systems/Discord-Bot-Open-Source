@@ -1,4 +1,4 @@
-/** Contratos Auto-delete — borrado automático por canal. */
+/** Contratos Auto-Delete — borrado automático por canal. */
 
 export type AutoDeleteDelayUnit = "seconds" | "minutes" | "hours";
 

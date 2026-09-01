@@ -37,7 +37,7 @@ export function AutoModExclusionsTab({
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Exclusiones</CardTitle>
           <CardDescription>
-            Roles inmunes y canales donde Auto Mod no actúa. Los roles/canales
+            Roles inmunes y canales donde Auto-Mod no actúa. Los roles/canales
             ignorados también se envían a AutoMod nativo (tope Discord: 20
             roles, 50 canales).
           </CardDescription>

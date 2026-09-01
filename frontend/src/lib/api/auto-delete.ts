@@ -10,7 +10,7 @@ export async function fetchAutoDeleteConfig(): Promise<AutoDeleteConfigResponse>
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar Auto-delete (${response.status})`,
+        `No se pudo cargar Auto-Delete (${response.status})`,
       ),
     );
   }
@@ -32,7 +32,7 @@ export async function saveAutoDeleteConfig(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo guardar Auto-delete (${response.status})`,
+        `No se pudo guardar Auto-Delete (${response.status})`,
       ),
     );
   }

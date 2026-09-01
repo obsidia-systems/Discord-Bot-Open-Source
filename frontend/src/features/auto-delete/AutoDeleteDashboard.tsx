@@ -172,7 +172,7 @@ export function AutoDeleteDashboard() {
       setError(
         err instanceof Error
           ? err.message
-          : "No se pudo cargar Auto-delete.",
+          : "No se pudo cargar Auto-Delete.",
       );
     } finally {
       setLoading(false);
@@ -233,7 +233,7 @@ export function AutoDeleteDashboard() {
       });
       setConfig(res.config);
       setSavedFingerprint(configFingerprint(res.config));
-      setSuccess("Configuración de Auto-delete guardada.");
+      setSuccess("Configuración de Auto-Delete guardada.");
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "No se pudo guardar la config.",
@@ -247,7 +247,7 @@ export function AutoDeleteDashboard() {
     return (
       <div className="flex min-h-[40vh] items-center justify-center gap-2 text-muted-foreground">
         <Loader2 className="size-5 animate-spin" aria-hidden />
-        Cargando Auto-delete…
+        Cargando Auto-Delete…
       </div>
     );
   }

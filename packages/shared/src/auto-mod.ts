@@ -1,4 +1,4 @@
-/** Contratos Auto Mod — Fase 1 (filtros + warns + logs). */
+/** Contratos Auto-Mod — Fase 1 (filtros + warns + logs). */
 
 export interface AutoModFilters {
   /** Detectar texto Zalgo / combining marks. */

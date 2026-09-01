@@ -1,5 +1,6 @@
 import {
   AuditLogEvent,
+  type Client,
   type Guild,
   type GuildAuditLogsEntry,
 } from "discord.js";
@@ -25,7 +26,50 @@ export interface CachedAuditEntry {
   executor: Omit<AuditExecutor, "roleIds"> | null;
 }
 
+export interface BotDeleteHint {
+  executor: Omit<AuditExecutor, "roleIds">;
+  source: "auto-delete";
+}
+
 const recentAudit = new BoundedTtlMap<string, CachedAuditEntry>(8_000, 10_000);
+const botMessageDeletes = new BoundedTtlMap<string, BotDeleteHint>(8_000, 20_000);
+
+function botDeleteKey(guildId: string, messageId: string): string {
+  return `${guildId}:msg:${messageId}`;
+}
+
+/** El bot va a borrar estos mensajes: action-logs no espera al Audit Log. */
+export function rememberBotMessageDeletes(
+  client: Client,
+  guildId: string,
+  messageIds: Iterable<string>,
+  source: BotDeleteHint["source"] = "auto-delete",
+): void {
+  const user = client.user;
+  if (!user) return;
+  const executor = {
+    id: user.id,
+    tag: userTag(user),
+    bot: true,
+    avatarURL: user.displayAvatarURL({ size: 128 }),
+  };
+  for (const messageId of messageIds) {
+    botMessageDeletes.set(botDeleteKey(guildId, messageId), {
+      executor,
+      source,
+    });
+  }
+}
+
+export function takeBotMessageDelete(
+  guildId: string,
+  messageId: string,
+): BotDeleteHint | undefined {
+  const key = botDeleteKey(guildId, messageId);
+  const hint = botMessageDeletes.get(key);
+  if (hint) botMessageDeletes.delete(key);
+  return hint;
+}
 
 function auditCacheKey(
   guildId: string,
@@ -60,6 +104,7 @@ export function getCachedAuditEntry(
 
 export function clearAuditCache(): void {
   recentAudit.clear();
+  botMessageDeletes.clear();
 }
 
 export interface PickAuditEntry {
