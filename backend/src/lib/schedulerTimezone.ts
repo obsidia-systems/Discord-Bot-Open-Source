@@ -1,3 +1,10 @@
+import {
+  isValidIanaTimezone,
+  normalizeScheduledTimezone,
+} from "@adobos/shared";
+
+export { isValidIanaTimezone };
+
 /**
  * Zona horaria del scheduler (cron) — fallback global (auto-delete, etc.).
  * Prioridad: SCHEDULER_TZ → AUTO_DELETE_TZ → TZ → zona del proceso.
@@ -17,29 +24,12 @@ export function resolveSchedulerTimezone(): string {
   return "UTC";
 }
 
-/** Valida IANA time zone para node-cron / Intl. */
-export function isValidIanaTimezone(value: string): boolean {
-  const raw = value.trim();
-  if (!raw || raw.length > 64) return false;
-  try {
-    Intl.DateTimeFormat(undefined, { timeZone: raw });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Normaliza zona IANA. Si es inválida → fallback (UTC o detectada).
- */
+/** Normaliza zona IANA. Si es inválida → fallback (UTC). */
 export function normalizeIanaTimezone(
   value: unknown,
   fallback = "UTC",
 ): string {
-  const raw = String(value ?? "").trim();
-  if (raw && isValidIanaTimezone(raw)) return raw;
-  if (fallback && isValidIanaTimezone(fallback)) return fallback;
-  return "UTC";
+  return normalizeScheduledTimezone(value, fallback);
 }
 
 /** Normaliza `HH:mm` (24h). Fallback 12:00. */

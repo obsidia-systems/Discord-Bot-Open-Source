@@ -1,4 +1,4 @@
-import type { FeatureKey } from "@adobos/shared";
+import type { FeatureKey, ModuleId } from "@adobos/shared";
 import type {
   APIApplicationCommandOption,
   AutocompleteInteraction,
@@ -80,7 +80,7 @@ export interface ModuleContext {
 
 /** Contrato plug-and-play de un bloque Lego del bot. */
 export interface AdobosModule {
-  id: string;
+  id: ModuleId;
   name: string;
   /** GatewayIntentBits adicionales a fusionar en el Client. */
   intents?: number[];

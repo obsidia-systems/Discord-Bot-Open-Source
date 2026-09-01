@@ -39,9 +39,37 @@ export interface MeResponse {
   guilds: PanelMeGuild[];
 }
 
+/**
+ * Códigos que emite el kernel (auth, guild, entitlements, rate limit, mapper HTTP).
+ * Los Lego pueden devolver otros; `ApiErrorBody.code` los admite como string.
+ */
+export const KERNEL_ERROR_CODES = [
+  "UNAUTHENTICATED",
+  "INVALID_GUILD_ID",
+  "GUILD_FORBIDDEN",
+  "GUILD_ACCESS_CHECK_FAILED",
+  "MISSING_GUILD_CONTEXT",
+  "DISCORD_RATE_LIMITED",
+  "DISCORD_GUILDS_FAILED",
+  "FEATURE_LOCKED",
+  "LIMIT_EXCEEDED",
+  "SEATS_EXCEEDED",
+  "RATE_LIMITED",
+  "NOT_FOUND",
+  "INVALID_BODY",
+  "INVALID_JSON",
+  "FILE_TOO_LARGE",
+  "INVALID_FILE",
+  "STRIPE_INVALID_REQUEST",
+  "INTERNAL_ERROR",
+] as const;
+
+export type ApiErrorCode = (typeof KERNEL_ERROR_CODES)[number];
+
 export interface ApiErrorBody {
   error: string;
-  code?: string;
+  /** Código del kernel o uno local del Lego. */
+  code?: ApiErrorCode | (string & {});
   /** Problemas de validación zod (borde HTTP). */
   issues?: Array<{ path: Array<string | number>; message: string }>;
   feature?: string;
