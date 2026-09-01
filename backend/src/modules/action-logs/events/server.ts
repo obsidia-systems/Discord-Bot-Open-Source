@@ -2,12 +2,14 @@ import {
   AuditLogEvent,
   ChannelType,
   OverwriteType,
+  type Guild,
   type NonThreadGuildBasedChannel,
   type PermissionOverwrites,
   type Role,
 } from "discord.js";
 import { resolveAuditExecutor } from "../audit.js";
 import { channelTypeName, safeChannelName } from "../helpers.js";
+import { diffGuildIdentity, snapshotGuildIdentity } from "../guildIdentity.js";
 import { recordActionLog } from "../service.js";
 
 export async function onRoleCreate(role: Role): Promise<void> {
@@ -405,4 +407,38 @@ function buildChannelUpdateDiffFields(
   if (permDiff) diffs.push(permDiff);
 
   return diffs;
+}
+
+export async function onGuildUpdate(oldGuild: Guild, newGuild: Guild): Promise<void> {
+  const diffFields = diffGuildIdentity(
+    snapshotGuildIdentity(oldGuild),
+    snapshotGuildIdentity(newGuild),
+  );
+  if (diffFields.length === 0) return;
+
+  const executor = await resolveAuditExecutor(
+    newGuild,
+    AuditLogEvent.GuildUpdate,
+    newGuild.id,
+  );
+  await recordActionLog(newGuild.client, {
+    guildId: newGuild.id,
+    eventKey: "guildUpdate",
+    executorId: executor?.id ?? null,
+    executorTag: executor?.tag ?? null,
+    targetId: newGuild.id,
+    targetTag: newGuild.name,
+    channelId: null,
+    summary: `Servidor actualizado: ${newGuild.name}`,
+    description: `🏠 **Servidor actualizado:** \`${newGuild.name}\``,
+    details: {
+      name: newGuild.name,
+      diffFields,
+      iconUrl: newGuild.iconURL({ size: 128 }),
+      targetKind: "resource",
+    },
+    actorIsBot: executor?.bot ?? false,
+    actorRoleIds: executor?.roleIds,
+    tone: "yellow",
+  });
 }

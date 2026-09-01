@@ -27,10 +27,16 @@ import {
   onChannelCreate,
   onChannelDelete,
   onChannelUpdate,
+  onGuildUpdate,
   onRoleCreate,
   onRoleDelete,
   onRoleUpdate,
 } from "./events/server.js";
+import {
+  onThreadCreate,
+  onThreadDelete,
+  onThreadUpdate,
+} from "./events/threads.js";
 import { onVoiceStateUpdate } from "./events/voice.js";
 
 /** Registra todos los listeners de Action Logs en el ModuleContext. */
@@ -77,6 +83,9 @@ export function registerActionLogListeners(ctx: {
     void onRoleUpdate(oldRole, newRole);
   });
   ctx.on("channelCreate", (channel) => {
+    if ("isThread" in channel && typeof channel.isThread === "function" && channel.isThread()) {
+      return;
+    }
     if ("guild" in channel && channel.guild) {
       void onChannelCreate(channel as NonThreadGuildBasedChannel);
     }
@@ -89,6 +98,18 @@ export function registerActionLogListeners(ctx: {
       oldChannel as NonThreadGuildBasedChannel,
       newChannel as NonThreadGuildBasedChannel,
     );
+  });
+  ctx.on("threadCreate", (thread) => {
+    void onThreadCreate(thread);
+  });
+  ctx.on("threadDelete", (thread) => {
+    void onThreadDelete(thread);
+  });
+  ctx.on("threadUpdate", (oldThread, newThread) => {
+    void onThreadUpdate(oldThread, newThread);
+  });
+  ctx.on("guildUpdate", (oldGuild, newGuild) => {
+    void onGuildUpdate(oldGuild, newGuild);
   });
   ctx.on("emojiCreate", (emoji) => {
     void onEmojiCreate(emoji);

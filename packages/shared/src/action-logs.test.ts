@@ -51,6 +51,8 @@ describe("catálogo de eventos", () => {
     expect(ACTION_LOG_EVENT_KEYS).toContain("memberTimeout");
     expect(ACTION_LOG_EVENT_KEYS).toContain("memberUntimeout");
     expect(ACTION_LOG_EVENT_KEYS).toContain("messageDeleteBulk");
+    expect(ACTION_LOG_EVENT_KEYS).toContain("threadCreate");
+    expect(ACTION_LOG_EVENT_KEYS).toContain("guildUpdate");
     for (const key of ACTION_LOG_EVENT_KEYS) {
       expect(enabled[key]).toBe(true);
     }

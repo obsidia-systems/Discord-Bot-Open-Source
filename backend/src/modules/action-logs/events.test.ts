@@ -16,6 +16,9 @@ describe("registerActionLogListeners", () => {
     expect(names).toContain("guildMemberUpdate");
     expect(names).toContain("voiceStateUpdate");
     expect(names).toContain("inviteCreate");
+    expect(names).toContain("threadCreate");
+    expect(names).toContain("threadDelete");
+    expect(names).toContain("guildUpdate");
     expect(names).not.toContain("messageCreate");
   });
 });

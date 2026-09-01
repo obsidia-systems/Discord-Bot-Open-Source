@@ -38,6 +38,10 @@ export type ActionLogEventKey =
   | "channelCreate"
   | "channelDelete"
   | "channelUpdate"
+  | "threadCreate"
+  | "threadDelete"
+  | "threadUpdate"
+  | "guildUpdate"
   | "emojiCreate"
   | "emojiDelete"
   | "emojiUpdate"
@@ -74,6 +78,10 @@ export type ActionLogEventType =
   | "CHANNEL_CREATE"
   | "CHANNEL_DELETE"
   | "CHANNEL_UPDATE"
+  | "THREAD_CREATE"
+  | "THREAD_DELETE"
+  | "THREAD_UPDATE"
+  | "GUILD_UPDATE"
   | "EMOJI_CREATE"
   | "EMOJI_DELETE"
   | "EMOJI_UPDATE"
@@ -207,6 +215,10 @@ export const ACTION_LOG_EVENT_KEYS: readonly ActionLogEventKey[] = [
   "channelCreate",
   "channelDelete",
   "channelUpdate",
+  "threadCreate",
+  "threadDelete",
+  "threadUpdate",
+  "guildUpdate",
   "emojiCreate",
   "emojiDelete",
   "emojiUpdate",
