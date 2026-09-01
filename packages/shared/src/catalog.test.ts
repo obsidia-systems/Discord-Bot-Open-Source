@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildBotInviteUrl,
   calculateBaseXPForLevel,
   calculateLevel,
   isValidIanaTimezone,
@@ -75,5 +76,19 @@ describe("zona IANA", () => {
   it("normaliza inválidas a UTC", () => {
     expect(normalizeScheduledTimezone("garbage")).toBe("UTC");
     expect(normalizeScheduledTimezone("Europe/Madrid")).toBe("Europe/Madrid");
+  });
+});
+
+describe("invite del bot", () => {
+  it("arma la URL de Discord con bot + applications.commands", () => {
+    const url = buildBotInviteUrl({
+      clientId: "123",
+      guildId: "111111111111111111",
+    });
+    expect(url).toContain("client_id=123");
+    expect(url).toContain("scope=bot%20applications.commands");
+    expect(url).toContain("guild_id=111111111111111111");
+    expect(url).toContain("disable_guild_select=true");
+    expect(url).not.toContain("permissions=8");
   });
 });

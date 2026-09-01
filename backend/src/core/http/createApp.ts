@@ -100,7 +100,7 @@ export function createApp(options: CreateAppOptions): Express {
     if (isPublicApiPath(req, registry)) return next();
     return requireAuth()(req, res, next);
   });
-  app.use("/api/me", meRouter());
+  app.use("/api/me", meRouter(options.bot));
   app.use("/api/entitlements", requireGuildAccess(), entitlementsRoutes());
   app.use(
     "/api/uploads",

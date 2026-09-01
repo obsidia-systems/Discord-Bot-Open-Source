@@ -1,4 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
+import { buildBotInviteUrl } from "@adobos/shared";
+import type { Client } from "discord.js";
 import {
   type CookieOptions,
   type Request,
@@ -94,6 +96,24 @@ export function authRouter(): Router {
       res.redirect(`${DISCORD_AUTHORIZE}?${params.toString()}`);
     } catch (error: unknown) {
       logger.error({ err: error }, "OAuth authorize falló:");
+      res.redirect("/login?error=oauth_config");
+    }
+  });
+
+  /**
+   * Invite del bot (scope bot + applications.commands).
+   * No inicia sesión: Discord pide servidor y permisos, como MEE6.
+   */
+  router.get("/invite", (req, res) => {
+    try {
+      const raw = req.query.guildId;
+      const guildId =
+        typeof raw === "string" && /^\d{17,20}$/.test(raw.trim())
+          ? raw.trim()
+          : undefined;
+      res.redirect(buildBotInviteUrl({ clientId: clientId(), guildId }));
+    } catch (error: unknown) {
+      logger.error({ err: error }, "OAuth invite falló:");
       res.redirect("/login?error=oauth_config");
     }
   });
@@ -210,7 +230,7 @@ export function authRouter(): Router {
   return router;
 }
 
-export function meRouter(): Router {
+export function meRouter(bot: Client): Router {
   const router = Router();
 
   router.get("/", async (req, res) => {
@@ -222,10 +242,19 @@ export function meRouter(): Router {
       return;
     }
     try {
-      const guilds = await listManagedGuilds(session);
+      const managed = await listManagedGuilds(session);
+      const inviteUrl = buildBotInviteUrl({ clientId: clientId() });
+      const guilds = managed.map((guild) => ({
+        id: guild.id,
+        name: guild.name,
+        iconUrl: guild.iconUrl,
+        owner: guild.owner,
+        botPresent: bot.guilds.cache.has(guild.id),
+      }));
       res.json({
         user: toPanelUser(session),
         guilds,
+        inviteUrl,
       });
     } catch (error: unknown) {
       if (error instanceof DiscordHttpError && error.status === 401) {

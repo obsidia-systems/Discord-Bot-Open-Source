@@ -10,6 +10,7 @@ export * from "./canvas-event.js";
 export * from "./common.js";
 export * from "./custom-commands.js";
 export * from "./discord-audit.js";
+export * from "./discord-invite.js";
 export * from "./economy.js";
 export * from "./economy-casino.js";
 export * from "./economy-shop.js";

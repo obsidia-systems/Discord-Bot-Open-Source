@@ -32,11 +32,15 @@ export interface PanelMeGuild {
   name: string;
   iconUrl: string | null;
   owner: boolean;
+  /** El gateway tiene este servidor en caché (el bot ya está dentro). */
+  botPresent: boolean;
 }
 
 export interface MeResponse {
   user: PanelMeUser;
   guilds: PanelMeGuild[];
+  /** URL de Discord para añadir el bot (scope bot + applications.commands). */
+  inviteUrl: string;
 }
 
 /**
