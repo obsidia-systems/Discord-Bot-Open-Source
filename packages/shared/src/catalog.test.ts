@@ -104,5 +104,7 @@ describe("invite del bot", () => {
     expect(url).toContain("guild_id=111111111111111111");
     expect(url).toContain("disable_guild_select=true");
     expect(url).not.toContain("permissions=8");
+    const perms = BigInt(new URL(url).searchParams.get("permissions") ?? "0");
+    expect(perms & 32n).toBe(32n);
   });
 });

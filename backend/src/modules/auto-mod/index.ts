@@ -12,6 +12,8 @@ export const autoModModule: AdobosModule = {
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildModeration,
+    GatewayIntentBits.AutoModerationExecution,
+    GatewayIntentBits.AutoModerationConfiguration,
   ],
   register(ctx) {
     ctx.route("/api/auto-mod", autoModRoutes(ctx.client), { feature: "automod" });

@@ -129,6 +129,13 @@ export interface AutoModConfig {
 
 export interface AutoModConfigResponse {
   config: AutoModConfig;
+  /** Resultado de sincronizar reglas con AutoMod nativo de Discord (solo POST). */
+  nativeSync?: AutoModNativeSyncResult;
+}
+
+export interface AutoModNativeSyncResult {
+  ok: boolean;
+  message: string;
 }
 
 export type UpdateAutoModConfigRequest = Partial<{

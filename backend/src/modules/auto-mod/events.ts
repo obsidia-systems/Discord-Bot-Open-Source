@@ -1,15 +1,15 @@
 import {
   PermissionFlagsBits,
+  type AutoModerationActionExecution,
   type Client,
   type GuildMember,
   type Message,
   type OmitPartialGroupDMChannel,
   type PartialMessage,
 } from "discord.js";
-import { executeModAction } from "../moderation/service.js";
 import { evaluateAutoModFilters } from "./filters.js";
-import { dispatchAutoModAlert } from "./logs.js";
-import { applyAutoModPunishments } from "./punishments.js";
+import { enforceAutoModHit } from "./enforce.js";
+import { nativeRuleKeyFromName } from "./nativeRules.js";
 import { getAutoModConfigCached } from "./service.js";
 import { logger } from "../../core/log.js";
 
@@ -69,7 +69,6 @@ export async function onAutoModMessageUpdate(
 }
 
 async function handleAutoModMessage(message: Message): Promise<void> {
-  // 1) Exclusiones
   if (!message.guild || message.author.bot) return;
   if (message.system || message.webhookId) return;
   if (!message.channel.isTextBased()) return;
@@ -107,63 +106,93 @@ async function handleAutoModMessage(message: Message): Promise<void> {
 
   if (config.skipStaff && isStaffMember(member)) return;
 
-  // 2) Heurística (un solo filtro por mensaje)
   const content = message.content ?? "";
-  const mentionCount = message.mentions.users.size;
-  const attachmentUrls = message.attachments.map((a) => a.url);
-
   const violation = evaluateAutoModFilters({
     filters: config.filters,
     content,
-    mentionCount,
+    mentionCount: message.mentions.users.size,
     guildId,
     userId: message.author.id,
-    attachmentUrls,
+    attachmentUrls: message.attachments.map((a) => a.url),
   });
   if (!violation) return;
 
-  // 3) Mitigación: delete + warn opcional + sanciones escaladas + log
-  await message.delete().catch(() => {});
-
-  const reason = `[AutoMod] Filtro detonado: ${violation.label}`;
-  const guildName = message.guild.name;
-
-  let warned = false;
-  if (config.warnOnHit) {
-    try {
-      await executeModAction(message.client as Client, {
-        action: "warn",
-        guildId: message.guild.id,
-        userId: message.author.id,
-        reason,
-        dmMode: config.dmOnHit ? "text" : "none",
-        dmText: config.dmOnHit
-          ? `Tu mensaje en el servidor **${guildName}** fue eliminado por el filtro de Auto Mod (Razón: ${violation.label}).`
-          : undefined,
-      });
-      warned = true;
-    } catch (error) {
-      logger.warn({ err: error }, "auto-mod: no se pudo registrar warn:");
-    }
-  }
-
-  if (warned) {
-    await applyAutoModPunishments({
-      client: message.client as Client,
-      guildId,
-      member,
-      config,
-    }).catch((error) => {
-      logger.warn({ err: error }, "auto-mod: sanción escalada falló:");
-    });
-  }
-
-  await dispatchAutoModAlert(message.client as Client, {
+  await enforceAutoModHit({
+    client: message.client as Client,
     guildId,
-    message,
-    filterLabel: violation.label,
+    guildName: message.guild.name,
+    member,
+    user: message.author,
+    config,
+    filterKey: violation.key,
     content,
+    channelId: message.channelId,
+    messageId: message.id,
+    messageToDelete: message,
   });
+}
+
+export async function onAutoModNativeExecution(
+  execution: AutoModerationActionExecution,
+): Promise<void> {
+  try {
+    const rule =
+      execution.autoModerationRule ??
+      (await execution.guild.autoModerationRules
+        .fetch(execution.ruleId)
+        .catch(() => null));
+    const filterKey = nativeRuleKeyFromName(rule?.name ?? "");
+    if (!filterKey) return;
+
+    const user = execution.user;
+    if (!user || user.bot) return;
+
+    const guild = execution.guild;
+    const config = await getAutoModConfigCached(guild.id);
+    if (!config.enabled) return;
+
+    if (
+      isChannelIgnored(
+        config.ignoredChannels,
+        execution.channelId,
+        execution.channel && "parentId" in execution.channel
+          ? execution.channel.parentId
+          : null,
+      )
+    ) {
+      return;
+    }
+
+    const member =
+      execution.member ??
+      (await guild.members.fetch(execution.userId).catch(() => null));
+    if (!member) return;
+
+    if (
+      config.ignoredRoles.length > 0 &&
+      member.roles.cache.some((role) => config.ignoredRoles.includes(role.id))
+    ) {
+      return;
+    }
+
+    if (config.skipStaff && isStaffMember(member)) return;
+
+    await enforceAutoModHit({
+      client: guild.client,
+      guildId: guild.id,
+      guildName: guild.name,
+      member,
+      user,
+      config,
+      filterKey,
+      content: execution.content || execution.matchedContent || "",
+      channelId: execution.channelId,
+      messageId: execution.messageId,
+      nativeBlock: true,
+    });
+  } catch (error) {
+    logger.warn({ err: error }, "auto-mod native execution falló:");
+  }
 }
 
 export function registerAutoModListeners(ctx: {
@@ -177,5 +206,8 @@ export function registerAutoModListeners(ctx: {
   });
   ctx.on("messageUpdate", (oldMessage, newMessage) => {
     void onAutoModMessageUpdate(oldMessage, newMessage);
+  });
+  ctx.on("autoModerationActionExecution", (execution) => {
+    void onAutoModNativeExecution(execution);
   });
 }

@@ -41,6 +41,35 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+const ZERO_WIDTH_RE = /[\u200B-\u200D\u2060\uFEFF\u00AD\u180E]/g;
+const SPOILER_RE = /\|\|([\s\S]*?)\|\|/g;
+const CYRILLIC_LOOKALIKES: Record<string, string> = {
+  "\u0430": "a",
+  "\u0441": "c",
+  "\u0435": "e",
+  "\u043E": "o",
+  "\u0440": "p",
+  "\u0445": "x",
+  "\u0456": "i",
+};
+
+/** Quita spoilers y zero-width. No toca combining marks (zalgo usa el original). */
+export function normalizeFilterText(content: string): string {
+  return content.replace(SPOILER_RE, "$1").replace(ZERO_WIDTH_RE, "");
+}
+
+/** Solo para anti-invites: leet + homoglifos cirílicos habituales. */
+export function deobfuscateInviteText(content: string): string {
+  return normalizeFilterText(content)
+    .toLowerCase()
+    .replace(/[\u0430\u0441\u0435\u043E\u0440\u0445\u0456]/g, (ch) => {
+      return CYRILLIC_LOOKALIKES[ch] ?? ch;
+    })
+    .replace(/0/g, "o")
+    .replace(/[1!]/g, "i")
+    .replace(/3/g, "e");
+}
+
 function normalizeUrlCandidate(raw: string): { host: string; full: string } {
   const full = raw
     .toLowerCase()
@@ -229,15 +258,17 @@ export function evaluateAutoModFilters(input: {
     attachmentUrls = [],
   } = input;
   const hasText = content.length > 0;
+  const normalized = hasText ? normalizeFilterText(content) : content;
+  const inviteHay = hasText ? deobfuscateInviteText(content) : content;
 
   if (hasText) {
     // 1) Links
-    if (filters.antiInvites && detectAntiInvites(content)) {
+    if (filters.antiInvites && detectAntiInvites(inviteHay)) {
       return hit("antiInvites");
     }
     if (
       filters.antiLinks &&
-      detectAntiLinks(content, filters.allowedLinks, attachmentUrls)
+      detectAntiLinks(normalized, filters.allowedLinks, attachmentUrls)
     ) {
       return hit("antiLinks");
     }
@@ -245,15 +276,15 @@ export function evaluateAutoModFilters(input: {
     // 2) Palabras
     if (
       filters.bannedWordsEnabled &&
-      detectBannedWords(content, filters.bannedWords)
+      detectBannedWords(normalized, filters.bannedWords)
     ) {
       return hit("bannedWords");
     }
 
-    // 3) Mayúsculas / Zalgo
+    // 3) Mayúsculas / Zalgo (zalgo mira el original: combining marks)
     if (
       filters.excessCaps &&
-      detectExcessCaps(content, filters.capsPercentage, filters.capsMinLength)
+      detectExcessCaps(normalized, filters.capsPercentage, filters.capsMinLength)
     ) {
       return hit("excessCaps");
     }
@@ -262,7 +293,7 @@ export function evaluateAutoModFilters(input: {
     // 4) Muros de texto
     if (
       filters.textFlood &&
-      detectTextFlood(content, filters.floodMaxChars, filters.floodMaxLines)
+      detectTextFlood(normalized, filters.floodMaxChars, filters.floodMaxLines)
     ) {
       return hit("textFlood");
     }
@@ -281,7 +312,7 @@ export function evaluateAutoModFilters(input: {
   if (
     hasText &&
     filters.repeatedText &&
-    trackRepeatedText(guildId, userId, content)
+    trackRepeatedText(guildId, userId, normalized)
   ) {
     return hit("repeatedText");
   }

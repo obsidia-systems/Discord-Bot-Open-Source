@@ -1,6 +1,7 @@
 import { defaultAutoModFilters } from "@adobos/shared";
 import { describe, expect, it } from "vitest";
 import {
+  deobfuscateInviteText,
   detectAntiInvites,
   detectAntiLinks,
   detectBannedWords,
@@ -9,6 +10,7 @@ import {
   detectTextFlood,
   detectZalgo,
   evaluateAutoModFilters,
+  normalizeFilterText,
   trackMessageSpam,
 } from "./filters.js";
 
@@ -44,6 +46,18 @@ describe("detectAntiInvites", () => {
     );
     expect(detectAntiInvites("https://discord.new/abc")).toBe(true);
     expect(detectAntiInvites("mira https://example.com/invite")).toBe(false);
+  });
+
+  it("ve spoilers, zero-width y leet d1scord", () => {
+    expect(detectAntiInvites(deobfuscateInviteText("||discord.gg/abc||"))).toBe(
+      true,
+    );
+    expect(
+      detectAntiInvites(deobfuscateInviteText("discord.\u200Bgg/abc")),
+    ).toBe(true);
+    expect(detectAntiInvites(deobfuscateInviteText("d1scord.gg/abc"))).toBe(
+      true,
+    );
   });
 });
 
@@ -131,6 +145,24 @@ describe("evaluateAutoModFilters", () => {
       userId: "u-prio",
     });
     expect(hit?.key).toBe("antiInvites");
+  });
+
+  it("invite ofuscado en evaluate (spoiler)", () => {
+    const hit = evaluateAutoModFilters({
+      filters: { ...allOff, antiInvites: true },
+      content: "mira ||discord.gg/abc||",
+      mentionCount: 0,
+      guildId: "g-obf",
+      userId: "u-obf",
+    });
+    expect(hit?.key).toBe("antiInvites");
+  });
+});
+
+describe("normalizeFilterText", () => {
+  it("desnuda spoilers y zero-width", () => {
+    expect(normalizeFilterText("||hola||")).toBe("hola");
+    expect(normalizeFilterText("ho\u200Bla")).toBe("hola");
   });
 });
 

@@ -11,6 +11,7 @@ export const BOT_INVITE_PERMISSIONS = (
   (1n << 1n) | // KICK_MEMBERS
   (1n << 2n) | // BAN_MEMBERS
   (1n << 4n) | // MANAGE_CHANNELS (lock, slowmode)
+  (1n << 5n) | // MANAGE_GUILD (AutoMod nativo)
   (1n << 6n) | // ADD_REACTIONS
   (1n << 7n) | // VIEW_AUDIT_LOG
   (1n << 10n) | // VIEW_CHANNEL
