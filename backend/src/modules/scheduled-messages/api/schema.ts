@@ -1,13 +1,21 @@
 import { z } from "zod";
-import { boolish, snowflake, weekday } from "../../../core/http/schemas.js";
+import { boolish, snowflake, snowflakeNull, weekday } from "../../../core/http/schemas.js";
 
 const scheduledFrequencySchema = z.object({
-  type: z.enum(["daily", "weekly", "monthly", "specific_date"]),
+  type: z.enum([
+    "daily",
+    "weekly",
+    "monthly",
+    "specific_date",
+    "interval",
+  ]),
   time: z.string().min(1),
   days: z.array(weekday),
   dayOfMonth: z.number().int().min(1).max(31),
   date: z.string(),
   repeatYearly: z.boolean(),
+  lastDayOfMonth: z.boolean().default(false),
+  everyMinutes: z.number().int().default(120),
 });
 
 const scheduledEmbedSchema = z.object({
@@ -22,6 +30,8 @@ export const createScheduledMessageSchema = z.object({
   timezone: z.string().min(1).max(64),
   frequency: scheduledFrequencySchema,
   embedData: scheduledEmbedSchema,
+  content: z.string().max(2000).optional(),
+  pingRoleId: snowflakeNull,
   isActive: z.boolean().optional(),
 });
 

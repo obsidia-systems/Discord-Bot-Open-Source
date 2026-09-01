@@ -12,7 +12,7 @@ export async function fetchScheduledMessages(): Promise<ScheduledMessagesListRes
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar Mensajes programados (${response.status})`,
+        `No se pudo cargar Scheduled Messages (${response.status})`,
       ),
     );
   }
@@ -84,6 +84,24 @@ export async function toggleScheduledMessage(
       await readApiError(
         response,
         `No se pudo cambiar el estado (${response.status})`,
+      ),
+    );
+  }
+  return response.json() as Promise<ScheduledMessageResponse>;
+}
+
+export async function sendScheduledMessageNow(
+  id: number,
+): Promise<ScheduledMessageResponse> {
+  const response = await apiFetch(`/api/scheduled-messages/${id}/send-now`, {
+    method: "POST",
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(
+        response,
+        `No se pudo enviar ahora (${response.status})`,
       ),
     );
   }

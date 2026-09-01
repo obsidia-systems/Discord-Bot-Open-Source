@@ -50,6 +50,13 @@
       "when": 1788198000000,
       "tag": "0006_forms_workflow",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788204000000,
+      "tag": "0007_scheduled_messages_due",
+      "breakpoints": true
     }
   ]
 }

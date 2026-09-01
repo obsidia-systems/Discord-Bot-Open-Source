@@ -6,15 +6,18 @@ import type {
   UpdateScheduledMessageRequest,
 } from "@adobos/shared";
 import {
+  computeNextRunAt,
+  isScheduledOneShot,
+  normalizeScheduledContent,
   normalizeScheduledEmbedData,
   normalizeScheduledFrequency,
+  normalizeScheduledPingRoleId,
   normalizeScheduledTimezone,
 } from "@adobos/shared";
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNotNull, lte } from "drizzle-orm";
 import { getDb, one } from "../../db/client.js";
 import { guildSettings, scheduledMessages } from "../../db/schema.js";
 import { assertWithinLimit } from "../../core/entitlements/service.js";
-import { logger } from "../../core/log.js";
 
 export class ScheduledMessagesError extends Error {
   constructor(
@@ -24,31 +27,6 @@ export class ScheduledMessagesError extends Error {
   ) {
     super(message);
     this.name = "ScheduledMessagesError";
-  }
-}
-
-/** Callback tras crear/editar/toggle/eliminar para sincronizar cron. */
-let onMessageChanged:
-  | ((message: ScheduledMessage | null, previousId?: number) => void)
-  | null = null;
-
-export function setScheduledMessageChangeListener(
-  listener:
-    | ((message: ScheduledMessage | null, previousId?: number) => void)
-    | null,
-): void {
-  onMessageChanged = listener;
-}
-
-function notifyChanged(
-  message: ScheduledMessage | null,
-  previousId?: number,
-): void {
-  if (!onMessageChanged) return;
-  try {
-    onMessageChanged(message, previousId);
-  } catch (error) {
-    logger.warn({ err: error }, "scheduled-messages: onMessageChanged falló:");
   }
 }
 
@@ -74,21 +52,20 @@ function resolveGuildId(guildId?: string): string {
 }
 
 async function ensureGuildRow(guildId: string): Promise<void> {
-  const existing = await one(getDb()
-    .select({ guildId: guildSettings.guildId })
-    .from(guildSettings)
-    .where(eq(guildSettings.guildId, guildId))
-    .limit(1));
+  const existing = await one(
+    getDb()
+      .select({ guildId: guildSettings.guildId })
+      .from(guildSettings)
+      .where(eq(guildSettings.guildId, guildId))
+      .limit(1),
+  );
   if (!existing) {
-    await getDb()
-      .insert(guildSettings)
-      .values({
-        guildId,
-        prefix: "!",
-        welcomeEnabled: false,
-        updatedAt: new Date(),
-      })
-      ;
+    await getDb().insert(guildSettings).values({
+      guildId,
+      prefix: "!",
+      welcomeEnabled: false,
+      updatedAt: new Date(),
+    });
   }
 }
 
@@ -109,7 +86,12 @@ function deriveLabel(embed: ScheduledEmbedData): string {
   if (title) return title.slice(0, 80);
   const desc = embed.description.trim();
   if (desc) return desc.slice(0, 80);
-  return "Mensaje programado";
+  return "Scheduled Message";
+}
+
+function toIso(value: Date | null | undefined): string | null {
+  if (!value) return null;
+  return new Date(value).toISOString();
 }
 
 function rowToMessage(
@@ -129,31 +111,76 @@ function rowToMessage(
     timezone: normalizeScheduledTimezone(row.timezone),
     frequency,
     embedData,
+    content: normalizeScheduledContent(row.content),
+    pingRoleId: row.pingRoleId ?? null,
     isActive: Boolean(row.isActive),
+    nextRunAt: toIso(row.nextRunAt),
+    lastSentAt: toIso(row.lastSentAt),
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),
   };
 }
 
-export async function listScheduledMessages(guildId?: string): Promise<ScheduledMessage[]> {
+function lastSentDate(message: {
+  lastSentAt: string | null;
+}): Date | null {
+  return message.lastSentAt ? new Date(message.lastSentAt) : null;
+}
+
+function resolveSchedule(
+  isActive: boolean,
+  frequency: ScheduledFrequency,
+  timezone: string,
+  lastSentAt: Date | null,
+  from = new Date(),
+): { isActive: boolean; nextRunAt: Date | null } {
+  if (!isActive) return { isActive: false, nextRunAt: null };
+  const nextRunAt = computeNextRunAt(frequency, timezone, from, lastSentAt);
+  if (!nextRunAt) {
+    return { isActive: false, nextRunAt: null };
+  }
+  return { isActive: true, nextRunAt };
+}
+
+export async function listScheduledMessages(
+  guildId?: string,
+): Promise<ScheduledMessage[]> {
   const id = resolveGuildId(guildId);
   await ensureGuildRow(id);
   const rows = await getDb()
     .select()
     .from(scheduledMessages)
     .where(eq(scheduledMessages.guildId, id))
-    .orderBy(desc(scheduledMessages.updatedAt))
-    ;
+    .orderBy(desc(scheduledMessages.updatedAt));
   return rows.map(rowToMessage);
 }
 
-/** Todos los mensajes activos (rehydrate al arranque). */
-export async function listAllActiveScheduledMessages(): Promise<ScheduledMessage[]> {
+/** Activos (backfill de next_run_at al arranque). */
+export async function listAllActiveScheduledMessages(): Promise<
+  ScheduledMessage[]
+> {
   const rows = await getDb()
     .select()
     .from(scheduledMessages)
-    .where(eq(scheduledMessages.isActive, true))
-    ;
+    .where(eq(scheduledMessages.isActive, true));
+  return rows.map(rowToMessage);
+}
+
+export async function listDueScheduledMessages(
+  limit = 25,
+): Promise<ScheduledMessage[]> {
+  const rows = await getDb()
+    .select()
+    .from(scheduledMessages)
+    .where(
+      and(
+        eq(scheduledMessages.isActive, true),
+        isNotNull(scheduledMessages.nextRunAt),
+        lte(scheduledMessages.nextRunAt, new Date()),
+      ),
+    )
+    .orderBy(asc(scheduledMessages.nextRunAt))
+    .limit(limit);
   return rows.map(rowToMessage);
 }
 
@@ -162,16 +189,18 @@ export async function getScheduledMessage(
   guildId?: string,
 ): Promise<ScheduledMessage> {
   const id = resolveGuildId(guildId);
-  const row = await one(getDb()
-    .select()
-    .from(scheduledMessages)
-    .where(
-      and(
-        eq(scheduledMessages.id, messageId),
-        eq(scheduledMessages.guildId, id),
-      ),
-    )
-    .limit(1));
+  const row = await one(
+    getDb()
+      .select()
+      .from(scheduledMessages)
+      .where(
+        and(
+          eq(scheduledMessages.id, messageId),
+          eq(scheduledMessages.guildId, id),
+        ),
+      )
+      .limit(1),
+  );
   if (!row) {
     throw new ScheduledMessagesError(
       "Mensaje programado no encontrado.",
@@ -199,8 +228,16 @@ export async function createScheduledMessage(
   const timezone = normalizeScheduledTimezone(input.timezone);
   const frequency = normalizeScheduledFrequency(input.frequency);
   const embedData = normalizeScheduledEmbedData(input.embedData);
-  const isActive = input.isActive !== false;
+  const content = normalizeScheduledContent(input.content);
+  const pingRoleId = normalizeScheduledPingRoleId(input.pingRoleId);
   const now = new Date();
+  const schedule = resolveSchedule(
+    input.isActive !== false,
+    frequency,
+    timezone,
+    null,
+    now,
+  );
 
   const [inserted] = await getDb()
     .insert(scheduledMessages)
@@ -210,7 +247,10 @@ export async function createScheduledMessage(
       timezone,
       frequency: JSON.stringify(frequency),
       embedData: JSON.stringify(embedData),
-      isActive,
+      content,
+      pingRoleId,
+      isActive: schedule.isActive,
+      nextRunAt: schedule.nextRunAt,
       createdAt: now,
       updatedAt: now,
     })
@@ -223,9 +263,7 @@ export async function createScheduledMessage(
     );
   }
 
-  const message = await getScheduledMessage(inserted.id, id);
-  notifyChanged(message);
-  return message;
+  return await getScheduledMessage(inserted.id, id);
 }
 
 export async function updateScheduledMessage(
@@ -252,8 +290,22 @@ export async function updateScheduledMessage(
     input.embedData !== undefined
       ? normalizeScheduledEmbedData(input.embedData)
       : current.embedData;
-  const nextActive =
+  const nextContent =
+    input.content !== undefined
+      ? normalizeScheduledContent(input.content)
+      : current.content;
+  const nextPing =
+    input.pingRoleId !== undefined
+      ? normalizeScheduledPingRoleId(input.pingRoleId)
+      : current.pingRoleId;
+  const wantActive =
     input.isActive !== undefined ? Boolean(input.isActive) : current.isActive;
+  const schedule = resolveSchedule(
+    wantActive,
+    nextFrequency,
+    nextTimezone,
+    lastSentDate(current),
+  );
 
   await getDb()
     .update(scheduledMessages)
@@ -262,7 +314,10 @@ export async function updateScheduledMessage(
       timezone: nextTimezone,
       frequency: JSON.stringify(nextFrequency),
       embedData: JSON.stringify(nextEmbed),
-      isActive: nextActive,
+      content: nextContent,
+      pingRoleId: nextPing,
+      isActive: schedule.isActive,
+      nextRunAt: schedule.nextRunAt,
       updatedAt: new Date(),
     })
     .where(
@@ -270,12 +325,9 @@ export async function updateScheduledMessage(
         eq(scheduledMessages.id, messageId),
         eq(scheduledMessages.guildId, id),
       ),
-    )
-    ;
+    );
 
-  const message = await getScheduledMessage(messageId, id);
-  notifyChanged(message);
-  return message;
+  return await getScheduledMessage(messageId, id);
 }
 
 export async function setScheduledMessageActive(
@@ -286,12 +338,84 @@ export async function setScheduledMessageActive(
   return await updateScheduledMessage(messageId, { isActive }, guildId);
 }
 
+export async function applyScheduledMessageTick(
+  messageId: number,
+  guildId: string,
+  patch: {
+    isActive?: boolean;
+    nextRunAt?: Date | null;
+    lastSentAt?: Date | null;
+  },
+): Promise<void> {
+  const id = resolveGuildId(guildId);
+  const set: {
+    isActive?: boolean;
+    nextRunAt?: Date | null;
+    lastSentAt?: Date | null;
+    updatedAt: Date;
+  } = { updatedAt: new Date() };
+  if (patch.isActive !== undefined) set.isActive = patch.isActive;
+  if (patch.nextRunAt !== undefined) set.nextRunAt = patch.nextRunAt;
+  if (patch.lastSentAt !== undefined) set.lastSentAt = patch.lastSentAt;
+
+  await getDb()
+    .update(scheduledMessages)
+    .set(set)
+    .where(
+      and(
+        eq(scheduledMessages.id, messageId),
+        eq(scheduledMessages.guildId, id),
+      ),
+    );
+}
+
+export async function backfillScheduledNextRuns(): Promise<void> {
+  const active = await listAllActiveScheduledMessages();
+  const now = new Date();
+  for (const message of active) {
+    if (message.nextRunAt) continue;
+    const next = computeNextRunAt(
+      message.frequency,
+      message.timezone,
+      now,
+      lastSentDate(message),
+    );
+    if (!next) {
+      await applyScheduledMessageTick(message.id, message.guildId, {
+        isActive: false,
+        nextRunAt: null,
+      });
+      continue;
+    }
+    await applyScheduledMessageTick(message.id, message.guildId, {
+      nextRunAt: next,
+    });
+  }
+}
+
+export function nextRunAfterSend(
+  message: ScheduledMessage,
+  sentAt: Date,
+): { isActive: boolean; nextRunAt: Date | null } {
+  if (isScheduledOneShot(message.frequency)) {
+    return { isActive: false, nextRunAt: null };
+  }
+  const nextRunAt = computeNextRunAt(
+    message.frequency,
+    message.timezone,
+    sentAt,
+    sentAt,
+  );
+  if (!nextRunAt) return { isActive: false, nextRunAt: null };
+  return { isActive: true, nextRunAt };
+}
+
 export async function deleteScheduledMessage(
   messageId: number,
   guildId?: string,
 ): Promise<void> {
   const id = resolveGuildId(guildId);
-  const existing = await getScheduledMessage(messageId, id);
+  await getScheduledMessage(messageId, id);
   await getDb()
     .delete(scheduledMessages)
     .where(
@@ -299,7 +423,5 @@ export async function deleteScheduledMessage(
         eq(scheduledMessages.id, messageId),
         eq(scheduledMessages.guildId, id),
       ),
-    )
-    ;
-  notifyChanged(null, existing.id);
+    );
 }

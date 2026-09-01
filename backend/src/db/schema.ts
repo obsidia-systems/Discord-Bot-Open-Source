@@ -703,28 +703,38 @@ export type InteractiveFormsRow = typeof interactiveForms.$inferSelect;
 export type NewInteractiveFormsRow = typeof interactiveForms.$inferInsert;
 
 /**
- * Mensajes programados (cron) por guild.
+ * Scheduled Messages: horario persistido (`next_run_at`) por guild.
  */
-export const scheduledMessages = pgTable("scheduled_messages", {
-  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-  guildId: text("guild_id")
-    .notNull()
-    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  channelId: text("channel_id").notNull(),
-  /** IANA timezone, ej. America/Mexico_City */
-  timezone: text("timezone").notNull().default("UTC"),
-  /** JSON: ScheduledFrequency */
-  frequency: text("frequency").notNull().default("{}"),
-  /** JSON: ScheduledEmbedData */
-  embedData: text("embed_data").notNull().default("{}"),
-  isActive: boolean("is_active").notNull().default(true),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
+export const scheduledMessages = pgTable(
+  "scheduled_messages",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    channelId: text("channel_id").notNull(),
+    /** IANA timezone, ej. America/Mexico_City */
+    timezone: text("timezone").notNull().default("UTC"),
+    /** JSON: ScheduledFrequency */
+    frequency: text("frequency").notNull().default("{}"),
+    /** JSON: ScheduledEmbedData */
+    embedData: text("embed_data").notNull().default("{}"),
+    content: text("content").notNull().default(""),
+    pingRoleId: text("ping_role_id"),
+    isActive: boolean("is_active").notNull().default(true),
+    nextRunAt: timestamp("next_run_at", { withTimezone: true, mode: "date" }),
+    lastSentAt: timestamp("last_sent_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index("idx_scheduled_messages_due").on(table.isActive, table.nextRunAt),
+  ],
+);
 
 export type ScheduledMessageRow = typeof scheduledMessages.$inferSelect;
 export type NewScheduledMessageRow = typeof scheduledMessages.$inferInsert;

@@ -3,31 +3,23 @@ import type { AdobosModule } from "../../core/modules/types.js";
 import { scheduledMessagesRoutes } from "./api/routes.js";
 import {
   bindScheduledMessagesScheduler,
-  onScheduledMessageRemoved,
-  rehydrateAllScheduledJobs,
-  syncScheduledJob,
+  processDueScheduledMessages,
+  rehydrateScheduledMessages,
 } from "./scheduler.js";
-import { setScheduledMessageChangeListener } from "./service.js";
 import { logger } from "../../core/log.js";
 import { isWorkerLeader } from "../../core/runtime/index.js";
 
+const DUE_TICK_MS = 15_000;
+
 export const scheduledMessagesModule: AdobosModule = {
   id: "scheduled-messages",
-  name: "Mensajes programados",
+  name: "Scheduled Messages",
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
   ],
   register(ctx) {
     bindScheduledMessagesScheduler(ctx.client);
-    setScheduledMessageChangeListener(async (message, previousId) => {
-      if (!isWorkerLeader()) return;
-      if (!message && previousId != null) {
-        onScheduledMessageRemoved(previousId);
-        return;
-      }
-      if (message) await syncScheduledJob(message);
-    });
 
     ctx.route("/api/scheduled-messages", scheduledMessagesRoutes(ctx.client), {
       feature: "scheduled-messages",
@@ -35,9 +27,22 @@ export const scheduledMessagesModule: AdobosModule = {
 
     ctx.once("ready", async () => {
       if (!isWorkerLeader()) return;
-      await rehydrateAllScheduledJobs();
-      logger.info("scheduled-messages: crons rehidratados");
+      await rehydrateScheduledMessages();
+      logger.info("scheduled-messages: next_run_at rehidratado");
+      try {
+        await processDueScheduledMessages();
+      } catch (error) {
+        logger.warn({ err: error }, "scheduled-messages: tick inicial falló");
+      }
     });
+
+    const timer = setInterval(() => {
+      if (!isWorkerLeader()) return;
+      void processDueScheduledMessages().catch((error: unknown) => {
+        logger.warn({ err: error }, "scheduled-messages: tick falló");
+      });
+    }, DUE_TICK_MS);
+    timer.unref?.();
   },
 };
 

@@ -253,7 +253,7 @@ export const dashboardNav: NavCategoryConfig[] = [
     defaultCollapsed: true,
     items: [
       {
-        label: "Mensajes programados",
+        label: "Scheduled Messages",
         href: "/dashboard/automation/scheduled",
         icon: CalendarClock,
         blurb: "Anuncios y recordatorios en horario.",

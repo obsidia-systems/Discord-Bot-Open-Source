@@ -88,6 +88,7 @@ export {
   createScheduledMessage,
   updateScheduledMessage,
   toggleScheduledMessage,
+  sendScheduledMessageNow,
   deleteScheduledMessage,
 } from "./api/scheduled-messages";
 export {
