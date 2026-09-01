@@ -18,6 +18,12 @@ describe("catálogo de entitlements", () => {
     expect(tierLimit("business", "scheduledMessages")).toBe(UNLIMITED);
   });
 
+  it("límites de Custom Commands (techo Discord 100)", () => {
+    expect(tierLimit("free", "customCommands")).toBe(25);
+    expect(tierLimit("pro", "customCommands")).toBe(100);
+    expect(tierLimit("business", "customCommands")).toBe(100);
+  });
+
   it("business incluye features de pro", () => {
     for (const feature of TIER_CATALOG.pro.features) {
       expect(tierHasFeature("business", feature)).toBe(true);

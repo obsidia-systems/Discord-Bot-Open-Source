@@ -18,17 +18,27 @@ import {
   defaultCustomCommandResponseData,
   isValidCustomCommandName,
   normalizeCustomCommandName,
+  normalizeCustomCommandOptions,
 } from "@adobos/shared";
 import {
-  createCustomCommand,
-  deleteCustomCommand,
-  fetchCustomCommands,
-  fetchGuildAssets,
-  resolvePublicAssetUrl,
-  updateCustomCommand,
-} from "@/lib/api";
+  Copy,
+  Loader2,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Save,
+  Terminal,
+  Trash2,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChannelMultiSelect } from "@/components/shared/ChannelMultiSelect";
 import { RoleMultiSelect } from "@/components/shared/RoleMultiSelect";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,29 +48,24 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ToastBanner } from "@/components/ui/toast";
-import { cn } from "@/lib/utils";
+import { useEntitlements } from "@/features/entitlements/useEntitlements";
 import {
-  Copy,
-  Loader2,
-  Pencil,
-  Plus,
-  Save,
-  Terminal,
-  Trash2,
-} from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+  createCustomCommand,
+  deleteCustomCommand,
+  fetchCustomCommands,
+  fetchGuildAssets,
+  resolvePublicAssetUrl,
+  syncCustomCommands,
+  toggleCustomCommand,
+  updateCustomCommand,
+} from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 type MainTab = "list" | "builder";
 type BuilderTab = "general" | "options" | "permissions";
@@ -72,6 +77,7 @@ type DraftState = {
   options: CustomCommandOptions;
   permissions: CustomCommandPermissions;
   useEmbed: boolean;
+  isActive: boolean;
 };
 
 function emptyDraft(): DraftState {
@@ -83,6 +89,7 @@ function emptyDraft(): DraftState {
     options: defaultCustomCommandOptions(),
     permissions: defaultCustomCommandPermissions(),
     useEmbed: false,
+    isActive: true,
   };
 }
 
@@ -96,7 +103,7 @@ function commandToDraft(command: CustomCommand): DraftState {
         ? { ...command.responseData.embed }
         : null,
     },
-    options: { ...command.options },
+    options: normalizeCustomCommandOptions(command.options),
     permissions: {
       allowedRoleIds: [...command.permissions.allowedRoleIds],
       ignoredRoleIds: [...command.permissions.ignoredRoleIds],
@@ -104,13 +111,12 @@ function commandToDraft(command: CustomCommand): DraftState {
       ignoredChannelIds: [...command.permissions.ignoredChannelIds],
     },
     useEmbed: Boolean(command.responseData.embed),
+    isActive: command.isActive,
   };
 }
 
 function MiniEmbedPreview({ embed }: { embed: CustomCommandEmbed }) {
-  const image = embed.imageUrl
-    ? resolvePublicAssetUrl(embed.imageUrl)
-    : null;
+  const image = embed.imageUrl ? resolvePublicAssetUrl(embed.imageUrl) : null;
   return (
     <div className="overflow-hidden rounded-md bg-[#2b2d31] text-[13px] text-[#dbdee1]">
       <div className="flex">
@@ -208,6 +214,7 @@ function VariablesReferenceCard() {
 }
 
 export function CustomCommandsDashboard() {
+  const { limitOf, isUnlimited } = useEntitlements();
   const [mainTab, setMainTab] = useState<MainTab>("list");
   const [builderTab, setBuilderTab] = useState<BuilderTab>("general");
   const [commands, setCommands] = useState<CustomCommand[]>([]);
@@ -217,8 +224,14 @@ export function CustomCommandsDashboard() {
   const [draft, setDraft] = useState<DraftState>(emptyDraft);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [togglingId, setTogglingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  const customCap = limitOf("customCommands");
+  const atCustomLimit =
+    !isUnlimited("customCommands") && commands.length >= customCap;
 
   const nameValid = useMemo(
     () => !draft.name || isValidCustomCommandName(draft.name),
@@ -276,6 +289,12 @@ export function CustomCommandsDashboard() {
   }, [load]);
 
   const openCreate = () => {
+    if (atCustomLimit) {
+      setError(
+        `Has alcanzado el límite de ${customCap} Custom Commands de este plan.`,
+      );
+      return;
+    }
     setEditingId(null);
     setDraft(emptyDraft());
     setBuilderTab("general");
@@ -324,9 +343,7 @@ export function CustomCommandsDashboard() {
   const save = async () => {
     const name = normalizeCustomCommandName(draft.name);
     if (!isValidCustomCommandName(name)) {
-      setError(
-        "Nombre inválido: solo minúsculas, números, _ y - (máx. 32).",
-      );
+      setError("Nombre inválido: solo minúsculas, números, _ y - (máx. 32).");
       return;
     }
     if (!draft.description.trim()) {
@@ -336,7 +353,7 @@ export function CustomCommandsDashboard() {
     const responseData: CustomCommandResponseData = {
       content: draft.responseData.content,
       embed: draft.useEmbed
-        ? draft.responseData.embed ?? defaultCustomCommandEmbed()
+        ? (draft.responseData.embed ?? defaultCustomCommandEmbed())
         : null,
     };
     if (!responseData.content.trim() && !responseData.embed) {
@@ -354,16 +371,36 @@ export function CustomCommandsDashboard() {
         responseData,
         options: draft.options,
         permissions: draft.permissions,
+        isActive: draft.isActive,
       };
       if (editingId == null) {
+        if (atCustomLimit) {
+          setError(
+            `Has alcanzado el límite de ${customCap} Custom Commands de este plan.`,
+          );
+          setSaving(false);
+          return;
+        }
         const res = await createCustomCommand(body);
         setEditingId(res.command.id);
         setDraft(commandToDraft(res.command));
-        setSuccess(`Comando /${res.command.name} creado y sincronizado.`);
+        setSuccess(`Comando /${res.command.name} guardado.`);
+        if (res.synced === false) {
+          setError(
+            res.warning ??
+              "Guardado en el panel, pero Discord no se actualizó. Usa Re-sync.",
+          );
+        }
       } else {
         const res = await updateCustomCommand(editingId, body);
         setDraft(commandToDraft(res.command));
-        setSuccess(`Comando /${res.command.name} actualizado y sincronizado.`);
+        setSuccess(`Comando /${res.command.name} guardado.`);
+        if (res.synced === false) {
+          setError(
+            res.warning ??
+              "Guardado en el panel, pero Discord no se actualizó. Usa Re-sync.",
+          );
+        }
       }
       await load();
       setMainTab("list");
@@ -371,6 +408,42 @@ export function CustomCommandsDashboard() {
       setError(err instanceof Error ? err.message : "No se pudo guardar.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const onToggle = async (command: CustomCommand, isActive: boolean) => {
+    setTogglingId(command.id);
+    setError(null);
+    try {
+      const res = await toggleCustomCommand(command.id, isActive);
+      setCommands((prev) =>
+        prev.map((c) => (c.id === command.id ? res.command : c)),
+      );
+      if (res.synced === false) {
+        setError(
+          res.warning ??
+            "Estado guardado, pero Discord no se actualizó. Usa Re-sync.",
+        );
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "No se pudo cambiar el estado.",
+      );
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  const onSync = async () => {
+    setSyncing(true);
+    setError(null);
+    try {
+      const res = await syncCustomCommands();
+      setSuccess(`Sincronizados ${res.count} slash con Discord.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo sincronizar.");
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -401,7 +474,7 @@ export function CustomCommandsDashboard() {
     return (
       <div className="flex min-h-[40vh] items-center justify-center gap-2 text-muted-foreground">
         <Loader2 className="size-5 animate-spin" aria-hidden />
-        Cargando Comandos custom…
+        Cargando Custom Commands…
       </div>
     );
   }
@@ -447,18 +520,41 @@ export function CustomCommandsDashboard() {
                   <p className="text-sm text-muted-foreground">
                     {commands.length === 0
                       ? "Aún no hay comandos."
-                      : `${commands.length} comando${commands.length === 1 ? "" : "s"}`}
+                      : `${commands.length}${isUnlimited("customCommands") ? "" : ` / ${customCap}`} comando${commands.length === 1 ? "" : "s"}`}
                   </p>
-                  <Button type="button" size="sm" onClick={openCreate}>
-                    <Plus className="size-4" aria-hidden />
-                    Nuevo
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={syncing}
+                      onClick={() => void onSync()}
+                    >
+                      {syncing ? (
+                        <Loader2 className="size-4 animate-spin" aria-hidden />
+                      ) : (
+                        <RefreshCw className="size-4" aria-hidden />
+                      )}
+                      Re-sync
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={openCreate}
+                      disabled={atCustomLimit}
+                    >
+                      <Plus className="size-4" aria-hidden />
+                      Nuevo
+                    </Button>
+                  </div>
                 </div>
 
                 {commands.length === 0 ? (
                   <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-primary/40 bg-primary/5 px-6 py-14 text-center">
                     <Terminal className="size-8 text-primary/70" aria-hidden />
-                    <p className="text-sm font-medium">No hay comandos custom</p>
+                    <p className="text-sm font-medium">
+                      No hay Custom Commands
+                    </p>
                     <p className="max-w-sm text-xs text-muted-foreground">
                       Crea slash commands como{" "}
                       <code className="rounded bg-muted px-1">/reglas</code> con
@@ -485,12 +581,42 @@ export function CustomCommandsDashboard() {
                                 {command.options.dmResponse ? (
                                   <Badge>DM</Badge>
                                 ) : null}
+                                <Badge
+                                  className={
+                                    command.isActive
+                                      ? "border-primary/40 bg-primary/15 text-primary"
+                                      : undefined
+                                  }
+                                >
+                                  {command.isActive ? "Activo" : "Pausado"}
+                                </Badge>
                               </div>
                               <p className="truncate text-sm text-muted-foreground">
                                 {command.description}
                               </p>
                             </div>
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="flex items-center gap-2">
+                                <Switch
+                                  checked={command.isActive}
+                                  disabled={togglingId === command.id}
+                                  onCheckedChange={(checked) =>
+                                    void onToggle(command, checked)
+                                  }
+                                  aria-label={
+                                    command.isActive
+                                      ? "Desactivar comando"
+                                      : "Activar comando"
+                                  }
+                                />
+                                <span className="text-xs text-muted-foreground">
+                                  {togglingId === command.id
+                                    ? "…"
+                                    : command.isActive
+                                      ? "ON"
+                                      : "OFF"}
+                                </span>
+                              </div>
                               <Button
                                 type="button"
                                 variant="outline"
@@ -602,14 +728,31 @@ export function CustomCommandsDashboard() {
                               }
                             />
                           </div>
+                          <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
+                            <div>
+                              <p className="text-sm font-medium">
+                                Activo en Discord
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                OFF quita el slash sin borrar el comando.
+                              </p>
+                            </div>
+                            <Switch
+                              checked={draft.isActive}
+                              onCheckedChange={(checked) =>
+                                setDraft((prev) => ({
+                                  ...prev,
+                                  isActive: checked,
+                                }))
+                              }
+                            />
+                          </div>
                         </CardContent>
                       </Card>
 
                       <Card>
                         <CardHeader className="pb-3">
-                          <CardTitle className="text-base">
-                            Respuesta
-                          </CardTitle>
+                          <CardTitle className="text-base">Respuesta</CardTitle>
                           <CardDescription>
                             Texto plano y/o embed. Usa variables de la columna
                             derecha.
@@ -654,8 +797,8 @@ export function CustomCommandsDashboard() {
                                   responseData: {
                                     ...prev.responseData,
                                     embed: checked
-                                      ? prev.responseData.embed ??
-                                        defaultCustomCommandEmbed()
+                                      ? (prev.responseData.embed ??
+                                        defaultCustomCommandEmbed())
                                       : prev.responseData.embed,
                                   },
                                 }))
@@ -718,8 +861,7 @@ export function CustomCommandsDashboard() {
                                   }
                                   onChange={(e) =>
                                     patchEmbed({
-                                      imageUrl:
-                                        e.target.value.trim() || null,
+                                      imageUrl: e.target.value.trim() || null,
                                     })
                                   }
                                 />
@@ -766,7 +908,22 @@ export function CustomCommandsDashboard() {
                               {
                                 key: "disableMentions" as const,
                                 label: "Desactivar pings",
-                                help: "No notifica @everyone, @here ni roles en la respuesta.",
+                                help: "Nadie recibe notificación, ni siquiera {user}.",
+                              },
+                              {
+                                key: "allowEveryone" as const,
+                                label: "Permitir @everyone / @here",
+                                help: "Solo entonces {everyone} y {here} notifican. Apagado por defecto.",
+                              },
+                              {
+                                key: "acceptText" as const,
+                                label: "Opción texto",
+                                help: "Añade /comando texto:… y el token {text}.",
+                              },
+                              {
+                                key: "acceptUser" as const,
+                                label: "Opción usuario",
+                                help: "Añade /comando usuario:@… y el token {target}.",
                               },
                             ] as const
                           ).map((item) => (

@@ -259,7 +259,7 @@ export const dashboardNav: NavCategoryConfig[] = [
         blurb: "Anuncios y recordatorios en horario.",
       },
       {
-        label: "Comandos Custom",
+        label: "Custom Commands",
         href: "/dashboard/automation/custom-commands",
         icon: Terminal,
         blurb: "Respuestas y slash commands propios.",

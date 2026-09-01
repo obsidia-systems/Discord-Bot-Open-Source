@@ -1,15 +1,25 @@
-import type { ChatInputCommandInteraction, Guild, GuildMember } from "discord.js";
+import type {
+  ChatInputCommandInteraction,
+  Guild,
+  GuildMember,
+  User,
+} from "discord.js";
+import { applyCustomCommandTokens } from "@adobos/shared";
 
 export type VariableResolveContext = {
   interaction: ChatInputCommandInteraction;
   /** Stats opcionales del módulo de niveles. */
   level?: number | null;
   xp?: number | null;
+  text?: string;
+  target?: User | null;
+  allowEveryone?: boolean;
 };
 
 function formatDate(value: Date | null | undefined): string {
   if (!value || Number.isNaN(value.getTime())) return "—";
   return value.toLocaleString("es-MX", {
+    timeZone: "UTC",
     dateStyle: "medium",
     timeStyle: "short",
   });
@@ -19,21 +29,22 @@ function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
 
-function nowParts(): {
+/** Reloj civil en UTC (no la TZ del VPS). */
+export function utcClockParts(at: Date = new Date()): {
   time: string;
   time12: string;
   date: string;
   datetime: string;
   datetime12: string;
 } {
-  const d = new Date();
-  const h24 = pad2(d.getHours());
-  const m = pad2(d.getMinutes());
+  const h24n = at.getUTCHours();
+  const h24 = pad2(h24n);
+  const m = pad2(at.getUTCMinutes());
   const time = `${h24}:${m}`;
-  const h12raw = d.getHours() % 12 || 12;
-  const ampm = d.getHours() >= 12 ? "PM" : "AM";
+  const h12raw = h24n % 12 || 12;
+  const ampm = h24n >= 12 ? "PM" : "AM";
   const time12 = `${h12raw}:${m} ${ampm}`;
-  const date = `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
+  const date = `${pad2(at.getUTCDate())}/${pad2(at.getUTCMonth() + 1)}/${at.getUTCFullYear()}`;
   return {
     time,
     time12,
@@ -49,8 +60,7 @@ function memberNick(member: GuildMember | null): string {
 }
 
 /**
- * Reemplaza placeholders `{…}` en texto de comandos custom.
- * Extensible: añadir claves al mapa `replacements`.
+ * Reemplaza placeholders `{…}` en texto de Custom Commands.
  */
 export function parseCustomCommandVariables(
   input: string,
@@ -66,7 +76,10 @@ export function parseCustomCommandVariables(
       ? (interaction.member as GuildMember)
       : null;
   const channel = interaction.channel;
-  const clock = nowParts();
+  const clock = utcClockParts();
+  const target = ctx.target ?? null;
+  const everyone = ctx.allowEveryone ? "@everyone" : "everyone";
+  const here = ctx.allowEveryone ? "@here" : "here";
 
   const avatar = user.displayAvatarURL({
     size: 256,
@@ -101,8 +114,13 @@ export function parseCustomCommandVariables(
       channel && "name" in channel ? String(channel.name ?? "canal") : "canal",
     "{channel.id}": channel?.id ?? "",
     "{channel.mention}": channel?.id ? `<#${channel.id}>` : "#canal",
-    "{everyone}": "@everyone",
-    "{here}": "@here",
+    "{everyone}": everyone,
+    "{here}": here,
+    "{text}": ctx.text ?? "",
+    "{target}": target ? `<@${target.id}>` : "",
+    "{target.mention}": target ? `<@${target.id}>` : "",
+    "{target.username}": target?.username ?? "",
+    "{target.id}": target?.id ?? "",
     "{time}": clock.time,
     "{time12}": clock.time12,
     "{date}": clock.date,
@@ -110,12 +128,5 @@ export function parseCustomCommandVariables(
     "{datetime12}": clock.datetime12,
   };
 
-  // Tokens más largos primero para evitar reemplazos parciales
-  const keys = Object.keys(replacements).sort((a, b) => b.length - a.length);
-  let out = input;
-  for (const key of keys) {
-    if (!out.includes(key)) continue;
-    out = out.split(key).join(replacements[key] ?? "");
-  }
-  return out;
+  return applyCustomCommandTokens(input, replacements);
 }

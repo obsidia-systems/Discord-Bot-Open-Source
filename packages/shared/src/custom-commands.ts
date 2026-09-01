@@ -1,4 +1,6 @@
-/** Contratos Comandos custom (slash commands de guild). */
+/** Contratos Custom Commands (slash de guild). */
+
+export const CUSTOM_COMMANDS_DISCORD_MAX = 100;
 
 export interface CustomCommandEmbed {
   title: string;
@@ -23,8 +25,14 @@ export interface CustomCommandOptions {
   autoDelete: boolean;
   /** Cooldown anti-spam en segundos (0 = sin límite). */
   cooldownSeconds: number;
-  /** Desactiva @everyone / @here / pings de rol en la respuesta. */
+  /** Desactiva todas las notificaciones (ni {user}). */
   disableMentions: boolean;
+  /** Permite que {everyone} / {here} notifiquen. Default false. */
+  allowEveryone: boolean;
+  /** Añade opción slash STRING `texto` → {text}. */
+  acceptText: boolean;
+  /** Añade opción slash USER `usuario` → {target}. */
+  acceptUser: boolean;
 }
 
 export interface CustomCommandPermissions {
@@ -42,6 +50,7 @@ export interface CustomCommand {
   responseData: CustomCommandResponseData;
   options: CustomCommandOptions;
   permissions: CustomCommandPermissions;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -52,6 +61,9 @@ export interface CustomCommandsListResponse {
 
 export interface CustomCommandResponse {
   command: CustomCommand;
+  /** false si Discord no recibió el PUT (el comando igual quedó en BD). */
+  synced?: boolean;
+  warning?: string;
 }
 
 export type CreateCustomCommandRequest = {
@@ -60,6 +72,7 @@ export type CreateCustomCommandRequest = {
   responseData: CustomCommandResponseData;
   options?: Partial<CustomCommandOptions>;
   permissions?: Partial<CustomCommandPermissions>;
+  isActive?: boolean;
 };
 
 export type UpdateCustomCommandRequest = Partial<{
@@ -68,6 +81,7 @@ export type UpdateCustomCommandRequest = Partial<{
   responseData: CustomCommandResponseData;
   options: Partial<CustomCommandOptions>;
   permissions: Partial<CustomCommandPermissions>;
+  isActive: boolean;
 }>;
 
 export const DEFAULT_CUSTOM_COMMAND_EMBED_COLOR = "#5865F2";
@@ -97,6 +111,9 @@ export function defaultCustomCommandOptions(): CustomCommandOptions {
     autoDelete: false,
     cooldownSeconds: 0,
     disableMentions: false,
+    allowEveryone: false,
+    acceptText: false,
+    acceptUser: false,
   };
 }
 
@@ -118,6 +135,7 @@ export function defaultCustomCommand(guildId = ""): CustomCommand {
     responseData: defaultCustomCommandResponseData(),
     options: defaultCustomCommandOptions(),
     permissions: defaultCustomCommandPermissions(),
+    isActive: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -196,6 +214,9 @@ export function normalizeCustomCommandOptions(
         ? Math.min(cooldown, 86_400)
         : 0,
     disableMentions: Boolean(input.disableMentions),
+    allowEveryone: Boolean(input.allowEveryone),
+    acceptText: Boolean(input.acceptText),
+    acceptUser: Boolean(input.acceptUser),
   };
 }
 
@@ -238,8 +259,6 @@ export const CUSTOM_COMMAND_VARIABLE_GROUPS: {
       { token: "{avatar}", description: "URL del avatar" },
       { token: "{server}", description: "Nombre del servidor" },
       { token: "{channel}", description: "Nombre del canal" },
-      { token: "{everyone}", description: "Mención @everyone" },
-      { token: "{here}", description: "Mención @here" },
     ],
   },
   {
@@ -282,14 +301,98 @@ export const CUSTOM_COMMAND_VARIABLE_GROUPS: {
     ],
   },
   {
+    id: "args",
+    title: "Argumentos slash",
+    items: [
+      { token: "{text}", description: "Opción `texto` (si está activa)" },
+      { token: "{target}", description: "Mención del usuario elegido" },
+      {
+        token: "{target.username}",
+        description: "Username del usuario elegido",
+      },
+      { token: "{target.id}", description: "ID del usuario elegido" },
+    ],
+  },
+  {
     id: "time",
     title: "Fecha y hora",
     items: [
-      { token: "{time}", description: "Hora 24h" },
-      { token: "{time12}", description: "Hora 12h" },
-      { token: "{date}", description: "Fecha" },
-      { token: "{datetime}", description: "Fecha + hora 24h" },
-      { token: "{datetime12}", description: "Fecha + hora 12h" },
+      { token: "{time}", description: "Hora 24h (UTC)" },
+      { token: "{time12}", description: "Hora 12h (UTC)" },
+      { token: "{date}", description: "Fecha (UTC)" },
+      { token: "{datetime}", description: "Fecha + hora 24h (UTC)" },
+      { token: "{datetime12}", description: "Fecha + hora 12h (UTC)" },
     ],
   },
 ];
+
+/** Tokens más largos primero para no partir `{user}` dentro de `{username}`. */
+export function applyCustomCommandTokens(
+  input: string,
+  replacements: Record<string, string>,
+): string {
+  if (!input) return input;
+  const keys = Object.keys(replacements).sort((a, b) => b.length - a.length);
+  let out = input;
+  for (const key of keys) {
+    if (!out.includes(key)) continue;
+    out = out.split(key).join(replacements[key] ?? "");
+  }
+  return out;
+}
+
+export function customCommandTemplatePingsInvoker(raw: string): boolean {
+  return raw.includes("{user}") || raw.includes("{user.mention}");
+}
+
+export function customCommandTemplatePingsTarget(raw: string): boolean {
+  return raw.includes("{target}") || raw.includes("{target.mention}");
+}
+
+export function customCommandAllowedMentions(input: {
+  disableMentions: boolean;
+  allowEveryone: boolean;
+  pingUserIds: string[];
+}): { parse: [] | ["everyone"]; users: string[]; roles: [] } {
+  if (input.disableMentions) {
+    return { parse: [], users: [], roles: [] };
+  }
+  const seen = new Set<string>();
+  const users: string[] = [];
+  for (const id of input.pingUserIds) {
+    if (!/^\d{17,20}$/.test(id) || seen.has(id)) continue;
+    seen.add(id);
+    users.push(id);
+  }
+  return {
+    parse: input.allowEveryone ? ["everyone"] : [],
+    users,
+    roles: [],
+  };
+}
+
+export function customCommandPermissionDenial(
+  permissions: CustomCommandPermissions,
+  roleIds: string[],
+  channelId: string,
+): string | null {
+  if (permissions.ignoredRoleIds.some((id) => roleIds.includes(id))) {
+    return "No tienes permiso para usar este comando (rol ignorado).";
+  }
+  if (
+    permissions.allowedRoleIds.length > 0 &&
+    !permissions.allowedRoleIds.some((id) => roleIds.includes(id))
+  ) {
+    return "No tienes un rol permitido para usar este comando.";
+  }
+  if (permissions.ignoredChannelIds.includes(channelId)) {
+    return "Este comando no se puede usar en este canal.";
+  }
+  if (
+    permissions.allowedChannelIds.length > 0 &&
+    !permissions.allowedChannelIds.includes(channelId)
+  ) {
+    return "Este comando solo se puede usar en canales permitidos.";
+  }
+  return null;
+}

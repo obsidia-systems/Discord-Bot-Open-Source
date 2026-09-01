@@ -45,6 +45,7 @@ export type LimitKey =
   | "logRetentionDays"
   | "streamAlerts"
   | "scheduledMessages"
+  | "customCommands"
   | "storageMb"
   | "coveredGuilds";
 
@@ -52,6 +53,7 @@ export interface TierLimits {
   logRetentionDays: number;
   streamAlerts: number;
   scheduledMessages: number;
+  customCommands: number;
   storageMb: number;
   coveredGuilds: number;
 }
@@ -105,6 +107,7 @@ export const TIER_CATALOG: Record<PlanTier, TierDefinition> = {
       logRetentionDays: 14,
       streamAlerts: 2,
       scheduledMessages: 25,
+      customCommands: 25,
       storageMb: 100,
       coveredGuilds: 3,
     },
@@ -115,6 +118,7 @@ export const TIER_CATALOG: Record<PlanTier, TierDefinition> = {
       logRetentionDays: 90,
       streamAlerts: UNLIMITED,
       scheduledMessages: 500,
+      customCommands: 100,
       storageMb: 2048,
       coveredGuilds: 3,
     },
@@ -125,6 +129,7 @@ export const TIER_CATALOG: Record<PlanTier, TierDefinition> = {
       logRetentionDays: 365,
       streamAlerts: UNLIMITED,
       scheduledMessages: UNLIMITED,
+      customCommands: 100,
       storageMb: 10240,
       coveredGuilds: UNLIMITED,
     },
@@ -191,6 +196,9 @@ export function limitExceededMessage(
   const current = PLAN_TIER_LABEL[tier];
   if (key === "scheduledMessages") {
     return `Has alcanzado el límite de ${max} mensajes programados del plan ${current}.`;
+  }
+  if (key === "customCommands") {
+    return `Has alcanzado el límite de ${max} Custom Commands del plan ${current}.`;
   }
   if (key === "logRetentionDays") {
     return `El plan ${current} conserva logs hasta ${max} días.`;

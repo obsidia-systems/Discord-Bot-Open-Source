@@ -64,6 +64,45 @@ export async function updateCustomCommand(
   return response.json() as Promise<CustomCommandResponse>;
 }
 
+export async function toggleCustomCommand(
+  id: number,
+  isActive: boolean,
+): Promise<CustomCommandResponse> {
+  const response = await apiFetch(`/api/custom-commands/${id}/toggle`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ isActive }),
+  });
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(
+        response,
+        `No se pudo cambiar el estado (${response.status})`,
+      ),
+    );
+  }
+  return response.json() as Promise<CustomCommandResponse>;
+}
+
+export async function syncCustomCommands(): Promise<{ ok: boolean; count: number }> {
+  const response = await apiFetch(`/api/custom-commands/sync`, {
+    method: "POST",
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(
+        response,
+        `No se pudo sincronizar con Discord (${response.status})`,
+      ),
+    );
+  }
+  return response.json() as Promise<{ ok: boolean; count: number }>;
+}
+
 export async function deleteCustomCommand(id: number): Promise<void> {
   const response = await apiFetch(`/api/custom-commands/${id}`, {
     method: "DELETE",

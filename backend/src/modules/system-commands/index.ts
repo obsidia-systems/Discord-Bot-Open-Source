@@ -5,6 +5,8 @@ import { handleBuyAutocomplete } from "../economy/commands/buy.js";
 import { systemCommandsRoutes } from "./api/routes.js";
 import { assertSystemCommandAllowed } from "./guard.js";
 import { dispatchDefaultCommand } from "./handlers/index.js";
+import { syncGlobalCommands } from "./sync.js";
+import { logger } from "../../core/log.js";
 
 export const systemCommandsModule: AdobosModule = {
   id: "system-commands",
@@ -32,6 +34,13 @@ export const systemCommandsModule: AdobosModule = {
         },
       });
     }
+    ctx.once("ready", async () => {
+      try {
+        await syncGlobalCommands(ctx.client);
+      } catch (error) {
+        logger.warn({ err: error }, "system-commands: slash sync global falló");
+      }
+    });
   },
 };
 

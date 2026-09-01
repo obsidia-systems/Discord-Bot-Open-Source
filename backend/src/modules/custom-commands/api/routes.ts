@@ -6,15 +6,16 @@ import {
   deleteCustomCommand,
   getCustomCommand,
   listCustomCommands,
+  setCustomCommandActive,
   updateCustomCommand,
 } from "../service.js";
 import { syncGuildSlashCommands } from "../sync.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { parse } from "../../../core/http/validate.js";
-import { logger } from "../../../core/log.js";
 import { recordId } from "../../../core/http/schemas.js";
 import {
   createCustomCommandSchema,
+  toggleCustomCommandSchema,
   updateCustomCommandSchema,
 } from "./schema.js";
 
@@ -22,19 +23,27 @@ function parseId(raw: string): number {
   return parse(recordId, raw);
 }
 
-async function syncSafe(bot: Client, guildId?: string): Promise<void> {
-  if (!bot.isReady()) return;
-  try {
-    await syncGuildSlashCommands(bot, guildId);
-  } catch (error) {
-    logger.warn({ err: error }, "custom-commands: sync falló:");
+async function syncOrThrow(bot: Client, guildId: string): Promise<number> {
+  if (!bot.isReady()) {
+    throw new CustomCommandsError(
+      "El bot no está conectado. El comando se guardó; usa Re-sync cuando el bot esté listo.",
+      503,
+      "BOT_NOT_READY",
+    );
   }
+  return await syncGuildSlashCommands(bot, guildId);
+}
+
+function isSyncSoftFail(error: unknown): error is CustomCommandsError {
+  return (
+    error instanceof CustomCommandsError &&
+    (error.code === "SYNC_FAILED" || error.code === "BOT_NOT_READY")
+  );
 }
 
 export function customCommandsRoutes(bot: Client): Router {
   const router = Router();
 
-  /** GET /api/custom-commands */
   router.get("/", async (req, res, next) => {
     try {
       const commands = await listCustomCommands(guildIdOf(req));
@@ -44,44 +53,39 @@ export function customCommandsRoutes(bot: Client): Router {
     }
   });
 
-  /** POST /api/custom-commands/sync */
   router.post("/sync", async (req, res, next) => {
-    void (async () => {
-      try {
-        if (!bot.isReady()) {
-          throw new CustomCommandsError(
-            "El bot no está conectado.",
-            503,
-            "BOT_NOT_READY",
-          );
-        }
-        const count = await syncGuildSlashCommands(
-          bot,
-          guildIdOf(req),
-        );
-        res.json({ ok: true, count });
-      } catch (error) {
-        next(error);
-      }
-    })();
+    try {
+      const count = await syncOrThrow(bot, guildIdOf(req));
+      res.json({ ok: true, count });
+    } catch (error) {
+      next(error);
+    }
   });
 
-  /** POST /api/custom-commands */
   router.post("/", async (req, res, next) => {
-    void (async () => {
+    try {
+      const guildId = guildIdOf(req);
+      const body = parse(createCustomCommandSchema, req.body ?? {});
+      const command = await createCustomCommand(body, guildId);
       try {
-        const guildId = guildIdOf(req);
-        const body = parse(createCustomCommandSchema, req.body ?? {});
-        const command = await createCustomCommand(body, guildId);
-        await syncSafe(bot, guildId);
-        res.status(201).json({ command });
+        const count = await syncOrThrow(bot, guildId);
+        res.status(201).json({ command, synced: true, count });
       } catch (error) {
-        next(error);
+        if (isSyncSoftFail(error)) {
+          res.status(201).json({
+            command,
+            synced: false,
+            warning: error.message,
+          });
+          return;
+        }
+        throw error;
       }
-    })();
+    } catch (error) {
+      next(error);
+    }
   });
 
-  /** GET /api/custom-commands/:id */
   router.get("/:id", async (req, res, next) => {
     try {
       const command = await getCustomCommand(
@@ -94,37 +98,63 @@ export function customCommandsRoutes(bot: Client): Router {
     }
   });
 
-  /** PATCH /api/custom-commands/:id */
   router.patch("/:id", async (req, res, next) => {
-    void (async () => {
+    try {
+      const guildId = guildIdOf(req);
+      const body = parse(updateCustomCommandSchema, req.body ?? {});
+      const command = await updateCustomCommand(
+        parseId(req.params.id),
+        body,
+        guildId,
+      );
       try {
-        const guildId = guildIdOf(req);
-        const body = parse(updateCustomCommandSchema, req.body ?? {});
-        const command = await updateCustomCommand(
-          parseId(req.params.id),
-          body,
-          guildId,
-        );
-        await syncSafe(bot, guildId);
-        res.json({ command });
+        await syncOrThrow(bot, guildId);
+        res.json({ command, synced: true });
       } catch (error) {
-        next(error);
+        if (isSyncSoftFail(error)) {
+          res.json({ command, synced: false, warning: error.message });
+          return;
+        }
+        throw error;
       }
-    })();
+    } catch (error) {
+      next(error);
+    }
   });
 
-  /** DELETE /api/custom-commands/:id */
-  router.delete("/:id", async (req, res, next) => {
-    void (async () => {
+  router.post("/:id/toggle", async (req, res, next) => {
+    try {
+      const guildId = guildIdOf(req);
+      const { isActive } = parse(toggleCustomCommandSchema, req.body ?? {});
+      const command = await setCustomCommandActive(
+        parseId(req.params.id),
+        isActive,
+        guildId,
+      );
       try {
-        const guildId = guildIdOf(req);
-        await deleteCustomCommand(parseId(req.params.id), guildId);
-        await syncSafe(bot, guildId);
-        res.status(204).send();
+        await syncOrThrow(bot, guildId);
+        res.json({ command, synced: true });
       } catch (error) {
-        next(error);
+        if (isSyncSoftFail(error)) {
+          res.json({ command, synced: false, warning: error.message });
+          return;
+        }
+        throw error;
       }
-    })();
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/:id", async (req, res, next) => {
+    try {
+      const guildId = guildIdOf(req);
+      await deleteCustomCommand(parseId(req.params.id), guildId);
+      await syncOrThrow(bot, guildId);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
   });
 
   return router;

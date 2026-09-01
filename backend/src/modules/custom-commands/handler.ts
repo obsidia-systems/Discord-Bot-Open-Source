@@ -1,15 +1,24 @@
+import type { CustomCommand } from "@adobos/shared";
 import {
-  EmbedBuilder,
+  customCommandAllowedMentions,
+  customCommandPermissionDenial,
+  customCommandTemplatePingsInvoker,
+  customCommandTemplatePingsTarget,
+  featureLockedMessage,
+} from "@adobos/shared";
+import {
   type AttachmentBuilder,
   type ChatInputCommandInteraction,
+  EmbedBuilder,
+  MessageFlags,
 } from "discord.js";
-import type { CustomCommand } from "@adobos/shared";
-import { featureLockedMessage } from "@adobos/shared";
 import { can, getGuildTier } from "../../core/entitlements/service.js";
+import { logger } from "../../core/log.js";
 import { resolveEmbedMedia } from "../../lib/embedMedia.js";
 import { getCustomCommandByName } from "./service.js";
 import { parseCustomCommandVariables } from "./variables.js";
-import { logger } from "../../core/log.js";
+
+const EPHEMERAL = { flags: MessageFlags.Ephemeral } as const;
 
 /** Cooldown en memoria: guildId:userId:commandId → timestamp ms. */
 const cooldownUntil = new Map<string, number>();
@@ -38,46 +47,13 @@ function memberRoleIds(interaction: ChatInputCommandInteraction): string[] {
   return [];
 }
 
-function checkPermissions(
-  interaction: ChatInputCommandInteraction,
-  command: CustomCommand,
-): string | null {
-  const perms = command.permissions;
-  const roleIds = memberRoleIds(interaction);
-  const channelId = interaction.channelId;
-
-  if (perms.ignoredRoleIds.some((id) => roleIds.includes(id))) {
-    return "No tienes permiso para usar este comando (rol ignorado).";
-  }
-  if (
-    perms.allowedRoleIds.length > 0 &&
-    !perms.allowedRoleIds.some((id) => roleIds.includes(id))
-  ) {
-    return "No tienes un rol permitido para usar este comando.";
-  }
-  if (perms.ignoredChannelIds.includes(channelId)) {
-    return "Este comando no se puede usar en este canal.";
-  }
-  if (
-    perms.allowedChannelIds.length > 0 &&
-    !perms.allowedChannelIds.includes(channelId)
-  ) {
-    return "Este comando solo se puede usar en canales permitidos.";
-  }
-  return null;
-}
-
 function checkCooldown(
   interaction: ChatInputCommandInteraction,
   command: CustomCommand,
 ): string | null {
   const seconds = command.options.cooldownSeconds;
   if (seconds <= 0 || !interaction.guildId) return null;
-  const key = cooldownKey(
-    interaction.guildId,
-    interaction.user.id,
-    command.id,
-  );
+  const key = cooldownKey(interaction.guildId, interaction.user.id, command.id);
   const until = cooldownUntil.get(key) ?? 0;
   const now = Date.now();
   if (until > now) {
@@ -102,7 +78,7 @@ async function resolveLevelStats(
 }
 
 /**
- * Ejecuta un comando custom si existe para este guild+nombre.
+ * Ejecuta un Custom Command si existe para este guild+nombre.
  * @returns true si se manejó la interacción.
  */
 export async function handleCustomChatCommand(
@@ -114,26 +90,30 @@ export async function handleCustomChatCommand(
     interaction.guildId,
     interaction.commandName,
   );
-  if (!command) return false;
+  if (!command?.isActive) return false;
 
   if (!(await can(interaction.guildId, "custom-commands"))) {
     const tier = await getGuildTier(interaction.guildId);
     await interaction.reply({
       content: `🔒 ${featureLockedMessage(tier, "custom-commands")}`,
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return true;
   }
 
-  const permError = checkPermissions(interaction, command);
+  const permError = customCommandPermissionDenial(
+    command.permissions,
+    memberRoleIds(interaction),
+    interaction.channelId,
+  );
   if (permError) {
-    await interaction.reply({ content: permError, ephemeral: true });
+    await interaction.reply({ content: permError, ...EPHEMERAL });
     return true;
   }
 
   const cdError = checkCooldown(interaction, command);
   if (cdError) {
-    await interaction.reply({ content: cdError, ephemeral: true });
+    await interaction.reply({ content: cdError, ...EPHEMERAL });
     return true;
   }
 
@@ -141,10 +121,26 @@ export async function handleCustomChatCommand(
     interaction.guildId,
     interaction.user.id,
   );
+  const text = command.options.acceptText
+    ? (interaction.options.getString("texto") ?? "")
+    : "";
+  const target = command.options.acceptUser
+    ? interaction.options.getUser("usuario")
+    : null;
+
+  const rawBlob = [
+    command.responseData.content,
+    command.responseData.embed?.title ?? "",
+    command.responseData.embed?.description ?? "",
+  ].join("\n");
+
   const varCtx = {
     interaction,
     level: stats.level,
     xp: stats.xp,
+    text,
+    target,
+    allowEveryone: command.options.allowEveryone,
   };
 
   const contentRaw = command.responseData.content?.trim() ?? "";
@@ -153,7 +149,7 @@ export async function handleCustomChatCommand(
     : undefined;
 
   const files: AttachmentBuilder[] = [];
-  let embeds;
+  let embeds: EmbedBuilder[] | undefined;
   if (command.responseData.embed) {
     const emb = command.responseData.embed;
     const builder = new EmbedBuilder()
@@ -180,7 +176,10 @@ export async function handleCustomChatCommand(
         if (resolved.file) files.push(resolved.file);
         if (resolved.url) builder.setImage(resolved.url);
       } catch (error) {
-        logger.warn({ err: error }, `custom-commands: media inválida (/${command.name}):`);
+        logger.warn(
+          { err: error },
+          `custom-commands: media inválida (/${command.name})`,
+        );
       }
     }
     embeds = [builder];
@@ -189,40 +188,43 @@ export async function handleCustomChatCommand(
   if (!content && !embeds) {
     await interaction.reply({
       content: "Este comando no tiene respuesta configurada.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return true;
   }
 
-  const allowedMentions = command.options.disableMentions
-    ? { parse: [] as const }
-    : undefined;
+  const pingUserIds: string[] = [];
+  if (customCommandTemplatePingsInvoker(rawBlob)) {
+    pingUserIds.push(interaction.user.id);
+  }
+  if (target && customCommandTemplatePingsTarget(rawBlob)) {
+    pingUserIds.push(target.id);
+  }
+  const allowedMentions = customCommandAllowedMentions({
+    disableMentions: command.options.disableMentions,
+    allowEveryone: command.options.allowEveryone,
+    pingUserIds,
+  });
 
   const payload = {
     content: content || undefined,
     embeds,
     files: files.length > 0 ? files : undefined,
     allowedMentions,
-    ephemeral: command.options.ephemeral && !command.options.dmResponse,
   };
 
   if (command.options.dmResponse) {
     try {
-      await interaction.user.send({
-        content: payload.content,
-        embeds: payload.embeds,
-        files: payload.files,
-        allowedMentions,
-      });
+      await interaction.user.send(payload);
       await interaction.reply({
         content: "Te envié la respuesta por mensaje directo.",
-        ephemeral: true,
+        ...EPHEMERAL,
       });
     } catch {
       await interaction.reply({
         content:
           "No pude enviarte un DM. Revisa tu configuración de privacidad.",
-        ephemeral: true,
+        ...EPHEMERAL,
       });
     }
     return true;
@@ -230,6 +232,10 @@ export async function handleCustomChatCommand(
 
   const reply = await interaction.reply({
     ...payload,
+    flags:
+      command.options.ephemeral && !command.options.dmResponse
+        ? MessageFlags.Ephemeral
+        : undefined,
     fetchReply: command.options.autoDelete,
   });
 

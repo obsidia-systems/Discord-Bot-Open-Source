@@ -5,15 +5,13 @@ import { customCommandsRoutes } from "./api/routes.js";
 import { handleCustomChatCommand } from "./handler.js";
 import { setReservedSlashCommandNames } from "./service.js";
 import { syncGuildSlashCommands } from "./sync.js";
-import { syncGlobalCommands } from "../system-commands/sync.js";
 import { logger } from "../../core/log.js";
 
 export const customCommandsModule: AdobosModule = {
   id: "custom-commands",
-  name: "Comandos custom",
+  name: "Custom Commands",
   intents: [GatewayIntentBits.Guilds],
   register(ctx) {
-    // Reservar nombres del catálogo nativo (no usables como custom).
     setReservedSlashCommandNames(listSystemCommandNames());
 
     ctx.route("/api/custom-commands", customCommandsRoutes(ctx.client), {
@@ -21,26 +19,12 @@ export const customCommandsModule: AdobosModule = {
     });
     ctx.fallbackChat(handleCustomChatCommand);
 
-    ctx.once("ready", async () => {
-      void (async () => {
-        try {
-          await syncGlobalCommands(ctx.client);
-        } catch (error) {
-          logger.warn({ err: error }, "slash sync global falló:");
-        }
-        for (const guild of ctx.client.guilds.cache.values()) {
-          try {
-            await syncGuildSlashCommands(ctx.client, guild.id);
-          } catch (error) {
-            logger.warn({ err: error }, `custom-commands: sync inicial falló guild=${guild.id}:`);
-          }
-        }
-      })();
-    });
-
     ctx.on("guildCreate", (guild) => {
       void syncGuildSlashCommands(ctx.client, guild.id).catch((error) => {
-        logger.warn({ err: error }, `custom-commands: sync al unirse falló guild=${guild.id}:`);
+        logger.warn(
+          { err: error },
+          `custom-commands: sync al unirse falló guild=${guild.id}`,
+        );
       });
     });
   },
@@ -63,7 +47,9 @@ export {
   deleteCustomCommand,
   getCustomCommand,
   getCustomCommandByName,
+  listActiveCustomCommands,
   listCustomCommands,
+  setCustomCommandActive,
   updateCustomCommand,
 } from "./service.js";
 export { handleCustomChatCommand } from "./handler.js";

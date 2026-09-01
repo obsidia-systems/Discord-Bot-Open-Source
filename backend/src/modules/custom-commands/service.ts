@@ -7,15 +7,17 @@ import type {
   UpdateCustomCommandRequest,
 } from "@adobos/shared";
 import {
+  CUSTOM_COMMANDS_DISCORD_MAX,
   isValidCustomCommandName,
   normalizeCustomCommandName,
   normalizeCustomCommandOptions,
   normalizeCustomCommandPermissions,
   normalizeCustomCommandResponseData,
 } from "@adobos/shared";
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import { getDb, one } from "../../db/client.js";
 import { customCommands, guildSettings } from "../../db/schema.js";
+import { assertWithinLimit } from "../../core/entitlements/service.js";
 
 export class CustomCommandsError extends Error {
   constructor(
@@ -98,6 +100,7 @@ function rowToCommand(
     permissions: normalizeCustomCommandPermissions(
       parseJson<Partial<CustomCommandPermissions>>(row.permissions, {}),
     ),
+    isActive: Boolean(row.isActive),
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),
   };
@@ -130,6 +133,52 @@ export async function listCustomCommands(guildId?: string): Promise<CustomComman
     .orderBy(desc(customCommands.updatedAt))
     ;
   return rows.map(rowToCommand);
+}
+
+export async function listActiveCustomCommands(
+  guildId?: string,
+): Promise<CustomCommand[]> {
+  const id = resolveGuildId(guildId);
+  const rows = await getDb()
+    .select()
+    .from(customCommands)
+    .where(
+      and(
+        eq(customCommands.guildId, id),
+        eq(customCommands.isActive, true),
+      ),
+    );
+  return rows.map(rowToCommand);
+}
+
+async function countCommands(guildId: string): Promise<number> {
+  const [row] = await getDb()
+    .select({ n: count() })
+    .from(customCommands)
+    .where(eq(customCommands.guildId, guildId));
+  return row?.n ?? 0;
+}
+
+async function countActiveCommands(guildId: string): Promise<number> {
+  const [row] = await getDb()
+    .select({ n: count() })
+    .from(customCommands)
+    .where(
+      and(
+        eq(customCommands.guildId, guildId),
+        eq(customCommands.isActive, true),
+      ),
+    );
+  return row?.n ?? 0;
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code: unknown }).code === "23505"
+  );
 }
 
 export async function getCustomCommand(
@@ -204,21 +253,47 @@ export async function createCustomCommand(
   }
   const options = normalizeCustomCommandOptions(input.options);
   const permissions = normalizeCustomCommandPermissions(input.permissions);
+  const isActive = input.isActive !== false;
+  await assertWithinLimit(id, "customCommands", await countCommands(id));
+  if (isActive) {
+    const active = await countActiveCommands(id);
+    if (active >= CUSTOM_COMMANDS_DISCORD_MAX) {
+      throw new CustomCommandsError(
+        `Discord admite como máximo ${CUSTOM_COMMANDS_DISCORD_MAX} slash por servidor.`,
+        400,
+        "DISCORD_CAP",
+      );
+    }
+  }
   const now = new Date();
 
-  const [inserted] = await getDb()
-    .insert(customCommands)
-    .values({
-      guildId: id,
-      name,
-      description,
-      responseData: JSON.stringify(responseData),
-      options: JSON.stringify(options),
-      permissions: JSON.stringify(permissions),
-      createdAt: now,
-      updatedAt: now,
-    })
-    .returning({ id: customCommands.id });
+  let inserted: { id: number } | undefined;
+  try {
+    const rows = await getDb()
+      .insert(customCommands)
+      .values({
+        guildId: id,
+        name,
+        description,
+        responseData: JSON.stringify(responseData),
+        options: JSON.stringify(options),
+        permissions: JSON.stringify(permissions),
+        isActive,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning({ id: customCommands.id });
+    inserted = rows[0];
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      throw new CustomCommandsError(
+        `Ya existe un comando \`/${name}\`.`,
+        409,
+        "NAME_TAKEN",
+      );
+    }
+    throw error;
+  }
   if (!inserted) {
     throw new CustomCommandsError(
       "No se pudo crear el comando.",
@@ -288,22 +363,54 @@ export async function updateCustomCommand(
         })
       : current.permissions;
 
-  await getDb()
-    .update(customCommands)
-    .set({
-      name: nextName,
-      description: nextDescription,
-      responseData: JSON.stringify(nextResponse),
-      options: JSON.stringify(nextOptions),
-      permissions: JSON.stringify(nextPermissions),
-      updatedAt: new Date(),
-    })
-    .where(
-      and(eq(customCommands.id, commandId), eq(customCommands.guildId, id)),
-    )
-    ;
+  const nextActive =
+    input.isActive !== undefined ? Boolean(input.isActive) : current.isActive;
+  if (nextActive && !current.isActive) {
+    const active = await countActiveCommands(id);
+    if (active >= CUSTOM_COMMANDS_DISCORD_MAX) {
+      throw new CustomCommandsError(
+        `Discord admite como máximo ${CUSTOM_COMMANDS_DISCORD_MAX} slash por servidor.`,
+        400,
+        "DISCORD_CAP",
+      );
+    }
+  }
+
+  try {
+    await getDb()
+      .update(customCommands)
+      .set({
+        name: nextName,
+        description: nextDescription,
+        responseData: JSON.stringify(nextResponse),
+        options: JSON.stringify(nextOptions),
+        permissions: JSON.stringify(nextPermissions),
+        isActive: nextActive,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(eq(customCommands.id, commandId), eq(customCommands.guildId, id)),
+      );
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      throw new CustomCommandsError(
+        `Ya existe un comando \`/${nextName}\`.`,
+        409,
+        "NAME_TAKEN",
+      );
+    }
+    throw error;
+  }
 
   return await getCustomCommand(commandId, id);
+}
+
+export async function setCustomCommandActive(
+  commandId: number,
+  isActive: boolean,
+  guildId?: string,
+): Promise<CustomCommand> {
+  return await updateCustomCommand(commandId, { isActive }, guildId);
 }
 
 export async function deleteCustomCommand(

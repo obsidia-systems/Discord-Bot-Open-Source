@@ -95,6 +95,8 @@ export {
   fetchCustomCommands,
   createCustomCommand,
   updateCustomCommand,
+  toggleCustomCommand,
+  syncCustomCommands,
   deleteCustomCommand,
 } from "./api/custom-commands";
 export {

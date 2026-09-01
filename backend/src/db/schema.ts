@@ -7,6 +7,7 @@ import {
   real,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -742,26 +743,33 @@ export type NewScheduledMessageRow = typeof scheduledMessages.$inferInsert;
 /**
  * Slash commands personalizados por guild.
  */
-export const customCommands = pgTable("custom_commands", {
-  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-  guildId: text("guild_id")
-    .notNull()
-    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  description: text("description").notNull().default("Comando personalizado"),
-  /** JSON: CustomCommandResponseData */
-  responseData: text("response_data").notNull().default("{}"),
-  /** JSON: CustomCommandOptions */
-  options: text("options").notNull().default("{}"),
-  /** JSON: CustomCommandPermissions */
-  permissions: text("permissions").notNull().default("{}"),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
+export const customCommands = pgTable(
+  "custom_commands",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description").notNull().default("Comando personalizado"),
+    /** JSON: CustomCommandResponseData */
+    responseData: text("response_data").notNull().default("{}"),
+    /** JSON: CustomCommandOptions */
+    options: text("options").notNull().default("{}"),
+    /** JSON: CustomCommandPermissions */
+    permissions: text("permissions").notNull().default("{}"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("idx_custom_commands_guild_name").on(table.guildId, table.name),
+  ],
+);
 
 export type CustomCommandRow = typeof customCommands.$inferSelect;
 export type NewCustomCommandRow = typeof customCommands.$inferInsert;

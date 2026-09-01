@@ -1,6 +1,6 @@
 import { CUSTOM_COMMAND_NAME_REGEX } from "@adobos/shared";
 import { z } from "zod";
-import { nonNegInt, snowflakeList } from "../../../core/http/schemas.js";
+import { boolish, nonNegInt, snowflakeList } from "../../../core/http/schemas.js";
 
 const customEmbedSchema = z.object({
   title: z.string(),
@@ -20,6 +20,9 @@ const customOptionsSchema = z.object({
   autoDelete: z.boolean().optional(),
   cooldownSeconds: nonNegInt.optional(),
   disableMentions: z.boolean().optional(),
+  allowEveryone: z.boolean().optional(),
+  acceptText: z.boolean().optional(),
+  acceptUser: z.boolean().optional(),
 });
 
 const customPermsSchema = z.object({
@@ -35,6 +38,7 @@ export const createCustomCommandSchema = z.object({
   responseData: customResponseSchema,
   options: customOptionsSchema.optional(),
   permissions: customPermsSchema.optional(),
+  isActive: z.boolean().optional(),
 });
 
 export const updateCustomCommandSchema = z.object({
@@ -43,4 +47,9 @@ export const updateCustomCommandSchema = z.object({
   responseData: customResponseSchema.optional(),
   options: customOptionsSchema.optional(),
   permissions: customPermsSchema.optional(),
+  isActive: z.boolean().optional(),
+});
+
+export const toggleCustomCommandSchema = z.object({
+  isActive: boolish,
 });
