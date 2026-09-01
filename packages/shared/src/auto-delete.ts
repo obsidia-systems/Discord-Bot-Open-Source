@@ -31,6 +31,8 @@ export interface AutoDeleteConfig {
   /** Master switch del módulo. */
   enabled: boolean;
   rules: AutoDeleteRule[];
+  /** Zona IANA del cron (modo SCHEDULED). */
+  timezone: string;
   updatedAt: string;
 }
 
@@ -43,6 +45,7 @@ export interface AutoDeleteConfigResponse {
 export type UpdateAutoDeleteConfigRequest = Partial<{
   enabled: boolean;
   rules: AutoDeleteRule[];
+  timezone: string;
 }>;
 
 export const AUTO_DELETE_DELAY_UNITS: AutoDeleteDelayUnit[] = [
@@ -59,14 +62,21 @@ export const AUTO_DELETE_FILTER_TYPES: AutoDeleteFilterType[] = [
 
 export const AUTO_DELETE_MODES: AutoDeleteMode[] = ["COUNTDOWN", "SCHEDULED"];
 
+/** Tope de reglas por guild. */
+export const AUTO_DELETE_MAX_RULES = 25;
+
 /** Tope de cuenta regresiva: 24 horas. */
 export const AUTO_DELETE_MAX_COUNTDOWN_MS = 24 * 60 * 60 * 1000;
+
+/** Discord no permite bulkDelete de mensajes más viejos. */
+export const AUTO_DELETE_BULK_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 
 export function defaultAutoDeleteConfig(guildId = ""): AutoDeleteConfig {
   return {
     guildId,
     enabled: false,
     rules: [],
+    timezone: "UTC",
     updatedAt: new Date().toISOString(),
   };
 }
@@ -163,4 +173,42 @@ export function normalizeScheduledDays(value: unknown): AutoDeleteWeekday[] {
     seen.add(n as AutoDeleteWeekday);
   }
   return [...seen].sort((a, b) => a - b);
+}
+
+export interface AutoDeleteMessageSnapshot {
+  pinned: boolean;
+  authorIsBot: boolean;
+  hasAttachments: boolean;
+  createdTimestamp: number;
+}
+
+/** Filtro de qué mensajes borrar (anclados nunca). */
+export function messageMatchesAutoDeleteFilter(
+  message: AutoDeleteMessageSnapshot,
+  filterType: AutoDeleteFilterType,
+): boolean {
+  if (message.pinned) return false;
+  if (filterType === "bots_only" && !message.authorIsBot) return false;
+  if (filterType === "no_attachments" && message.hasAttachments) return false;
+  return true;
+}
+
+export function isOlderThanBulkWindow(
+  createdTimestamp: number,
+  now = Date.now(),
+): boolean {
+  return now - createdTimestamp > AUTO_DELETE_BULK_MAX_AGE_MS;
+}
+
+/** Regla del canal o del padre (hilo / foro). */
+export function findAutoDeleteRule(
+  rules: AutoDeleteRule[],
+  channelId: string,
+  parentId?: string | null,
+): AutoDeleteRule | undefined {
+  return rules.find(
+    (rule) =>
+      rule.channelId === channelId ||
+      (Boolean(parentId) && rule.channelId === parentId),
+  );
 }

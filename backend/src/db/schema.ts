@@ -459,6 +459,8 @@ export const autoDeleteConfig = pgTable("auto_delete_config", {
   enabled: boolean("enabled").notNull().default(false),
   /** JSON: AutoDeleteRule[] */
   rules: text("rules").notNull().default("[]"),
+  /** IANA timezone del cron SCHEDULED. */
+  timezone: text("timezone").notNull().default("UTC"),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
@@ -466,6 +468,29 @@ export const autoDeleteConfig = pgTable("auto_delete_config", {
 
 export type AutoDeleteConfigRow = typeof autoDeleteConfig.$inferSelect;
 export type NewAutoDeleteConfigRow = typeof autoDeleteConfig.$inferInsert;
+
+/** COUNTDOWN pendiente: el leader borra al vencer delete_at. */
+export const autoDeletePending = pgTable(
+  "auto_delete_pending",
+  {
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    channelId: text("channel_id").notNull(),
+    messageId: text("message_id").notNull(),
+    ruleChannelId: text("rule_channel_id").notNull(),
+    deleteAt: timestamp("delete_at", { withTimezone: true, mode: "date" })
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.guildId, table.messageId] }),
+    index("idx_auto_delete_pending_due").on(table.deleteAt),
+    index("idx_auto_delete_pending_rule").on(
+      table.guildId,
+      table.ruleChannelId,
+    ),
+  ],
+);
 
 /**
  * Configuración de Rangos y XP por guild.

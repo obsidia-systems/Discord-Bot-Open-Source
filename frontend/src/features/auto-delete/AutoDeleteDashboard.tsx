@@ -8,6 +8,7 @@ import type {
   GuildChannelAsset,
 } from "@adobos/shared";
 import {
+  AUTO_DELETE_MAX_RULES,
   clampCountdownDelay,
   defaultAutoDeleteConfig,
   maxCountdownValue,
@@ -37,6 +38,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ToastBanner } from "@/components/ui/toast";
+import { TimezoneCombobox } from "@/features/scheduled-messages/TimezoneCombobox";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -74,6 +76,7 @@ const WEEKDAY_OPTIONS: Array<{ value: AutoDeleteWeekday; label: string }> = [
 function configFingerprint(config: AutoDeleteConfig): string {
   return JSON.stringify({
     enabled: config.enabled,
+    timezone: config.timezone,
     rules: config.rules.map((r) => ({
       channelId: r.channelId,
       mode: r.mode,
@@ -120,7 +123,6 @@ export function AutoDeleteDashboard() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [timezone, setTimezone] = useState("UTC");
 
   const dirty = useMemo(
     () => configFingerprint(config) !== savedFingerprint,
@@ -165,7 +167,6 @@ export function AutoDeleteDashboard() {
       ]);
       setConfig(cfgRes.config);
       setSavedFingerprint(configFingerprint(cfgRes.config));
-      setTimezone(cfgRes.timezone || "UTC");
       setChannels(assets.channels);
     } catch (err) {
       setError(
@@ -206,10 +207,13 @@ export function AutoDeleteDashboard() {
   };
 
   const addRule = () => {
-    setConfig((prev) => ({
-      ...prev,
-      rules: [...prev.rules, newRule()],
-    }));
+    setConfig((prev) => {
+      if (prev.rules.length >= AUTO_DELETE_MAX_RULES) return prev;
+      return {
+        ...prev,
+        rules: [...prev.rules, newRule()],
+      };
+    });
     setSuccess(null);
   };
 
@@ -225,10 +229,10 @@ export function AutoDeleteDashboard() {
       const res = await saveAutoDeleteConfig({
         enabled: config.enabled,
         rules: config.rules,
+        timezone: config.timezone,
       });
       setConfig(res.config);
       setSavedFingerprint(configFingerprint(res.config));
-      setTimezone(res.timezone || timezone);
       setSuccess("Configuración de Auto-delete guardada.");
     } catch (err) {
       setError(
@@ -287,8 +291,9 @@ export function AutoDeleteDashboard() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Reglas de Canales</CardTitle>
               <CardDescription>
-                Cuenta regresiva por mensaje o limpieza diaria a hora fija. Los
-                anclados nunca se eliminan.
+                Cuenta regresiva por mensaje o limpieza a hora fija. Los
+                anclados nunca se eliminan. Los hilos del canal (y posts de
+                foro) usan la misma regla.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -472,9 +477,9 @@ export function AutoDeleteDashboard() {
                                     }
                                   />
                                   <p className="text-[11px] text-muted-foreground">
-                                    Zona horaria del servidor:{" "}
+                                    Zona horaria:{" "}
                                     <span className="font-mono text-foreground/80">
-                                      {timezone}
+                                      {config.timezone || "UTC"}
                                     </span>
                                   </p>
                                 </div>
@@ -566,6 +571,7 @@ export function AutoDeleteDashboard() {
                     type="button"
                     variant="outline"
                     className="w-full sm:w-auto"
+                    disabled={config.rules.length >= AUTO_DELETE_MAX_RULES}
                     onClick={addRule}
                   >
                     <Plus className="size-4" />
@@ -614,6 +620,13 @@ export function AutoDeleteDashboard() {
                 <span className="text-muted-foreground">Limpiezas diarias</span>
                 <span className="font-mono text-xs">{scheduledCount}</span>
               </div>
+              <TimezoneCombobox
+                id="auto-delete-tz"
+                label="Zona horaria (limpieza a hora fija)"
+                value={config.timezone || "UTC"}
+                onChange={(timezone) => patch({ timezone })}
+                disabled={saving}
+              />
               {hasDuplicateChannels ? (
                 <p className="rounded-md border border-destructive/40 bg-destructive/10 px-2.5 py-2 text-xs text-destructive">
                   Hay canales duplicados. Corrige las reglas antes de guardar.

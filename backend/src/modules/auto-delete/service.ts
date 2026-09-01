@@ -4,6 +4,7 @@ import type {
   UpdateAutoDeleteConfigRequest,
 } from "@adobos/shared";
 import {
+  AUTO_DELETE_MAX_RULES,
   defaultAutoDeleteConfig,
   clampCountdownDelay,
   normalizeAutoDeleteDelayUnit,
@@ -11,12 +12,14 @@ import {
   normalizeAutoDeleteMode,
   normalizeScheduledDays,
   normalizeScheduledTime,
+  normalizeScheduledTimezone,
 } from "@adobos/shared";
 import { eq } from "drizzle-orm";
 import { getDb, one } from "../../db/client.js";
 import { autoDeleteConfig, guildSettings } from "../../db/schema.js";
 import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
 import { logger } from "../../core/log.js";
+import { prunePendingForConfig } from "./pending.js";
 
 export class AutoDeleteError extends Error {
   constructor(
@@ -110,6 +113,7 @@ export function normalizeAutoDeleteRules(
       scheduledDays: normalizeScheduledDays(raw.scheduledDays),
       filterType: normalizeAutoDeleteFilterType(raw.filterType),
     });
+    if (out.length >= AUTO_DELETE_MAX_RULES) break;
   }
   return out;
 }
@@ -127,6 +131,7 @@ function rowToConfig(
     rules: normalizeAutoDeleteRules(
       parseJson<AutoDeleteRule[]>(row.rules, []),
     ),
+    timezone: normalizeScheduledTimezone(row.timezone),
     updatedAt: new Date(row.updatedAt).toISOString(),
   };
 }
@@ -185,6 +190,9 @@ export async function updateAutoDeleteConfig(
       input.rules !== undefined
         ? normalizeAutoDeleteRules(input.rules)
         : current.rules,
+    timezone: normalizeScheduledTimezone(
+      input.timezone ?? current.timezone,
+    ),
     updatedAt: new Date().toISOString(),
   };
 
@@ -194,6 +202,7 @@ export async function updateAutoDeleteConfig(
       guildId: id,
       enabled: next.enabled,
       rules: JSON.stringify(next.rules),
+      timezone: next.timezone,
       updatedAt: new Date(),
     })
     .onConflictDoUpdate({
@@ -201,6 +210,7 @@ export async function updateAutoDeleteConfig(
       set: {
         enabled: next.enabled,
         rules: JSON.stringify(next.rules),
+        timezone: next.timezone,
         updatedAt: new Date(),
       },
     })
@@ -211,6 +221,11 @@ export async function updateAutoDeleteConfig(
     onConfigChanged?.(next);
   } catch (error) {
     logger.warn({ err: error }, "auto-delete: onConfigChanged falló:");
+  }
+  try {
+    await prunePendingForConfig(next);
+  } catch (error) {
+    logger.warn({ err: error }, "auto-delete: prune pending falló:");
   }
   return next;
 }

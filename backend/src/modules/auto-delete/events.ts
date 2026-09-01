@@ -1,6 +1,12 @@
 import type { Message } from "discord.js";
-import { delayToMs, AUTO_DELETE_MAX_COUNTDOWN_MS } from "@adobos/shared";
+import {
+  delayToMs,
+  AUTO_DELETE_MAX_COUNTDOWN_MS,
+  findAutoDeleteRule,
+  messageMatchesAutoDeleteFilter,
+} from "@adobos/shared";
 import { getAutoDeleteConfigCached } from "./service.js";
+import { enqueueCountdownDelete } from "./pending.js";
 import { logger } from "../../core/log.js";
 
 export async function onAutoDeleteMessageCreate(
@@ -9,19 +15,30 @@ export async function onAutoDeleteMessageCreate(
   try {
     if (!message.guild || message.system) return;
     if (!message.channel.isTextBased()) return;
-    if (message.pinned) return;
 
     const guildId = message.guild.id;
     const config = await getAutoDeleteConfigCached(guildId);
     if (!config.enabled || config.rules.length === 0) return;
 
-    const rule = config.rules.find((r) => r.channelId === message.channelId);
+    const parentId =
+      "parentId" in message.channel ? message.channel.parentId : null;
+    const rule = findAutoDeleteRule(
+      config.rules,
+      message.channelId,
+      parentId,
+    );
     if (!rule || rule.mode !== "COUNTDOWN") return;
 
-    if (rule.filterType === "bots_only" && !message.author.bot) return;
     if (
-      rule.filterType === "no_attachments" &&
-      message.attachments.size > 0
+      !messageMatchesAutoDeleteFilter(
+        {
+          pinned: message.pinned,
+          authorIsBot: Boolean(message.author.bot),
+          hasAttachments: message.attachments.size > 0,
+          createdTimestamp: message.createdTimestamp,
+        },
+        rule.filterType,
+      )
     ) {
       return;
     }
@@ -32,9 +49,13 @@ export async function onAutoDeleteMessageCreate(
     );
     if (delayMs <= 0) return;
 
-    setTimeout(() => {
-      void message.delete().catch(() => {});
-    }, delayMs);
+    await enqueueCountdownDelete({
+      guildId,
+      channelId: message.channelId,
+      messageId: message.id,
+      ruleChannelId: rule.channelId,
+      deleteAt: new Date(Date.now() + delayMs),
+    });
   } catch (error) {
     logger.warn({ err: error }, "auto-delete messageCreate falló:");
   }

@@ -36,6 +36,13 @@
       "when": 1788180000000,
       "tag": "0004_auto_mod_hit_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788192000000,
+      "tag": "0005_auto_delete_pending",
+      "breakpoints": true
     }
   ]
 }

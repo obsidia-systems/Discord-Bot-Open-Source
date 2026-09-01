@@ -1,19 +1,23 @@
 import cron, { type ScheduledTask } from "node-cron";
 import {
   ChannelType,
+  type Channel,
   type Client,
   type GuildTextBasedChannel,
   type Message,
 } from "discord.js";
-import type { AutoDeleteConfig, AutoDeleteRule } from "@adobos/shared";
+import type { AutoDeleteConfig, AutoDeleteFilterType, AutoDeleteRule } from "@adobos/shared";
 import {
-  resolveSchedulerTimezone,
-  timeAndDaysToCron,
-} from "../../lib/schedulerTimezone.js";
+  isOlderThanBulkWindow,
+  messageMatchesAutoDeleteFilter,
+  normalizeScheduledTimezone,
+} from "@adobos/shared";
+import { timeAndDaysToCron } from "../../lib/schedulerTimezone.js";
 import { listAllAutoDeleteConfigs } from "./service.js";
 import { logger } from "../../core/log.js";
 
-const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
+const MAX_PAGES = 25;
+const PAUSE_MS = 350;
 
 /** Tasks por guildId → lista de jobs activos. */
 const guildJobs = new Map<string, ScheduledTask[]>();
@@ -24,17 +28,93 @@ export function bindAutoDeleteScheduler(client: Client): void {
   botClient = client;
 }
 
-function messageMatchesFilter(
-  message: Message,
-  filterType: AutoDeleteRule["filterType"],
-): boolean {
-  if (message.pinned) return false;
-  if (filterType === "bots_only" && !message.author.bot) return false;
-  if (filterType === "no_attachments" && message.attachments.size > 0) {
-    return false;
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function toSnapshot(message: Message) {
+  return {
+    pinned: message.pinned,
+    authorIsBot: Boolean(message.author?.bot),
+    hasAttachments: message.attachments.size > 0,
+    createdTimestamp: message.createdTimestamp,
+  };
+}
+
+async function sweepTextChannel(
+  channel: GuildTextBasedChannel,
+  filterType: AutoDeleteFilterType,
+): Promise<void> {
+  if (!("bulkDelete" in channel)) return;
+  let before: string | undefined;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const fetched = await channel.messages
+      .fetch({ limit: 100, before })
+      .catch(() => null);
+    if (!fetched || fetched.size === 0) break;
+
+    const oldest = [...fetched.values()].sort(
+      (a, b) => a.createdTimestamp - b.createdTimestamp,
+    )[0];
+    before = oldest?.id;
+
+    const matching = fetched.filter((msg) =>
+      messageMatchesAutoDeleteFilter(toSnapshot(msg), filterType),
+    );
+    const young = matching.filter(
+      (msg) => !isOlderThanBulkWindow(msg.createdTimestamp),
+    );
+    const old = matching.filter((msg) =>
+      isOlderThanBulkWindow(msg.createdTimestamp),
+    );
+
+    if (young.size > 0) {
+      await channel.bulkDelete(young, true).catch((error: unknown) => {
+        logger.warn(
+          { err: error },
+          `auto-delete: bulkDelete falló (${channel.id}):`,
+        );
+      });
+      await sleep(PAUSE_MS);
+    }
+
+    for (const msg of old.values()) {
+      await msg.delete().catch(() => undefined);
+    }
+    if (old.size > 0) await sleep(PAUSE_MS);
+
+    if (fetched.size < 100) break;
   }
-  if (Date.now() - message.createdTimestamp > FOURTEEN_DAYS_MS) return false;
-  return true;
+}
+
+async function sweepChannelAndThreads(
+  channel: Channel,
+  filterType: AutoDeleteFilterType,
+): Promise<void> {
+  if (
+    (channel.type === ChannelType.GuildText ||
+      channel.type === ChannelType.GuildAnnouncement) &&
+    channel.isTextBased() &&
+    "bulkDelete" in channel
+  ) {
+    await sweepTextChannel(channel, filterType);
+  }
+
+  if (
+    !("threads" in channel) ||
+    !channel.threads ||
+    typeof channel.threads.fetchActive !== "function"
+  ) {
+    return;
+  }
+  const active = await channel.threads.fetchActive().catch(() => null);
+  if (!active) return;
+  for (const thread of active.threads.values()) {
+    if (thread.isTextBased() && "bulkDelete" in thread) {
+      await sweepTextChannel(thread, filterType);
+      await sleep(PAUSE_MS);
+    }
+  }
 }
 
 async function runScheduledCleanup(
@@ -49,30 +129,16 @@ async function runScheduledCleanup(
     if (!guild) return;
 
     const channel = await guild.channels.fetch(rule.channelId).catch(() => null);
-    if (
-      !channel ||
-      (channel.type !== ChannelType.GuildText &&
-        channel.type !== ChannelType.GuildAnnouncement)
-    ) {
-      return;
-    }
+    if (!channel) return;
 
-    const textChannel = channel as GuildTextBasedChannel;
-    if (!("bulkDelete" in textChannel)) return;
+    const allowed =
+      channel.type === ChannelType.GuildText ||
+      channel.type === ChannelType.GuildAnnouncement ||
+      channel.type === ChannelType.GuildForum ||
+      channel.type === ChannelType.GuildMedia;
+    if (!allowed) return;
 
-    const fetched = await textChannel.messages
-      .fetch({ limit: 100 })
-      .catch(() => null);
-    if (!fetched || fetched.size === 0) return;
-
-    const toDelete = fetched.filter((msg) =>
-      messageMatchesFilter(msg, rule.filterType),
-    );
-    if (toDelete.size === 0) return;
-
-    await textChannel.bulkDelete(toDelete, true).catch((error: unknown) => {
-      logger.warn({ err: error }, `auto-delete: bulkDelete falló (${rule.channelId}):`);
-    });
+    await sweepChannelAndThreads(channel, rule.filterType);
   } catch (error) {
     logger.warn({ err: error }, `auto-delete: limpieza programada falló (${guildId}/${rule.channelId}):`);
   }
@@ -114,7 +180,7 @@ export async function syncAutoDeleteJobsForConfig(config: AutoDeleteConfig): Pro
   stopAutoDeleteJobsForGuild(config.guildId);
   if (!client || !config.enabled) return;
 
-  const timezone = resolveSchedulerTimezone();
+  const timezone = normalizeScheduledTimezone(config.timezone);
 
   const jobs: ScheduledTask[] = [];
   for (const rule of config.rules) {
@@ -140,7 +206,7 @@ export async function syncAutoDeleteJobsForConfig(config: AutoDeleteConfig): Pro
   }
 }
 
-/** Rehidrata todos los crons desde SQLite (arranque del bot). */
+/** Rehidrata todos los crons desde Postgres (arranque del bot). */
 export async function rehydrateAllAutoDeleteJobs(): Promise<void> {
   stopAllAutoDeleteJobs();
   try {
