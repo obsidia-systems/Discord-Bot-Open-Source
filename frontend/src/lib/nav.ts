@@ -20,6 +20,7 @@ import {
   Mic2,
   Palette,
   Pickaxe,
+  Radio,
   Rocket,
   ScrollText,
   Settings2,
@@ -353,11 +354,10 @@ export const dashboardNav: NavCategoryConfig[] = [
         blurb: "Tienda, night market y trackers.",
       },
       {
-        label: "Alertas stream",
+        label: "Stream Alerts",
         href: "/dashboard/plugins/alerts",
-        icon: Mic2,
-        soon: true,
-        blurb: "Twitch, Kick, TikTok y más.",
+        icon: Radio,
+        blurb: "Twitch, YouTube y Kick al pasar a en directo.",
       },
       {
         label: "Juegos gratis",

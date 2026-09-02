@@ -1469,6 +1469,57 @@ export const antiRaidSettings = pgTable("anti_raid_settings", {
 
 export type AntiRaidSettingsRow = typeof antiRaidSettings.$inferSelect;
 
+/**
+ * Alertas de stream por guild. Una fila = un canal de Twitch/YouTube/Kick.
+ * is_live / live_id evitan reanunciar el mismo directo tras un restart.
+ */
+export const streamAlerts = pgTable(
+  "stream_alerts",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    platform: text("platform").notNull(),
+    handle: text("handle").notNull(),
+    displayName: text("display_name").notNull(),
+    discordChannelId: text("discord_channel_id").notNull(),
+    mentionRoleId: text("mention_role_id"),
+    template: text("template")
+      .notNull()
+      .default("{name} está en directo: {title}\n{url}"),
+    enabled: boolean("enabled").notNull().default(true),
+    isLive: boolean("is_live").notNull().default(false),
+    liveId: text("live_id"),
+    lastTitle: text("last_title"),
+    lastCheckedAt: timestamp("last_checked_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+    lastLiveAt: timestamp("last_live_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("stream_alerts_guild_platform_handle").on(
+      table.guildId,
+      table.platform,
+      table.handle,
+    ),
+    index("idx_stream_alerts_guild").on(table.guildId),
+    index("idx_stream_alerts_enabled").on(table.enabled),
+  ],
+);
+
+export type StreamAlertRow = typeof streamAlerts.$inferSelect;
+
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [
   "minecraft",

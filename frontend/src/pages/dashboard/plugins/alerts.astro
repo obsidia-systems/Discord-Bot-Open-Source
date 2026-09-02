@@ -1,5 +1,11 @@
 ---
-import ComingSoon from "../../../components/shared/ComingSoon.astro";
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { StreamAlertsDashboard } from "../../../features/stream-alerts";
 ---
 
-<ComingSoon title="Alertas" description="Twitch/Kick, juegos gratis Epic/Steam y más." />
+<DashboardLayout
+  title="Stream Alerts"
+  description="Avisa en Discord cuando un canal pasa a en directo."
+>
+  <StreamAlertsDashboard client:load />
+</DashboardLayout>

@@ -21,6 +21,7 @@ import { voiceRoomsModule } from "./voice-rooms/index.js";
 import { remindersModule } from "./reminders/index.js";
 import { starboardModule } from "./starboard/index.js";
 import { antiRaidModule } from "./anti-raid/index.js";
+import { streamAlertsModule } from "./stream-alerts/index.js";
 
 /**
  * Catálogo explícito de módulos habilitados.
@@ -49,6 +50,7 @@ export const ENABLED_MODULES: readonly AdobosModule[] = [
   remindersModule,
   starboardModule,
   antiRaidModule,
+  streamAlertsModule,
 ];
 
 export {
@@ -74,4 +76,5 @@ export {
   remindersModule,
   starboardModule,
   antiRaidModule,
+  streamAlertsModule,
 };

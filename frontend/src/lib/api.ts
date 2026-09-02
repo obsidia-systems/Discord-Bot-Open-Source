@@ -152,3 +152,10 @@ export {
   saveAntiRaidSettings,
   setAntiRaidLockdown,
 } from "./api/anti-raid";
+
+export {
+  fetchStreamAlerts,
+  createStreamAlert,
+  updateStreamAlert,
+  deleteStreamAlert,
+} from "./api/stream-alerts";

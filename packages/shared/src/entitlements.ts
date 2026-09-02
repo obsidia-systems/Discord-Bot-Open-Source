@@ -43,7 +43,8 @@ export type FeatureKey =
   | "voice-rooms"
   | "reminders"
   | "starboard"
-  | "anti-raid";
+  | "anti-raid"
+  | "stream-alerts";
 
 export type LimitKey =
   | "logRetentionDays"
@@ -89,6 +90,7 @@ const FREE_FEATURES: readonly FeatureKey[] = [
   "reminders",
   "starboard",
   "anti-raid",
+  "stream-alerts",
 ];
 
 const PRO_FEATURES: readonly FeatureKey[] = [
@@ -213,6 +215,9 @@ export function limitExceededMessage(
   }
   if (key === "coveredGuilds") {
     return `El plan ${current} cubre como máximo ${max} servidores.`;
+  }
+  if (key === "streamAlerts") {
+    return `Has alcanzado el límite de ${max} Stream Alerts del plan ${current}.`;
   }
   return `Has alcanzado un límite del plan ${current}.`;
 }
