@@ -1,9 +1,11 @@
 import {
+  guildCoveredByOtherPayer,
   isPaidSubscriptionStatus,
   isPlanTier,
   isSubscriptionStatus,
   type PaidPlanTier,
   type PlanTier,
+  seatsAtCapacity,
   seatsMaxForTier,
   type SubscriptionStatus,
 } from "@adobos/shared";
@@ -28,9 +30,12 @@ import {
   subscriptions,
 } from "../../db/schema.js";
 import {
+  invoiceSubscriptionId,
   isPaidStripeStatus,
   normalizeStripeStatus,
   paidTierOrPro,
+  stripeObjectId,
+  subscriptionPeriodEndUnix,
   tierFromPriceId,
   unixToDate,
 } from "./map.js";
@@ -43,19 +48,6 @@ import {
   stripeReady,
   pricesConfigured as stripePricesConfigured,
 } from "./stripe.js";
-
-function stripeObjectId(value: unknown): string | null {
-  if (typeof value === "string" && value.length > 0) return value;
-  if (
-    value &&
-    typeof value === "object" &&
-    "id" in value &&
-    typeof (value as { id: unknown }).id === "string"
-  ) {
-    return (value as { id: string }).id;
-  }
-  return null;
-}
 
 function metadataString(
   metadata: Stripe.Metadata | null | undefined,
@@ -71,8 +63,7 @@ function priceIdFromSubscription(sub: Stripe.Subscription): string | null {
 }
 
 function periodEndFromSubscription(sub: Stripe.Subscription): Date | null {
-  const item = sub.items.data[0];
-  return unixToDate(item?.current_period_end);
+  return unixToDate(subscriptionPeriodEndUnix(sub));
 }
 
 function cancelAtFromSubscription(sub: Stripe.Subscription): Date | null {
@@ -430,7 +421,7 @@ export async function applyInvoiceEvent(
 ): Promise<void> {
   const stripe = getStripe();
   if (!stripe) return;
-  const subId = stripeObjectId(invoice.parent?.subscription_details?.subscription);
+  const subId = invoiceSubscriptionId(invoice);
   if (!subId) return;
   const sub = await stripe.subscriptions.retrieve(subId);
   await applyStripeSubscription(sub);
@@ -483,6 +474,37 @@ export async function getBillingStatus(input: {
   };
 }
 
+async function assertGuildFreeForCheckout(
+  userId: string,
+  guildId: string,
+  tier: PaidPlanTier,
+): Promise<void> {
+  const entitlement = await getGuildEntitlementRow(guildId);
+  if (entitlement?.subscriptionId) {
+    const covering = await getSubscriptionById(entitlement.subscriptionId);
+    if (
+      covering &&
+      guildCoveredByOtherPayer(userId, {
+        userId: covering.userId,
+        status: covering.status,
+      })
+    ) {
+      throw new HttpError(
+        "Este servidor ya está cubierto por otra suscripción.",
+        409,
+        "GUILD_ALREADY_COVERED",
+      );
+    }
+  }
+  if (seatsAtCapacity(0, seatsMaxForTier(tier), false)) {
+    throw new HttpError(
+      "Este plan no tiene plazas para cubrir un servidor.",
+      409,
+      "SEATS_EXCEEDED",
+    );
+  }
+}
+
 export async function createCheckoutSession(input: {
   userId: string;
   guildId: string;
@@ -499,7 +521,9 @@ export async function createCheckoutSession(input: {
     );
   }
 
-  let customerId = await getOrCreateStripeCustomer(input.userId);
+  await assertGuildFreeForCheckout(input.userId, input.guildId, input.tier);
+
+  const customerId = await getOrCreateStripeCustomer(input.userId);
 
   const base = publicAppUrl();
   const session = await stripe.checkout.sessions.create({

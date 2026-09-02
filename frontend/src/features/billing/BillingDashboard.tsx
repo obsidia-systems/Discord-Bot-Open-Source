@@ -5,6 +5,7 @@ import {
   isPaidSubscriptionStatus,
   isUnlimited,
   PLAN_TIER_LABEL,
+  seatsOverLimit,
   SUBSCRIPTION_STATUS_LABEL,
   TIER_CATALOG,
   type BillingStatusResponse,
@@ -12,6 +13,7 @@ import {
   type PlanTier,
 } from "@adobos/shared";
 import { Check, CreditCard, Loader2 } from "lucide-react";
+import { AlertDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -37,7 +39,7 @@ const PLAN_POINTS: Record<PlanTier, string[]> = {
   free: [
     "Los 18 módulos actuales, completos",
     "Canvas de bienvenida sin recortes",
-    "Hasta 3 servidores por cuenta",
+    "Un servidor sin plaza de pago",
     "Logs 14 días",
   ],
   pro: [
@@ -66,6 +68,7 @@ export function BillingDashboard() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback>({ kind: "idle" });
+  const [confirmUnassign, setConfirmUnassign] = useState(false);
 
   const checkoutBanner = useMemo(() => {
     if (typeof window === "undefined") return null;
@@ -111,6 +114,35 @@ export function BillingDashboard() {
     const url = new URL(window.location.href);
     url.searchParams.delete("checkout");
     window.history.replaceState({}, "", url.pathname + url.search);
+  }, [checkoutBanner]);
+
+  useEffect(() => {
+    if (checkoutBanner !== "success") return;
+    let cancelled = false;
+    let attempts = 0;
+    const maxAttempts = 8;
+
+    const tick = async (): Promise<void> => {
+      if (cancelled) return;
+      attempts += 1;
+      try {
+        const next = await fetchBilling();
+        if (cancelled) return;
+        setData(next);
+        setLoading(false);
+        if (next.guild.coveredByUser) return;
+      } catch {
+        // El GET inicial ya reporta el error de carga.
+      }
+      if (!cancelled && attempts < maxAttempts) {
+        window.setTimeout(() => void tick(), 1500);
+      }
+    };
+
+    void tick();
+    return () => {
+      cancelled = true;
+    };
   }, [checkoutBanner]);
 
   async function onCheckout(tier: PaidPlanTier): Promise<void> {
@@ -176,6 +208,7 @@ export function BillingDashboard() {
     try {
       await unassignGuildFromPlan();
       await reload();
+      setConfirmUnassign(false);
       setFeedback({
         kind: "ok",
         message: "Este servidor volvió al plan Gratis.",
@@ -210,8 +243,8 @@ export function BillingDashboard() {
     <div className="space-y-6">
       {checkoutBanner === "success" && (
         <p className="rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm">
-          Pago recibido. Stripe puede tardar unos segundos en activar el plan;
-          recarga si aún ves Gratis.
+          Pago recibido. Activando el plan… recarga si en unos segundos
+          sigues viendo Gratis.
         </p>
       )}
       {checkoutBanner === "canceled" && (
@@ -299,20 +332,25 @@ export function BillingDashboard() {
               type="button"
               variant="ghost"
               disabled={Boolean(busy)}
-              onClick={() => void onUnassign()}
+              onClick={() => setConfirmUnassign(true)}
             >
-              {busy === "unassign" && (
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-              )}
               Quitar este servidor del plan
             </Button>
           )}
         </div>
-        {data?.guild.coveredByOther && (
+        {sub && seatsOverLimit(sub.seatsUsed, sub.seatsMax) ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            Esta suscripción cubre más servidores que el tope del plan (
+            {formatSeats(sub.seatsUsed, sub.seatsMax)}). No se recortan
+            plazas al bajar de plan; no podrás asignar más hasta quedar
+            dentro del límite.
+          </p>
+        ) : null}
+        {data?.guild.coveredByOther ? (
           <p className="mt-3 text-sm text-muted-foreground">
             Este servidor ya está cubierto por otra suscripción.
           </p>
-        )}
+        ) : null}
         {data && !data.configured && (
           <p className="mt-3 text-sm text-muted-foreground">
             Stripe no está configurado en este entorno. Puedes ver los planes;
@@ -339,10 +377,11 @@ export function BillingDashboard() {
               <CardHeader>
                 <CardTitle>{PLAN_TIER_LABEL[tier]}</CardTitle>
                 <CardDescription>
-                  {price}
-                  {isUnlimited(covered)
-                    ? " · servidores ilimitados"
-                    : ` · hasta ${covered} servidores`}
+                  {tier === "free"
+                    ? "Sin coste · un servidor sin plaza"
+                    : isUnlimited(covered)
+                      ? `${price} · servidores ilimitados`
+                      : `${price} · hasta ${covered} servidores`}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -388,6 +427,19 @@ export function BillingDashboard() {
           );
         })}
       </div>
+
+      <AlertDialog
+        open={confirmUnassign}
+        title="Quitar este servidor del plan"
+        description="El servidor volverá a Gratis al momento. Las features de pago dejarán de estar disponibles aquí."
+        confirmLabel="Quitar del plan"
+        tone="destructive"
+        confirming={busy === "unassign"}
+        onCancel={() => {
+          if (busy !== "unassign") setConfirmUnassign(false);
+        }}
+        onConfirm={() => void onUnassign()}
+      />
     </div>
   );
 }

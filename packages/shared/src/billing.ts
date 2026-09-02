@@ -8,6 +8,7 @@ export type SubscriptionStatus =
   | "active"
   | "trialing"
   | "past_due"
+  | "paused"
   | "canceled"
   | "unpaid";
 
@@ -15,33 +16,36 @@ export const SUBSCRIPTION_STATUSES = [
   "active",
   "trialing",
   "past_due",
+  "paused",
   "canceled",
   "unpaid",
 ] as const;
 
-/** Sigue dando acceso de pago (gracia incluida en `past_due`). */
+/** Sigue dando acceso de pago (gracia `past_due` y pause collections). */
 export const PAID_SUBSCRIPTION_STATUSES: readonly SubscriptionStatus[] = [
   "active",
   "trialing",
   "past_due",
+  "paused",
 ];
 
 export const SUBSCRIPTION_STATUS_LABEL: Record<SubscriptionStatus, string> = {
   active: "Activa",
   trialing: "Periodo de prueba",
   past_due: "Pago pendiente",
+  paused: "En pausa",
   canceled: "Cancelada",
   unpaid: "Impagada",
 };
 
 export interface BillingPlanPrice {
-  monthlyUsd: number;
+  monthlyEur: number;
   label: string;
 }
 
 export const BILLING_PLAN_PRICES: Record<PaidPlanTier, BillingPlanPrice> = {
-  pro: { monthlyUsd: 4.99, label: "$4.99/mes" },
-  business: { monthlyUsd: 14.99, label: "$14.99/mes" },
+  pro: { monthlyEur: 4.99, label: "4,99€/mes" },
+  business: { monthlyEur: 14.99, label: "14,99€/mes" },
 };
 
 export interface BillingSubscriptionView {
@@ -88,6 +92,7 @@ export function isSubscriptionStatus(
     value === "active" ||
     value === "trialing" ||
     value === "past_due" ||
+    value === "paused" ||
     value === "canceled" ||
     value === "unpaid"
   );
@@ -108,4 +113,30 @@ export function seatsMaxForTier(tier: PlanTier): number {
 export function formatSeats(used: number, max: number): string {
   if (isUnlimited(max)) return `${used} / ilimitados`;
   return `${used} / ${max}`;
+}
+
+/** True si asignar un guild nuevo superaría el tope. Ilimitado o ya cubierto = no. */
+export function seatsAtCapacity(
+  used: number,
+  max: number,
+  guildAlreadyCovered: boolean,
+): boolean {
+  if (guildAlreadyCovered) return false;
+  if (isUnlimited(max)) return false;
+  return used >= max;
+}
+
+export function seatsOverLimit(used: number, max: number): boolean {
+  if (isUnlimited(max)) return false;
+  return used > max;
+}
+
+/** Otra suscripción de pago cubre este guild; el comprador no es el dueño. */
+export function guildCoveredByOtherPayer(
+  buyerUserId: string,
+  covering: { userId: string; status: string } | null | undefined,
+): boolean {
+  if (!covering) return false;
+  if (!isPaidSubscriptionStatus(covering.status)) return false;
+  return covering.userId !== buyerUserId;
 }

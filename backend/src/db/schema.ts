@@ -1195,7 +1195,7 @@ export const subscriptions = pgTable(
     stripeSubscriptionId: text("stripe_subscription_id").unique(),
     stripePriceId: text("stripe_price_id"),
     tier: text("tier").notNull().default("pro"),
-    /** active | trialing | past_due | canceled | unpaid */
+    /** active | trialing | past_due | paused | canceled | unpaid */
     status: text("status").notNull().default("active"),
     currentPeriodEnd: timestamp("current_period_end", {
       withTimezone: true,
