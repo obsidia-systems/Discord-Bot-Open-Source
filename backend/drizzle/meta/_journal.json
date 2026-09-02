@@ -134,6 +134,13 @@
       "when": 1788394800000,
       "tag": "0018_tickets",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788398400000,
+      "tag": "0019_giveaways",
+      "breakpoints": true
     }
   ]
 }

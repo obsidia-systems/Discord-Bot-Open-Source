@@ -27,6 +27,7 @@ describe("catálogo de módulos", () => {
     expect(MODULE_IDS).toContain("stream-alerts");
     expect(MODULE_IDS).toContain("auto-replies");
     expect(MODULE_IDS).toContain("tickets");
+    expect(MODULE_IDS).toContain("giveaways");
     expect(new Set(MODULE_IDS).size).toBe(MODULE_IDS.length);
   });
 
@@ -41,6 +42,7 @@ describe("catálogo de módulos", () => {
     expect(MODULE_FEATURE["stream-alerts"]).toBe("stream-alerts");
     expect(MODULE_FEATURE["auto-replies"]).toBe("auto-replies");
     expect(MODULE_FEATURE.tickets).toBe("tickets");
+    expect(MODULE_FEATURE.giveaways).toBe("giveaways");
     expect(MODULE_FEATURE.billing).toBeUndefined();
   });
 });
@@ -64,6 +66,7 @@ describe("entitlements y asientos", () => {
     expect(tierHasFeature("free", "stream-alerts")).toBe(true);
     expect(tierHasFeature("free", "auto-replies")).toBe(true);
     expect(tierHasFeature("free", "tickets")).toBe(true);
+    expect(tierHasFeature("free", "giveaways")).toBe(true);
     expect(tierHasFeature("free", "antinuke")).toBe(false);
     expect(tierHasFeature("pro", "antinuke")).toBe(true);
     expect(tierHasFeature("free", "branding")).toBe(false);

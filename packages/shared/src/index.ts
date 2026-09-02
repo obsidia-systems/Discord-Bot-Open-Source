@@ -19,6 +19,7 @@ export * from "./economy-shop.js";
 export * from "./embed-templates.js";
 export * from "./entitlements.js";
 export * from "./forms.js";
+export * from "./giveaways.js";
 export * from "./levels.js";
 export * from "./messages.js";
 export * from "./moderation.js";

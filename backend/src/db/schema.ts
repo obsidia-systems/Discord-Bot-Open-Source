@@ -1677,6 +1677,79 @@ export const ticketParticipants = pgTable(
 
 export type TicketParticipantRow = typeof ticketParticipants.$inferSelect;
 
+/**
+ * Giveaways: ajustes por guild. La urna es Postgres; el mensaje es el anuncio.
+ */
+export const giveawaySettings = pgTable("giveaway_settings", {
+  guildId: text("guild_id")
+    .primaryKey()
+    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+  managerRoleIds: text("manager_role_ids").notNull().default("[]"),
+  dmWinners: boolean("dm_winners").notNull().default(true),
+  pingRoleId: text("ping_role_id"),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export type GiveawaySettingsRow = typeof giveawaySettings.$inferSelect;
+
+export const giveaways = pgTable(
+  "giveaways",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    channelId: text("channel_id").notNull(),
+    messageId: text("message_id"),
+    prize: text("prize").notNull(),
+    description: text("description").notNull().default(""),
+    winnerCount: integer("winner_count").notNull().default(1),
+    status: text("status").notNull().default("scheduled"),
+    startsAt: timestamp("starts_at", { withTimezone: true, mode: "date" })
+      .notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true, mode: "date" }).notNull(),
+    endedAt: timestamp("ended_at", { withTimezone: true, mode: "date" }),
+    createdBy: text("created_by").notNull(),
+    requiredRoleIds: text("required_role_ids").notNull().default("[]"),
+    blockedRoleIds: text("blocked_role_ids").notNull().default("[]"),
+    minGuildAgeDays: integer("min_guild_age_days").notNull().default(0),
+    minAccountAgeDays: integer("min_account_age_days").notNull().default(0),
+    winnerIds: text("winner_ids").notNull().default("[]"),
+    pastWinnerIds: text("past_winner_ids").notNull().default("[]"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index("idx_giveaways_guild_status").on(table.guildId, table.status),
+    index("idx_giveaways_ends_at").on(table.endsAt),
+    index("idx_giveaways_starts_at").on(table.startsAt),
+  ],
+);
+
+export type GiveawayRow = typeof giveaways.$inferSelect;
+
+export const giveawayEntries = pgTable(
+  "giveaway_entries",
+  {
+    giveawayId: integer("giveaway_id")
+      .notNull()
+      .references(() => giveaways.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    enteredAt: timestamp("entered_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    primaryKey({ columns: [table.giveawayId, table.userId] }),
+    index("idx_giveaway_entries_giveaway").on(table.giveawayId),
+  ],
+);
+
+export type GiveawayEntryRow = typeof giveawayEntries.$inferSelect;
+
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [
   "minecraft",

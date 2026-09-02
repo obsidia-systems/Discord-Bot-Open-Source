@@ -239,11 +239,10 @@ export const dashboardNav: NavCategoryConfig[] = [
         blurb: "Solicitudes y formularios en Discord.",
       },
       {
-        label: "Sorteos",
+        label: "Giveaways",
         href: "/dashboard/community/giveaways",
         icon: Gift,
-        soon: true,
-        blurb: "Giveaways con requisitos y ganadores.",
+        blurb: "Sorteos con requisitos, botón de entrada y reroll.",
       },
     ],
   },

@@ -24,6 +24,7 @@ import { antiRaidModule } from "./anti-raid/index.js";
 import { streamAlertsModule } from "./stream-alerts/index.js";
 import { autoRepliesModule } from "./auto-replies/index.js";
 import { ticketsModule } from "./tickets/index.js";
+import { giveawaysModule } from "./giveaways/index.js";
 
 /**
  * Catálogo explícito de módulos habilitados.
@@ -55,6 +56,7 @@ export const ENABLED_MODULES: readonly AdobosModule[] = [
   streamAlertsModule,
   autoRepliesModule,
   ticketsModule,
+  giveawaysModule,
 ];
 
 export {
@@ -83,4 +85,5 @@ export {
   streamAlertsModule,
   autoRepliesModule,
   ticketsModule,
+  giveawaysModule,
 };

@@ -1,8 +1,11 @@
 ---
-import ComingSoon from "../../../components/shared/ComingSoon.astro";
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { GiveawaysDashboard } from "../../../features/giveaways";
 ---
 
-<ComingSoon
-  title="Sorteos"
-  description="Giveaways con requisitos de rol, duración y ganadores."
-/>
+<DashboardLayout
+  title="Giveaways"
+  description="Sorteos con requisitos, botón de entrada y reroll."
+>
+  <GiveawaysDashboard client:load />
+</DashboardLayout>

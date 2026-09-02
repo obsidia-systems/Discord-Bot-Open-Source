@@ -1,0 +1,47 @@
+import { GatewayIntentBits } from "discord.js";
+import { GIVEAWAY_JOIN_PREFIX } from "@adobos/shared";
+import type { AdobosModule } from "../../core/modules/types.js";
+import { isWorkerLeader } from "../../core/runtime/index.js";
+import { logger } from "../../core/log.js";
+import { giveawaysRoutes } from "./api/routes.js";
+import { onGiveawayChannelDelete, onGiveawayMessageDelete } from "./events.js";
+import { onGiveawayJoinButton } from "./handlers.js";
+import { bindGiveawaysScheduler, processDueGiveaways } from "./scheduler.js";
+
+const DUE_TICK_MS = 15_000;
+
+export const giveawaysModule: AdobosModule = {
+  id: "giveaways",
+  name: "Giveaways",
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
+  register(ctx) {
+    bindGiveawaysScheduler(ctx.client);
+    ctx.route("/api/giveaways", giveawaysRoutes(ctx.client), {
+      feature: "giveaways",
+    });
+    ctx.button(GIVEAWAY_JOIN_PREFIX, (interaction) =>
+      onGiveawayJoinButton(interaction),
+    );
+    ctx.on("messageDelete", (message) => {
+      void onGiveawayMessageDelete(message);
+    });
+    ctx.on("channelDelete", (channel) => {
+      void onGiveawayChannelDelete(channel);
+    });
+    ctx.once("ready", () => {
+      if (!isWorkerLeader()) return;
+      void processDueGiveaways().catch((error: unknown) => {
+        logger.warn({ err: error }, "giveaways: tick inicial falló");
+      });
+    });
+    const timer = setInterval(() => {
+      if (!isWorkerLeader()) return;
+      void processDueGiveaways().catch((error: unknown) => {
+        logger.warn({ err: error }, "giveaways: tick falló");
+      });
+    }, DUE_TICK_MS);
+    timer.unref?.();
+  },
+};
+
+export { GiveawaysError } from "./service.js";
