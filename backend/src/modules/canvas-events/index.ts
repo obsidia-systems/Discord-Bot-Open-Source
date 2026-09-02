@@ -10,7 +10,7 @@ import { onGuildMemberUpdate } from "./events/guildMemberUpdate.js";
  */
 export const canvasEventsModule: AdobosModule = {
   id: "canvas-events",
-  name: "Mensajes automatizados (leave/ban/boost)",
+  name: "Canvas Events",
   intents: [
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildModeration,

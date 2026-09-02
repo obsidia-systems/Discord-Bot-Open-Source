@@ -48,14 +48,25 @@ export function BackgroundImageUpload({
         )}
         onClick={() => inputRef.current?.click()}
       >
-        <img
-          src={src}
-          alt=""
-          className="size-full object-cover"
-          onError={(event) => {
-            (event.target as HTMLImageElement).style.opacity = "0.35";
-          }}
-        />
+        {/^(https?:\/\/|\/|data:)/.test(src) ? (
+          <img
+            src={src}
+            alt=""
+            className="size-full object-cover"
+            onError={(event) => {
+              (event.target as HTMLImageElement).style.opacity = "0.35";
+            }}
+          />
+        ) : (
+          <div
+            className="size-full"
+            style={{
+              backgroundImage: src || undefined,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+            }}
+          />
+        )}
         <span
           className={cn(
             "absolute inset-0 flex flex-col items-center justify-center gap-1",

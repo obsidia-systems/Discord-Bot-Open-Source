@@ -11,16 +11,13 @@ import {
 
 export function canvasEventSettingsRoutes(
   eventType: CanvasEventType,
-  _bot: Client,
+  bot: Client,
 ): Router {
   const router = Router();
 
   router.get("/", async (req, res, next) => {
-    const guildId =
-      guildIdOf(req);
-
     try {
-      res.json(await getCanvasEventSettings(eventType, guildId));
+      res.json(await getCanvasEventSettings(eventType, guildIdOf(req)));
     } catch (error: unknown) {
       next(error);
     }
@@ -29,10 +26,14 @@ export function canvasEventSettingsRoutes(
   router.post("/", async (req, res, next) => {
     try {
       const payload = parse(saveCanvasEventSettingsSchema, req.body);
-      const result = await saveCanvasEventSettings(eventType, {
-        ...payload,
-        guildId: guildIdOf(req),
-      });
+      const result = await saveCanvasEventSettings(
+        eventType,
+        {
+          ...payload,
+          guildId: guildIdOf(req),
+        },
+        bot,
+      );
       res.json(result);
     } catch (error: unknown) {
       next(error);

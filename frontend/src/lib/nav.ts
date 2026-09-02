@@ -119,23 +119,23 @@ export const dashboardNav: NavCategoryConfig[] = [
   },
   {
     id: "automated",
-    label: "Mensajes automatizados",
+    label: "Canvas Events",
     icon: Zap,
     items: [
       {
-        label: "Bienvenida",
+        label: "Welcome",
         href: "/dashboard/welcome",
         icon: UserPlus,
         blurb: "Tarjetas PNG al unirse al servidor.",
       },
       {
-        label: "Despedida",
+        label: "Leave",
         href: "/dashboard/leave",
         icon: LogOut,
         blurb: "Tarjeta PNG al salir del servidor.",
       },
       {
-        label: "Baneo",
+        label: "Ban",
         href: "/dashboard/ban",
         icon: Ban,
         blurb: "Tarjeta PNG al banear a un miembro.",

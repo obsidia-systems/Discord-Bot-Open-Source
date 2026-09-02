@@ -11,8 +11,23 @@ import {
 import type {
   GuildAssetsResponse,
   WelcomeSettingsResponse,
+  WelcomeTextAlign,
   WelcomeTextLayer,
   WelcomeTextWeight,
+} from "@adobos/shared";
+import {
+  applyWelcomeVariables,
+  defaultWelcomeTextLayers,
+  isWelcomeSendChannelType,
+  newWelcomeTextLayer,
+  WELCOME_AVATAR_SIZE_MAX,
+  WELCOME_AVATAR_SIZE_MIN,
+  WELCOME_CARD_FALLBACK_GRADIENT,
+  WELCOME_CARD_HEIGHT,
+  WELCOME_CARD_WIDTH,
+  WELCOME_FONT_SIZE_MAX,
+  WELCOME_FONT_SIZE_MIN,
+  WELCOME_TEXT_LAYERS_MAX,
 } from "@adobos/shared";
 import {
   fetchGuildAssets,
@@ -53,64 +68,49 @@ type Feedback =
 
 type DesignTab = "avatar" | "texto";
 
-const CARD_W = 1920;
-const CARD_H = 1080;
-const AVATAR_SIZE_MIN = 280;
-const AVATAR_SIZE_MAX = 720;
-const FONT_SIZE_MIN = 20;
-const FONT_SIZE_MAX = 200;
+const CARD_W = WELCOME_CARD_WIDTH;
+const CARD_H = WELCOME_CARD_HEIGHT;
+const AVATAR_SIZE_MIN = WELCOME_AVATAR_SIZE_MIN;
+const AVATAR_SIZE_MAX = WELCOME_AVATAR_SIZE_MAX;
+const FONT_SIZE_MIN = WELCOME_FONT_SIZE_MIN;
+const FONT_SIZE_MAX = WELCOME_FONT_SIZE_MAX;
 const CARD_FONT = "Inter, sans-serif";
+const DEFAULT_LAYERS = defaultWelcomeTextLayers();
 
-const DEFAULT_BG =
-  "https://images.unsplash.com/photo-1614850715649-1d0106293bd1?auto=format&fit=crop&w=1920&q=80";
-
-const DEFAULT_LAYERS: WelcomeTextLayer[] = [
-  {
-    id: "default-primary",
-    text: "¡Bienvenido a {server}!",
-    x: Math.round(CARD_W / 2),
-    y: 560,
-    fontSize: 64,
-    color: "#FFFFFF",
-    weight: "bold",
-  },
-  {
-    id: "default-secondary",
-    text: "{username}",
-    x: Math.round(CARD_W / 2),
-    y: 640,
-    fontSize: 35,
-    color: "#FFFFFF",
-    weight: "normal",
-  },
-];
+const PREVIEW_CTX = {
+  userMention: "@NuevoMiembro",
+  username: "NuevoMiembro",
+  displayName: "NuevoMiembro",
+  serverName: "Adobos",
+  memberCount: 128,
+};
 
 const WELCOME_VARIABLES = [
-  { token: "{user}", tip: "Mención (@usuario) en el mensaje Discord" },
+  {
+    token: "{user}",
+    tip: "Mención en el mensaje Discord; nombre visible en la tarjeta PNG",
+  },
   { token: "{username}", tip: "Nombre de usuario" },
   { token: "{displayname}", tip: "Apodo en el servidor" },
   { token: "{server}", tip: "Nombre del servidor" },
   { token: "{membercount}", tip: "Cantidad de miembros" },
 ] as const;
 
-function previewReplace(text: string): string {
-  return text
-    .replaceAll("{user}", "@NuevoMiembro")
-    .replaceAll("{username}", "NuevoMiembro")
-    .replaceAll("{displayname}", "NuevoMiembro")
-    .replaceAll("{displayName}", "NuevoMiembro")
-    .replaceAll("{server}", "Adobos")
-    .replaceAll("{membercount}", "128")
-    .replaceAll("{memberCount}", "128");
+function previewMessage(text: string): string {
+  return applyWelcomeVariables(text, PREVIEW_CTX, "message");
+}
+
+function previewCard(text: string): string {
+  return applyWelcomeVariables(text, PREVIEW_CTX, "card");
+}
+
+function isCardImageSrc(src: string): boolean {
+  return /^(https?:\/\/|\/|data:)/.test(src);
 }
 
 function clampInt(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
   return Math.max(min, Math.min(max, Math.round(value)));
-}
-
-function newLayerId(): string {
-  return `layer-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function AxisSlider({
@@ -257,7 +257,9 @@ function CanvasCardPreview({
           width: CARD_W,
           height: CARD_H,
           transform: `scale(${previewScale})`,
-          backgroundImage: `url(${previewBg})`,
+          backgroundImage: isCardImageSrc(previewBg)
+            ? `url(${previewBg})`
+            : previewBg || WELCOME_CARD_FALLBACK_GRADIENT,
           backgroundSize: "100% 100%",
           backgroundPosition: "center",
         }}
@@ -299,13 +301,15 @@ function CanvasCardPreview({
             style={{
               left: layer.x,
               top: layer.y,
+              transform:
+                layer.align === "center" ? "translateX(-50%)" : undefined,
               color: layer.color,
               fontFamily: CARD_FONT,
               fontSize: layer.fontSize,
               fontWeight: layer.weight === "bold" ? 700 : 400,
             }}
           >
-            {previewReplace(layer.text || " ")}
+            {previewCard(layer.text || " ")}
           </p>
         ))}
       </div>
@@ -427,6 +431,28 @@ function TextLayerEditor({
             </Select>
           </div>
 
+          <div className="space-y-2">
+            <Label>Alineación</Label>
+            <Select
+              value={layer.align === "center" ? "center" : "left"}
+              disabled={disabled}
+              onValueChange={(value) =>
+                onChange({
+                  ...layer,
+                  align: value as WelcomeTextAlign,
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="center">Centro</SelectItem>
+                <SelectItem value="left">Izquierda</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <Button
             type="button"
             variant="outline"
@@ -449,7 +475,7 @@ export function WelcomeBuilder() {
   const [guildId, setGuildId] = useState("");
   const [channelId, setChannelId] = useState("");
   const [isEnabled, setIsEnabled] = useState(false);
-  const [backgroundUrl, setBackgroundUrl] = useState(DEFAULT_BG);
+  const [backgroundUrl, setBackgroundUrl] = useState("");
   const [bgFilepath, setBgFilepath] = useState<string | null>(null);
   const [blurAmount, setBlurAmount] = useState(4);
   const [messageContent, setMessageContent] = useState("{user}");
@@ -470,7 +496,7 @@ export function WelcomeBuilder() {
   const [designTab, setDesignTab] = useState<DesignTab>("avatar");
 
   const isSubmitting = feedback.kind === "loading";
-  const previewBg = bgFilepath || backgroundUrl || DEFAULT_BG;
+  const previewBg = bgFilepath || backgroundUrl || WELCOME_CARD_FALLBACK_GRADIENT;
 
   useEffect(() => {
     let cancelled = false;
@@ -507,7 +533,7 @@ export function WelcomeBuilder() {
     setGuildId(settings.guildId);
     setChannelId(settings.channelId ?? "");
     setIsEnabled(settings.isEnabled);
-    setBackgroundUrl(settings.backgroundUrl || DEFAULT_BG);
+    setBackgroundUrl(settings.backgroundUrl || "");
     setBgFilepath(settings.bgFilepath);
     setBlurAmount(settings.blurAmount);
     setMessageContent(settings.messageContent);
@@ -534,18 +560,9 @@ export function WelcomeBuilder() {
   }
 
   function addLayer(): void {
-    const id = newLayerId();
-    const layer: WelcomeTextLayer = {
-      id,
-      text: "Nuevo texto",
-      x: Math.round(CARD_W / 2),
-      y: 720,
-      fontSize: 48,
-      color: "#FFFFFF",
-      weight: "bold",
-    };
+    const layer = newWelcomeTextLayer();
     setTextLayers((prev) => [...prev, layer]);
-    setOpenLayerIds((prev) => [...prev, id]);
+    setOpenLayerIds((prev) => [...prev, layer.id]);
   }
 
   async function handleBackgroundFile(file: File): Promise<void> {
@@ -605,7 +622,7 @@ export function WelcomeBuilder() {
       setFeedback({
         kind: "ok",
         message: isEnabled
-          ? "Bienvenida guardada y activa."
+          ? "Welcome guardada y activa."
           : "Configuración guardada (módulo desactivado).",
       });
     } catch (error: unknown) {
@@ -624,6 +641,10 @@ export function WelcomeBuilder() {
       </div>
     );
   }
+
+  const sendChannels = (assets?.channels ?? []).filter((channel) =>
+    isWelcomeSendChannelType(channel.type),
+  );
 
   const canvasPreview = (
     <CanvasCardPreview
@@ -671,7 +692,7 @@ export function WelcomeBuilder() {
             <CardContent>
               <div className="space-y-2">
                 <Label htmlFor="welcome-channel">Canal</Label>
-                {assets && assets.channels.length > 0 ? (
+                {sendChannels.length > 0 ? (
                   <Select
                     value={channelId || undefined}
                     disabled={isSubmitting}
@@ -681,7 +702,7 @@ export function WelcomeBuilder() {
                       <SelectValue placeholder="Selecciona un canal…" />
                     </SelectTrigger>
                     <SelectContent>
-                      {assets.channels.map((channel) => (
+                      {sendChannels.map((channel) => (
                         <SelectItem key={channel.id} value={channel.id}>
                           #{channel.name}
                         </SelectItem>
@@ -690,7 +711,7 @@ export function WelcomeBuilder() {
                   </Select>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    No hay canales disponibles.
+                    No hay canales de texto o anuncios.
                   </p>
                 )}
               </div>
@@ -811,7 +832,7 @@ export function WelcomeBuilder() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        disabled={isSubmitting || textLayers.length >= 12}
+                        disabled={isSubmitting || textLayers.length >= WELCOME_TEXT_LAYERS_MAX}
                         onClick={addLayer}
                       >
                         <Plus className="size-4" aria-hidden />
@@ -898,13 +919,13 @@ export function WelcomeBuilder() {
                 <p className="text-sm text-muted-foreground">
                   Mensaje:{" "}
                   <span className="text-foreground">
-                    {previewReplace(messageContent)}
+                    {previewMessage(messageContent)}
                   </span>
                 </p>
               ) : null}
               <p className="text-[11px] text-muted-foreground">
-                Si el texto se corta al borde, baja el tamaño o mueve X a la
-                izquierda: la PNG de Discord se comporta igual.
+                Si el texto se corta, baja el tamaño. Con alineación al centro,
+                X es el punto medio de la capa.
               </p>
             </CardContent>
           </Card>

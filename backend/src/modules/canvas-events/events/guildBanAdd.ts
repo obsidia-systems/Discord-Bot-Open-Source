@@ -11,6 +11,6 @@ export async function onGuildBanAdd(ban: GuildBan): Promise<void> {
     eventType: "ban",
     guild: ban.guild,
     user: userPayloadFromDiscordUser(ban.user),
-    logLabel: "Baneo",
+    logLabel: "Ban",
   });
 }

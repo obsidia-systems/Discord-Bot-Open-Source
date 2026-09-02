@@ -5,7 +5,7 @@ import { parse } from "../../../core/http/validate.js";
 import { saveWelcomeSettingsSchema } from "./schema.js";
 import { getWelcomeSettings, saveWelcomeSettings } from "../service.js";
 
-export function welcomeSettingsRoutes(_bot: Client): Router {
+export function welcomeSettingsRoutes(bot: Client): Router {
   const router = Router();
 
   router.get("/", async (req, res, next) => {
@@ -19,10 +19,13 @@ export function welcomeSettingsRoutes(_bot: Client): Router {
   router.post("/", async (req, res, next) => {
     try {
       const payload = parse(saveWelcomeSettingsSchema, req.body);
-      const result = await saveWelcomeSettings({
-        ...payload,
-        guildId: guildIdOf(req),
-      });
+      const result = await saveWelcomeSettings(
+        {
+          ...payload,
+          guildId: guildIdOf(req),
+        },
+        bot,
+      );
       res.json(result);
     } catch (error: unknown) {
       next(error);

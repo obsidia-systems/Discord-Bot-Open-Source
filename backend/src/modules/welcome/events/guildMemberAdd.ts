@@ -14,8 +14,8 @@ import { logger } from "../../../core/log.js";
 import {
   applyWelcomeVariables,
   contextFromMember,
-  isSendableTextChannel,
 } from "../text/welcomeEmbed.js";
+import { isWelcomeSendChannel } from "../channel.js";
 
 /**
  * Envía la tarjeta PNG de bienvenida (canvas).
@@ -37,15 +37,23 @@ export async function onGuildMemberAdd(member: GuildMember): Promise<void> {
       .fetch(row.channelId)
       .catch(() => null);
 
-    if (!channel || !isSendableTextChannel(channel)) {
+    if (!channel) {
       await disableWelcomeSettings(member.guild.id);
-      logger.warn(`Bienvenida desactivada en ${member.guild.id}: canal inválido o borrado.`);
+      logger.warn(
+        `Welcome desactivado en ${member.guild.id}: canal borrado.`,
+      );
+      return;
+    }
+    if (!isWelcomeSendChannel(channel)) {
+      logger.warn(
+        `Welcome: canal ${row.channelId} no admite texto en ${member.guild.id}.`,
+      );
       return;
     }
 
     const ctx = contextFromMember(member);
     const messageContent = row.messageContent?.trim()
-      ? applyWelcomeVariables(row.messageContent, ctx).slice(0, 2000)
+      ? applyWelcomeVariables(row.messageContent, ctx, "message").slice(0, 2000)
       : undefined;
 
     const layers = parseTextLayersJson(row.textLayers, {
@@ -57,7 +65,7 @@ export async function onGuildMemberAdd(member: GuildMember): Promise<void> {
       textColor: row.textColor,
     }).map((layer) => ({
       ...layer,
-      text: applyWelcomeVariables(layer.text, ctx),
+      text: applyWelcomeVariables(layer.text, ctx, "card"),
     }));
 
     const png = await buildWelcomeCard({

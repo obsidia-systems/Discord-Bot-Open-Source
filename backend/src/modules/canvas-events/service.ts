@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import type { Client } from "discord.js";
 import type {
   CanvasEventSettingsResponse,
   CanvasEventType,
@@ -6,21 +7,22 @@ import type {
   SaveCanvasEventSettingsResponse,
   WelcomeTextLayer,
 } from "@adobos/shared";
-import { CANVAS_EVENT_TYPES } from "@adobos/shared";
+import {
+  CANVAS_EVENT_TYPES,
+  isWelcomeRemoteBackground,
+  WELCOME_AVATAR_SIZE_MAX,
+  WELCOME_AVATAR_SIZE_MIN,
+  WELCOME_CARD_HEIGHT,
+  WELCOME_CARD_WIDTH,
+} from "@adobos/shared";
 import { getDb, one } from "../../db/client.js";
 import { canvasEventSettings, guildSettings } from "../../db/schema.js";
-import {
-  AVATAR_SIZE_MAX,
-  AVATAR_SIZE_MIN,
-  CARD_HEIGHT,
-  CARD_WIDTH,
-  WELCOME_CARD_DEFAULT_BACKGROUND,
-} from "../welcome/card/WelcomeCardBuilder.js";
 import {
   normalizeTextLayers,
   parseTextLayersJson,
 } from "../welcome/service.js";
 import { resolvePublicUploadPath } from "../../lib/dataPaths.js";
+import { assertGuildWelcomeChannel } from "../welcome/channel.js";
 
 export class CanvasEventSettingsError extends Error {
   constructor(
@@ -38,60 +40,66 @@ const DEFAULT_LAYERS_BY_TYPE: Record<CanvasEventType, WelcomeTextLayer[]> = {
     {
       id: "default-primary",
       text: "¡Hasta pronto!",
-      x: Math.round(CARD_WIDTH / 2),
+      x: Math.round(WELCOME_CARD_WIDTH / 2),
       y: 560,
       fontSize: 64,
       color: "#FFFFFF",
       weight: "bold",
+      align: "center" as const,
     },
     {
       id: "default-secondary",
       text: "{username}",
-      x: Math.round(CARD_WIDTH / 2),
+      x: Math.round(WELCOME_CARD_WIDTH / 2),
       y: 640,
       fontSize: 35,
       color: "#FFFFFF",
       weight: "normal",
+      align: "center" as const,
     },
   ],
   ban: [
     {
       id: "default-primary",
       text: "Usuario baneado",
-      x: Math.round(CARD_WIDTH / 2),
+      x: Math.round(WELCOME_CARD_WIDTH / 2),
       y: 560,
       fontSize: 64,
       color: "#FFFFFF",
       weight: "bold",
+      align: "center" as const,
     },
     {
       id: "default-secondary",
       text: "{username}",
-      x: Math.round(CARD_WIDTH / 2),
+      x: Math.round(WELCOME_CARD_WIDTH / 2),
       y: 640,
       fontSize: 35,
       color: "#FFFFFF",
       weight: "normal",
+      align: "center" as const,
     },
   ],
   boost: [
     {
       id: "default-primary",
       text: "¡Gracias por el boost!",
-      x: Math.round(CARD_WIDTH / 2),
+      x: Math.round(WELCOME_CARD_WIDTH / 2),
       y: 560,
       fontSize: 64,
       color: "#FFFFFF",
       weight: "bold",
+      align: "center" as const,
     },
     {
       id: "default-secondary",
       text: "{username}",
-      x: Math.round(CARD_WIDTH / 2),
+      x: Math.round(WELCOME_CARD_WIDTH / 2),
       y: 640,
       fontSize: 35,
       color: "#FFFFFF",
       weight: "normal",
+      align: "center" as const,
     },
   ],
 };
@@ -125,13 +133,9 @@ function assertSnowflake(value: string, field: string): string {
   return trimmed;
 }
 
-function isHttpUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
+function storedBackgroundUrl(raw: string | null | undefined): string {
+  const trimmed = raw?.trim() || "";
+  return isWelcomeRemoteBackground(trimmed) ? trimmed : "";
 }
 
 function clamp(value: number, min: number, max: number, fallback: number): number {
@@ -206,13 +210,13 @@ export async function getCanvasEventSettings(
       guildId,
       channelId: null,
       isEnabled: false,
-      backgroundUrl: WELCOME_CARD_DEFAULT_BACKGROUND,
+      backgroundUrl: "",
       bgFilepath: null,
       blurAmount: 4,
       messageContent: DEFAULT_MESSAGE_BY_TYPE[eventType],
-      avatarX: Math.round(CARD_WIDTH / 2),
+      avatarX: Math.round(WELCOME_CARD_WIDTH / 2),
       avatarY: 380,
-      avatarSize: AVATAR_SIZE_MIN,
+      avatarSize: WELCOME_AVATAR_SIZE_MIN,
       avatarBorderWidth: 8,
       avatarBorderColor: "#FFFFFF",
       textLayers: defaultLayers(eventType),
@@ -223,17 +227,17 @@ export async function getCanvasEventSettings(
     guildId: row.guildId,
     channelId: row.channelId,
     isEnabled: row.isEnabled,
-    backgroundUrl: row.backgroundUrl?.trim() || WELCOME_CARD_DEFAULT_BACKGROUND,
+    backgroundUrl: storedBackgroundUrl(row.backgroundUrl),
     bgFilepath: row.bgFilepath?.trim() || null,
     blurAmount: clampBlur(row.blurAmount),
     messageContent: row.messageContent || DEFAULT_MESSAGE_BY_TYPE[eventType],
-    avatarX: clamp(row.avatarX, 0, CARD_WIDTH, CARD_WIDTH / 2),
-    avatarY: clamp(row.avatarY, 0, CARD_HEIGHT, 380),
+    avatarX: clamp(row.avatarX, 0, WELCOME_CARD_WIDTH, WELCOME_CARD_WIDTH / 2),
+    avatarY: clamp(row.avatarY, 0, WELCOME_CARD_HEIGHT, 380),
     avatarSize: clamp(
       row.avatarSize,
-      AVATAR_SIZE_MIN,
-      AVATAR_SIZE_MAX,
-      AVATAR_SIZE_MIN,
+      WELCOME_AVATAR_SIZE_MIN,
+      WELCOME_AVATAR_SIZE_MAX,
+      WELCOME_AVATAR_SIZE_MIN,
     ),
     avatarBorderWidth: clamp(row.avatarBorderWidth ?? 8, 0, 40, 8),
     avatarBorderColor: row.avatarBorderColor || "#FFFFFF",
@@ -251,6 +255,7 @@ export async function getCanvasEventSettings(
 export async function saveCanvasEventSettings(
   eventTypeRaw: string,
   input: SaveCanvasEventSettingsRequest,
+  bot: Client,
 ): Promise<SaveCanvasEventSettingsResponse> {
   const eventType = assertEventType(eventTypeRaw);
   const guildId = assertSnowflake(input.guildId, "guildId");
@@ -267,27 +272,32 @@ export async function saveCanvasEventSettings(
       "MISSING_CHANNEL",
     );
   }
+  if (channelId) {
+    await assertGuildWelcomeChannel(bot, guildId, channelId);
+  }
   const blurAmount = clampBlur(input.blurAmount);
   const messageContent = (
     input.messageContent ?? DEFAULT_MESSAGE_BY_TYPE[eventType]
   )
     .trim()
     .slice(0, 500);
-  const avatarX = clamp(input.avatarX, 0, CARD_WIDTH, CARD_WIDTH / 2);
-  const avatarY = clamp(input.avatarY, 0, CARD_HEIGHT, 380);
+  const avatarX = clamp(input.avatarX, 0, WELCOME_CARD_WIDTH, WELCOME_CARD_WIDTH / 2);
+  const avatarY = clamp(input.avatarY, 0, WELCOME_CARD_HEIGHT, 380);
   const avatarSize = clamp(
     input.avatarSize,
-    AVATAR_SIZE_MIN,
-    AVATAR_SIZE_MAX,
-    AVATAR_SIZE_MIN,
+    WELCOME_AVATAR_SIZE_MIN,
+    WELCOME_AVATAR_SIZE_MAX,
+    WELCOME_AVATAR_SIZE_MIN,
   );
   const avatarBorderWidth = clamp(input.avatarBorderWidth, 0, 40, 8);
   const avatarBorderColor = normalizeHexColor(input.avatarBorderColor);
   const textLayers = normalizeTextLayers(
     Array.isArray(input.textLayers) ? input.textLayers : [],
   );
+  const resolvedLayers =
+    textLayers.length > 0 ? textLayers : defaultLayers(eventType);
 
-  let bgFilepath = input.bgFilepath?.trim() || null;
+  const bgFilepath = input.bgFilepath?.trim() || null;
   if (bgFilepath && !resolvePublicUploadPath(bgFilepath)) {
     throw new CanvasEventSettingsError(
       "bgFilepath inválido. Debe ser /uploads/backgrounds/...",
@@ -296,37 +306,18 @@ export async function saveCanvasEventSettings(
     );
   }
 
-  let backgroundUrl =
-    (input.backgroundUrl ?? "").trim() || WELCOME_CARD_DEFAULT_BACKGROUND;
-  if (backgroundUrl && !isHttpUrl(backgroundUrl) && !bgFilepath) {
-    throw new CanvasEventSettingsError(
-      "La URL de fondo debe ser http(s) o sube un archivo.",
-      400,
-      "INVALID_BACKGROUND_URL",
-    );
-  }
-  if (!isHttpUrl(backgroundUrl)) {
-    backgroundUrl = WELCOME_CARD_DEFAULT_BACKGROUND;
-  }
-
-  if (isEnabled && !bgFilepath && !backgroundUrl) {
-    throw new CanvasEventSettingsError(
-      "Necesitas un fondo para activar la tarjeta.",
-      400,
-      "MISSING_BACKGROUND",
-    );
-  }
+  const backgroundUrl = storedBackgroundUrl(input.backgroundUrl);
 
   await ensureGuildRow(guildId);
 
-  const first = textLayers[0];
-  const second = textLayers[1];
+  const first = resolvedLayers[0];
+  const second = resolvedLayers[1];
   const db = getDb();
   const now = new Date();
   const payload = {
     channelId,
     isEnabled,
-    backgroundUrl,
+    backgroundUrl: backgroundUrl || null,
     bgFilepath,
     blurAmount,
     messageContent,
@@ -335,45 +326,45 @@ export async function saveCanvasEventSettings(
     avatarSize,
     avatarBorderWidth,
     avatarBorderColor,
-    textLayers: JSON.stringify(textLayers),
+    textLayers: JSON.stringify(resolvedLayers),
     primaryText: first?.text ?? DEFAULT_LAYERS_BY_TYPE[eventType][0]!.text,
     secondaryText: second?.text ?? "{username}",
-    textX: first?.x ?? Math.round(CARD_WIDTH / 2),
+    textX: first?.x ?? Math.round(WELCOME_CARD_WIDTH / 2),
     textY: first?.y ?? 560,
     fontSize: first?.fontSize ?? 64,
     textColor: first?.color ?? "#FFFFFF",
     updatedAt: now,
   };
 
-  const existing = await db
-    .select()
-    .from(canvasEventSettings)
-    .where(
-      and(
-        eq(canvasEventSettings.guildId, guildId),
-        eq(canvasEventSettings.eventType, eventType),
-      ),
-    )
-    .limit(1);
-
-  if (existing) {
-    await db.update(canvasEventSettings)
-      .set(payload)
+  const existing = await one(
+    db
+      .select()
+      .from(canvasEventSettings)
       .where(
         and(
           eq(canvasEventSettings.guildId, guildId),
           eq(canvasEventSettings.eventType, eventType),
         ),
       )
-      ;
+      .limit(1),
+  );
+
+  if (existing) {
+    await db
+      .update(canvasEventSettings)
+      .set(payload)
+      .where(
+        and(
+          eq(canvasEventSettings.guildId, guildId),
+          eq(canvasEventSettings.eventType, eventType),
+        ),
+      );
   } else {
-    await db.insert(canvasEventSettings)
-      .values({
-        guildId,
-        eventType,
-        ...payload,
-      })
-      ;
+    await db.insert(canvasEventSettings).values({
+      guildId,
+      eventType,
+      ...payload,
+    });
   }
 
   return { ok: true };

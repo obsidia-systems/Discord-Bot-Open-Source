@@ -9,6 +9,7 @@ const textLayerSchema = z.object({
   fontSize: finiteNum,
   color: z.string(),
   weight: z.enum(["normal", "bold"]),
+  align: z.enum(["left", "center"]).optional(),
 });
 
 export const saveWelcomeSettingsSchema = z.object({

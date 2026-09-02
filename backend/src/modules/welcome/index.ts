@@ -5,7 +5,7 @@ import { onGuildMemberAdd } from "./events/guildMemberAdd.js";
 
 export const welcomeModule: AdobosModule = {
   id: "welcome",
-  name: "Bienvenidas",
+  name: "Welcome",
   intents: [GatewayIntentBits.GuildMembers],
   register(ctx) {
     ctx.on("guildMemberAdd", (member) => {

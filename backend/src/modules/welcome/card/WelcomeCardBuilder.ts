@@ -9,18 +9,25 @@ import {
   type SKRSContext2D,
 } from "@napi-rs/canvas";
 import type { WelcomeTextLayer } from "@adobos/shared";
+import {
+  isWelcomeRemoteBackground,
+  WELCOME_AVATAR_SIZE_MAX,
+  WELCOME_AVATAR_SIZE_MIN,
+  WELCOME_CARD_HEIGHT,
+  WELCOME_CARD_WIDTH,
+  WELCOME_FONT_SIZE_MAX,
+  WELCOME_FONT_SIZE_MIN,
+} from "@adobos/shared";
 import { resolvePublicUploadPath } from "../../../lib/dataPaths.js";
 import { logger } from "../../../core/log.js";
 
 /** Lienzo fijo 1920×1080 (coincide con sliders del panel). */
-export const CARD_WIDTH = 1920;
-export const CARD_HEIGHT = 1080;
-export const AVATAR_SIZE_MIN = 280;
-export const AVATAR_SIZE_MAX = 720;
+export const CARD_WIDTH = WELCOME_CARD_WIDTH;
+export const CARD_HEIGHT = WELCOME_CARD_HEIGHT;
+export const AVATAR_SIZE_MIN = WELCOME_AVATAR_SIZE_MIN;
+export const AVATAR_SIZE_MAX = WELCOME_AVATAR_SIZE_MAX;
 
 const FONT_FAMILY = "Inter";
-const DEFAULT_BG =
-  "https://images.unsplash.com/photo-1614850715649-1d0106293bd1?auto=format&fit=crop&w=1920&q=80";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -144,7 +151,7 @@ function normalizeHexColor(raw?: string): string {
 function legacyLayersFromOptions(
   options: BuildWelcomeCardOptions,
 ): WelcomeTextLayer[] {
-  const fontSize = clamp(toInt(options.fontSize, 64), 20, 200);
+  const fontSize = clamp(toInt(options.fontSize, 64), WELCOME_FONT_SIZE_MIN, WELCOME_FONT_SIZE_MAX);
   const textX = clamp(toInt(options.textX, CARD_WIDTH / 2), 0, CARD_WIDTH);
   const textY = clamp(toInt(options.textY, 560), 0, CARD_HEIGHT);
   const color = normalizeHexColor(options.textColor);
@@ -161,6 +168,7 @@ function legacyLayersFromOptions(
       fontSize,
       color,
       weight: "bold",
+      align: "left",
     },
     {
       id: "legacy-secondary",
@@ -170,6 +178,7 @@ function legacyLayersFromOptions(
       fontSize: Math.max(12, Math.round(fontSize * 0.55)),
       color,
       weight: "normal",
+      align: "left",
     },
   ];
 }
@@ -269,7 +278,7 @@ function drawTextLayers(
 
     ctx.save();
     ctx.fillStyle = color;
-    ctx.textAlign = "left";
+    ctx.textAlign = layer.align === "center" ? "center" : "left";
     ctx.textBaseline = "top";
     ctx.font = `${weight} ${fontSize}px ${FONT_FAMILY}`;
     ctx.fillText(text, x, y);
@@ -288,7 +297,10 @@ async function resolveBackgroundImage(
     }
   }
 
-  const url = options.backgroundUrl?.trim() || DEFAULT_BG;
+  const url = options.backgroundUrl?.trim() ?? "";
+  if (!isWelcomeRemoteBackground(url)) {
+    return null;
+  }
   try {
     return await loadRemoteImage(url);
   } catch {
@@ -355,4 +367,4 @@ export async function buildWelcomeCard(
   return canvas.toBuffer("image/png");
 }
 
-export const WELCOME_CARD_DEFAULT_BACKGROUND = DEFAULT_BG;
+export const WELCOME_CARD_DEFAULT_BACKGROUND = "";

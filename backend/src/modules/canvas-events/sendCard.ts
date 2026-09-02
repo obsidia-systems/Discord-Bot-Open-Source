@@ -6,9 +6,9 @@ import { canvasEventSettings } from "../../db/schema.js";
 import { buildWelcomeCard } from "../welcome/card/WelcomeCardBuilder.js";
 import {
   applyWelcomeVariables,
-  isSendableTextChannel,
   type WelcomeTemplateContext,
 } from "../welcome/text/welcomeEmbed.js";
+import { isWelcomeSendChannel } from "../welcome/channel.js";
 import { parseTextLayersJson } from "../welcome/service.js";
 import { disableCanvasEventSettings } from "./service.js";
 import { logger } from "../../core/log.js";
@@ -59,15 +59,21 @@ export async function dispatchCanvasEventCard(options: {
     if (!row?.isEnabled || !row.channelId) return;
 
     const channel = await guild.channels.fetch(row.channelId).catch(() => null);
-    if (!channel || !isSendableTextChannel(channel)) {
+    if (!channel) {
       await disableCanvasEventSettings(eventType, guild.id);
-      logger.warn(`${logLabel} desactivado en ${guild.id}: canal inválido o borrado.`);
+      logger.warn(`${logLabel} desactivado en ${guild.id}: canal borrado.`);
+      return;
+    }
+    if (!isWelcomeSendChannel(channel)) {
+      logger.warn(
+        `${logLabel}: canal ${row.channelId} no admite texto en ${guild.id}.`,
+      );
       return;
     }
 
     const ctx = buildContext(guild, user);
     const messageContent = row.messageContent?.trim()
-      ? applyWelcomeVariables(row.messageContent, ctx).slice(0, 2000)
+      ? applyWelcomeVariables(row.messageContent, ctx, "message").slice(0, 2000)
       : undefined;
 
     const layers = parseTextLayersJson(row.textLayers, {
@@ -79,7 +85,7 @@ export async function dispatchCanvasEventCard(options: {
       textColor: row.textColor,
     }).map((layer) => ({
       ...layer,
-      text: applyWelcomeVariables(layer.text, ctx),
+      text: applyWelcomeVariables(layer.text, ctx, "card"),
     }));
 
     const png = await buildWelcomeCard({

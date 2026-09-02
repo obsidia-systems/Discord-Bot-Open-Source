@@ -1,17 +1,8 @@
-import {
-  ChannelType,
-  type GuildMember,
-  type SendableChannels,
-  type TextChannel,
-} from "discord.js";
+import { type GuildMember } from "discord.js";
+import type { WelcomeTemplateContext } from "@adobos/shared";
 
-export interface WelcomeTemplateContext {
-  userMention: string;
-  username: string;
-  displayName: string;
-  serverName: string;
-  memberCount: number;
-}
+export type { WelcomeTemplateContext };
+export { applyWelcomeVariables } from "@adobos/shared";
 
 export function contextFromMember(member: GuildMember): WelcomeTemplateContext {
   return {
@@ -21,34 +12,4 @@ export function contextFromMember(member: GuildMember): WelcomeTemplateContext {
     serverName: member.guild.name,
     memberCount: member.guild.memberCount,
   };
-}
-
-/** Sustituye placeholders `{user}`, `{username}`, `{server}`, etc. */
-export function applyWelcomeVariables(
-  text: string,
-  ctx: WelcomeTemplateContext,
-): string {
-  return text
-    .replaceAll("{user}", ctx.userMention)
-    .replaceAll("{username}", ctx.username)
-    .replaceAll("{displayname}", ctx.displayName)
-    .replaceAll("{displayName}", ctx.displayName)
-    .replaceAll("{server}", ctx.serverName)
-    .replaceAll("{membercount}", String(ctx.memberCount))
-    .replaceAll("{memberCount}", String(ctx.memberCount));
-}
-
-export function isSendableTextChannel(
-  channel: unknown,
-): channel is SendableChannels & TextChannel {
-  if (!channel || typeof channel !== "object") return false;
-  const typed = channel as { type?: ChannelType; send?: unknown };
-  if (
-    typed.type === ChannelType.GuildCategory ||
-    typed.type === ChannelType.GuildVoice ||
-    typed.type === ChannelType.GuildStageVoice
-  ) {
-    return false;
-  }
-  return typeof typed.send === "function";
 }

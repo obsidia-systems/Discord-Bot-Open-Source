@@ -1,22 +1,26 @@
-import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
+import type { Client } from "discord.js";
 import type {
   SaveWelcomeSettingsRequest,
   SaveWelcomeSettingsResponse,
   WelcomeTextLayer,
-  WelcomeTextWeight,
   WelcomeSettingsResponse,
+} from "@adobos/shared";
+import {
+  defaultWelcomeTextLayers,
+  isWelcomeRemoteBackground,
+  normalizeTextLayers,
+  WELCOME_AVATAR_SIZE_MAX,
+  WELCOME_AVATAR_SIZE_MIN,
+  WELCOME_CARD_HEIGHT,
+  WELCOME_CARD_WIDTH,
+  WELCOME_FONT_SIZE_MAX,
+  WELCOME_FONT_SIZE_MIN,
 } from "@adobos/shared";
 import { getDb, one } from "../../db/client.js";
 import { guildSettings, welcomeSettings } from "../../db/schema.js";
-import {
-  AVATAR_SIZE_MAX,
-  AVATAR_SIZE_MIN,
-  CARD_HEIGHT,
-  CARD_WIDTH,
-  WELCOME_CARD_DEFAULT_BACKGROUND,
-} from "./card/WelcomeCardBuilder.js";
 import { resolvePublicUploadPath } from "../../lib/dataPaths.js";
+import { assertGuildWelcomeChannel } from "./channel.js";
 
 export class WelcomeSettingsError extends Error {
   constructor(
@@ -29,44 +33,22 @@ export class WelcomeSettingsError extends Error {
   }
 }
 
-export const FONT_SIZE_MIN = 20;
-export const FONT_SIZE_MAX = 200;
+export const FONT_SIZE_MIN = WELCOME_FONT_SIZE_MIN;
+export const FONT_SIZE_MAX = WELCOME_FONT_SIZE_MAX;
 
 /** Persistido en DB por compatibilidad; el módulo es siempre canvas. */
 const WELCOME_MODE_CARD = "card";
 
-const DEFAULT_LAYERS: WelcomeTextLayer[] = [
-  {
-    id: "default-primary",
-    text: "¡Bienvenido a {server}!",
-    x: Math.round(CARD_WIDTH / 2),
-    y: 560,
-    fontSize: 64,
-    color: "#FFFFFF",
-    weight: "bold",
-  },
-  {
-    id: "default-secondary",
-    text: "{username}",
-    x: Math.round(CARD_WIDTH / 2),
-    y: 640,
-    fontSize: 35,
-    color: "#FFFFFF",
-    weight: "normal",
-  },
-];
-
 const DEFAULTS = {
-  backgroundUrl: WELCOME_CARD_DEFAULT_BACKGROUND,
+  backgroundUrl: "",
   bgFilepath: null as string | null,
   blurAmount: 4,
   messageContent: "{user}",
-  avatarX: Math.round(CARD_WIDTH / 2),
+  avatarX: Math.round(WELCOME_CARD_WIDTH / 2),
   avatarY: 380,
-  avatarSize: AVATAR_SIZE_MIN,
+  avatarSize: WELCOME_AVATAR_SIZE_MIN,
   avatarBorderWidth: 8,
   avatarBorderColor: "#FFFFFF",
-  textLayers: DEFAULT_LAYERS,
 } as const;
 
 function assertSnowflake(value: string, field: string): string {
@@ -79,15 +61,6 @@ function assertSnowflake(value: string, field: string): string {
     );
   }
   return trimmed;
-}
-
-function isHttpUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
 }
 
 function clamp(value: number, min: number, max: number, fallback: number): number {
@@ -110,10 +83,6 @@ function normalizeHexColor(raw: string | undefined): string {
   );
 }
 
-function normalizeWeight(raw: unknown): WelcomeTextWeight {
-  return raw === "normal" ? "normal" : "bold";
-}
-
 function layersFromLegacy(row: {
   primaryText?: string | null;
   secondaryText?: string | null;
@@ -124,12 +93,17 @@ function layersFromLegacy(row: {
 }): WelcomeTextLayer[] {
   const fontSize = clamp(
     row.fontSize ?? 64,
-    FONT_SIZE_MIN,
-    FONT_SIZE_MAX,
+    WELCOME_FONT_SIZE_MIN,
+    WELCOME_FONT_SIZE_MAX,
     64,
   );
-  const textX = clamp(row.textX ?? CARD_WIDTH / 2, 0, CARD_WIDTH, CARD_WIDTH / 2);
-  const textY = clamp(row.textY ?? 560, 0, CARD_HEIGHT, 560);
+  const textX = clamp(
+    row.textX ?? WELCOME_CARD_WIDTH / 2,
+    0,
+    WELCOME_CARD_WIDTH,
+    WELCOME_CARD_WIDTH / 2,
+  );
+  const textY = clamp(row.textY ?? 560, 0, WELCOME_CARD_HEIGHT, 560);
   const color =
     row.textColor && /^#?[0-9a-fA-F]{6}$/.test(row.textColor.trim())
       ? row.textColor.startsWith("#")
@@ -146,6 +120,7 @@ function layersFromLegacy(row: {
       fontSize,
       color,
       weight: "bold",
+      align: "left",
     },
     {
       id: "migrated-secondary",
@@ -155,6 +130,7 @@ function layersFromLegacy(row: {
       fontSize: Math.max(12, Math.round(fontSize * 0.55)),
       color,
       weight: "normal",
+      align: "left",
     },
   ];
 }
@@ -174,80 +150,56 @@ export function parseTextLayersJson(
     try {
       const parsed = JSON.parse(raw) as unknown;
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return normalizeTextLayers(parsed);
+        const layers = normalizeTextLayers(parsed);
+        if (layers.length > 0) return layers;
       }
     } catch {
       // fallback
     }
   }
   if (legacy) return layersFromLegacy(legacy);
-  return DEFAULT_LAYERS.map((layer) => ({ ...layer }));
+  return defaultWelcomeTextLayers();
 }
 
-export function normalizeTextLayers(raw: unknown[]): WelcomeTextLayer[] {
-  const layers: WelcomeTextLayer[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== "object") continue;
-    const row = item as Record<string, unknown>;
-    const text = typeof row.text === "string" ? row.text.trim().slice(0, 200) : "";
-    if (!text) continue;
-    layers.push({
-      id:
-        typeof row.id === "string" && row.id.trim()
-          ? row.id.trim().slice(0, 64)
-          : randomUUID().slice(0, 8),
-      text,
-      x: clamp(Number(row.x), 0, CARD_WIDTH, CARD_WIDTH / 2),
-      y: clamp(Number(row.y), 0, CARD_HEIGHT, 560),
-      fontSize: clamp(Number(row.fontSize), FONT_SIZE_MIN, FONT_SIZE_MAX, 64),
-      color: (() => {
-        try {
-          return normalizeHexColor(
-            typeof row.color === "string" ? row.color : "#FFFFFF",
-          );
-        } catch {
-          return "#FFFFFF";
-        }
-      })(),
-      weight: normalizeWeight(row.weight),
-    });
-  }
-  return layers.length > 0 ? layers.slice(0, 12) : DEFAULT_LAYERS.map((l) => ({ ...l }));
-}
+export { normalizeTextLayers };
 
 async function ensureGuildRow(guildId: string): Promise<void> {
   const db = getDb();
   const existing = await one(
     db
-    .select()
-    .from(guildSettings)
-    .where(eq(guildSettings.guildId, guildId))
-    .limit(1)
+      .select()
+      .from(guildSettings)
+      .where(eq(guildSettings.guildId, guildId))
+      .limit(1),
   );
 
   if (!existing) {
-    await db.insert(guildSettings)
-      .values({
-        guildId,
-        prefix: "!",
-        welcomeEnabled: false,
-        updatedAt: new Date(),
-      })
-      ;
+    await db.insert(guildSettings).values({
+      guildId,
+      prefix: "!",
+      welcomeEnabled: false,
+      updatedAt: new Date(),
+    });
   }
 }
 
-export async function getWelcomeSettings(guildIdRaw?: string): Promise<WelcomeSettingsResponse> {
-  const guildId = assertSnowflake(
-    guildIdRaw?.trim() || "",
-    "guildId",
-  );
+function storedBackgroundUrl(raw: string | null | undefined): string {
+  const trimmed = raw?.trim() || "";
+  return isWelcomeRemoteBackground(trimmed) ? trimmed : "";
+}
 
-  const row = await one(getDb()
-    .select()
-    .from(welcomeSettings)
-    .where(eq(welcomeSettings.guildId, guildId))
-    .limit(1));
+export async function getWelcomeSettings(
+  guildIdRaw?: string,
+): Promise<WelcomeSettingsResponse> {
+  const guildId = assertSnowflake(guildIdRaw?.trim() || "", "guildId");
+
+  const row = await one(
+    getDb()
+      .select()
+      .from(welcomeSettings)
+      .where(eq(welcomeSettings.guildId, guildId))
+      .limit(1),
+  );
 
   if (!row) {
     return {
@@ -255,7 +207,7 @@ export async function getWelcomeSettings(guildIdRaw?: string): Promise<WelcomeSe
       channelId: null,
       isEnabled: false,
       ...DEFAULTS,
-      textLayers: DEFAULT_LAYERS.map((layer) => ({ ...layer })),
+      textLayers: defaultWelcomeTextLayers(),
     };
   }
 
@@ -263,16 +215,16 @@ export async function getWelcomeSettings(guildIdRaw?: string): Promise<WelcomeSe
     guildId: row.guildId,
     channelId: row.channelId,
     isEnabled: row.isEnabled,
-    backgroundUrl: row.backgroundUrl?.trim() || DEFAULTS.backgroundUrl,
+    backgroundUrl: storedBackgroundUrl(row.backgroundUrl),
     bgFilepath: row.bgFilepath?.trim() || null,
     blurAmount: clampBlur(row.blurAmount),
     messageContent: row.messageContent || DEFAULTS.messageContent,
-    avatarX: clamp(row.avatarX, 0, CARD_WIDTH, DEFAULTS.avatarX),
-    avatarY: clamp(row.avatarY, 0, CARD_HEIGHT, DEFAULTS.avatarY),
+    avatarX: clamp(row.avatarX, 0, WELCOME_CARD_WIDTH, DEFAULTS.avatarX),
+    avatarY: clamp(row.avatarY, 0, WELCOME_CARD_HEIGHT, DEFAULTS.avatarY),
     avatarSize: clamp(
       row.avatarSize,
-      AVATAR_SIZE_MIN,
-      AVATAR_SIZE_MAX,
+      WELCOME_AVATAR_SIZE_MIN,
+      WELCOME_AVATAR_SIZE_MAX,
       DEFAULTS.avatarSize,
     ),
     avatarBorderWidth: clamp(row.avatarBorderWidth ?? 8, 0, 40, 8),
@@ -290,6 +242,7 @@ export async function getWelcomeSettings(guildIdRaw?: string): Promise<WelcomeSe
 
 export async function saveWelcomeSettings(
   input: SaveWelcomeSettingsRequest,
+  bot: Client,
 ): Promise<SaveWelcomeSettingsResponse> {
   const guildId = assertSnowflake(input.guildId, "guildId");
   const channelIdRaw = input.channelId?.trim() || "";
@@ -305,14 +258,18 @@ export async function saveWelcomeSettings(
       "MISSING_CHANNEL",
     );
   }
+  if (channelId) {
+    await assertGuildWelcomeChannel(bot, guildId, channelId);
+  }
+
   const blurAmount = clampBlur(input.blurAmount);
   const messageContent = (input.messageContent ?? "{user}").trim().slice(0, 500);
-  const avatarX = clamp(input.avatarX, 0, CARD_WIDTH, DEFAULTS.avatarX);
-  const avatarY = clamp(input.avatarY, 0, CARD_HEIGHT, DEFAULTS.avatarY);
+  const avatarX = clamp(input.avatarX, 0, WELCOME_CARD_WIDTH, DEFAULTS.avatarX);
+  const avatarY = clamp(input.avatarY, 0, WELCOME_CARD_HEIGHT, DEFAULTS.avatarY);
   const avatarSize = clamp(
     input.avatarSize,
-    AVATAR_SIZE_MIN,
-    AVATAR_SIZE_MAX,
+    WELCOME_AVATAR_SIZE_MIN,
+    WELCOME_AVATAR_SIZE_MAX,
     DEFAULTS.avatarSize,
   );
   const avatarBorderWidth = clamp(input.avatarBorderWidth, 0, 40, 8);
@@ -320,8 +277,10 @@ export async function saveWelcomeSettings(
   const textLayers = normalizeTextLayers(
     Array.isArray(input.textLayers) ? input.textLayers : [],
   );
+  const resolvedLayers =
+    textLayers.length > 0 ? textLayers : defaultWelcomeTextLayers();
 
-  let bgFilepath = input.bgFilepath?.trim() || null;
+  const bgFilepath = input.bgFilepath?.trim() || null;
   if (bgFilepath && !resolvePublicUploadPath(bgFilepath)) {
     throw new WelcomeSettingsError(
       "bgFilepath inválido. Debe ser /uploads/backgrounds/...",
@@ -330,31 +289,12 @@ export async function saveWelcomeSettings(
     );
   }
 
-  let backgroundUrl =
-    (input.backgroundUrl ?? "").trim() || DEFAULTS.backgroundUrl;
-  if (backgroundUrl && !isHttpUrl(backgroundUrl) && !bgFilepath) {
-    throw new WelcomeSettingsError(
-      "La URL de fondo debe ser http(s) o sube un archivo.",
-      400,
-      "INVALID_BACKGROUND_URL",
-    );
-  }
-  if (!isHttpUrl(backgroundUrl)) {
-    backgroundUrl = DEFAULTS.backgroundUrl;
-  }
-
-  if (isEnabled && !bgFilepath && !backgroundUrl) {
-    throw new WelcomeSettingsError(
-      "Necesitas un fondo para activar la tarjeta de bienvenida.",
-      400,
-      "MISSING_BACKGROUND",
-    );
-  }
+  const backgroundUrl = storedBackgroundUrl(input.backgroundUrl);
 
   await ensureGuildRow(guildId);
 
-  const first = textLayers[0];
-  const second = textLayers[1];
+  const first = resolvedLayers[0];
+  const second = resolvedLayers[1];
 
   const db = getDb();
   const now = new Date();
@@ -362,7 +302,7 @@ export async function saveWelcomeSettings(
     channelId,
     isEnabled,
     welcomeMode: WELCOME_MODE_CARD,
-    backgroundUrl,
+    backgroundUrl: backgroundUrl || null,
     bgFilepath,
     blurAmount,
     messageContent,
@@ -371,8 +311,7 @@ export async function saveWelcomeSettings(
     avatarSize,
     avatarBorderWidth,
     avatarBorderColor,
-    textLayers: JSON.stringify(textLayers),
-    // Legacy mirrors (primera/segunda capa)
+    textLayers: JSON.stringify(resolvedLayers),
     primaryText: first?.text ?? "¡Bienvenido!",
     secondaryText: second?.text ?? "{username}",
     textX: first?.x ?? DEFAULTS.avatarX,
@@ -384,30 +323,28 @@ export async function saveWelcomeSettings(
 
   const existing = await one(
     db
-    .select()
-    .from(welcomeSettings)
-    .where(eq(welcomeSettings.guildId, guildId))
-    .limit(1)
+      .select()
+      .from(welcomeSettings)
+      .where(eq(welcomeSettings.guildId, guildId))
+      .limit(1),
   );
 
   if (existing) {
-    await db.update(welcomeSettings)
+    await db
+      .update(welcomeSettings)
       .set(payload)
-      .where(eq(welcomeSettings.guildId, guildId))
-      ;
+      .where(eq(welcomeSettings.guildId, guildId));
   } else {
-    await db.insert(welcomeSettings)
-      .values({
-        guildId,
-        ...payload,
-      })
-      ;
+    await db.insert(welcomeSettings).values({
+      guildId,
+      ...payload,
+    });
   }
 
-  await db.update(guildSettings)
+  await db
+    .update(guildSettings)
     .set({ welcomeEnabled: isEnabled, updatedAt: now })
-    .where(eq(guildSettings.guildId, guildId))
-    ;
+    .where(eq(guildSettings.guildId, guildId));
 
   return { ok: true };
 }
@@ -415,12 +352,12 @@ export async function saveWelcomeSettings(
 export async function disableWelcomeSettings(guildId: string): Promise<void> {
   const db = getDb();
   const now = new Date();
-  await db.update(welcomeSettings)
+  await db
+    .update(welcomeSettings)
     .set({ isEnabled: false, updatedAt: now })
-    .where(eq(welcomeSettings.guildId, guildId))
-    ;
-  await db.update(guildSettings)
+    .where(eq(welcomeSettings.guildId, guildId));
+  await db
+    .update(guildSettings)
     .set({ welcomeEnabled: false, updatedAt: now })
-    .where(eq(guildSettings.guildId, guildId))
-    ;
+    .where(eq(guildSettings.guildId, guildId));
 }
