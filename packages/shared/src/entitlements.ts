@@ -39,7 +39,8 @@ export type FeatureKey =
   | "outbound-webhooks"
   | "public-api"
   | "panel-audit"
-  | "staff-roles";
+  | "staff-roles"
+  | "voice-rooms";
 
 export type LimitKey =
   | "logRetentionDays"
@@ -81,6 +82,7 @@ const FREE_FEATURES: readonly FeatureKey[] = [
   "utilities",
   "tickets",
   "giveaways",
+  "voice-rooms",
 ];
 
 const PRO_FEATURES: readonly FeatureKey[] = [

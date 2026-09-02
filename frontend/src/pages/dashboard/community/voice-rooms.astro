@@ -1,0 +1,11 @@
+---
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { VoiceRoomsDashboard } from "../../../features/voice-rooms";
+---
+
+<DashboardLayout
+  title="Voice Rooms"
+  description="Salas de voz temporales: un hub, una sala, se borra al vaciar."
+>
+  <VoiceRoomsDashboard client:load />
+</DashboardLayout>

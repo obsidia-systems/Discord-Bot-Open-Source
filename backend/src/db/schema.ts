@@ -1275,6 +1275,70 @@ export type GuildEntitlementRow = typeof guildEntitlements.$inferSelect;
 export type BillingCustomerRow = typeof billingCustomers.$inferSelect;
 export type WebhookEventRow = typeof webhookEvents.$inferSelect;
 
+/**
+ * Generadores Join to Create (Voice Rooms).
+ */
+export const voiceRoomGenerators = pgTable(
+  "voice_room_generators",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    hubChannelId: text("hub_channel_id").notNull(),
+    categoryId: text("category_id"),
+    nameTemplate: text("name_template").notNull().default("{user}'s room"),
+    defaultUserLimit: integer("default_user_limit").notNull().default(0),
+    defaultBitrate: integer("default_bitrate").notNull().default(0),
+    autoText: boolean("auto_text").notNull().default(false),
+    enabled: boolean("enabled").notNull().default(true),
+    /** JSON: VoiceRoomActionMap */
+    allowedActions: text("allowed_actions").notNull().default("{}"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("voice_room_generators_guild_hub").on(
+      table.guildId,
+      table.hubChannelId,
+    ),
+  ],
+);
+
+/**
+ * Salas temporales vivas. channel_id = VC de Discord.
+ */
+export const voiceRooms = pgTable(
+  "voice_rooms",
+  {
+    channelId: text("channel_id").primaryKey(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    generatorId: integer("generator_id")
+      .notNull()
+      .references(() => voiceRoomGenerators.id, { onDelete: "cascade" }),
+    ownerId: text("owner_id").notNull(),
+    textChannelId: text("text_channel_id"),
+    locked: boolean("locked").notNull().default(false),
+    ghosted: boolean("ghosted").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("voice_rooms_guild_owner").on(table.guildId, table.ownerId),
+    index("idx_voice_rooms_guild").on(table.guildId),
+  ],
+);
+
+export type VoiceRoomGeneratorRow = typeof voiceRoomGenerators.$inferSelect;
+export type VoiceRoomRow = typeof voiceRooms.$inferSelect;
+
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [
   "minecraft",

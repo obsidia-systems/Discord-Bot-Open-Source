@@ -26,4 +26,5 @@ export * from "./scheduled-messages.js";
 export * from "./sent-embeds.js";
 export * from "./system-commands.js";
 export * from "./uploads.js";
+export * from "./voice-rooms.js";
 export * from "./welcome.js";

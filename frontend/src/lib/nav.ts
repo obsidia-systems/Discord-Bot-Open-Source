@@ -204,6 +204,12 @@ export const dashboardNav: NavCategoryConfig[] = [
         blurb: "Niveles por texto, voz y gamificación.",
       },
       {
+        label: "Voice Rooms",
+        href: "/dashboard/community/voice-rooms",
+        icon: Mic2,
+        blurb: "Salas de voz temporales (join to create).",
+      },
+      {
         label: "Roles Builder",
         href: "/dashboard/community/roles-builder",
         icon: Palette,

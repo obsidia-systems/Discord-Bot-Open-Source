@@ -20,6 +20,7 @@ import {
 describe("catálogo de módulos", () => {
   it("incluye canvas-events y no duplica ids", () => {
     expect(MODULE_IDS).toContain("canvas-events");
+    expect(MODULE_IDS).toContain("voice-rooms");
     expect(new Set(MODULE_IDS).size).toBe(MODULE_IDS.length);
   });
 
@@ -27,6 +28,7 @@ describe("catálogo de módulos", () => {
     expect(MODULE_FEATURE["canvas-events"]).toBe("welcome");
     expect(MODULE_FEATURE["action-logs"]).toBe("logs");
     expect(MODULE_FEATURE["auto-mod"]).toBe("automod");
+    expect(MODULE_FEATURE["voice-rooms"]).toBe("voice-rooms");
     expect(MODULE_FEATURE.billing).toBeUndefined();
   });
 });
@@ -42,7 +44,8 @@ describe("códigos de error del kernel", () => {
 });
 
 describe("entitlements y asientos", () => {
-  it("free no incluye branding", () => {
+  it("free incluye voice-rooms y no branding", () => {
+    expect(tierHasFeature("free", "voice-rooms")).toBe(true);
     expect(tierHasFeature("free", "branding")).toBe(false);
     expect(tierHasFeature("pro", "branding")).toBe(true);
   });

@@ -131,3 +131,10 @@ export {
   deleteGuildRole,
   updateRolePositions,
 } from "./api/roles-builder";
+
+export {
+  fetchVoiceRooms,
+  createVoiceRoomGenerator,
+  updateVoiceRoomGenerator,
+  deleteVoiceRoomGenerator,
+} from "./api/voice-rooms";

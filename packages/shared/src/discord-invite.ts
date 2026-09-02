@@ -21,11 +21,14 @@ export const BOT_INVITE_PERMISSIONS = (
   (1n << 15n) | // ATTACH_FILES
   (1n << 16n) | // READ_MESSAGE_HISTORY
   (1n << 18n) | // USE_EXTERNAL_EMOJIS
-  (1n << 20n) | // CONNECT (XP en voz)
+  (1n << 20n) | // CONNECT (XP en voz + Voice Rooms)
+  (1n << 24n) | // MOVE_MEMBERS (mover del hub a la sala)
   (1n << 28n) | // MANAGE_ROLES (autoroles, overwrite de lock)
   // MODERATE_MEMBERS (timeout)
-  (1n << 40n)
-).toString();
+  (1n << 40n) |
+  (1n << 48n)
+) // SET_VOICE_CHANNEL_STATUS
+  .toString();
 
 export function buildBotInviteUrl(options: {
   clientId: string;

@@ -7,6 +7,7 @@ import {
   SYSTEM_COMMAND_CATALOG,
   resolveDiscordPermPreset,
   toDiscordSlashCommandBody,
+  voiceRoomsSlashCommandBody,
   type SystemCommandDefinition,
 } from "@adobos/shared";
 import {
@@ -73,7 +74,10 @@ export async function buildEnabledDefaultSlashBodies(
 
 /** Catálogo nativo completo para registro global (enable/disable es el guard). */
 export function buildGlobalDefaultSlashBodies(): RESTPostAPIChatInputApplicationCommandsJSONBody[] {
-  return SYSTEM_COMMAND_CATALOG.map(toSlashBody);
+  return [
+    ...SYSTEM_COMMAND_CATALOG.map(toSlashBody),
+    voiceRoomsSlashCommandBody() as RESTPostAPIChatInputApplicationCommandsJSONBody,
+  ];
 }
 
 /**
