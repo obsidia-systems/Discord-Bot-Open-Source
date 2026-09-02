@@ -159,3 +159,10 @@ export {
   updateStreamAlert,
   deleteStreamAlert,
 } from "./api/stream-alerts";
+
+export {
+  fetchAutoReplies,
+  createAutoReply,
+  updateAutoReply,
+  deleteAutoReply,
+} from "./api/auto-replies";

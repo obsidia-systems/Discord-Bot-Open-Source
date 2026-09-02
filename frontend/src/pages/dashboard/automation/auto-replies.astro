@@ -1,0 +1,11 @@
+---
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { AutoRepliesDashboard } from "../../../features/auto-replies";
+---
+
+<DashboardLayout
+  title="Auto-Replies"
+  description="El bot responde cuando un mensaje coincide con un trigger."
+>
+  <AutoRepliesDashboard client:load />
+</DashboardLayout>

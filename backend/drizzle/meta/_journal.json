@@ -120,6 +120,13 @@
       "when": 1788387600000,
       "tag": "0016_stream_alerts",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788391200000,
+      "tag": "0017_auto_replies",
+      "breakpoints": true
     }
   ]
 }

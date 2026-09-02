@@ -44,13 +44,15 @@ export type FeatureKey =
   | "reminders"
   | "starboard"
   | "anti-raid"
-  | "stream-alerts";
+  | "stream-alerts"
+  | "auto-replies";
 
 export type LimitKey =
   | "logRetentionDays"
   | "streamAlerts"
   | "scheduledMessages"
   | "customCommands"
+  | "autoReplies"
   | "storageMb"
   | "coveredGuilds";
 
@@ -59,6 +61,7 @@ export interface TierLimits {
   streamAlerts: number;
   scheduledMessages: number;
   customCommands: number;
+  autoReplies: number;
   storageMb: number;
   coveredGuilds: number;
 }
@@ -91,6 +94,7 @@ const FREE_FEATURES: readonly FeatureKey[] = [
   "starboard",
   "anti-raid",
   "stream-alerts",
+  "auto-replies",
 ];
 
 const PRO_FEATURES: readonly FeatureKey[] = [
@@ -118,6 +122,7 @@ export const TIER_CATALOG: Record<PlanTier, TierDefinition> = {
       streamAlerts: 2,
       scheduledMessages: 25,
       customCommands: 25,
+      autoReplies: 25,
       storageMb: 100,
       coveredGuilds: 3,
     },
@@ -129,6 +134,7 @@ export const TIER_CATALOG: Record<PlanTier, TierDefinition> = {
       streamAlerts: UNLIMITED,
       scheduledMessages: 500,
       customCommands: 100,
+      autoReplies: 500,
       storageMb: 2048,
       coveredGuilds: 3,
     },
@@ -140,6 +146,7 @@ export const TIER_CATALOG: Record<PlanTier, TierDefinition> = {
       streamAlerts: UNLIMITED,
       scheduledMessages: UNLIMITED,
       customCommands: 100,
+      autoReplies: UNLIMITED,
       storageMb: 10240,
       coveredGuilds: UNLIMITED,
     },
@@ -218,6 +225,9 @@ export function limitExceededMessage(
   }
   if (key === "streamAlerts") {
     return `Has alcanzado el límite de ${max} Stream Alerts del plan ${current}.`;
+  }
+  if (key === "autoReplies") {
+    return `Has alcanzado el límite de ${max} Auto-Replies del plan ${current}.`;
   }
   return `Has alcanzado un límite del plan ${current}.`;
 }

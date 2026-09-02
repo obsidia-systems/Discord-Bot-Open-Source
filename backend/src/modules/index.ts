@@ -22,6 +22,7 @@ import { remindersModule } from "./reminders/index.js";
 import { starboardModule } from "./starboard/index.js";
 import { antiRaidModule } from "./anti-raid/index.js";
 import { streamAlertsModule } from "./stream-alerts/index.js";
+import { autoRepliesModule } from "./auto-replies/index.js";
 
 /**
  * Catálogo explícito de módulos habilitados.
@@ -51,6 +52,7 @@ export const ENABLED_MODULES: readonly AdobosModule[] = [
   starboardModule,
   antiRaidModule,
   streamAlertsModule,
+  autoRepliesModule,
 ];
 
 export {
@@ -77,4 +79,5 @@ export {
   starboardModule,
   antiRaidModule,
   streamAlertsModule,
+  autoRepliesModule,
 };

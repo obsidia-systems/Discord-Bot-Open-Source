@@ -26,6 +26,7 @@ export const MODULE_IDS = [
   "starboard",
   "anti-raid",
   "stream-alerts",
+  "auto-replies",
 ] as const;
 
 export type ModuleId = (typeof MODULE_IDS)[number];
@@ -59,6 +60,7 @@ export const MODULE_FEATURE: Partial<Record<ModuleId, FeatureKey>> = {
   starboard: "starboard",
   "anti-raid": "anti-raid",
   "stream-alerts": "stream-alerts",
+  "auto-replies": "auto-replies",
 };
 
 export interface PluginMeta {

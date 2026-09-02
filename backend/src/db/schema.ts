@@ -1520,6 +1520,38 @@ export const streamAlerts = pgTable(
 
 export type StreamAlertRow = typeof streamAlerts.$inferSelect;
 
+/**
+ * Auto-Replies: trigger de texto → respuesta. No es Custom Command (slash).
+ */
+export const autoReplies = pgTable(
+  "auto_replies",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    trigger: text("trigger").notNull(),
+    matchMode: text("match_mode").notNull().default("contains"),
+    response: text("response").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    caseSensitive: boolean("case_sensitive").notNull().default(false),
+    wholeWord: boolean("whole_word").notNull().default(false),
+    useReply: boolean("use_reply").notNull().default(true),
+    cooldownSeconds: integer("cooldown_seconds").notNull().default(0),
+    allowedChannelIds: text("allowed_channel_ids").notNull().default("[]"),
+    ignoredChannelIds: text("ignored_channel_ids").notNull().default("[]"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [index("idx_auto_replies_guild").on(table.guildId)],
+);
+
+export type AutoReplyRow = typeof autoReplies.$inferSelect;
+
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [
   "minecraft",

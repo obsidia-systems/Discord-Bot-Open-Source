@@ -25,6 +25,7 @@ describe("catálogo de módulos", () => {
     expect(MODULE_IDS).toContain("starboard");
     expect(MODULE_IDS).toContain("anti-raid");
     expect(MODULE_IDS).toContain("stream-alerts");
+    expect(MODULE_IDS).toContain("auto-replies");
     expect(new Set(MODULE_IDS).size).toBe(MODULE_IDS.length);
   });
 
@@ -37,6 +38,7 @@ describe("catálogo de módulos", () => {
     expect(MODULE_FEATURE.starboard).toBe("starboard");
     expect(MODULE_FEATURE["anti-raid"]).toBe("anti-raid");
     expect(MODULE_FEATURE["stream-alerts"]).toBe("stream-alerts");
+    expect(MODULE_FEATURE["auto-replies"]).toBe("auto-replies");
     expect(MODULE_FEATURE.billing).toBeUndefined();
   });
 });
@@ -58,6 +60,7 @@ describe("entitlements y asientos", () => {
     expect(tierHasFeature("free", "starboard")).toBe(true);
     expect(tierHasFeature("free", "anti-raid")).toBe(true);
     expect(tierHasFeature("free", "stream-alerts")).toBe(true);
+    expect(tierHasFeature("free", "auto-replies")).toBe(true);
     expect(tierHasFeature("free", "antinuke")).toBe(false);
     expect(tierHasFeature("pro", "antinuke")).toBe(true);
     expect(tierHasFeature("free", "branding")).toBe(false);

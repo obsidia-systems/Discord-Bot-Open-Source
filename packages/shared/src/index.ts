@@ -4,6 +4,7 @@ export * from "./action-logs.js";
 export * from "./anti-raid.js";
 export * from "./auto-delete.js";
 export * from "./auto-mod.js";
+export * from "./auto-replies.js";
 export * from "./autoroles.js";
 export * from "./billing.js";
 export * from "./bot-profile.js";

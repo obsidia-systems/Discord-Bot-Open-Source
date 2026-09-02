@@ -24,6 +24,12 @@ describe("catálogo de entitlements", () => {
     expect(tierLimit("business", "streamAlerts")).toBe(UNLIMITED);
   });
 
+  it("límites de Auto-Replies: 25 / 500 / ilimitado", () => {
+    expect(tierLimit("free", "autoReplies")).toBe(25);
+    expect(tierLimit("pro", "autoReplies")).toBe(500);
+    expect(tierLimit("business", "autoReplies")).toBe(UNLIMITED);
+  });
+
   it("límites de Custom Commands (techo Discord 100)", () => {
     expect(tierLimit("free", "customCommands")).toBe(25);
     expect(tierLimit("pro", "customCommands")).toBe(100);
