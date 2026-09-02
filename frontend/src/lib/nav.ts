@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  AlarmClock,
   Ban,
   Briefcase,
   CalendarClock,
@@ -262,7 +263,13 @@ export const dashboardNav: NavCategoryConfig[] = [
         label: "Scheduled Messages",
         href: "/dashboard/automation/scheduled",
         icon: CalendarClock,
-        blurb: "Anuncios y recordatorios en horario.",
+        blurb: "Anuncios en un canal a una hora fija.",
+      },
+      {
+        label: "Reminders",
+        href: "/dashboard/automation/reminders",
+        icon: AlarmClock,
+        blurb: "Recordatorios personales por /remind.",
       },
       {
         label: "Custom Commands",

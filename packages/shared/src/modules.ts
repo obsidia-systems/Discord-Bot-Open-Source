@@ -22,6 +22,7 @@ export const MODULE_IDS = [
   "roles-builder",
   "billing",
   "voice-rooms",
+  "reminders",
 ] as const;
 
 export type ModuleId = (typeof MODULE_IDS)[number];
@@ -51,6 +52,7 @@ export const MODULE_FEATURE: Partial<Record<ModuleId, FeatureKey>> = {
   levels: "levels",
   "roles-builder": "roles-builder",
   "voice-rooms": "voice-rooms",
+  reminders: "reminders",
 };
 
 export interface PluginMeta {

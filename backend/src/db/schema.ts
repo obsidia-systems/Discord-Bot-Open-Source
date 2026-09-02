@@ -1339,6 +1339,48 @@ export const voiceRooms = pgTable(
 export type VoiceRoomGeneratorRow = typeof voiceRoomGenerators.$inferSelect;
 export type VoiceRoomRow = typeof voiceRooms.$inferSelect;
 
+/**
+ * Ajustes de Reminders por guild (timezone para `/remind at`).
+ */
+export const reminderSettings = pgTable("reminder_settings", {
+  guildId: text("guild_id")
+    .primaryKey()
+    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+  timezone: text("timezone").notNull().default("UTC"),
+  enabled: boolean("enabled").notNull().default(true),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+/**
+ * Recordatorios personales pendientes. Se borran al disparar.
+ */
+export const reminders = pgTable(
+  "reminders",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    channelId: text("channel_id").notNull(),
+    message: text("message").notNull(),
+    dueAt: timestamp("due_at", { withTimezone: true, mode: "date" }).notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index("idx_reminders_due").on(table.dueAt),
+    index("idx_reminders_guild_user").on(table.guildId, table.userId),
+  ],
+);
+
+export type ReminderSettingsRow = typeof reminderSettings.$inferSelect;
+export type ReminderRow = typeof reminders.$inferSelect;
+
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [
   "minecraft",

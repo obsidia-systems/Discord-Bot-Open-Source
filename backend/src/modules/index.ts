@@ -18,6 +18,7 @@ import { levelsModule } from "./levels/index.js";
 import { rolesBuilderModule } from "./roles-builder/index.js";
 import { billingModule } from "./billing/index.js";
 import { voiceRoomsModule } from "./voice-rooms/index.js";
+import { remindersModule } from "./reminders/index.js";
 
 /**
  * Catálogo explícito de módulos habilitados.
@@ -43,6 +44,7 @@ export const ENABLED_MODULES: readonly AdobosModule[] = [
   rolesBuilderModule,
   billingModule,
   voiceRoomsModule,
+  remindersModule,
 ];
 
 export {
@@ -65,4 +67,5 @@ export {
   rolesBuilderModule,
   billingModule,
   voiceRoomsModule,
+  remindersModule,
 };

@@ -1,0 +1,11 @@
+---
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { RemindersDashboard } from "../../../features/reminders";
+---
+
+<DashboardLayout
+  title="Reminders"
+  description="Avisos personales por DM. No son anuncios de canal."
+>
+  <RemindersDashboard client:load />
+</DashboardLayout>

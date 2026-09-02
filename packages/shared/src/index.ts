@@ -21,6 +21,7 @@ export * from "./levels.js";
 export * from "./messages.js";
 export * from "./moderation.js";
 export * from "./modules.js";
+export * from "./reminders.js";
 export * from "./roles-builder.js";
 export * from "./scheduled-messages.js";
 export * from "./sent-embeds.js";

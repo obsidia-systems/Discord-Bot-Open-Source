@@ -8,6 +8,7 @@ import {
   resolveDiscordPermPreset,
   toDiscordSlashCommandBody,
   voiceRoomsSlashCommandBody,
+  remindersSlashCommandBody,
   type SystemCommandDefinition,
 } from "@adobos/shared";
 import {
@@ -77,6 +78,7 @@ export function buildGlobalDefaultSlashBodies(): RESTPostAPIChatInputApplication
   return [
     ...SYSTEM_COMMAND_CATALOG.map(toSlashBody),
     voiceRoomsSlashCommandBody() as RESTPostAPIChatInputApplicationCommandsJSONBody,
+    remindersSlashCommandBody() as RESTPostAPIChatInputApplicationCommandsJSONBody,
   ];
 }
 

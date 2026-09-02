@@ -138,3 +138,9 @@ export {
   updateVoiceRoomGenerator,
   deleteVoiceRoomGenerator,
 } from "./api/voice-rooms";
+
+export {
+  fetchReminders,
+  saveReminderSettings,
+  deleteReminder,
+} from "./api/reminders";
