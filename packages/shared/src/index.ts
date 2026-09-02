@@ -30,6 +30,7 @@ export * from "./sent-embeds.js";
 export * from "./starboard.js";
 export * from "./stream-alerts.js";
 export * from "./system-commands.js";
+export * from "./tickets.js";
 export * from "./uploads.js";
 export * from "./voice-rooms.js";
 export * from "./welcome.js";

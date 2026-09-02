@@ -166,3 +166,23 @@ export {
   updateAutoReply,
   deleteAutoReply,
 } from "./api/auto-replies";
+
+export {
+  fetchTicketSettings,
+  saveTicketSettings,
+  fetchTicketPanels,
+  createTicketPanel,
+  saveTicketPanel,
+  deleteTicketPanel,
+  publishTicketPanel,
+  fetchTickets,
+  fetchTicketDetail,
+  claimTicket,
+  unclaimTicket,
+  waitTicket,
+  unwaitTicket,
+  closeTicket,
+  reopenTicket,
+  addTicketUser,
+  removeTicketUser,
+} from "./api/tickets";

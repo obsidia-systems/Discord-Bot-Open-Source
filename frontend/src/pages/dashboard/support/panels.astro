@@ -1,8 +1,11 @@
 ---
-import ComingSoon from "../../../components/shared/ComingSoon.astro";
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { TicketsDashboard } from "../../../features/tickets";
 ---
 
-<ComingSoon
-  title="Paneles de Tickets"
-  description="Mensajes y botones para abrir tickets de soporte."
-/>
+<DashboardLayout
+  title="Tickets"
+  description="Paneles con botones para abrir tickets de soporte."
+>
+  <TicketsDashboard client:load initialTab="panels" />
+</DashboardLayout>

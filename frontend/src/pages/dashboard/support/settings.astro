@@ -1,8 +1,11 @@
 ---
-import ComingSoon from "../../../components/shared/ComingSoon.astro";
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { TicketsDashboard } from "../../../features/tickets";
 ---
 
-<ComingSoon
-  title="Ajustes de Tickets"
-  description="Categorías, roles de staff, transcripts y cierre automático."
-/>
+<DashboardLayout
+  title="Tickets"
+  description="Bandeja, estados y ajustes de tickets."
+>
+  <TicketsDashboard client:load initialTab="inbox" />
+</DashboardLayout>

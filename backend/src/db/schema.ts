@@ -1552,6 +1552,131 @@ export const autoReplies = pgTable(
 
 export type AutoReplyRow = typeof autoReplies.$inferSelect;
 
+/**
+ * Tickets: ajustes por guild. El canal de Discord es la sala; Postgres es el expediente.
+ */
+export const ticketSettings = pgTable("ticket_settings", {
+  guildId: text("guild_id")
+    .primaryKey()
+    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+  categoryId: text("category_id"),
+  staffRoleIds: text("staff_role_ids").notNull().default("[]"),
+  nameTemplate: text("name_template").notNull().default("ticket-{n}-{user}"),
+  maxOpenPerUser: integer("max_open_per_user").notNull().default(1),
+  logChannelId: text("log_channel_id"),
+  nextNumber: integer("next_number").notNull().default(1),
+  openerCanClose: boolean("opener_can_close").notNull().default(true),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export type TicketSettingsRow = typeof ticketSettings.$inferSelect;
+
+/** Panel publicado (mensaje + hasta 5 botones / tipos). */
+export const ticketPanels = pgTable(
+  "ticket_panels",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    channelId: text("channel_id"),
+    messageId: text("message_id"),
+    embedTitle: text("embed_title").notNull().default("Tickets"),
+    embedDescription: text("embed_description")
+      .notNull()
+      .default("Pulsa un botón para abrir un ticket."),
+    embedColor: text("embed_color").notNull().default("#5865F2"),
+    buttons: text("buttons").notNull().default("[]"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [index("idx_ticket_panels_guild").on(table.guildId)],
+);
+
+export type TicketPanelRow = typeof ticketPanels.$inferSelect;
+
+/** Caso de ticket. channel_id null si el canal ya no existe. */
+export const tickets = pgTable(
+  "tickets",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    number: integer("number").notNull(),
+    openerId: text("opener_id").notNull(),
+    channelId: text("channel_id"),
+    typeKey: text("type_key").notNull(),
+    status: text("status").notNull().default("open"),
+    claimedBy: text("claimed_by"),
+    reason: text("reason"),
+    closeReason: text("close_reason"),
+    transcriptText: text("transcript_text"),
+    openedAt: timestamp("opened_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    closedAt: timestamp("closed_at", { withTimezone: true, mode: "date" }),
+    claimedAt: timestamp("claimed_at", { withTimezone: true, mode: "date" }),
+  },
+  (table) => [
+    uniqueIndex("tickets_guild_number").on(table.guildId, table.number),
+    uniqueIndex("tickets_channel_id_unique").on(table.channelId),
+    index("idx_tickets_guild_status").on(table.guildId, table.status),
+    index("idx_tickets_guild_opener").on(table.guildId, table.openerId),
+  ],
+);
+
+export type TicketRow = typeof tickets.$inferSelect;
+
+/** Timeline append-only. Nunca update/delete de filas. */
+export const ticketEvents = pgTable(
+  "ticket_events",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    ticketId: integer("ticket_id")
+      .notNull()
+      .references(() => tickets.id, { onDelete: "cascade" }),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    actorId: text("actor_id"),
+    payload: text("payload").notNull().default("{}"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index("idx_ticket_events_ticket").on(table.ticketId),
+    index("idx_ticket_events_guild_created").on(table.guildId, table.createdAt),
+  ],
+);
+
+export type TicketEventRow = typeof ticketEvents.$inferSelect;
+
+export const ticketParticipants = pgTable(
+  "ticket_participants",
+  {
+    ticketId: integer("ticket_id")
+      .notNull()
+      .references(() => tickets.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    kind: text("kind").notNull().default("added"),
+  },
+  (table) => [
+    primaryKey({ columns: [table.ticketId, table.userId] }),
+    index("idx_ticket_participants_ticket").on(table.ticketId),
+  ],
+);
+
+export type TicketParticipantRow = typeof ticketParticipants.$inferSelect;
+
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [
   "minecraft",
