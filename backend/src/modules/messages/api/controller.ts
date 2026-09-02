@@ -7,19 +7,29 @@ import {
   EmbedBuilder,
   type AttachmentBuilder,
   type Client,
-  type ColorResolvable,
+  type Message,
   type SendableChannels,
 } from "discord.js";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import type {
-  MessageActionRowInput,
-  MessageButtonInput,
-  MessageButtonStyle,
-  SendEmbedRequest,
-  SendEmbedResponse,
-  SendMessageRequest,
-  SendMessageResponse,
+import {
+  EMBED_AUTHOR_MAX,
+  EMBED_DESCRIPTION_MAX,
+  EMBED_FOOTER_MAX,
+  EMBED_TITLE_MAX,
+  EMBED_TOTAL_MAX,
+  MESSAGE_CONTENT_MAX,
+  embedCharacterCount,
+  parseEmbedHexColor,
+  persistEmbedMediaUrl,
+  sanitizeEmbedFields,
+  sanitizeLinkActionRows,
+  type EmbedPayload,
+  type MessageActionRowInput,
+  type SendEmbedRequest,
+  type SendEmbedResponse,
+  type SendMessageRequest,
+  type SendMessageResponse,
 } from "@adobos/shared";
 import { getDb, one } from "../../../db/client.js";
 import { guildSettings, sentEmbeds } from "../../../db/schema.js";
@@ -40,14 +50,6 @@ export class MessageSendError extends Error {
     this.name = "MessageSendError";
   }
 }
-
-const BUTTON_STYLE_MAP: Record<MessageButtonStyle, ButtonStyle> = {
-  Primary: ButtonStyle.Primary,
-  Secondary: ButtonStyle.Secondary,
-  Success: ButtonStyle.Success,
-  Danger: ButtonStyle.Danger,
-  Link: ButtonStyle.Link,
-};
 
 function isSendableChannel(channel: unknown): channel is SendableChannels {
   return (
@@ -115,6 +117,8 @@ async function resolveSendableChannel(
   if (
     channel.type === ChannelType.GuildCategory ||
     channel.type === ChannelType.GuildVoice ||
+    channel.type === ChannelType.GuildStageVoice ||
+    channel.type === ChannelType.GuildForum ||
     !isSendableChannel(channel)
   ) {
     throw new MessageSendError(
@@ -125,19 +129,6 @@ async function resolveSendableChannel(
   }
 
   return channel;
-}
-
-function parseHexColor(color?: string): ColorResolvable | undefined {
-  if (!color?.trim()) return undefined;
-  const raw = color.trim().replace(/^#/, "");
-  if (!/^[0-9a-fA-F]{6}$/.test(raw)) {
-    throw new MessageSendError(
-      "Color inválido. Usa formato hex (#RRGGBB).",
-      400,
-      "INVALID_COLOR",
-    );
-  }
-  return Number.parseInt(raw, 16);
 }
 
 function optionalHttpUrl(
@@ -207,97 +198,262 @@ function resolveMediaField(
   return resolveMediaOrThrow(urlValue, field, attachmentName, files);
 }
 
-function buildButton(input: MessageButtonInput, index: number): ButtonBuilder {
-  const label = input.label.trim();
-  if (!label || label.length > 80) {
-    throw new MessageSendError(
-      `Botón #${index + 1}: la etiqueta es obligatoria (máx. 80 caracteres).`,
-      400,
-      "INVALID_BUTTON_LABEL",
-    );
-  }
-
-  const style = BUTTON_STYLE_MAP[input.style];
-  if (!style) {
-    throw new MessageSendError(
-      `Botón #${index + 1}: estilo inválido.`,
-      400,
-      "INVALID_BUTTON_STYLE",
-    );
-  }
-
-  const button = new ButtonBuilder().setLabel(label).setStyle(style);
-
-  if (input.disabled) {
-    button.setDisabled(true);
-  }
-
-  if (input.emoji?.trim()) {
-    button.setEmoji(input.emoji.trim());
-  }
-
-  if (input.style === "Link") {
-    const url = optionalHttpUrl(input.url, `buttons[${index}].url`);
-    if (!url) {
-      throw new MessageSendError(
-        `Botón Link #${index + 1}: se requiere una URL.`,
-        400,
-        "MISSING_BUTTON_URL",
-      );
-    }
-    button.setURL(url);
-  } else {
-    const customId = input.customId?.trim();
-    if (!customId || customId.length > 100) {
-      throw new MessageSendError(
-        `Botón #${index + 1}: se requiere customId (máx. 100 caracteres).`,
-        400,
-        "MISSING_BUTTON_CUSTOM_ID",
-      );
-    }
-    button.setCustomId(customId);
-  }
-
-  return button;
-}
-
-function buildActionRows(
+function buildLinkRows(
   rows: MessageActionRowInput[] | undefined,
 ): ActionRowBuilder<ButtonBuilder>[] | undefined {
-  if (!rows?.length) return undefined;
+  const sanitized = sanitizeLinkActionRows(rows);
+  if (!sanitized?.length) return undefined;
 
-  if (rows.length > 5) {
-    throw new MessageSendError(
-      "Máximo 5 filas de componentes por mensaje.",
-      400,
-      "TOO_MANY_ROWS",
-    );
-  }
-
-  return rows.map((row, rowIndex) => {
-    if (!row.buttons?.length) {
-      throw new MessageSendError(
-        `La fila #${rowIndex + 1} no tiene botones.`,
-        400,
-        "EMPTY_ACTION_ROW",
-      );
-    }
-    if (row.buttons.length > 5) {
-      throw new MessageSendError(
-        `La fila #${rowIndex + 1} supera 5 botones.`,
-        400,
-        "TOO_MANY_BUTTONS",
-      );
-    }
-
+  return sanitized.map((row) => {
     const actionRow = new ActionRowBuilder<ButtonBuilder>();
     actionRow.addComponents(
-      row.buttons.map((button, buttonIndex) =>
-        buildButton(button, rowIndex * 5 + buttonIndex),
-      ),
+      row.buttons.map((input, index) => {
+        const button = new ButtonBuilder()
+          .setLabel(input.label)
+          .setStyle(ButtonStyle.Link)
+          .setURL(input.url ?? "");
+        if (input.disabled) button.setDisabled(true);
+        if (input.emoji?.trim()) button.setEmoji(input.emoji.trim());
+        if (!input.url) {
+          throw new MessageSendError(
+            `Botón Link #${index + 1}: se requiere una URL.`,
+            400,
+            "MISSING_BUTTON_URL",
+          );
+        }
+        return button;
+      }),
     );
     return actionRow;
   });
+}
+
+interface PreparedEmbed {
+  content?: string;
+  title?: string;
+  url?: string;
+  description?: string;
+  colorHex?: string;
+  authorName?: string;
+  footerText?: string;
+  fields: NonNullable<EmbedPayload["fields"]>;
+  linkRows?: MessageActionRowInput[];
+  includeTimestamp: boolean;
+  hasEmbedBody: boolean;
+  embed: EmbedBuilder | null;
+  files: AttachmentBuilder[];
+  components?: ActionRowBuilder<ButtonBuilder>[];
+}
+
+function preparedToSnapshot(
+  prepared: PreparedEmbed,
+  input: SendEmbedRequest,
+  message: Message,
+): EmbedPayload {
+  const sent = message.embeds[0];
+  return {
+    content: prepared.content,
+    title: prepared.title,
+    url: prepared.url,
+    description: prepared.description,
+    color: prepared.colorHex,
+    authorName: prepared.authorName,
+    authorIconUrl: persistEmbedMediaUrl(
+      input.authorIconUrl,
+      sent?.author?.iconURL,
+    ),
+    thumbnailUrl: persistEmbedMediaUrl(input.thumbnailUrl, sent?.thumbnail?.url),
+    imageUrl: persistEmbedMediaUrl(input.imageUrl, sent?.image?.url),
+    footerText: prepared.footerText,
+    footerIconUrl: persistEmbedMediaUrl(
+      input.footerIconUrl,
+      sent?.footer?.iconURL,
+    ),
+    timestamp: prepared.includeTimestamp,
+    fields: prepared.fields.length ? prepared.fields : undefined,
+    components: prepared.linkRows,
+  };
+}
+
+function prepareEmbed(
+  input: SendEmbedRequest,
+  uploaded: EmbedUploadedFiles,
+): PreparedEmbed {
+  const title = input.title?.trim() || undefined;
+  const description = input.description?.trim() || undefined;
+  const content = input.content?.trim() || undefined;
+  const authorName = input.authorName?.trim() || undefined;
+  const footerText = input.footerText?.trim() || undefined;
+  const files: AttachmentBuilder[] = [];
+  const url = optionalHttpUrl(input.url, "url");
+  const authorIconUrl = resolveMediaField(
+    input.authorIconUrl,
+    uploaded.authorIcon,
+    "authorIconUrl",
+    "author-icon",
+    files,
+  );
+  const thumbnailUrl = resolveMediaField(
+    input.thumbnailUrl,
+    uploaded.thumbnail,
+    "thumbnailUrl",
+    "thumbnail",
+    files,
+  );
+  const imageUrl = resolveMediaField(
+    input.imageUrl,
+    uploaded.image,
+    "imageUrl",
+    "image",
+    files,
+  );
+  const footerIconUrl = resolveMediaField(
+    input.footerIconUrl,
+    uploaded.footerIcon,
+    "footerIconUrl",
+    "footer-icon",
+    files,
+  );
+  const color = parseEmbedHexColor(input.color);
+  if (input.color?.trim() && color === undefined) {
+    throw new MessageSendError(
+      "Color inválido. Usa formato hex (#RRGGBB).",
+      400,
+      "INVALID_COLOR",
+    );
+  }
+  const includeTimestamp = Boolean(input.timestamp);
+  const fields = sanitizeEmbedFields(input.fields) ?? [];
+  const linkRows = sanitizeLinkActionRows(input.components);
+  const components = buildLinkRows(linkRows);
+
+  if (title && title.length > EMBED_TITLE_MAX) {
+    throw new MessageSendError("El título supera 256 caracteres.", 400, "TITLE_TOO_LONG");
+  }
+  if (description && description.length > EMBED_DESCRIPTION_MAX) {
+    throw new MessageSendError(
+      "La descripción supera 4096 caracteres.",
+      400,
+      "DESCRIPTION_TOO_LONG",
+    );
+  }
+  if (authorName && authorName.length > EMBED_AUTHOR_MAX) {
+    throw new MessageSendError(
+      "El autor supera 256 caracteres.",
+      400,
+      "AUTHOR_TOO_LONG",
+    );
+  }
+  if (footerText && footerText.length > EMBED_FOOTER_MAX) {
+    throw new MessageSendError(
+      "El footer supera 2048 caracteres.",
+      400,
+      "FOOTER_TOO_LONG",
+    );
+  }
+  if (content && content.length > MESSAGE_CONTENT_MAX) {
+    throw new MessageSendError(
+      "El content supera 2000 caracteres.",
+      400,
+      "CONTENT_TOO_LONG",
+    );
+  }
+  if (
+    embedCharacterCount({
+      title,
+      description,
+      authorName,
+      footerText,
+      fields,
+    }) > EMBED_TOTAL_MAX
+  ) {
+    throw new MessageSendError(
+      "El embed supera 6000 caracteres en total.",
+      400,
+      "EMBED_TOO_LONG",
+    );
+  }
+
+  const hasEmbedBody = Boolean(
+    title ||
+      description ||
+      authorName ||
+      thumbnailUrl ||
+      imageUrl ||
+      footerText ||
+      url ||
+      fields.length,
+  );
+
+  if (!hasEmbedBody && !content && !components?.length) {
+    throw new MessageSendError(
+      "Debes indicar al menos un campo del embed, content o componentes.",
+      400,
+      "EMPTY_EMBED",
+    );
+  }
+
+  let embed: EmbedBuilder | null = null;
+  if (hasEmbedBody) {
+    embed = new EmbedBuilder();
+    if (title) embed.setTitle(title);
+    if (url) embed.setURL(url);
+    if (description) embed.setDescription(description);
+    if (color !== undefined) embed.setColor(color);
+    if (authorName) {
+      embed.setAuthor({ name: authorName, iconURL: authorIconUrl });
+    }
+    if (thumbnailUrl) embed.setThumbnail(thumbnailUrl);
+    if (imageUrl) embed.setImage(imageUrl);
+    if (footerText) {
+      embed.setFooter({ text: footerText, iconURL: footerIconUrl });
+    }
+    if (fields.length) {
+      embed.addFields(
+        fields.map((field) => ({
+          name: field.name,
+          value: field.value,
+          inline: Boolean(field.inline),
+        })),
+      );
+    }
+    if (includeTimestamp) embed.setTimestamp(new Date());
+  }
+
+  return {
+    content,
+    title,
+    url,
+    description,
+    colorHex: input.color?.trim() || undefined,
+    authorName,
+    footerText,
+    fields,
+    linkRows,
+    includeTimestamp,
+    hasEmbedBody,
+    embed,
+    files,
+    components,
+  };
+}
+
+async function ensureGuildRow(guildId: string): Promise<void> {
+  const existingGuild = await one(
+    getDb()
+      .select()
+      .from(guildSettings)
+      .where(eq(guildSettings.guildId, guildId))
+      .limit(1),
+  );
+  if (!existingGuild) {
+    await getDb().insert(guildSettings).values({
+      guildId,
+      prefix: "!",
+      welcomeEnabled: false,
+      updatedAt: new Date(),
+    });
+  }
 }
 
 /** Envía un mensaje de texto simple a un canal de Discord. */
@@ -318,7 +474,7 @@ export async function sendTextMessage(
     );
   }
 
-  if (content.length > 2000) {
+  if (content.length > MESSAGE_CONTENT_MAX) {
     throw new MessageSendError(
       "El mensaje supera el límite de 2000 caracteres de Discord.",
       400,
@@ -342,7 +498,7 @@ export async function sendTextMessage(
   }
 }
 
-/** Construye un EmbedBuilder (+ botones opcionales) y lo envía al canal. */
+/** Construye un EmbedBuilder (+ botones Link opcionales) y lo envía al canal. */
 export async function sendEmbedMessage(
   bot: Client,
   input: SendEmbedRequest,
@@ -351,166 +507,34 @@ export async function sendEmbedMessage(
 ): Promise<SendEmbedResponse> {
   assertBotReady(bot);
   const channelId = assertChannelId(input.channelId);
-
-  const title = input.title?.trim() || undefined;
-  const description = input.description?.trim() || undefined;
-  const content = input.content?.trim() || undefined;
-  const authorName = input.authorName?.trim() || undefined;
-  const footerText = input.footerText?.trim() || undefined;
-  const files: AttachmentBuilder[] = [];
-  const url = optionalHttpUrl(input.url, "url");
-  const authorIconUrl = resolveMediaField(
-    input.authorIconUrl,
-    uploaded.authorIcon,
-    "authorIconUrl",
-    "author-icon",
-    files,
-  );
-  const thumbnailUrl = resolveMediaField(
-    input.thumbnailUrl,
-    uploaded.thumbnail,
-    "thumbnailUrl",
-    "thumbnail",
-    files,
-  );
-  const imageUrl = resolveMediaField(
-    input.imageUrl,
-    uploaded.image,
-    "imageUrl",
-    "image",
-    files,
-  );
-  const footerIconUrl = resolveMediaField(
-    input.footerIconUrl,
-    uploaded.footerIcon,
-    "footerIconUrl",
-    "footer-icon",
-    files,
-  );
-  const color = parseHexColor(input.color);
-  const includeTimestamp = Boolean(input.timestamp);
-  const components = buildActionRows(input.components);
-
-  const hasEmbedBody = Boolean(
-    title ||
-      description ||
-      authorName ||
-      thumbnailUrl ||
-      imageUrl ||
-      footerText ||
-      url,
-  );
-
-  if (!hasEmbedBody && !content && !components?.length) {
-    throw new MessageSendError(
-      "Debes indicar al menos un campo del embed, content o componentes.",
-      400,
-      "EMPTY_EMBED",
-    );
-  }
-
-  if (title && title.length > 256) {
-    throw new MessageSendError("El título supera 256 caracteres.", 400, "TITLE_TOO_LONG");
-  }
-  if (description && description.length > 4096) {
-    throw new MessageSendError(
-      "La descripción supera 4096 caracteres.",
-      400,
-      "DESCRIPTION_TOO_LONG",
-    );
-  }
-  if (content && content.length > 2000) {
-    throw new MessageSendError(
-      "El content supera 2000 caracteres.",
-      400,
-      "CONTENT_TOO_LONG",
-    );
-  }
-
-  const embed = new EmbedBuilder();
-  if (title) embed.setTitle(title);
-  if (url) embed.setURL(url);
-  if (description) embed.setDescription(description);
-  if (color !== undefined) embed.setColor(color);
-  if (authorName) {
-    embed.setAuthor({
-      name: authorName,
-      iconURL: authorIconUrl,
-    });
-  }
-  if (thumbnailUrl) embed.setThumbnail(thumbnailUrl);
-  if (imageUrl) embed.setImage(imageUrl);
-  if (footerText) {
-    embed.setFooter({
-      text: footerText,
-      iconURL: footerIconUrl,
-    });
-  }
-  if (includeTimestamp) {
-    embed.setTimestamp(new Date());
-  }
-
+  const prepared = prepareEmbed(input, uploaded);
   const channel = await resolveSendableChannel(bot, channelId, expectedGuildId);
 
   try {
     const message = await channel.send({
-      content,
-      embeds: hasEmbedBody ? [embed] : undefined,
-      components,
-      files: files.length > 0 ? files : undefined,
+      content: prepared.content,
+      embeds: prepared.embed ? [prepared.embed] : undefined,
+      components: prepared.components,
+      files: prepared.files.length > 0 ? prepared.files : undefined,
     });
 
     const guildId = expectedGuildId;
-
     let sentId: string | undefined;
     if (/^\d{17,20}$/.test(guildId)) {
-      const existingGuild = await one(getDb()
-        .select()
-        .from(guildSettings)
-        .where(eq(guildSettings.guildId, guildId))
-        .limit(1));
-      if (!existingGuild) {
-        await getDb()
-          .insert(guildSettings)
-          .values({
-            guildId,
-            prefix: "!",
-            welcomeEnabled: false,
-            updatedAt: new Date(),
-          })
-          ;
-      }
-
+      await ensureGuildRow(guildId);
       sentId = randomUUID();
-      const snapshot = {
-        content,
-        title,
-        url,
-        description,
-        color: input.color?.trim() || undefined,
-        authorName,
-        authorIconUrl,
-        thumbnailUrl,
-        imageUrl,
-        footerText,
-        footerIconUrl,
-        timestamp: includeTimestamp,
-        components: input.components,
-      };
+      const snapshot = preparedToSnapshot(prepared, input, message);
       const now = new Date();
-      await getDb()
-        .insert(sentEmbeds)
-        .values({
-          id: sentId,
-          guildId,
-          channelId: message.channelId,
-          messageId: message.id,
-          title: title ?? content?.slice(0, 80) ?? null,
-          embedData: JSON.stringify(snapshot),
-          createdAt: now,
-          updatedAt: now,
-        })
-        ;
+      await getDb().insert(sentEmbeds).values({
+        id: sentId,
+        guildId,
+        channelId: message.channelId,
+        messageId: message.id,
+        title: prepared.title ?? prepared.content?.slice(0, 80) ?? null,
+        embedData: JSON.stringify(snapshot),
+        createdAt: now,
+        updatedAt: now,
+      });
     }
 
     return {
@@ -520,6 +544,7 @@ export async function sendEmbedMessage(
       sentId,
     };
   } catch (error: unknown) {
+    if (error instanceof MessageSendError) throw error;
     const detail =
       error instanceof Error ? error.message : "Error desconocido al enviar.";
     throw new MessageSendError(detail, 502, "SEND_FAILED");
@@ -538,89 +563,28 @@ export async function editEmbedMessage(
   input: SendEmbedRequest,
   uploaded: EmbedUploadedFiles = {},
   expectedGuildId: string,
-): Promise<{ orphaned: boolean }> {
+): Promise<{ orphaned: boolean; snapshot?: EmbedPayload }> {
   assertBotReady(bot);
   const channelId = assertChannelId(channelIdRaw);
   if (!/^\d{17,20}$/.test(messageIdRaw.trim())) {
     throw new MessageSendError("messageId inválido.", 400, "INVALID_MESSAGE_ID");
   }
   const messageId = messageIdRaw.trim();
-
-  const title = input.title?.trim() || undefined;
-  const description = input.description?.trim() || undefined;
-  const content = input.content?.trim() || undefined;
-  const authorName = input.authorName?.trim() || undefined;
-  const footerText = input.footerText?.trim() || undefined;
-  const files: AttachmentBuilder[] = [];
-  const url = optionalHttpUrl(input.url, "url");
-  const authorIconUrl = resolveMediaField(
-    input.authorIconUrl,
-    uploaded.authorIcon,
-    "authorIconUrl",
-    "author-icon",
-    files,
-  );
-  const thumbnailUrl = resolveMediaField(
-    input.thumbnailUrl,
-    uploaded.thumbnail,
-    "thumbnailUrl",
-    "thumbnail",
-    files,
-  );
-  const imageUrl = resolveMediaField(
-    input.imageUrl,
-    uploaded.image,
-    "imageUrl",
-    "image",
-    files,
-  );
-  const footerIconUrl = resolveMediaField(
-    input.footerIconUrl,
-    uploaded.footerIcon,
-    "footerIconUrl",
-    "footer-icon",
-    files,
-  );
-  const color = parseHexColor(input.color);
-  const includeTimestamp = Boolean(input.timestamp);
-  const components = buildActionRows(input.components);
-
-  const hasEmbedBody = Boolean(
-    title ||
-      description ||
-      authorName ||
-      thumbnailUrl ||
-      imageUrl ||
-      footerText ||
-      url,
-  );
-
-  const embed = new EmbedBuilder();
-  if (title) embed.setTitle(title);
-  if (url) embed.setURL(url);
-  if (description) embed.setDescription(description);
-  if (color !== undefined) embed.setColor(color);
-  if (authorName) {
-    embed.setAuthor({ name: authorName, iconURL: authorIconUrl });
-  }
-  if (thumbnailUrl) embed.setThumbnail(thumbnailUrl);
-  if (imageUrl) embed.setImage(imageUrl);
-  if (footerText) {
-    embed.setFooter({ text: footerText, iconURL: footerIconUrl });
-  }
-  if (includeTimestamp) embed.setTimestamp(new Date());
-
+  const prepared = prepareEmbed(input, uploaded);
   const channel = await resolveSendableChannel(bot, channelId, expectedGuildId);
 
   try {
     const message = await channel.messages.fetch(messageId);
-    await message.edit({
-      content: content ?? null,
-      embeds: hasEmbedBody ? [embed] : [],
-      components: components ?? [],
-      files: files.length > 0 ? files : undefined,
+    const edited = await message.edit({
+      content: prepared.content ?? null,
+      embeds: prepared.embed ? [prepared.embed] : [],
+      components: prepared.components ?? [],
+      files: prepared.files.length > 0 ? prepared.files : undefined,
     });
-    return { orphaned: false };
+    return {
+      orphaned: false,
+      snapshot: preparedToSnapshot(prepared, input, edited),
+    };
   } catch (error: unknown) {
     if (isUnknownMessage(error)) {
       return { orphaned: true };

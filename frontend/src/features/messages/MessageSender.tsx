@@ -1,10 +1,23 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { CheckCircle2, Loader2, Send, XCircle } from "lucide-react";
-import { sendChannelMessage } from "@/lib/api";
+import {
+  MESSAGE_CONTENT_MAX,
+  MESSAGE_SEND_CHANNEL_TYPES,
+} from "@adobos/shared";
+import { fetchGuildAssets, sendChannelMessage } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+
+const TEXT_CHANNEL_TYPES = new Set<number>(MESSAGE_SEND_CHANNEL_TYPES);
 
 type Feedback =
   | { kind: "idle" }
@@ -16,6 +29,41 @@ export function MessageSender() {
   const [channelId, setChannelId] = useState("");
   const [content, setContent] = useState("");
   const [feedback, setFeedback] = useState<Feedback>({ kind: "idle" });
+  const [channels, setChannels] = useState<
+    Array<{ id: string; name: string; type: number; position: number }>
+  >([]);
+  const [assetsError, setAssetsError] = useState<string | null>(null);
+
+  const textChannels = useMemo(
+    () =>
+      channels
+        .filter((channel) => TEXT_CHANNEL_TYPES.has(channel.type))
+        .sort(
+          (a, b) => a.position - b.position || a.name.localeCompare(b.name),
+        ),
+    [channels],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchGuildAssets()
+      .then((data) => {
+        if (cancelled) return;
+        setChannels(data.channels);
+        setAssetsError(null);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setAssetsError(
+          error instanceof Error
+            ? error.message
+            : "No se pudieron cargar los canales",
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const isSubmitting = feedback.kind === "loading";
   const canSubmit =
@@ -51,25 +99,49 @@ export function MessageSender() {
           Enviar mensaje
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Envía texto simple a un canal de Discord. El bot debe tener permiso para
-          hablar en ese canal.
+          Texto plano a un canal de texto o anuncios. El bot necesita permiso
+          para hablar ahí.
         </p>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="channelId">ID del canal</Label>
-        <Input
-          id="channelId"
-          name="channelId"
-          type="text"
-          inputMode="numeric"
-          autoComplete="off"
-          placeholder="ej. 123456789012345678"
-          value={channelId}
-          onChange={(event) => setChannelId(event.target.value)}
-          disabled={isSubmitting}
-          required
-        />
+        <Label htmlFor="channelId">Canal destino</Label>
+        {textChannels.length > 0 ? (
+          <Select
+            value={channelId || undefined}
+            disabled={isSubmitting}
+            onValueChange={setChannelId}
+          >
+            <SelectTrigger id="channelId">
+              <SelectValue placeholder="Selecciona un canal…" />
+            </SelectTrigger>
+            <SelectContent>
+              {textChannels.map((channel) => (
+                <SelectItem key={channel.id} value={channel.id}>
+                  #{channel.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Input
+            id="channelId"
+            name="channelId"
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="ej. 123456789012345678"
+            value={channelId}
+            onChange={(event) => setChannelId(event.target.value)}
+            disabled={isSubmitting}
+            required
+          />
+        )}
+        {assetsError ? (
+          <p className="text-xs text-amber-700 dark:text-amber-400">
+            {assetsError}
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-2">
@@ -78,14 +150,16 @@ export function MessageSender() {
           id="content"
           name="content"
           rows={5}
-          maxLength={2000}
+          maxLength={MESSAGE_CONTENT_MAX}
           placeholder="Escribe el mensaje que enviará el bot…"
           value={content}
           onChange={(event) => setContent(event.target.value)}
           disabled={isSubmitting}
           required
         />
-        <p className="text-xs text-muted-foreground">{content.length}/2000</p>
+        <p className="text-xs text-muted-foreground">
+          {content.length}/{MESSAGE_CONTENT_MAX}
+        </p>
       </div>
 
       <Button type="submit" disabled={!canSubmit}>

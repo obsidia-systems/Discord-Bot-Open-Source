@@ -1,14 +1,15 @@
 # Feature: messages
 
-UI del dominio **Mensajes** (embed builder, texto legacy, botones).
+UI del dominio **Messages** (embed builder, texto plano, botones Link).
 
 ## Contenido
 
 | Archivo | Rol |
 |---------|-----|
 | `EmbedBuilder.tsx` | Constructor de embeds + preview Discord |
-| `MessageSender.tsx` | Envío de texto plano (legacy) |
-| `ButtonBuilder.tsx` | Filas de botones de acción |
+| `EmbedFieldsBuilder.tsx` | Fields name/value/inline |
+| `MessageSender.tsx` | Envío de texto plano |
+| `ButtonBuilder.tsx` | Filas de botones Link |
 | `index.ts` | Barrel público |
 
 ## Rutas Astro
@@ -18,4 +19,4 @@ UI del dominio **Mensajes** (embed builder, texto legacy, botones).
 
 ## API
 
-Usa `@/lib/api` (`sendEmbedMessage`, `sendChannelMessage`, `fetchGuildAssets`). Tipos en `@adobos/shared` (`messages.ts`).
+Usa `@/lib/api` (`sendEmbedToLibrary`, `sendChannelMessage`, `fetchGuildAssets`). Tipos en `@adobos/shared` (`messages.ts`).

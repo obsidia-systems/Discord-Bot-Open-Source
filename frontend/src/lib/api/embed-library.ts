@@ -58,6 +58,9 @@ function buildEmbedBody(payload: SendEmbedPayload): {
     if (payload.components && payload.components.length > 0) {
       body.append("components", JSON.stringify(payload.components));
     }
+    if (payload.fields && payload.fields.length > 0) {
+      body.append("fields", JSON.stringify(payload.fields));
+    }
     appendOptional(body, "imageUrl", image.url);
     appendOptional(body, "thumbnailUrl", thumbnail.url);
     appendOptional(body, "authorIconUrl", authorIcon.url);
@@ -85,6 +88,7 @@ function buildEmbedBody(payload: SendEmbedPayload): {
       footerText: payload.footerText,
       footerIconUrl: footerIcon.url,
       timestamp: payload.timestamp,
+      fields: payload.fields,
       components: payload.components,
     },
   };

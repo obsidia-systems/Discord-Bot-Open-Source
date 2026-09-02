@@ -91,6 +91,9 @@ export async function sendEmbedMessage(
     if (payload.components && payload.components.length > 0) {
       body.append("components", JSON.stringify(payload.components));
     }
+    if (payload.fields && payload.fields.length > 0) {
+      body.append("fields", JSON.stringify(payload.fields));
+    }
     appendOptional(body, "imageUrl", image.url);
     appendOptional(body, "thumbnailUrl", thumbnail.url);
     appendOptional(body, "authorIconUrl", authorIcon.url);
@@ -100,7 +103,7 @@ export async function sendEmbedMessage(
     if (authorIcon.file) body.append("authorIcon", authorIcon.file);
     if (footerIcon.file) body.append("footerIcon", footerIcon.file);
 
-    response = await apiFetch(`/api/messages/embed`, {
+    response = await apiFetch(`/api/embeds/send`, {
       method: "POST",
       headers: { Accept: "application/json" },
       body,
@@ -120,10 +123,11 @@ export async function sendEmbedMessage(
       footerText: payload.footerText,
       footerIconUrl: footerIcon.url,
       timestamp: payload.timestamp,
+      fields: payload.fields,
       components: payload.components,
     };
 
-    response = await apiFetch(`/api/messages/embed`, {
+    response = await apiFetch(`/api/embeds/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

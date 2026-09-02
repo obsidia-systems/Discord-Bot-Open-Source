@@ -1,33 +1,25 @@
 import { z } from "zod";
 import {
   boolish,
+  embedFieldSchema,
   embedPayloadSchema,
   emptyToUndef,
+  parseJsonish,
   pre,
   snowflake,
   snowflakeOpt,
-  stringId,
 } from "../../../core/http/schemas.js";
 
-const buttonStyle = z.enum([
-  "Primary",
-  "Secondary",
-  "Success",
-  "Danger",
-  "Link",
-]);
-
-const messageButtonSchema = z.object({
-  label: z.string().min(1),
-  style: buttonStyle,
-  customId: z.string().optional(),
-  url: z.string().optional(),
+const linkButtonSchema = z.object({
+  label: z.string().min(1).max(80),
+  style: z.literal("Link"),
+  url: z.string().min(1),
   disabled: z.boolean().optional(),
   emoji: z.string().optional(),
 });
 
-const actionRowSchema = z.object({
-  buttons: z.array(messageButtonSchema).min(1).max(5),
+const linkActionRowSchema = z.object({
+  buttons: z.array(linkButtonSchema).min(1).max(5),
 });
 
 export const sendMessageSchema = z.object({
@@ -49,17 +41,11 @@ export const sendEmbedSchema = z.object({
   footerText: z.string().optional(),
   footerIconUrl: z.string().optional(),
   timestamp: boolish.optional(),
-  components: pre((value) => {
-    if (value === "" || value === undefined || value === null) return undefined;
-    if (typeof value === "string") {
-      try {
-        return JSON.parse(value) as unknown;
-      } catch {
-        return value;
-      }
-    }
-    return value;
-  }, z.array(actionRowSchema).optional()),
+  fields: pre(parseJsonish, z.array(embedFieldSchema).max(25).optional()),
+  components: pre(
+    parseJsonish,
+    z.array(linkActionRowSchema).max(5).optional(),
+  ),
 });
 
 export const editSentEmbedSchema = sendEmbedSchema.extend({
@@ -70,16 +56,5 @@ export const saveEmbedTemplateSchema = z.object({
   id: pre(emptyToUndef, z.coerce.number().int().positive().optional()),
   guildId: snowflakeOpt,
   name: z.string().min(1).max(100),
-  embedData: pre((value) => {
-    if (typeof value === "string") {
-      try {
-        return JSON.parse(value) as unknown;
-      } catch {
-        return value;
-      }
-    }
-    return value;
-  }, embedPayloadSchema),
+  embedData: pre(parseJsonish, embedPayloadSchema),
 });
-
-export { stringId };

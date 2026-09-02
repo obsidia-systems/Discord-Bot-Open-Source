@@ -3,12 +3,18 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { discordMarkdownRehype } from "@/lib/discordMarkdown";
 import { CheckCircle2, Loader2, Save, Send, XCircle } from "lucide-react";
-import type {
-  EmbedPayload,
-  GuildAssetsResponse,
-  MessageActionRowInput,
-  SendEmbedRequest,
-  SentEmbedRecord,
+import {
+  EMBED_AUTHOR_MAX,
+  EMBED_FOOTER_MAX,
+  groupEmbedFields,
+  MESSAGE_SEND_CHANNEL_TYPES,
+  sanitizeEmbedFields,
+  sanitizeLinkActionRows,
+  type EmbedPayload,
+  type GuildAssetsResponse,
+  type MessageActionRowInput,
+  type SendEmbedRequest,
+  type SentEmbedRecord,
 } from "@adobos/shared";
 import {
   editSentEmbed,
@@ -21,6 +27,7 @@ import { resolvePublicAssetUrl } from "@/lib/api/client";
 import type { EmbedMediaValue } from "@/lib/api/messages";
 import { parseDiscordEmojis } from "@/lib/parseDiscordEmojis";
 import { ButtonBuilder } from "@/features/messages/ButtonBuilder";
+import { EmbedFieldsBuilder } from "@/features/messages/EmbedFieldsBuilder";
 import { EmbedLibraryPanel } from "@/features/messages/EmbedLibraryPanel";
 import { DiscordEmojiPicker } from "@/components/shared/DiscordEmojiPicker";
 import {
@@ -84,6 +91,8 @@ const VARIABLE_HINTS = [
   { token: "{&rol}", tip: "Mención de un rol" },
 ] as const;
 
+const TEXT_CHANNEL_TYPES = new Set<number>(MESSAGE_SEND_CHANNEL_TYPES);
+
 const STYLE_PREVIEW = {
   Primary: "bg-[#5865F2] text-white",
   Secondary: "bg-[#4e5058] text-white",
@@ -106,6 +115,7 @@ const emptyForm: EmbedFormState = {
   footerText: "",
   footerIconUrl: null,
   timestamp: true,
+  fields: [],
   components: [],
 };
 
@@ -159,12 +169,14 @@ function formToEmbedPayload(form: EmbedFormState): EmbedPayload {
     footerText: form.footerText?.trim() || undefined,
     footerIconUrl: mediaToStoredUrl(form.footerIconUrl),
     timestamp: Boolean(form.timestamp),
+    fields: sanitizeEmbedFields(form.fields),
+    components: sanitizeLinkActionRows(form.components),
   };
 }
 
 function applyEmbedPayloadToForm(
   prev: EmbedFormState,
-  payload: EmbedPayload & { components?: MessageActionRowInput[] },
+  payload: EmbedPayload,
   channelId?: string,
 ): EmbedFormState {
   return {
@@ -182,7 +194,8 @@ function applyEmbedPayloadToForm(
     footerText: payload.footerText ?? "",
     footerIconUrl: payload.footerIconUrl ?? null,
     timestamp: Boolean(payload.timestamp),
-    components: payload.components ?? prev.components ?? [],
+    fields: sanitizeEmbedFields(payload.fields) ?? [],
+    components: sanitizeLinkActionRows(payload.components) ?? [],
   };
 }
 
@@ -215,6 +228,16 @@ export function EmbedBuilder() {
 
   const isSubmitting = feedback.kind === "loading";
   const components = form.components ?? [];
+  const fields = form.fields ?? [];
+  const textChannels = useMemo(
+    () =>
+      (assets?.channels ?? [])
+        .filter((channel) => TEXT_CHANNEL_TYPES.has(channel.type))
+        .sort(
+          (a, b) => a.position - b.position || a.name.localeCompare(b.name),
+        ),
+    [assets],
+  );
   const serverEmojis = assets?.emojis ?? [];
   const isEditing = editingSentId != null;
 
@@ -275,7 +298,8 @@ export function EmbedBuilder() {
     try {
       const payload = {
         ...form,
-        components: components.length > 0 ? components : undefined,
+        fields: sanitizeEmbedFields(form.fields),
+        components: sanitizeLinkActionRows(components),
       };
 
       if (editingSentId) {
@@ -468,7 +492,7 @@ export function EmbedBuilder() {
                   <TabsContent className="space-y-5">
                     <div className="space-y-2">
                       <Label htmlFor="channelId">Canal destino *</Label>
-                      {assets && assets.channels.length > 0 ? (
+                      {textChannels.length > 0 ? (
                         <Select
                           value={form.channelId || undefined}
                           disabled={isSubmitting}
@@ -480,7 +504,7 @@ export function EmbedBuilder() {
                             <SelectValue placeholder="Selecciona un canal…" />
                           </SelectTrigger>
                           <SelectContent>
-                            {assets.channels.map((channel) => (
+                            {textChannels.map((channel) => (
                               <SelectItem key={channel.id} value={channel.id}>
                                 #{channel.name}
                               </SelectItem>
@@ -622,8 +646,15 @@ export function EmbedBuilder() {
                         }
                         maxLength={4096}
                         disabled={isSubmitting}
+                        placeholder="Texto del embed…"
                       />
                     </div>
+
+                    <EmbedFieldsBuilder
+                      fields={fields}
+                      onChange={(next) => update("fields", next)}
+                      disabled={isSubmitting}
+                    />
                   </TabsContent>
                 )}
 
@@ -653,6 +684,7 @@ export function EmbedBuilder() {
                       <Input
                         id="message-authorName"
                         value={form.authorName ?? ""}
+                        maxLength={EMBED_AUTHOR_MAX}
                         onChange={(event) =>
                           update("authorName", event.target.value)
                         }
@@ -672,6 +704,7 @@ export function EmbedBuilder() {
                       <Input
                         id="message-footerText"
                         value={form.footerText ?? ""}
+                        maxLength={EMBED_FOOTER_MAX}
                         onChange={(event) =>
                           update("footerText", event.target.value)
                         }
@@ -834,6 +867,32 @@ export function EmbedBuilder() {
                       />
                     )}
                   </div>
+                  {fields.length > 0 && (
+                    <div className="space-y-2">
+                      {groupEmbedFields(sanitizeEmbedFields(fields) ?? []).map(
+                        (row, rowIndex) => (
+                          <div
+                            key={`preview-fields-${rowIndex}`}
+                            className="grid gap-2"
+                            style={{
+                              gridTemplateColumns: `repeat(${row.length}, minmax(0, 1fr))`,
+                            }}
+                          >
+                            {row.map((field, fieldIndex) => (
+                              <div key={`pf-${rowIndex}-${fieldIndex}`}>
+                                <p className="text-xs font-semibold text-white/90">
+                                  {field.name}
+                                </p>
+                                <p className="whitespace-pre-wrap text-xs text-white/70">
+                                  {field.value}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  )}
                   {imagePreview && (
                     <img
                       src={imagePreview}

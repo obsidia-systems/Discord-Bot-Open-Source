@@ -1,10 +1,12 @@
 import { and, desc, eq } from "drizzle-orm";
-import type {
-  EmbedPayload,
-  EmbedTemplateDetail,
-  EmbedTemplateListResponse,
-  SaveEmbedTemplateRequest,
-  SaveEmbedTemplateResponse,
+import {
+  sanitizeEmbedFields,
+  sanitizeLinkActionRows,
+  type EmbedPayload,
+  type EmbedTemplateDetail,
+  type EmbedTemplateListResponse,
+  type SaveEmbedTemplateRequest,
+  type SaveEmbedTemplateResponse,
 } from "@adobos/shared";
 import { getDb, one } from "../../../db/client.js";
 import { embedTemplates, guildSettings } from "../../../db/schema.js";
@@ -131,6 +133,8 @@ function sanitizeEmbedPayload(input: EmbedPayload): EmbedPayload {
     footerText: input.footerText?.trim().slice(0, 2048) || undefined,
     footerIconUrl: pickMedia(input.footerIconUrl),
     timestamp: Boolean(input.timestamp),
+    fields: sanitizeEmbedFields(input.fields),
+    components: sanitizeLinkActionRows(input.components),
   };
 }
 
@@ -253,7 +257,9 @@ export async function saveEmbedTemplate(
       embedData.footerText ||
       embedData.imageUrl ||
       embedData.thumbnailUrl ||
-      embedData.content,
+      embedData.content ||
+      embedData.fields?.length ||
+      embedData.components?.length,
   );
   if (!hasBody) {
     throw new EmbedTemplateError(
@@ -273,13 +279,15 @@ export async function saveEmbedTemplate(
     if (!Number.isFinite(id)) {
       throw new EmbedTemplateError("id inválido.", 400, "INVALID_ID");
     }
-    const existing = await db
-      .select()
-      .from(embedTemplates)
-      .where(
-        and(eq(embedTemplates.id, id), eq(embedTemplates.guildId, guildId)),
-      )
-      .limit(1);
+    const existing = await one(
+      db
+        .select()
+        .from(embedTemplates)
+        .where(
+          and(eq(embedTemplates.id, id), eq(embedTemplates.guildId, guildId)),
+        )
+        .limit(1),
+    );
     if (!existing) {
       throw new EmbedTemplateError(
         "Plantilla no encontrada.",
@@ -287,10 +295,12 @@ export async function saveEmbedTemplate(
         "TEMPLATE_NOT_FOUND",
       );
     }
-    await db.update(embedTemplates)
+    await db
+      .update(embedTemplates)
       .set({ name, embedData: json, updatedAt: now })
-      .where(eq(embedTemplates.id, id))
-      ;
+      .where(
+        and(eq(embedTemplates.id, id), eq(embedTemplates.guildId, guildId)),
+      );
     return { ok: true, template: await getEmbedTemplate(id, guildId) };
   }
 
@@ -340,6 +350,10 @@ export async function deleteEmbedTemplate(
     );
   }
 
-  await getDb().delete(embedTemplates).where(eq(embedTemplates.id, id));
+  await getDb()
+    .delete(embedTemplates)
+    .where(
+      and(eq(embedTemplates.id, id), eq(embedTemplates.guildId, guildId)),
+    );
   return { ok: true };
 }

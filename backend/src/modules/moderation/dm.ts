@@ -105,6 +105,10 @@ export function buildEmbedFromPayload(embed: EmbedPayload): {
   const footerIconUrl = resolve(embed.footerIconUrl, "footerIconUrl", "footer-icon");
   const color = parseHexColor(embed.color);
 
+  const fields = (embed.fields ?? []).filter(
+    (field) => field.name?.trim() && field.value?.trim(),
+  );
+
   const hasBody = Boolean(
     title ||
       description ||
@@ -112,7 +116,8 @@ export function buildEmbedFromPayload(embed: EmbedPayload): {
       footerText ||
       thumbnailUrl ||
       imageUrl ||
-      url,
+      url ||
+      fields.length,
   );
   if (!hasBody) return { builder: null, files, content };
 
@@ -125,6 +130,15 @@ export function buildEmbedFromPayload(embed: EmbedPayload): {
   if (thumbnailUrl) builder.setThumbnail(thumbnailUrl);
   if (imageUrl) builder.setImage(imageUrl);
   if (footerText) builder.setFooter({ text: footerText, iconURL: footerIconUrl });
+  if (fields.length) {
+    builder.addFields(
+      fields.map((field) => ({
+        name: field.name.trim(),
+        value: field.value.trim(),
+        inline: Boolean(field.inline),
+      })),
+    );
+  }
   if (embed.timestamp) builder.setTimestamp(new Date());
 
   return { builder, files, content };

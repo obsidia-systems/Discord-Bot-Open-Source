@@ -100,17 +100,17 @@ export const dashboardNav: NavCategoryConfig[] = [
   },
   {
     id: "messages",
-    label: "Mensajes",
+    label: "Messages",
     icon: MessageSquareText,
     items: [
       {
-        label: "Mensajes Embed",
+        label: "Embeds",
         href: "/dashboard/messages",
         icon: MessageSquareText,
-        blurb: "Constructor de embeds y botones.",
+        blurb: "Constructor de embeds, fields y botones Link.",
       },
       {
-        label: "Mensajes Legacy",
+        label: "Texto plano",
         href: "/dashboard/messages/legacy",
         icon: MessageSquare,
         blurb: "Envío rápido de texto plano.",

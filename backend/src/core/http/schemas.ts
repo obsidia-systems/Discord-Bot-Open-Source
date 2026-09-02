@@ -38,6 +38,39 @@ export const weekday = z.union([
   z.literal(6),
 ]);
 
+export function parseJsonish(value: unknown): unknown {
+  if (value === "" || value === undefined || value === null) return undefined;
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as unknown;
+    } catch {
+      return value;
+    }
+  }
+  return value;
+}
+
+export const embedFieldSchema = z.object({
+  name: z.string().min(1).max(256),
+  value: z.string().min(1).max(1024),
+  inline: boolish.optional(),
+});
+
+const embedButtonSchema = z.object({
+  label: z.string().min(1).max(80),
+  style: z
+    .enum(["Primary", "Secondary", "Success", "Danger", "Link"])
+    .default("Link"),
+  customId: z.string().optional(),
+  url: z.string().optional(),
+  disabled: z.boolean().optional(),
+  emoji: z.string().optional(),
+});
+
+const embedActionRowSchema = z.object({
+  buttons: z.array(embedButtonSchema).min(1).max(5),
+});
+
 export const embedPayloadSchema = z.object({
   content: z.string().optional(),
   title: z.string().optional(),
@@ -51,6 +84,11 @@ export const embedPayloadSchema = z.object({
   footerText: z.string().optional(),
   footerIconUrl: z.string().optional(),
   timestamp: boolish.optional(),
+  fields: pre(parseJsonish, z.array(embedFieldSchema).max(25).optional()),
+  components: pre(
+    parseJsonish,
+    z.array(embedActionRowSchema).max(5).optional(),
+  ),
 });
 
 export const leaderboardQuerySchema = z.object({

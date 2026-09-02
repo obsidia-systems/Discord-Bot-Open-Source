@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { desc, eq } from "drizzle-orm";
 import type { Client } from "discord.js";
 import type {
@@ -7,7 +6,6 @@ import type {
   EditSentEmbedResponse,
   EmbedLibraryResponse,
   EmbedPayload,
-  MessageActionRowInput,
   SendEmbedRequest,
   SendEmbedResponse,
   SentEmbedRecord,
@@ -33,9 +31,7 @@ function resolveGuildId(raw?: string): string {
 
 function parseEmbedData(raw: string): SentEmbedRecord["embedData"] {
   try {
-    const parsed = JSON.parse(raw) as EmbedPayload & {
-      components?: MessageActionRowInput[];
-    };
+    const parsed = JSON.parse(raw) as EmbedPayload;
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
     return {};
@@ -124,7 +120,7 @@ export async function editSentEmbed(
   }
 
   const payload: SendEmbedRequest = {
-    channelId: input.channelId?.trim() || row.channelId,
+    channelId: row.channelId,
     content: input.content,
     title: input.title,
     url: input.url,
@@ -137,10 +133,11 @@ export async function editSentEmbed(
     footerText: input.footerText,
     footerIconUrl: input.footerIconUrl,
     timestamp: input.timestamp,
+    fields: input.fields,
     components: input.components,
   };
 
-  const { orphaned } = await editEmbedMessage(
+  const { orphaned, snapshot } = await editEmbedMessage(
     bot,
     row.channelId,
     row.messageId,
@@ -158,33 +155,15 @@ export async function editSentEmbed(
     };
   }
 
-  const snapshot = {
-    content: payload.content,
-    title: payload.title,
-    url: payload.url,
-    description: payload.description,
-    color: payload.color,
-    authorName: payload.authorName,
-    authorIconUrl: payload.authorIconUrl,
-    thumbnailUrl: payload.thumbnailUrl,
-    imageUrl: payload.imageUrl,
-    footerText: payload.footerText,
-    footerIconUrl: payload.footerIconUrl,
-    timestamp: payload.timestamp,
-    components: payload.components,
-  };
-
   const now = new Date();
   await getDb()
     .update(sentEmbeds)
     .set({
       title: payload.title?.trim() || payload.content?.slice(0, 80) || row.title,
-      embedData: JSON.stringify(snapshot),
+      embedData: JSON.stringify(snapshot ?? payload),
       updatedAt: now,
-      channelId: payload.channelId,
     })
-    .where(eq(sentEmbeds.id, id))
-    ;
+    .where(eq(sentEmbeds.id, id));
 
   const updated = await one(getDb()
     .select()
@@ -224,9 +203,4 @@ export async function deleteSentEmbed(
   await getDb().delete(sentEmbeds).where(eq(sentEmbeds.id, id));
 
   return { ok: true, deletedId: id, orphaned };
-}
-
-/** Utilidad por si se necesita generar IDs fuera del send. */
-export function newSentEmbedId(): string {
-  return randomUUID();
 }
