@@ -9,11 +9,8 @@ export async function fetchHealth(): Promise<HealthResponse> {
   return response.json() as Promise<HealthResponse>;
 }
 
-export async function fetchGuildAssets(
-  guildId?: string,
-): Promise<GuildAssetsResponse> {
-  const query = guildId ? `?guildId=${encodeURIComponent(guildId)}` : "";
-  const response = await apiFetch(`/api/guild-assets${query}`);
+export async function fetchGuildAssets(): Promise<GuildAssetsResponse> {
+  const response = await apiFetch(`/api/guild-assets`);
   if (!response.ok) {
     throw new Error(
       await readApiError(

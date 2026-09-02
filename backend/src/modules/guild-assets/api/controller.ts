@@ -1,14 +1,14 @@
-import {
-  ChannelType,
-  type Client,
-  type Guild,
-} from "discord.js";
+import type { Client, Guild } from "discord.js";
 import type {
   GuildAssetsResponse,
   GuildChannelAsset,
   GuildEmojiAsset,
   GuildRoleAsset,
   GuildStickerAsset,
+} from "@adobos/shared";
+import {
+  includeGuildAssetRole,
+  isGuildAssetChannelType,
 } from "@adobos/shared";
 
 export class GuildAssetsError extends Error {
@@ -55,21 +55,13 @@ function resolveGuild(bot: Client, guildId?: string): Guild {
 /** Canales útiles para selects del panel (texto, voz, categorías). */
 function mapChannels(guild: Guild): GuildChannelAsset[] {
   return [...guild.channels.cache.values()]
-    .filter(
-      (channel) =>
-        channel.type === ChannelType.GuildText ||
-        channel.type === ChannelType.GuildAnnouncement ||
-        channel.type === ChannelType.GuildForum ||
-        channel.type === ChannelType.GuildVoice ||
-        channel.type === ChannelType.GuildStageVoice ||
-        channel.type === ChannelType.GuildCategory,
-    )
+    .filter((channel) => isGuildAssetChannelType(channel.type))
     .map((channel) => ({
       id: channel.id,
       name: channel.name,
       type: channel.type,
-      parentId: channel.parentId,
-      position: channel.rawPosition,
+      parentId: "parentId" in channel ? channel.parentId : null,
+      position: "rawPosition" in channel ? channel.rawPosition : 0,
     }))
     .sort((a, b) => a.position - b.position);
 }
@@ -108,12 +100,14 @@ function mapStickers(guild: Guild): GuildStickerAsset[] {
 function mapRoles(guild: Guild): GuildRoleAsset[] {
   const boosterId = guild.roles.premiumSubscriberRole?.id ?? null;
   return [...guild.roles.cache.values()]
-    .filter((role) => {
-      if (role.id === guild.id) return false;
-      // Incluir Server Booster aunque sea managed; el resto de managed se omiten.
-      if (role.managed) return boosterId !== null && role.id === boosterId;
-      return true;
-    })
+    .filter((role) =>
+      includeGuildAssetRole({
+        id: role.id,
+        guildId: guild.id,
+        managed: role.managed,
+        boosterRoleId: boosterId,
+      }),
+    )
     .map((role) => ({
       id: role.id,
       name: role.name,
@@ -131,6 +125,21 @@ export async function getGuildAssets(
   guildId?: string,
 ): Promise<GuildAssetsResponse> {
   const guild = resolveGuild(bot, guildId);
+
+  if (guild.channels.cache.size === 0) {
+    try {
+      await guild.channels.fetch();
+    } catch {
+      // Si falla, devolvemos lo que haya en caché
+    }
+  }
+  if (guild.roles.cache.size === 0) {
+    try {
+      await guild.roles.fetch();
+    } catch {
+      // ignore
+    }
+  }
 
   // Asegura emojis/stickers frescos cuando el caché esté vacío
   if (guild.emojis.cache.size === 0) {

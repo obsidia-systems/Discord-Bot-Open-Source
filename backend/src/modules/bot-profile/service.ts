@@ -10,9 +10,17 @@ import {
 } from "discord.js";
 import { eq } from "drizzle-orm";
 import type {
+  BotActivityTypeName,
   BotGuildProfileResponse,
+  BotPresenceStatus,
   UpdateBotGuildProfileRequest,
   UpdateBotGuildProfileResponse,
+} from "@adobos/shared";
+import {
+  BOT_GUILD_NICKNAME_MAX,
+  isBotGuildNicknameTooLong,
+  parseBotActivityType,
+  parseBotPresenceStatus,
 } from "@adobos/shared";
 import { getDb, one } from "../../db/client.js";
 import { botPresenceSettings } from "../../db/schema.js";
@@ -32,31 +40,22 @@ export class BotProfileError extends Error {
 
 const PRESENCE_ROW_ID = "default";
 
-type PresenceStatus = "online" | "idle" | "dnd" | "invisible";
-type ActivityTypeName =
-  | "Playing"
-  | "Streaming"
-  | "Listening"
-  | "Watching"
-  | "Competing"
-  | "Custom";
-
 interface PersistedPresence {
-  status: PresenceStatus;
-  activityType: ActivityTypeName;
+  status: BotPresenceStatus;
+  activityType: BotActivityTypeName;
   activityName: string;
   streamUrl: string | null;
   state: string;
 }
 
-const STATUS_TO_DJS: Record<PresenceStatus, PresenceStatusData> = {
+const STATUS_TO_DJS: Record<BotPresenceStatus, PresenceStatusData> = {
   online: PresenceUpdateStatus.Online,
   idle: PresenceUpdateStatus.Idle,
   dnd: PresenceUpdateStatus.DoNotDisturb,
   invisible: PresenceUpdateStatus.Invisible,
 };
 
-const ACTIVITY_TYPE_MAP: Record<ActivityTypeName, number> = {
+const ACTIVITY_TYPE_MAP: Record<BotActivityTypeName, number> = {
   Playing: 0,
   Streaming: 1,
   Listening: 2,
@@ -96,27 +95,6 @@ function resolveGuild(bot: Client, guildId?: string): Guild {
   return guild;
 }
 
-function parseStatus(raw: string): PresenceStatus {
-  if (raw === "idle" || raw === "dnd" || raw === "invisible" || raw === "online") {
-    return raw;
-  }
-  return "online";
-}
-
-function parseActivityType(raw: string): ActivityTypeName {
-  if (
-    raw === "Playing" ||
-    raw === "Streaming" ||
-    raw === "Listening" ||
-    raw === "Watching" ||
-    raw === "Competing" ||
-    raw === "Custom"
-  ) {
-    return raw;
-  }
-  return "Playing";
-}
-
 export async function readPersistedPresence(): Promise<PersistedPresence | null> {
   const db = getDb();
   const row = await one(
@@ -130,8 +108,8 @@ export async function readPersistedPresence(): Promise<PersistedPresence | null>
   if (!row) return null;
 
   return {
-    status: parseStatus(row.status),
-    activityType: parseActivityType(row.activityType),
+    status: parseBotPresenceStatus(row.status),
+    activityType: parseBotActivityType(row.activityType),
     activityName: row.activityName ?? "",
     streamUrl: row.streamUrl,
     state: row.state ?? "",
@@ -346,9 +324,9 @@ export async function updateGuildBotProfile(
           ? nicknameRaw.trim() || null
           : null;
 
-      if (nextNick && nextNick.length > 32) {
+      if (nextNick && isBotGuildNicknameTooLong(nextNick)) {
         throw new BotProfileError(
-          "El apodo debe tener como máximo 32 caracteres.",
+          `El apodo debe tener como máximo ${BOT_GUILD_NICKNAME_MAX} caracteres.`,
           400,
           "INVALID_NICKNAME",
         );

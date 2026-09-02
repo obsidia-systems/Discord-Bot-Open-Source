@@ -89,6 +89,30 @@ export interface GuildChannelAsset {
   position: number;
 }
 
+/**
+ * Catálogo del panel: texto, voz, categoría, anuncios, stage, foro.
+ * Cada Lego filtra encima. No recortar a 0+5.
+ */
+export const GUILD_ASSET_CHANNEL_TYPES = [0, 2, 4, 5, 13, 15] as const;
+
+export function isGuildAssetChannelType(type: number): boolean {
+  return (GUILD_ASSET_CHANNEL_TYPES as readonly number[]).includes(type);
+}
+
+/** @everyone fuera. Server Booster entra aunque sea managed. */
+export function includeGuildAssetRole(input: {
+  id: string;
+  guildId: string;
+  managed: boolean;
+  boosterRoleId?: string | null;
+}): boolean {
+  if (input.id === input.guildId) return false;
+  if (input.managed) {
+    return Boolean(input.boosterRoleId && input.id === input.boosterRoleId);
+  }
+  return true;
+}
+
 export interface GuildEmojiAsset {
   id: string;
   name: string;

@@ -7,7 +7,10 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react";
-import type { BotGuildProfileResponse } from "@adobos/shared";
+import {
+  BOT_GUILD_NICKNAME_MAX,
+  type BotGuildProfileResponse,
+} from "@adobos/shared";
 import {
   fetchBotGuildProfile,
   saveBotGuildProfile,
@@ -199,7 +202,7 @@ export function BotProfileBuilder() {
                 <Input
                   id="bot-guild-nickname"
                   value={nickname}
-                  maxLength={32}
+                  maxLength={BOT_GUILD_NICKNAME_MAX}
                   disabled={isSubmitting || !brandingUnlocked}
                   onChange={(event) => setNickname(event.target.value)}
                   placeholder={profile?.username ?? "Apodo visible en el servidor"}
@@ -212,7 +215,7 @@ export function BotProfileBuilder() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={isSubmitting || !nickname}
+                  disabled={isSubmitting || !nickname || !brandingUnlocked}
                   onClick={resetNickname}
                 >
                   <RotateCcw className="size-3.5" aria-hidden />

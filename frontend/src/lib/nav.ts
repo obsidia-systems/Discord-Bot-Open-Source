@@ -85,7 +85,7 @@ export const dashboardNav: NavCategoryConfig[] = [
         blurb: "Planes Gratis, Pro y Business. Checkout y portal de Stripe.",
       },
       {
-        label: "Perfil del bot",
+        label: "Bot Profile",
         href: "/dashboard/general/bot-profile",
         icon: Bot,
         blurb: "Apodo y avatar del bot en este servidor.",

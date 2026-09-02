@@ -1,5 +1,47 @@
 /** Contratos GET/POST /api/bot/guild-profile — perfil del bot en el servidor. */
 
+/** Tope de Discord para apodo de miembro. */
+export const BOT_GUILD_NICKNAME_MAX = 32;
+
+export type BotPresenceStatus = "online" | "idle" | "dnd" | "invisible";
+export type BotActivityTypeName =
+  | "Playing"
+  | "Streaming"
+  | "Listening"
+  | "Watching"
+  | "Competing"
+  | "Custom";
+
+export function parseBotPresenceStatus(raw: string): BotPresenceStatus {
+  if (
+    raw === "idle" ||
+    raw === "dnd" ||
+    raw === "invisible" ||
+    raw === "online"
+  ) {
+    return raw;
+  }
+  return "online";
+}
+
+export function parseBotActivityType(raw: string): BotActivityTypeName {
+  if (
+    raw === "Playing" ||
+    raw === "Streaming" ||
+    raw === "Listening" ||
+    raw === "Watching" ||
+    raw === "Competing" ||
+    raw === "Custom"
+  ) {
+    return raw;
+  }
+  return "Playing";
+}
+
+export function isBotGuildNicknameTooLong(raw: string): boolean {
+  return raw.trim().length > BOT_GUILD_NICKNAME_MAX;
+}
+
 export interface BotGuildProfileResponse {
   guildId: string;
   guildName: string;

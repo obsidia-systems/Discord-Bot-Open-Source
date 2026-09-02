@@ -6,7 +6,7 @@ import { getGuildAssets } from "./controller.js";
 export function guildAssetsRoutes(bot: Client): Router {
   const router = Router();
 
-  /** GET /api/guild-assets?guildId=optional */
+  /** GET /api/guild-assets — tenant de sesión. */
   router.get("/", async (req, res, next) => {
     try {
       res.json(await getGuildAssets(bot, guildIdOf(req)));

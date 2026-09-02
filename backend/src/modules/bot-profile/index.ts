@@ -4,7 +4,7 @@ import { restorePersistedPresence } from "./service.js";
 
 export const botProfileModule: AdobosModule = {
   id: "bot-profile",
-  name: "Perfil del bot en el servidor",
+  name: "Bot Profile",
   register(ctx) {
     const routes = botProfileRoutes(ctx.client);
     ctx.route("/api/bot/guild-profile", routes);
