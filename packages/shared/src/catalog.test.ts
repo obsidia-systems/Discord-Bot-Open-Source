@@ -23,6 +23,7 @@ describe("catálogo de módulos", () => {
     expect(MODULE_IDS).toContain("voice-rooms");
     expect(MODULE_IDS).toContain("reminders");
     expect(MODULE_IDS).toContain("starboard");
+    expect(MODULE_IDS).toContain("anti-raid");
     expect(new Set(MODULE_IDS).size).toBe(MODULE_IDS.length);
   });
 
@@ -33,6 +34,7 @@ describe("catálogo de módulos", () => {
     expect(MODULE_FEATURE["voice-rooms"]).toBe("voice-rooms");
     expect(MODULE_FEATURE.reminders).toBe("reminders");
     expect(MODULE_FEATURE.starboard).toBe("starboard");
+    expect(MODULE_FEATURE["anti-raid"]).toBe("anti-raid");
     expect(MODULE_FEATURE.billing).toBeUndefined();
   });
 });
@@ -52,6 +54,9 @@ describe("entitlements y asientos", () => {
     expect(tierHasFeature("free", "voice-rooms")).toBe(true);
     expect(tierHasFeature("free", "reminders")).toBe(true);
     expect(tierHasFeature("free", "starboard")).toBe(true);
+    expect(tierHasFeature("free", "anti-raid")).toBe(true);
+    expect(tierHasFeature("free", "antinuke")).toBe(false);
+    expect(tierHasFeature("pro", "antinuke")).toBe(true);
     expect(tierHasFeature("free", "branding")).toBe(false);
     expect(tierHasFeature("pro", "branding")).toBe(true);
   });

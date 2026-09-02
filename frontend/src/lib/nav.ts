@@ -25,6 +25,7 @@ import {
   Settings2,
   Shield,
   ShieldAlert,
+  ShieldBan,
   Sparkles,
   Star,
   Store,
@@ -178,6 +179,12 @@ export const dashboardNav: NavCategoryConfig[] = [
         href: "/dashboard/moderation/auto-mod",
         icon: ShieldAlert,
         blurb: "Filtros anti-spam y palabras bloqueadas.",
+      },
+      {
+        label: "Anti-Raid",
+        href: "/dashboard/moderation/anti-raid",
+        icon: ShieldBan,
+        blurb: "Flood de joins, lockdown y Anti-Nuke.",
       },
       {
         label: "Auto-Delete",

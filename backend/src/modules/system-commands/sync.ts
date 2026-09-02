@@ -9,6 +9,7 @@ import {
   toDiscordSlashCommandBody,
   voiceRoomsSlashCommandBody,
   remindersSlashCommandBody,
+  antiRaidLockdownSlashCommandBody,
   type SystemCommandDefinition,
 } from "@adobos/shared";
 import {
@@ -79,6 +80,7 @@ export function buildGlobalDefaultSlashBodies(): RESTPostAPIChatInputApplication
     ...SYSTEM_COMMAND_CATALOG.map(toSlashBody),
     voiceRoomsSlashCommandBody() as RESTPostAPIChatInputApplicationCommandsJSONBody,
     remindersSlashCommandBody() as RESTPostAPIChatInputApplicationCommandsJSONBody,
+    antiRaidLockdownSlashCommandBody() as RESTPostAPIChatInputApplicationCommandsJSONBody,
   ];
 }
 

@@ -1,6 +1,7 @@
 /** Tipos e interfaces compartidos entre backend y frontend. */
 
 export * from "./action-logs.js";
+export * from "./anti-raid.js";
 export * from "./auto-delete.js";
 export * from "./auto-mod.js";
 export * from "./autoroles.js";

@@ -1430,6 +1430,45 @@ export const starboardPosts = pgTable(
 export type StarboardSettingsRow = typeof starboardSettings.$inferSelect;
 export type StarboardPostRow = typeof starboardPosts.$inferSelect;
 
+/**
+ * Anti-Raid por guild. lockdown_snapshot y umbrales nuke son JSON texto.
+ */
+export const antiRaidSettings = pgTable("anti_raid_settings", {
+  guildId: text("guild_id")
+    .primaryKey()
+    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+  enabled: boolean("enabled").notNull().default(false),
+  alertChannelId: text("alert_channel_id"),
+  joinFloodEnabled: boolean("join_flood_enabled").notNull().default(true),
+  joinCount: integer("join_count").notNull().default(10),
+  joinWindowSeconds: integer("join_window_seconds").notNull().default(10),
+  joinAction: text("join_action").notNull().default("kick"),
+  accountAgeEnabled: boolean("account_age_enabled").notNull().default(false),
+  accountAgeDays: integer("account_age_days").notNull().default(7),
+  accountAgeAction: text("account_age_action").notNull().default("kick"),
+  lockdownJoinAction: text("lockdown_join_action").notNull().default("timeout"),
+  timeoutSeconds: integer("timeout_seconds").notNull().default(3600),
+  whitelistRoleIds: text("whitelist_role_ids").notNull().default("[]"),
+  nukeEnabled: boolean("nuke_enabled").notNull().default(false),
+  nukeWindowSeconds: integer("nuke_window_seconds").notNull().default(10),
+  nukePunishment: text("nuke_punishment").notNull().default("strip"),
+  nukeThresholds: text("nuke_thresholds").notNull().default("{}"),
+  nukeWhitelistUserIds: text("nuke_whitelist_user_ids").notNull().default("[]"),
+  nukeWhitelistRoleIds: text("nuke_whitelist_role_ids").notNull().default("[]"),
+  lockdownActive: boolean("lockdown_active").notNull().default(false),
+  lockdownStartedAt: timestamp("lockdown_started_at", {
+    withTimezone: true,
+    mode: "date",
+  }),
+  lockdownByUserId: text("lockdown_by_user_id"),
+  lockdownSnapshot: text("lockdown_snapshot").notNull().default("[]"),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export type AntiRaidSettingsRow = typeof antiRaidSettings.$inferSelect;
+
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [
   "minecraft",
