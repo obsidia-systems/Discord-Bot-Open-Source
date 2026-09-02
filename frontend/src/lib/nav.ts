@@ -204,10 +204,10 @@ export const dashboardNav: NavCategoryConfig[] = [
         blurb: "Niveles por texto, voz y gamificación.",
       },
       {
-        label: "Fabricador de Roles",
+        label: "Roles Builder",
         href: "/dashboard/community/roles-builder",
         icon: Palette,
-        blurb: "Crea roles con color, permisos y jerarquía.",
+        blurb: "Crea y edita roles con color, permisos y jerarquía.",
       },
       {
         label: "Forms",

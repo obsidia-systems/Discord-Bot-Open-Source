@@ -7,23 +7,6 @@ import {
   snowflakeOpt,
 } from "../../../core/http/schemas.js";
 
-export const createGuildRoleSchema = z.object({
-  name: z.string().min(1).max(100),
-  color: z.string().nullable().optional(),
-  permissions: z.array(z.string()).optional(),
-  hoist: z.boolean().optional(),
-  mentionable: z.boolean().optional(),
-});
-
-export const updateRolePositionsSchema = z.object({
-  positions: z.array(
-    z.object({
-      roleId: snowflake,
-      position: z.number().int(),
-    }),
-  ),
-});
-
 const reactionMappingSchema = z.object({
   emojiKey: z.string().min(1),
   roleId: snowflake,

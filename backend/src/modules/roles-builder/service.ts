@@ -8,12 +8,23 @@ import {
 import type {
   CreateGuildRoleRequest,
   CreateGuildRoleResponse,
+  DeleteGuildRoleResponse,
   RolePositionUpdate,
   RolesBuilderListResponse,
   RolesBuilderRole,
+  UpdateGuildRoleRequest,
+  UpdateGuildRoleResponse,
   UpdateRolePositionsResponse,
 } from "@adobos/shared";
-import { ROLE_PERMISSION_GROUPS } from "@adobos/shared";
+import {
+  DISCORD_GUILD_ROLE_LIMIT,
+  listRolePermissionKeys,
+  parseRoleColor,
+  ROLE_PERMISSION_GROUPS,
+  ROLE_PERMISSION_KEY_SET,
+} from "@adobos/shared";
+
+const AUDIT_REASON = "Adobos Bot — Roles Builder";
 
 export class RolesBuilderError extends Error {
   constructor(
@@ -37,11 +48,7 @@ function resolveGuild(bot: Client, guildId?: string): Guild {
 
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new RolesBuilderError(
-      "Falta guildId.",
-      400,
-      "MISSING_GUILD_ID",
-    );
+    throw new RolesBuilderError("Falta guildId.", 400, "MISSING_GUILD_ID");
   }
 
   const guild = bot.guilds.cache.get(id);
@@ -56,7 +63,19 @@ function resolveGuild(bot: Client, guildId?: string): Guild {
   return guild;
 }
 
+function permissionKeysFromBitfield(bits: bigint): string[] {
+  const keys: string[] = [];
+  for (const key of listRolePermissionKeys()) {
+    const flag = PermissionFlagsBits[key as keyof typeof PermissionFlagsBits];
+    if (typeof flag === "bigint" && (bits & flag) === flag) {
+      keys.push(key);
+    }
+  }
+  return keys;
+}
+
 function mapRole(role: Role): RolesBuilderRole {
+  const bits = role.permissions.bitfield;
   return {
     id: role.id,
     name: role.name,
@@ -68,6 +87,10 @@ function mapRole(role: Role): RolesBuilderRole {
     managed: role.managed,
     hoist: role.hoist,
     mentionable: role.mentionable,
+    permissionKeys: permissionKeysFromBitfield(bits),
+    hasAdministrator:
+      (bits & PermissionFlagsBits.Administrator) ===
+      PermissionFlagsBits.Administrator,
   };
 }
 
@@ -96,13 +119,25 @@ function botMemberContext(guild: Guild): {
   };
 }
 
-/** Convierte claves PermissionFlagsBits a bitfield. */
-function permissionsFromKeys(keys: string[] | undefined): bigint {
+function assertCanManageRoles(canManageRoles: boolean): void {
+  if (!canManageRoles) {
+    throw new RolesBuilderError(
+      "El bot no tiene el permiso «Gestionar roles» en este servidor.",
+      403,
+      "MISSING_MANAGE_ROLES",
+    );
+  }
+}
+
+/** Convierte claves del catálogo a bitfield. Nunca incluye Administrator. */
+export function permissionsBitfieldFromKeys(
+  keys: string[] | undefined,
+): bigint {
   if (!keys?.length) return 0n;
   let bits = 0n;
   for (const key of keys) {
-    // Nunca otorgar Administrator desde el panel.
     if (key === "Administrator") continue;
+    if (!ROLE_PERMISSION_KEY_SET.has(key)) continue;
     const flag = PermissionFlagsBits[key as keyof typeof PermissionFlagsBits];
     if (typeof flag === "bigint") {
       bits |= flag;
@@ -111,19 +146,35 @@ function permissionsFromKeys(keys: string[] | undefined): bigint {
   return bits;
 }
 
-function parseColor(value: string | null | undefined): number {
-  if (!value) return 0;
-  const raw = value.trim();
-  if (!raw || raw === "#000000" || raw.toLowerCase() === "default") return 0;
-  const hex = raw.startsWith("#") ? raw.slice(1) : raw;
-  if (!/^[0-9A-Fa-f]{6}$/.test(hex)) {
+function resolveColor(value: string | null | undefined): number {
+  const color = parseRoleColor(value);
+  if (color === null) {
     throw new RolesBuilderError(
       "Color inválido. Usa formato #RRGGBB.",
       400,
       "INVALID_COLOR",
     );
   }
-  return Number.parseInt(hex, 16);
+  return color;
+}
+
+function resolveRoleName(raw: string | undefined): string {
+  const name = (raw ?? "").trim();
+  if (!name) {
+    throw new RolesBuilderError(
+      "El nombre del rol es obligatorio.",
+      400,
+      "MISSING_NAME",
+    );
+  }
+  if (name.length > 100) {
+    throw new RolesBuilderError(
+      "El nombre del rol no puede superar 100 caracteres.",
+      400,
+      "NAME_TOO_LONG",
+    );
+  }
+  return name;
 }
 
 function friendlyDiscordError(error: unknown, fallback: string): string {
@@ -133,6 +184,12 @@ function friendlyDiscordError(error: unknown, fallback: string): string {
     }
     if (error.code === 50035) {
       return "Datos inválidos al actualizar roles en Discord.";
+    }
+    if (error.code === 30035) {
+      return `Este servidor ya tiene el máximo de ${DISCORD_GUILD_ROLE_LIMIT} roles de Discord.`;
+    }
+    if (error.code === 10011) {
+      return "Ese rol ya no existe en Discord.";
     }
     return error.message || fallback;
   }
@@ -145,6 +202,47 @@ function sortedRoles(guild: Guild): RolesBuilderRole[] {
     .filter((role) => role.id !== guild.id)
     .map(mapRole)
     .sort((a, b) => b.position - a.position);
+}
+
+function assertRoleLimit(guild: Guild): void {
+  if (guild.roles.cache.size >= DISCORD_GUILD_ROLE_LIMIT) {
+    throw new RolesBuilderError(
+      `Este servidor ya tiene el máximo de ${DISCORD_GUILD_ROLE_LIMIT} roles de Discord.`,
+      400,
+      "ROLE_LIMIT",
+    );
+  }
+}
+
+function resolveEditableRole(
+  guild: Guild,
+  roleId: string,
+  highestPosition: number,
+): Role {
+  const id = roleId.trim();
+  const role = guild.roles.cache.get(id);
+  if (!role || role.id === guild.id) {
+    throw new RolesBuilderError(
+      `Rol no encontrado: ${id}`,
+      404,
+      "ROLE_NOT_FOUND",
+    );
+  }
+  if (role.managed) {
+    throw new RolesBuilderError(
+      `El rol «${role.name}» es managed y no se puede gestionar.`,
+      400,
+      "ROLE_MANAGED",
+    );
+  }
+  if (role.position >= highestPosition) {
+    throw new RolesBuilderError(
+      `El rol «${role.name}» está por encima (o al nivel) del bot y no se puede gestionar.`,
+      403,
+      "ROLE_ABOVE_BOT",
+    );
+  }
+  return role;
 }
 
 export async function listGuildRoles(
@@ -163,6 +261,8 @@ export async function listGuildRoles(
     botHighestPosition: botCtx.highestPosition,
     botCanManageRoles: botCtx.canManageRoles,
     botRoleName: botCtx.roleName,
+    roleCount: guild.roles.cache.size,
+    roleLimit: DISCORD_GUILD_ROLE_LIMIT,
     roles: sortedRoles(guild),
     permissionGroups: ROLE_PERMISSION_GROUPS,
   };
@@ -174,38 +274,18 @@ export async function createGuildRole(
   guildId?: string,
 ): Promise<CreateGuildRoleResponse> {
   const guild = resolveGuild(bot, guildId);
+  await guild.roles.fetch().catch(() => null);
   const botCtx = botMemberContext(guild);
 
-  if (!botCtx.canManageRoles) {
-    throw new RolesBuilderError(
-      "El bot no tiene el permiso «Gestionar roles» en este servidor.",
-      403,
-      "MISSING_MANAGE_ROLES",
-    );
-  }
+  assertCanManageRoles(botCtx.canManageRoles);
+  assertRoleLimit(guild);
 
-  const name = (input.name ?? "").trim();
-  if (!name) {
-    throw new RolesBuilderError(
-      "El nombre del rol es obligatorio.",
-      400,
-      "MISSING_NAME",
-    );
-  }
-  if (name.length > 100) {
-    throw new RolesBuilderError(
-      "El nombre del rol no puede superar 100 caracteres.",
-      400,
-      "NAME_TOO_LONG",
-    );
-  }
-
-  const color = parseColor(input.color);
-  const permissions = permissionsFromKeys(input.permissions);
+  const name = resolveRoleName(input.name);
+  const color = resolveColor(input.color);
+  const permissions = permissionsBitfieldFromKeys(input.permissions);
   const hoist = Boolean(input.hoist);
   const mentionable = Boolean(input.mentionable);
 
-  // Por defecto: justo debajo del rol más alto del bot.
   const position = Math.max(0, botCtx.highestPosition - 1);
 
   let role: Role;
@@ -217,7 +297,7 @@ export async function createGuildRole(
       hoist,
       mentionable,
       position,
-      reason: "Adobos Bot — Fabricador de Roles",
+      reason: AUDIT_REASON,
     });
   } catch (error) {
     throw new RolesBuilderError(
@@ -229,8 +309,95 @@ export async function createGuildRole(
 
   return {
     role: mapRole(role),
-    warning: null,
+    warning:
+      role.position !== position
+        ? "Discord colocó el rol en otra posición. Reordena en la lista si hace falta."
+        : null,
   };
+}
+
+export async function updateGuildRole(
+  bot: Client,
+  roleId: string,
+  input: UpdateGuildRoleRequest,
+  guildId?: string,
+): Promise<UpdateGuildRoleResponse> {
+  const guild = resolveGuild(bot, guildId);
+  await guild.roles.fetch().catch(() => null);
+  const botCtx = botMemberContext(guild);
+
+  assertCanManageRoles(botCtx.canManageRoles);
+  const role = resolveEditableRole(guild, roleId, botCtx.highestPosition);
+
+  if (
+    input.permissions !== undefined &&
+    role.permissions.has(PermissionFlagsBits.Administrator)
+  ) {
+    throw new RolesBuilderError(
+      "No se pueden cambiar los permisos de un rol con Administrator.",
+      403,
+      "PERMISSIONS_ADMIN_LOCKED",
+    );
+  }
+
+  const edit: {
+    name?: string;
+    colors?: { primaryColor: number };
+    permissions?: bigint;
+    hoist?: boolean;
+    mentionable?: boolean;
+    reason: string;
+  } = { reason: AUDIT_REASON };
+
+  if (input.name !== undefined) edit.name = resolveRoleName(input.name);
+  if (input.color !== undefined) {
+    edit.colors = { primaryColor: resolveColor(input.color) };
+  }
+  if (input.permissions !== undefined) {
+    edit.permissions = permissionsBitfieldFromKeys(input.permissions);
+  }
+  if (input.hoist !== undefined) edit.hoist = Boolean(input.hoist);
+  if (input.mentionable !== undefined) {
+    edit.mentionable = Boolean(input.mentionable);
+  }
+
+  let updated: Role;
+  try {
+    updated = await role.edit(edit);
+  } catch (error) {
+    throw new RolesBuilderError(
+      friendlyDiscordError(error, "No se pudo actualizar el rol."),
+      502,
+      "DISCORD_UPDATE_FAILED",
+    );
+  }
+
+  return { role: mapRole(updated), warning: null };
+}
+
+export async function deleteGuildRole(
+  bot: Client,
+  roleId: string,
+  guildId?: string,
+): Promise<DeleteGuildRoleResponse> {
+  const guild = resolveGuild(bot, guildId);
+  await guild.roles.fetch().catch(() => null);
+  const botCtx = botMemberContext(guild);
+
+  assertCanManageRoles(botCtx.canManageRoles);
+  const role = resolveEditableRole(guild, roleId, botCtx.highestPosition);
+
+  try {
+    await role.delete(AUDIT_REASON);
+  } catch (error) {
+    throw new RolesBuilderError(
+      friendlyDiscordError(error, "No se pudo borrar el rol."),
+      502,
+      "DISCORD_DELETE_FAILED",
+    );
+  }
+
+  return { ok: true, roleId: role.id };
 }
 
 export async function updateRolePositions(
@@ -241,13 +408,7 @@ export async function updateRolePositions(
   const guild = resolveGuild(bot, guildId);
   const botCtx = botMemberContext(guild);
 
-  if (!botCtx.canManageRoles) {
-    throw new RolesBuilderError(
-      "El bot no tiene el permiso «Gestionar roles» en este servidor.",
-      403,
-      "MISSING_MANAGE_ROLES",
-    );
-  }
+  assertCanManageRoles(botCtx.canManageRoles);
 
   if (!Array.isArray(positions) || positions.length === 0) {
     throw new RolesBuilderError(
@@ -288,29 +449,7 @@ export async function updateRolePositions(
       );
     }
 
-    const role = guild.roles.cache.get(roleId);
-    if (!role || role.id === guild.id) {
-      throw new RolesBuilderError(
-        `Rol no encontrado: ${roleId}`,
-        404,
-        "ROLE_NOT_FOUND",
-      );
-    }
-    if (role.managed) {
-      throw new RolesBuilderError(
-        `El rol «${role.name}» es managed y no se puede reordenar.`,
-        400,
-        "ROLE_MANAGED",
-      );
-    }
-    if (role.position >= botCtx.highestPosition) {
-      throw new RolesBuilderError(
-        `El rol «${role.name}» está por encima (o al nivel) del bot y no se puede gestionar.`,
-        403,
-        "ROLE_ABOVE_BOT",
-      );
-    }
-
+    resolveEditableRole(guild, roleId, botCtx.highestPosition);
     payload.push({ role: roleId, position });
   }
 

@@ -127,5 +127,7 @@ export {
 export {
   fetchRolesBuilderList,
   createGuildRole,
+  updateGuildRole,
+  deleteGuildRole,
   updateRolePositions,
 } from "./api/roles-builder";

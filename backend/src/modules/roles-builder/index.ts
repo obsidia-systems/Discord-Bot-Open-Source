@@ -3,7 +3,7 @@ import { rolesBuilderRoutes } from "./api/routes.js";
 
 export const rolesBuilderModule: AdobosModule = {
   id: "roles-builder",
-  name: "Fabricador de Roles",
+  name: "Roles Builder",
   register(ctx) {
     ctx.route("/api/roles", rolesBuilderRoutes(ctx.client), {
       feature: "roles-builder",

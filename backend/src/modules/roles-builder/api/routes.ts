@@ -1,26 +1,28 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
+import { snowflake } from "../../../core/http/schemas.js";
 import { parse } from "../../../core/http/validate.js";
 import {
   createGuildRoleSchema,
+  updateGuildRoleSchema,
   updateRolePositionsSchema,
 } from "./schema.js";
 import {
   createGuildRole,
+  deleteGuildRole,
   listGuildRoles,
+  updateGuildRole,
   updateRolePositions,
 } from "../service.js";
 
-/** Rutas: GET /list · POST /create · PATCH /positions (base `/api/roles`). */
+/** Rutas: GET /list · POST /create · PATCH /positions · PATCH|DELETE /:roleId. */
 export function rolesBuilderRoutes(client: Client): Router {
   const router = Router();
 
   router.get("/list", async (req, res, next) => {
     try {
-      const guildId =
-        guildIdOf(req);
-      const data = await listGuildRoles(client, guildId);
+      const data = await listGuildRoles(client, guildIdOf(req));
       res.json(data);
     } catch (error) {
       next(error);
@@ -29,10 +31,8 @@ export function rolesBuilderRoutes(client: Client): Router {
 
   router.post("/create", async (req, res, next) => {
     try {
-      const guildId =
-        guildIdOf(req);
       const input = parse(createGuildRoleSchema, req.body);
-      const data = await createGuildRole(client, input, guildId);
+      const data = await createGuildRole(client, input, guildIdOf(req));
       res.status(201).json(data);
     } catch (error) {
       next(error);
@@ -41,10 +41,34 @@ export function rolesBuilderRoutes(client: Client): Router {
 
   router.patch("/positions", async (req, res, next) => {
     try {
-      const guildId =
-        guildIdOf(req);
       const { positions } = parse(updateRolePositionsSchema, req.body);
-      const data = await updateRolePositions(client, positions, guildId);
+      const data = await updateRolePositions(client, positions, guildIdOf(req));
+      res.json(data);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/:roleId", async (req, res, next) => {
+    try {
+      const roleId = parse(snowflake, req.params.roleId);
+      const input = parse(updateGuildRoleSchema, req.body ?? {});
+      const data = await updateGuildRole(
+        client,
+        roleId,
+        input,
+        guildIdOf(req),
+      );
+      res.json(data);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/:roleId", async (req, res, next) => {
+    try {
+      const roleId = parse(snowflake, req.params.roleId);
+      const data = await deleteGuildRole(client, roleId, guildIdOf(req));
       res.json(data);
     } catch (error) {
       next(error);

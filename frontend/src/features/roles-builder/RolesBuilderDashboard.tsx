@@ -10,12 +10,20 @@ import type {
   RolesBuilderListResponse,
   RolesBuilderRole,
 } from "@adobos/shared";
-import { ROLE_PERMISSION_GROUPS } from "@adobos/shared";
+import {
+  ROLE_PERMISSION_GROUPS,
+  buildPositionPayload,
+  isRoleLocked,
+  reorderKeepingLocks,
+} from "@adobos/shared";
 import {
   createGuildRole,
+  deleteGuildRole,
   fetchRolesBuilderList,
+  updateGuildRole,
   updateRolePositions,
 } from "@/lib/api";
+import { AlertDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Accordion,
@@ -41,10 +49,13 @@ import {
   GripVertical,
   Loader2,
   Lock,
+  Pencil,
   Plus,
   RefreshCw,
   Save,
   Shield,
+  Trash2,
+  X,
 } from "lucide-react";
 
 const PRESET_COLORS = [
@@ -70,6 +81,8 @@ const PRESET_COLORS = [
   "#979C9F",
 ] as const;
 
+const DEFAULT_COLOR = "#5865F2";
+
 function RoleColorDot({ hex }: { hex: string }) {
   const color =
     !hex || hex.toUpperCase() === "#000000" ? "#99AAB5" : hex.toUpperCase();
@@ -82,96 +95,8 @@ function RoleColorDot({ hex }: { hex: string }) {
   );
 }
 
-function isRoleLocked(
-  role: RolesBuilderRole,
-  botHighestPosition: number,
-  botHighestRoleId: string | null,
-): boolean {
-  if (botHighestRoleId && role.id === botHighestRoleId) return true;
-  if (role.position >= botHighestPosition) return true;
-  if (role.managed) return true;
-  return false;
-}
-
 function rolesOrderFingerprint(roles: RolesBuilderRole[]): string {
   return roles.map((r) => r.id).join("|");
-}
-
-/** Reordena solo entre slots desbloqueados; los bloqueados conservan su índice. */
-function reorderKeepingLocks(
-  list: RolesBuilderRole[],
-  lockedIds: Set<string>,
-  sourceIndex: number,
-  destIndex: number,
-): RolesBuilderRole[] {
-  if (sourceIndex === destIndex) return list;
-  if (lockedIds.has(list[sourceIndex]?.id ?? "")) return list;
-
-  const lockedSlots = list
-    .map((role, index) => ({ role, index }))
-    .filter(({ role }) => lockedIds.has(role.id));
-
-  const movables = list.filter((role) => !lockedIds.has(role.id));
-  const sourceMovableIndex = movables.findIndex(
-    (role) => role.id === list[sourceIndex]?.id,
-  );
-
-  let destMovableIndex = 0;
-  for (let i = 0; i < destIndex; i += 1) {
-    const id = list[i]?.id;
-    if (id && !lockedIds.has(id)) destMovableIndex += 1;
-  }
-  if (sourceIndex < destIndex) {
-    destMovableIndex = Math.max(0, destMovableIndex - 1);
-  }
-
-  if (sourceMovableIndex < 0) return list;
-  const nextMovables = [...movables];
-  const [moved] = nextMovables.splice(sourceMovableIndex, 1);
-  if (!moved) return list;
-  nextMovables.splice(
-    Math.min(destMovableIndex, nextMovables.length),
-    0,
-    moved,
-  );
-
-  const result: RolesBuilderRole[] = [];
-  let movableCursor = 0;
-  for (let i = 0; i < list.length; i += 1) {
-    const locked = lockedSlots.find((slot) => slot.index === i);
-    if (locked) {
-      result.push(locked.role);
-    } else {
-      const next = nextMovables[movableCursor];
-      if (next) result.push(next);
-      movableCursor += 1;
-    }
-  }
-  return result;
-}
-
-/**
- * Asigna posiciones Discord a partir del orden visual (arriba = mayor).
- * Los roles managed ocupan hueco en el índice pero no se envían.
- */
-function buildPositionPayload(
-  ordered: RolesBuilderRole[],
-  botHighestPosition: number,
-  botHighestRoleId: string | null,
-): { roleId: string; position: number }[] {
-  const belowBot = ordered.filter(
-    (role) =>
-      role.id !== botHighestRoleId && role.position < botHighestPosition,
-  );
-
-  return belowBot
-    .map((role, index) => ({
-      roleId: role.id,
-      position: botHighestPosition - 1 - index,
-      managed: role.managed,
-    }))
-    .filter((row) => !row.managed)
-    .map(({ roleId, position }) => ({ roleId, position }));
 }
 
 const PERMISSION_TAB_SHORT: Record<string, string> = {
@@ -185,10 +110,12 @@ function PermissionsTabs({
   groups,
   selected,
   onToggle,
+  disabled,
 }: {
   groups: RolePermissionGroup[];
   selected: Set<string>;
   onToggle: (key: string, enabled: boolean) => void;
+  disabled?: boolean;
 }) {
   const [tab, setTab] = useState(groups[0]?.id ?? "general");
   const activeGroup = groups.find((g) => g.id === tab) ?? groups[0];
@@ -239,6 +166,7 @@ function PermissionsTabs({
                   </div>
                   <Switch
                     checked={selected.has(perm.key)}
+                    disabled={disabled}
                     onCheckedChange={(checked) => onToggle(perm.key, checked)}
                   />
                 </div>
@@ -258,8 +186,11 @@ function RolesHierarchyPanel({
   dirty,
   saving,
   canManage,
+  editingRoleId,
   onReorder,
   onSave,
+  onEdit,
+  onDelete,
 }: {
   roles: RolesBuilderRole[];
   botHighestPosition: number;
@@ -267,8 +198,11 @@ function RolesHierarchyPanel({
   dirty: boolean;
   saving: boolean;
   canManage: boolean;
+  editingRoleId: string | null;
   onReorder: (next: RolesBuilderRole[]) => void;
   onSave: () => void;
+  onEdit: (role: RolesBuilderRole) => void;
+  onDelete: (role: RolesBuilderRole) => void;
 }) {
   const lockedIds = useMemo(() => {
     const ids = new Set<string>();
@@ -332,6 +266,7 @@ function RolesHierarchyPanel({
               ) : (
                 roles.map((role, index) => {
                   const locked = lockedIds.has(role.id);
+                  const editing = editingRoleId === role.id;
                   return (
                     <Draggable
                       key={role.id}
@@ -343,22 +278,33 @@ function RolesHierarchyPanel({
                         <div
                           ref={dragProvided.innerRef}
                           {...dragProvided.draggableProps}
-                          {...dragProvided.dragHandleProps}
                           className={cn(
-                            "flex items-center gap-2 rounded-md border border-border/60 bg-card px-2.5 py-2 text-sm",
-                            locked
-                              ? "cursor-not-allowed opacity-70"
-                              : "cursor-grab active:cursor-grabbing",
+                            "flex items-center gap-2 rounded-md border bg-card px-2.5 py-2 text-sm",
+                            editing
+                              ? "border-primary/60 ring-1 ring-primary/30"
+                              : "border-border/60",
                             dragSnapshot.isDragging &&
                               "opacity-80 shadow-lg ring-1 ring-primary/40",
                           )}
                           style={dragProvided.draggableProps.style}
                         >
-                          {locked ? (
-                            <Lock className="size-3.5 shrink-0 text-muted-foreground" />
-                          ) : (
-                            <GripVertical className="size-3.5 shrink-0 text-muted-foreground" />
-                          )}
+                          <span
+                            className={cn(
+                              "shrink-0",
+                              locked || !canManage
+                                ? "cursor-not-allowed text-muted-foreground"
+                                : "cursor-grab active:cursor-grabbing text-muted-foreground",
+                            )}
+                            {...(locked || !canManage
+                              ? {}
+                              : dragProvided.dragHandleProps)}
+                          >
+                            {locked ? (
+                              <Lock className="size-3.5" />
+                            ) : (
+                              <GripVertical className="size-3.5" />
+                            )}
+                          </span>
                           <RoleColorDot hex={role.hexColor} />
                           <span className="min-w-0 flex-1 truncate font-medium">
                             {role.name}
@@ -368,11 +314,40 @@ function RolesHierarchyPanel({
                           </span>
                           {locked ? (
                             <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                              {role.managed
-                                ? "managed"
-                                : "No gestionable"}
+                              {role.managed ? "managed" : "No gestionable"}
                             </span>
-                          ) : null}
+                          ) : (
+                            <span className="flex shrink-0 gap-0.5">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="size-7"
+                                disabled={!canManage}
+                                aria-label={`Editar ${role.name}`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  onEdit(role);
+                                }}
+                              >
+                                <Pencil className="size-3.5" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="size-7 text-destructive hover:text-destructive"
+                                disabled={!canManage}
+                                aria-label={`Borrar ${role.name}`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  onDelete(role);
+                                }}
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                            </span>
+                          )}
                         </div>
                       )}
                     </Draggable>
@@ -394,12 +369,19 @@ export function RolesBuilderDashboard() {
   const [savedFingerprint, setSavedFingerprint] = useState("");
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [savingRole, setSavingRole] = useState(false);
   const [savingHierarchy, setSavingHierarchy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<RolesBuilderRole | null>(
+    null,
+  );
+
   const [name, setName] = useState("");
-  const [color, setColor] = useState("#5865F2");
+  const [color, setColor] = useState(DEFAULT_COLOR);
   const [hoist, setHoist] = useState(false);
   const [mentionable, setMentionable] = useState(false);
   const [permissionsOpen, setPermissionsOpen] = useState(false);
@@ -408,6 +390,10 @@ export function RolesBuilderDashboard() {
   );
 
   const permissionGroups = data?.permissionGroups ?? ROLE_PERMISSION_GROUPS;
+  const editingRole = orderedRoles.find((role) => role.id === editingRoleId);
+  const atRoleLimit = Boolean(
+    data && data.roleCount >= data.roleLimit,
+  );
 
   const dirtyHierarchy = useMemo(
     () => rolesOrderFingerprint(orderedRoles) !== savedFingerprint,
@@ -430,7 +416,7 @@ export function RolesBuilderDashboard() {
       setError(
         err instanceof Error
           ? err.message
-          : "No se pudo cargar el Fabricador de Roles.",
+          : "No se pudo cargar Roles Builder.",
       );
     } finally {
       setLoading(false);
@@ -452,11 +438,28 @@ export function RolesBuilderDashboard() {
   };
 
   const resetForm = () => {
+    setEditingRoleId(null);
     setName("");
-    setColor("#5865F2");
+    setColor(DEFAULT_COLOR);
     setHoist(false);
     setMentionable(false);
     setSelectedPerms(new Set());
+  };
+
+  const fillForm = (role: RolesBuilderRole) => {
+    setEditingRoleId(role.id);
+    setName(role.name);
+    setColor(
+      !role.hexColor || role.hexColor.toUpperCase() === "#000000"
+        ? "#000000"
+        : role.hexColor.toUpperCase(),
+    );
+    setHoist(role.hoist);
+    setMentionable(role.mentionable);
+    setSelectedPerms(new Set(role.permissionKeys ?? []));
+    setPermissionsOpen(true);
+    setSuccess(null);
+    setError(null);
   };
 
   const onCreate = async () => {
@@ -496,6 +499,70 @@ export function RolesBuilderDashboard() {
     }
   };
 
+  const onUpdate = async () => {
+    if (!editingRoleId) return;
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setError("Escribe un nombre para el rol.");
+      return;
+    }
+
+    setSavingRole(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const payload: {
+        name: string;
+        color: string;
+        hoist: boolean;
+        mentionable: boolean;
+        permissions?: string[];
+      } = {
+        name: trimmed,
+        color,
+        hoist,
+        mentionable,
+      };
+      if (!editingRole?.hasAdministrator) {
+        payload.permissions = [...selectedPerms];
+      }
+      const res = await updateGuildRole(editingRoleId, payload);
+      setSuccess(`Rol «${res.role.name}» actualizado en Discord.`);
+      resetForm();
+      const list = await fetchRolesBuilderList();
+      applyList(list);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo actualizar el rol.",
+      );
+    } finally {
+      setSavingRole(false);
+    }
+  };
+
+  const onConfirmDelete = async () => {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await deleteGuildRole(pendingDelete.id);
+      setSuccess(`Rol «${pendingDelete.name}» borrado de Discord.`);
+      if (editingRoleId === pendingDelete.id) resetForm();
+      setPendingDelete(null);
+      const list = await fetchRolesBuilderList();
+      applyList(list);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "No se pudo borrar el rol.",
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const onSaveHierarchy = async () => {
     if (!data) return;
     setSavingHierarchy(true);
@@ -522,6 +589,8 @@ export function RolesBuilderDashboard() {
       setSavingHierarchy(false);
     }
   };
+
+  const busy = creating || savingRole || savingHierarchy || deleting;
 
   if (loading && !data) {
     return (
@@ -552,18 +621,21 @@ export function RolesBuilderDashboard() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">
-            Fabricador de Roles
+            Roles Builder
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Crea roles y reordena la jerarquía con arrastrar y soltar.
+            Crea, edita y reordena roles debajo del bot.
             {data ? ` · ${data.guildName}` : null}
+            {data
+              ? ` · ${data.roleCount}/${data.roleLimit} roles`
+              : null}
           </p>
         </div>
         <Button
           type="button"
           variant="outline"
           size="sm"
-          disabled={loading || creating || savingHierarchy}
+          disabled={loading || busy}
           onClick={() => void load()}
         >
           {loading ? (
@@ -585,7 +657,7 @@ export function RolesBuilderDashboard() {
         </div>
       ) : null}
 
-      {data && data.botCanManageRoles && data.botHighestPosition <= 1 ? (
+      {data?.botCanManageRoles && data.botHighestPosition <= 1 ? (
         <div className="flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
           <p>
@@ -596,15 +668,27 @@ export function RolesBuilderDashboard() {
         </div>
       ) : null}
 
+      {atRoleLimit ? (
+        <div className="flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          <p>
+            Este servidor ya tiene el máximo de {data?.roleLimit} roles de
+            Discord. Borra uno para poder crear otro.
+          </p>
+        </div>
+      ) : null}
+
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <Shield className="size-4 text-primary" />
-              Nuevo rol
+              {editingRoleId ? "Editar rol" : "Nuevo rol"}
             </CardTitle>
             <CardDescription>
-              Nombre, color y permisos. Se crea justo debajo del rol del bot.
+              {editingRoleId
+                ? "Los cambios se aplican en Discord. Solo roles debajo del bot."
+                : "Nombre, color y permisos. Se crea justo debajo del rol del bot."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -629,7 +713,7 @@ export function RolesBuilderDashboard() {
                   type="color"
                   aria-label="Color del rol"
                   className="h-10 w-12 cursor-pointer rounded-md border border-input bg-background p-1"
-                  value={color}
+                  value={color === "#000000" ? "#99AAB5" : color}
                   onChange={(e) => {
                     setColor(e.target.value.toUpperCase());
                     setSuccess(null);
@@ -642,7 +726,7 @@ export function RolesBuilderDashboard() {
                     setColor(e.target.value);
                     setSuccess(null);
                   }}
-                  placeholder="#5865F2"
+                  placeholder={DEFAULT_COLOR}
                 />
               </div>
               <div className="flex flex-wrap gap-1.5">
@@ -683,45 +767,84 @@ export function RolesBuilderDashboard() {
             </div>
 
             <div className="space-y-2">
-              <Accordion>
-                <AccordionItem>
-                  <AccordionTrigger
-                    open={permissionsOpen}
-                    onClick={() => setPermissionsOpen((v) => !v)}
-                    subtitle={
-                      selectedPerms.size > 0
-                        ? `${selectedPerms.size} permiso${selectedPerms.size === 1 ? "" : "s"} seleccionado${selectedPerms.size === 1 ? "" : "s"}`
-                        : "Cerrado por defecto — opcional"
-                    }
-                  >
-                    Permisos
-                  </AccordionTrigger>
-                  <AccordionContent open={permissionsOpen}>
-                    <PermissionsTabs
-                      groups={permissionGroups}
-                      selected={selectedPerms}
-                      onToggle={togglePerm}
-                    />
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
+              {editingRole?.hasAdministrator ? (
+                <p className="text-xs text-muted-foreground">
+                  Este rol tiene Administrator en Discord. El panel no cambia
+                  esos permisos.
+                </p>
+              ) : (
+                <Accordion>
+                  <AccordionItem>
+                    <AccordionTrigger
+                      open={permissionsOpen}
+                      onClick={() => setPermissionsOpen((v) => !v)}
+                      subtitle={
+                        selectedPerms.size > 0
+                          ? `${selectedPerms.size} permiso${selectedPerms.size === 1 ? "" : "s"} seleccionado${selectedPerms.size === 1 ? "" : "s"}`
+                          : "Cerrado por defecto — opcional"
+                      }
+                    >
+                      Permisos
+                    </AccordionTrigger>
+                    <AccordionContent open={permissionsOpen}>
+                      <PermissionsTabs
+                        groups={permissionGroups}
+                        selected={selectedPerms}
+                        onToggle={togglePerm}
+                      />
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              )}
             </div>
 
-            <Button
-              type="button"
-              className="w-full sm:w-auto"
-              disabled={
-                creating || !data?.botCanManageRoles || !name.trim()
-              }
-              onClick={() => void onCreate()}
-            >
-              {creating ? (
-                <Loader2 className="size-4 animate-spin" />
+            <div className="flex flex-wrap gap-2">
+              {editingRoleId ? (
+                <>
+                  <Button
+                    type="button"
+                    className="w-full sm:w-auto"
+                    disabled={savingRole || !data?.botCanManageRoles || !name.trim()}
+                    onClick={() => void onUpdate()}
+                  >
+                    {savingRole ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Save className="size-4" />
+                    )}
+                    Guardar cambios
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={savingRole}
+                    onClick={() => resetForm()}
+                  >
+                    <X className="size-4" />
+                    Cancelar
+                  </Button>
+                </>
               ) : (
-                <Plus className="size-4" />
+                <Button
+                  type="button"
+                  className="w-full sm:w-auto"
+                  disabled={
+                    creating ||
+                    !data?.botCanManageRoles ||
+                    !name.trim() ||
+                    atRoleLimit
+                  }
+                  onClick={() => void onCreate()}
+                >
+                  {creating ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Plus className="size-4" />
+                  )}
+                  Crear Rol en Discord
+                </Button>
               )}
-              Crear Rol en Discord
-            </Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -729,7 +852,8 @@ export function RolesBuilderDashboard() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Roles del servidor</CardTitle>
             <CardDescription>
-              Arrastra para reordenar (arriba = mayor prioridad).
+              Arrastra para reordenar (arriba = mayor prioridad). Edita o borra
+              los que están debajo del bot.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -740,15 +864,38 @@ export function RolesBuilderDashboard() {
               dirty={dirtyHierarchy}
               saving={savingHierarchy}
               canManage={Boolean(data?.botCanManageRoles)}
+              editingRoleId={editingRoleId}
               onReorder={(next) => {
                 setOrderedRoles(next);
                 setSuccess(null);
               }}
               onSave={() => void onSaveHierarchy()}
+              onEdit={fillForm}
+              onDelete={(role) => {
+                setPendingDelete(role);
+                setError(null);
+              }}
             />
           </CardContent>
         </Card>
       </div>
+
+      <AlertDialog
+        open={pendingDelete != null}
+        title="Borrar rol"
+        description={
+          pendingDelete
+            ? `Se eliminará «${pendingDelete.name}» de Discord. Esta acción no se puede deshacer.`
+            : null
+        }
+        confirmLabel="Borrar"
+        tone="destructive"
+        confirming={deleting}
+        onCancel={() => {
+          if (!deleting) setPendingDelete(null);
+        }}
+        onConfirm={() => void onConfirmDelete()}
+      />
     </div>
   );
 }
