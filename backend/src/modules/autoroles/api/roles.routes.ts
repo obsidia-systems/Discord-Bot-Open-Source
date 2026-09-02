@@ -26,10 +26,13 @@ export function rolesRoutes(bot: Client): Router {
   router.post("/auto", async (req, res, next) => {
     try {
       const body = parse(saveAutoJoinRolesSchema, req.body);
-      const result = await saveAutoJoinRoles({
-        ...body,
-        guildId: guildIdOf(req),
-      });
+      const result = await saveAutoJoinRoles(
+        {
+          ...body,
+          guildId: guildIdOf(req),
+        },
+        bot,
+      );
       res.status(200).json(result);
     } catch (error: unknown) {
       next(error);

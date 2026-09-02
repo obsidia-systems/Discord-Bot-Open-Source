@@ -1,5 +1,6 @@
 import type { GuildMember } from "discord.js";
 import { getAutoJoinRoles } from "../autoJoin.js";
+import { isRoleAssignableInGuild } from "../assignable.js";
 import { logger } from "../../../core/log.js";
 
 /** Asigna roles automáticos al unirse (humanos vs bots). */
@@ -11,10 +12,15 @@ export async function onGuildMemberAddAutoRoles(
     const roleIds = member.user.bot ? config.botRoles : config.humanRoles;
     if (roleIds.length === 0) return;
 
+    if (!member.guild.members.me) {
+      await member.guild.members.fetchMe().catch(() => null);
+    }
+
     const assignable = roleIds.filter(
       (roleId) =>
         member.guild.roles.cache.has(roleId) &&
-        !member.roles.cache.has(roleId),
+        !member.roles.cache.has(roleId) &&
+        isRoleAssignableInGuild(member.guild, roleId),
     );
     if (assignable.length === 0) return;
 

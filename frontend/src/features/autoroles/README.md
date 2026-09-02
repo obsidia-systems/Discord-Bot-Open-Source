@@ -1,5 +1,21 @@
 # Feature: autoroles
 
-UI de autoroles (reacciones / botones). Ruta: `/dashboard/community/autoroles`.
+UI del dominio **Autoroles**: menús (botones / select / reacciones) y roles al unirse.
 
-Exporta `AutoRoleBuilder` vía `index.ts`. Reutiliza `components/shared/EmbedFormTemplate` y `DiscordEmojiPicker`.
+## Contenido
+
+| Archivo | Rol |
+|---------|-----|
+| `AutoRoleBuilder.tsx` | Registry, asistente compacto, auto-join |
+| `index.ts` | Barrel público |
+
+## Rutas Astro
+
+- `/dashboard/community/autoroles` → `AutoRoleBuilder`
+- `/dashboard/autoroles` redirige a la ruta anterior
+
+## API
+
+`fetchActiveAutoroles` / `createAutoroleCompact` / `updateAutoroleMapping` / `updateAutoroleContent` / `deleteAutorole` / `fetchAutoJoinRoles` / `saveAutoJoinRoles`. Backend: `modules/autoroles`.
+
+Canal de publicación: texto o anuncios. El picker de roles omite managed (incluido Server Booster).

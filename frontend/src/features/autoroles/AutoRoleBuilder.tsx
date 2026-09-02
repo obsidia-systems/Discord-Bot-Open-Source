@@ -26,6 +26,11 @@ import type {
   ModFetchedMessageResponse,
 } from "@adobos/shared";
 import {
+  autoroleMappingLimit,
+  isAutorolePickableRole,
+  isAutoroleSendChannelType,
+} from "@adobos/shared";
+import {
   createAutoroleCompact,
   deleteAutorole,
   fetchActiveAutoroles,
@@ -271,6 +276,19 @@ export function AutoRoleBuilder() {
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
   const busy = feedback.kind === "loading";
+
+  const sendChannels = useMemo(
+    () =>
+      (assets?.channels ?? []).filter((channel) =>
+        isAutoroleSendChannelType(channel.type),
+      ),
+    [assets?.channels],
+  );
+
+  const assignableRoles = useMemo(
+    () => (assets?.roles ?? []).filter((role) => isAutorolePickableRole(role)),
+    [assets?.roles],
+  );
 
   const previewColor = useMemo(() => {
     const raw = previewEmbed?.color?.trim().replace(/^#/, "") ?? "";
@@ -609,9 +627,9 @@ export function AutoRoleBuilder() {
           }
         >
           {rows.map((row, index) => {
-            const selectedRole = (assets?.roles ?? []).find(
+            const selectedRole = assignableRoles.find(
               (r) => r.id === row.roleId,
-            );
+            ) ?? (assets?.roles ?? []).find((r) => r.id === row.roleId);
             return (
               <div
                 key={`row-${index}`}
@@ -628,7 +646,7 @@ export function AutoRoleBuilder() {
                       onValueChange={(roleId) => {
                         const next = [...rows];
                         const roleName =
-                          assets?.roles.find((r) => r.id === roleId)?.name ??
+                          assignableRoles.find((r) => r.id === roleId)?.name ??
                           row.label;
                         next[index] = {
                           ...row,
@@ -658,7 +676,7 @@ export function AutoRoleBuilder() {
                         )}
                       </SelectTrigger>
                       <SelectContent>
-                        {(assets?.roles ?? []).map((role) => (
+                        {assignableRoles.map((role) => (
                           <SelectItem key={role.id} value={role.id}>
                             <span className="flex items-center gap-2">
                               <RoleColorDot
@@ -757,7 +775,7 @@ export function AutoRoleBuilder() {
         <Button
           type="button"
           variant="outline"
-          disabled={busy}
+          disabled={busy || rows.length >= autoroleMappingLimit(type)}
           onClick={() => setRows([...rows, emptyRow()])}
         >
           <Plus className="size-4" aria-hidden />
@@ -1292,26 +1310,32 @@ export function AutoRoleBuilder() {
 
                     <div className="space-y-2">
                       <Label>Canal</Label>
-                      <Select
-                        value={channelId || undefined}
-                        onValueChange={(next) => {
-                          setChannelId(next);
-                          setFetchedMessage(null);
-                          setMessageFetchError(null);
-                        }}
-                        disabled={busy}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona un canal…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(assets?.channels ?? []).map((channel) => (
-                            <SelectItem key={channel.id} value={channel.id}>
-                              #{channel.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {sendChannels.length > 0 ? (
+                        <Select
+                          value={channelId || undefined}
+                          onValueChange={(next) => {
+                            setChannelId(next);
+                            setFetchedMessage(null);
+                            setMessageFetchError(null);
+                          }}
+                          disabled={busy}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona un canal…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {sendChannels.map((channel) => (
+                              <SelectItem key={channel.id} value={channel.id}>
+                                #{channel.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          No hay canales de texto o anuncios.
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -1489,14 +1513,14 @@ export function AutoRoleBuilder() {
                   <CardContent className="grid gap-5 sm:grid-cols-2">
                     <RoleMultiSelect
                       label="Roles a asignar a Humanos"
-                      roles={assets?.roles ?? []}
+                      roles={assignableRoles}
                       value={humanRoles}
                       onChange={setHumanRoles}
                       disabled={busy}
                     />
                     <RoleMultiSelect
                       label="Roles a asignar a Bots"
-                      roles={assets?.roles ?? []}
+                      roles={assignableRoles}
                       value={botRoles}
                       onChange={setBotRoles}
                       disabled={busy}

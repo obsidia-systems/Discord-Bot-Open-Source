@@ -2,7 +2,6 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ChannelType,
   EmbedBuilder,
   type AttachmentBuilder,
   type Client,
@@ -19,6 +18,12 @@ import type {
   ReactionRoleMappingInput,
   SaveReactionRolesRequest,
   SaveReactionRolesResponse,
+} from "@adobos/shared";
+import {
+  AUTOROLE_BUTTONS_MAX,
+  AUTOROLE_REACTIONS_MAX,
+  isAutoroleSendChannelType,
+  normalizeAutoroleEmojiKey,
 } from "@adobos/shared";
 import { eq } from "drizzle-orm";
 import { getDb, one } from "../../../db/client.js";
@@ -38,16 +43,10 @@ import {
   resolveEmbedMedia,
 } from "../../../lib/embedMedia.js";
 
-export class AutoRoleError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-    readonly code: string,
-  ) {
-    super(message);
-    this.name = "AutoRoleError";
-  }
-}
+import { AutoRoleError } from "../errors.js";
+import { assertAssignableRoleIds } from "../assignable.js";
+
+export { AutoRoleError };
 
 const BUTTON_STYLE_MAP: Record<
   ButtonRoleMappingInput["style"],
@@ -95,19 +94,11 @@ function assertSnowflake(value: string, field: string): string {
 
 /** Acepta `custom:`, `unicode:`, `<:name:id>` o unicode crudo. */
 export function normalizeEmojiKey(raw: string): string {
-  const trimmed = raw.trim();
-  if (!trimmed) {
+  try {
+    return normalizeAutoroleEmojiKey(raw);
+  } catch {
     throw new AutoRoleError("emojiKey vacío.", 400, "INVALID_EMOJI_KEY");
   }
-
-  const mention = trimmed.match(/^<(a?):([\w]+):(\d{17,20})>$/);
-  if (mention?.[3]) return `custom:${mention[3]}`;
-
-  if (trimmed.startsWith("custom:") || trimmed.startsWith("unicode:")) {
-    return trimmed;
-  }
-
-  return `unicode:${trimmed}`;
 }
 
 function parseHexColor(color?: string): ColorResolvable | undefined {
@@ -217,8 +208,12 @@ function buildButtonRows(
   if (mappings.length === 0) {
     throw new AutoRoleError("Añade al menos un botón → rol.", 400, "EMPTY_BUTTONS");
   }
-  if (mappings.length > 25) {
-    throw new AutoRoleError("Máximo 25 botones (5×5).", 400, "TOO_MANY_BUTTONS");
+  if (mappings.length > AUTOROLE_BUTTONS_MAX) {
+    throw new AutoRoleError(
+      `Máximo ${AUTOROLE_BUTTONS_MAX} botones (5×5).`,
+      400,
+      "TOO_MANY_BUTTONS",
+    );
   }
 
   const rows: ActionRowBuilder<ButtonBuilder>[] = [];
@@ -268,8 +263,7 @@ async function resolveSendableChannel(
     );
   }
   if (
-    channel.type === ChannelType.GuildCategory ||
-    channel.type === ChannelType.GuildVoice ||
+    !isAutoroleSendChannelType(channel.type) ||
     !channel.isTextBased() ||
     !("send" in channel)
   ) {
@@ -284,6 +278,7 @@ async function resolveSendableChannel(
 
 export async function saveReactionRoleMappings(
   input: SaveReactionRolesRequest,
+  bot: Client,
 ): Promise<SaveReactionRolesResponse> {
   const guildId = assertSnowflake(input.guildId, "guildId");
   const channelId = assertSnowflake(input.channelId, "channelId");
@@ -296,11 +291,23 @@ export async function saveReactionRoleMappings(
       "EMPTY_MAPPINGS",
     );
   }
+  if (input.mappings.length > AUTOROLE_REACTIONS_MAX) {
+    throw new AutoRoleError(
+      `Máximo ${AUTOROLE_REACTIONS_MAX} reacciones por mensaje.`,
+      400,
+      "TOO_MANY_REACTIONS",
+    );
+  }
 
   const normalized = input.mappings.map((mapping) => ({
     emojiKey: normalizeEmojiKey(mapping.emojiKey),
     roleId: assertSnowflake(mapping.roleId, "roleId"),
   }));
+  await assertAssignableRoleIds(
+    bot,
+    guildId,
+    normalized.map((mapping) => mapping.roleId),
+  );
 
   await ensureGuildRow(guildId);
   await deleteReactionRolesForMessage(messageId);
@@ -385,6 +392,11 @@ export async function createAutoRoleSetup(
 
   const guildId = assertSnowflake(input.guildId, "guildId");
   const channelId = assertSnowflake(input.channelId, "channelId");
+  const roleIds = [
+    ...(input.reactionMappings ?? []).map((mapping) => mapping.roleId),
+    ...(input.buttonMappings ?? []).map((mapping) => mapping.roleId),
+  ];
+  await assertAssignableRoleIds(bot, guildId, roleIds);
   const channel = await resolveSendableChannel(bot, channelId, guildId);
 
   let messageId: string;
@@ -403,12 +415,15 @@ export async function createAutoRoleSetup(
 
     if (input.mode === "reactions") {
       const mappings = input.reactionMappings ?? [];
-      const result = await saveReactionRoleMappings({
-        guildId,
-        channelId,
-        messageId,
-        mappings,
-      });
+      const result = await saveReactionRoleMappings(
+        {
+          guildId,
+          channelId,
+          messageId,
+          mappings,
+        },
+        bot,
+      );
       await placeReactions(existing, mappings);
       saved = result.saved;
       await saveInteractiveMenu({
@@ -478,12 +493,15 @@ export async function createAutoRoleSetup(
       files: files.length > 0 ? files : undefined,
     });
 
-    const result = await saveReactionRoleMappings({
-      guildId,
-      channelId,
-      messageId: message.id,
-      mappings,
-    });
+    const result = await saveReactionRoleMappings(
+      {
+        guildId,
+        channelId,
+        messageId: message.id,
+        mappings,
+      },
+      bot,
+    );
     await placeReactions(message, mappings);
     await saveInteractiveMenu({
       guildId,

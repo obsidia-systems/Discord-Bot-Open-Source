@@ -169,11 +169,8 @@ export async function deleteAutorole(
   return response.json() as Promise<DeleteAutoroleResponse>;
 }
 
-export async function fetchAutoJoinRoles(
-  guildId?: string,
-): Promise<GetAutoJoinRolesResponse> {
-  const qs = guildId ? `?guildId=${encodeURIComponent(guildId)}` : "";
-  const response = await apiFetch(`/api/roles/auto${qs}`, {
+export async function fetchAutoJoinRoles(): Promise<GetAutoJoinRolesResponse> {
+  const response = await apiFetch(`/api/roles/auto`, {
     headers: { Accept: "application/json" },
   });
 

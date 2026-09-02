@@ -160,3 +160,89 @@ export interface GetAutoJoinRolesResponse {
 /** Alias del payload interactivo (POST /api/roles/interactive). */
 export type SaveInteractiveRolesRequest = CreateAutoRoleRequest;
 export type SaveInteractiveRolesResponse = CreateAutoRoleResponse;
+
+/** GuildText (0) y GuildAnnouncement (5). */
+export const AUTOROLE_SEND_CHANNEL_TYPES = [0, 5] as const;
+export const AUTOROLE_REACTIONS_MAX = 20;
+export const AUTOROLE_BUTTONS_MAX = 25;
+export const AUTOROLE_JOIN_ROLES_MAX = 25;
+
+export type AutoroleAssignDenyReason =
+  | "missing"
+  | "everyone"
+  | "managed"
+  | "above_bot";
+
+/** Snapshot mínimo para decidir si el bot puede asignar el rol. */
+export interface AutoroleRoleSnapshot {
+  id: string;
+  managed: boolean;
+  position: number;
+}
+
+export function isAutoroleSendChannelType(type: number): boolean {
+  return (AUTOROLE_SEND_CHANNEL_TYPES as readonly number[]).includes(type);
+}
+
+export function autoroleMappingLimit(type: AutoroleRegistryType): number {
+  return type === "REACTIONS" ? AUTOROLE_REACTIONS_MAX : AUTOROLE_BUTTONS_MAX;
+}
+
+/** Picker del panel: nada managed (booster incluido). */
+export function isAutorolePickableRole(role: {
+  managed: boolean;
+  premiumSubscriber?: boolean;
+}): boolean {
+  return !role.managed && !role.premiumSubscriber;
+}
+
+export function autoroleAssignDenyReason(
+  role: AutoroleRoleSnapshot | null | undefined,
+  guildId: string,
+  botHighestPosition: number,
+): AutoroleAssignDenyReason | null {
+  if (!role) return "missing";
+  if (role.id === guildId) return "everyone";
+  if (role.managed) return "managed";
+  if (role.position >= botHighestPosition) return "above_bot";
+  return null;
+}
+
+export function canAssignAutorole(
+  role: AutoroleRoleSnapshot | null | undefined,
+  guildId: string,
+  botHighestPosition: number,
+): boolean {
+  return autoroleAssignDenyReason(role, guildId, botHighestPosition) === null;
+}
+
+/**
+ * SELECT de un menú: dejar el elegido y quitar el resto de opciones.
+ * Si el value no está en el menú, no toca nada.
+ */
+export function exclusiveSelectRoleIds(
+  mappingRoleIds: readonly string[],
+  selectedRoleId: string,
+): { add: string | null; remove: string[] } {
+  if (!selectedRoleId || !mappingRoleIds.includes(selectedRoleId)) {
+    return { add: null, remove: [] };
+  }
+  return {
+    add: selectedRoleId,
+    remove: mappingRoleIds.filter((id) => id !== selectedRoleId),
+  };
+}
+
+/** Acepta `custom:`, `unicode:`, `<:name:id>` o unicode crudo. */
+export function normalizeAutoroleEmojiKey(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    throw new Error("emojiKey vacío.");
+  }
+  const mention = trimmed.match(/^<(a?):([\w]+):(\d{17,20})>$/);
+  if (mention?.[3]) return `custom:${mention[3]}`;
+  if (trimmed.startsWith("custom:") || trimmed.startsWith("unicode:")) {
+    return trimmed;
+  }
+  return `unicode:${trimmed}`;
+}

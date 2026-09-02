@@ -2,7 +2,6 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ChannelType,
   DiscordAPIError,
   StringSelectMenuBuilder,
   type AttachmentBuilder,
@@ -27,6 +26,11 @@ import type {
   UpdateAutoroleMappingRequest,
   UpdateAutoroleMappingResponse,
 } from "@adobos/shared";
+import {
+  AUTOROLE_BUTTONS_MAX,
+  autoroleMappingLimit,
+  isAutoroleSendChannelType,
+} from "@adobos/shared";
 import { getDb, one } from "../../db/client.js";
 import { autorolesRegistry, guildSettings } from "../../db/schema.js";
 import {
@@ -37,8 +41,9 @@ import {
 import { getEmbedTemplate } from "../messages/templates/service.js";
 import { buildEmbedFromPayload } from "../moderation/dm.js";
 import { logger } from "../../core/log.js";
+import { AutoRoleError } from "./errors.js";
+import { assertAssignableRoleIds } from "./assignable.js";
 import {
-  AutoRoleError,
   createAutoRoleSetup,
   normalizeEmojiKey,
 } from "./api/controller.js";
@@ -142,12 +147,23 @@ function parseMappings(raw: string): AutoroleMappingItem[] {
 
 function normalizeMappings(
   mappings: AutoroleMappingItem[],
+  type: AutoroleRegistryType,
 ): AutoroleMappingItem[] {
   if (!Array.isArray(mappings) || mappings.length === 0) {
     throw new AutoRoleError(
       "Añade al menos una asignación de rol.",
       400,
       "EMPTY_MAPPINGS",
+    );
+  }
+  const limit = autoroleMappingLimit(type);
+  if (mappings.length > limit) {
+    throw new AutoRoleError(
+      type === "REACTIONS"
+        ? `Máximo ${limit} reacciones por mensaje.`
+        : `Máximo ${limit} ${type === "SELECT" ? "opciones en el menú" : "botones (5×5)"}.`,
+      400,
+      type === "REACTIONS" ? "TOO_MANY_REACTIONS" : type === "SELECT" ? "TOO_MANY_OPTIONS" : "TOO_MANY_BUTTONS",
     );
   }
   return mappings.map((item, index) => {
@@ -270,8 +286,7 @@ async function resolveChannel(
     );
   }
   if (
-    channel.type === ChannelType.GuildCategory ||
-    channel.type === ChannelType.GuildVoice ||
+    !isAutoroleSendChannelType(channel.type) ||
     !channel.isTextBased() ||
     !("send" in channel)
   ) {
@@ -285,8 +300,12 @@ async function resolveChannel(
 }
 
 function buildButtonComponents(mappings: AutoroleMappingItem[]) {
-  if (mappings.length > 25) {
-    throw new AutoRoleError("Máximo 25 botones (5×5).", 400, "TOO_MANY_BUTTONS");
+  if (mappings.length > AUTOROLE_BUTTONS_MAX) {
+    throw new AutoRoleError(
+      `Máximo ${AUTOROLE_BUTTONS_MAX} botones (5×5).`,
+      400,
+      "TOO_MANY_BUTTONS",
+    );
   }
   const rows: ActionRowBuilder<ButtonBuilder>[] = [];
   for (let i = 0; i < mappings.length; i += 5) {
@@ -315,8 +334,12 @@ function buildButtonComponents(mappings: AutoroleMappingItem[]) {
 }
 
 function buildSelectComponents(mappings: AutoroleMappingItem[]) {
-  if (mappings.length > 25) {
-    throw new AutoRoleError("Máximo 25 opciones en el menú.", 400, "TOO_MANY_OPTIONS");
+  if (mappings.length > AUTOROLE_BUTTONS_MAX) {
+    throw new AutoRoleError(
+      `Máximo ${AUTOROLE_BUTTONS_MAX} opciones en el menú.`,
+      400,
+      "TOO_MANY_OPTIONS",
+    );
   }
   const menu = new StringSelectMenuBuilder()
     .setCustomId("autorole_select")
@@ -447,8 +470,13 @@ export async function createAutoroleCompact(
 
   const guildId = assertSnowflake(input.guildId, "guildId");
   const channelId = assertSnowflake(input.channelId, "channelId");
-  const mappings = normalizeMappings(input.mappings);
   const type = input.type;
+  const mappings = normalizeMappings(input.mappings, type);
+  await assertAssignableRoleIds(
+    bot,
+    guildId,
+    mappings.map((mapping) => mapping.roleId),
+  );
   const title =
     input.title?.trim() ||
     (input.source === "template"
@@ -573,8 +601,13 @@ export async function updateAutoroleMapping(
     throw new AutoRoleError("Registro no encontrado.", 404, "NOT_FOUND");
   }
 
-  const mappings = normalizeMappings(input.mappings);
   const type = row.type as AutoroleRegistryType;
+  const mappings = normalizeMappings(input.mappings, type);
+  await assertAssignableRoleIds(
+    bot,
+    guildId,
+    mappings.map((mapping) => mapping.roleId),
+  );
   const channel = await resolveChannel(bot, row.channelId, guildId);
 
   let orphaned = false;

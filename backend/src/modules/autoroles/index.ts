@@ -3,51 +3,123 @@ import {
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from "discord.js";
+import { exclusiveSelectRoleIds } from "@adobos/shared";
 import type { AdobosModule } from "../../core/modules/types.js";
 import { autoroleRoutes } from "./api/routes.js";
 import { rolesRoutes } from "./api/roles.routes.js";
+import {
+  assignableSkipMessage,
+  isRoleAssignableInGuild,
+} from "./assignable.js";
 import { onGuildMemberAddAutoRoles } from "./events/guildMemberAdd.js";
 import { onMessageReactionAdd } from "./events/messageReactionAdd.js";
 import { onMessageReactionRemove } from "./events/messageReactionRemove.js";
 
-async function toggleRole(
+async function replyEphemeral(
   interaction: ButtonInteraction | StringSelectMenuInteraction,
+  content: string,
+): Promise<void> {
+  if (interaction.replied || interaction.deferred) {
+    await interaction.followUp({ content, ephemeral: true }).catch(() => undefined);
+    return;
+  }
+  await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+}
+
+async function toggleRole(
+  interaction: ButtonInteraction,
   roleId: string,
 ): Promise<void> {
   if (!/^\d{17,20}$/.test(roleId)) {
-    await interaction.reply({
-      content: "Rol inválido.",
-      ephemeral: true,
-    });
+    await replyEphemeral(interaction, "Rol inválido.");
     return;
   }
 
   if (!interaction.inGuild() || !interaction.guild) {
-    await interaction.reply({
-      content: "Este control solo funciona dentro de un servidor.",
-      ephemeral: true,
-    });
+    await replyEphemeral(
+      interaction,
+      "Este control solo funciona dentro de un servidor.",
+    );
     return;
   }
 
-  const member = await interaction.guild.members.fetch(interaction.user.id);
+  const guild = interaction.guild;
+  if (!guild.members.me) {
+    await guild.members.fetchMe().catch(() => null);
+  }
+
+  const member = await guild.members.fetch(interaction.user.id);
   if (member.user.bot) return;
 
-  const hasRole = member.roles.cache.has(roleId);
-  if (hasRole) {
-    await member.roles.remove(roleId, "Adobos autorole");
-    await interaction.reply({
-      content: "Rol eliminado.",
-      ephemeral: true,
-    });
+  if (!isRoleAssignableInGuild(guild, roleId)) {
+    await replyEphemeral(interaction, assignableSkipMessage(roleId, guild));
     return;
   }
 
-  await member.roles.add(roleId, "Adobos autorole");
-  await interaction.reply({
-    content: "¡Rol asignado!",
-    ephemeral: true,
-  });
+  try {
+    const hasRole = member.roles.cache.has(roleId);
+    if (hasRole) {
+      await member.roles.remove(roleId, "Adobos autorole");
+      await replyEphemeral(interaction, "Rol eliminado.");
+      return;
+    }
+    await member.roles.add(roleId, "Adobos autorole");
+    await replyEphemeral(interaction, "¡Rol asignado!");
+  } catch {
+    await replyEphemeral(interaction, assignableSkipMessage(roleId, guild));
+  }
+}
+
+async function handleAutoroleSelect(
+  interaction: StringSelectMenuInteraction,
+): Promise<void> {
+  if (!interaction.inGuild() || !interaction.guild) {
+    await replyEphemeral(
+      interaction,
+      "Este control solo funciona dentro de un servidor.",
+    );
+    return;
+  }
+
+  const guild = interaction.guild;
+  if (!guild.members.me) {
+    await guild.members.fetchMe().catch(() => null);
+  }
+
+  const mappingRoleIds = interaction.component.options.map(
+    (option) => option.value,
+  );
+  const selected = interaction.values[0] ?? "";
+  const plan = exclusiveSelectRoleIds(mappingRoleIds, selected);
+  if (!plan.add) {
+    await replyEphemeral(interaction, "Rol inválido.");
+    return;
+  }
+
+  if (!isRoleAssignableInGuild(guild, plan.add)) {
+    await replyEphemeral(interaction, assignableSkipMessage(plan.add, guild));
+    return;
+  }
+
+  const member = await guild.members.fetch(interaction.user.id);
+  if (member.user.bot) return;
+
+  try {
+    for (const roleId of plan.remove) {
+      if (
+        member.roles.cache.has(roleId) &&
+        isRoleAssignableInGuild(guild, roleId)
+      ) {
+        await member.roles.remove(roleId, "Adobos autorole");
+      }
+    }
+    if (!member.roles.cache.has(plan.add)) {
+      await member.roles.add(plan.add, "Adobos autorole");
+    }
+    await replyEphemeral(interaction, "¡Rol asignado!");
+  } catch {
+    await replyEphemeral(interaction, assignableSkipMessage(plan.add, guild));
+  }
 }
 
 async function handleAutoroleButton(
@@ -77,8 +149,7 @@ export const autorolesModule: AdobosModule = {
     ctx.on("interactionCreate", (interaction) => {
       if (!interaction.isStringSelectMenu()) return;
       if (interaction.customId !== "autorole_select") return;
-      const roleId = interaction.values[0] ?? "";
-      void toggleRole(interaction, roleId);
+      void handleAutoroleSelect(interaction);
     });
     ctx.button("autorole_", (interaction) => handleAutoroleButton(interaction));
     ctx.route("/api/autoroles", autoroleRoutes(ctx.client), {

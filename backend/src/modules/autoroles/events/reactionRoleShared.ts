@@ -5,6 +5,7 @@ import type {
   User,
 } from "discord.js";
 import { findReactionRole, toEmojiKey } from "../../../db/reaction-roles.js";
+import { isRoleAssignableInGuild } from "../assignable.js";
 import { logger } from "../../../core/log.js";
 
 type ReactionLike = MessageReaction | PartialMessageReaction;
@@ -81,6 +82,15 @@ export async function applyReactionRoleChange(
 
   const me = message.guild.members.me;
   if (me && member.id === me.id) return;
+  if (!me) {
+    await message.guild.members.fetchMe().catch(() => null);
+  }
+  if (!isRoleAssignableInGuild(message.guild, mapping.roleId)) {
+    logger.warn(
+      `Reaction role ${mapping.roleId} no es asignable en ${message.guild.id}.`,
+    );
+    return;
+  }
 
   try {
     if (action === "add") {

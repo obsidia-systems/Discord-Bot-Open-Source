@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { Client } from "discord.js";
 import {
+  AutoRoleError,
   createAutoRoleSetup,
   normalizeEmojiKey,
   saveReactionRoleMappings,
@@ -18,6 +19,7 @@ import {
 } from "./schema.js";
 import { fetchChannelInGuild } from "../../../core/http/channelScope.js";
 import { logger } from "../../../core/log.js";
+import { isAutoroleSendChannelType } from "@adobos/shared";
 import {
   createAutoroleCompact,
   deleteAutorole,
@@ -56,18 +58,36 @@ export function autoroleRoutes(bot: Client): Router {
         payload.channelId,
         payload.guildId,
       );
+      if (
+        !channel.isTextBased() ||
+        !("messages" in channel) ||
+        !isAutoroleSendChannelType(channel.type)
+      ) {
+        throw new AutoRoleError(
+          "El canal no admite mensajes de texto.",
+          400,
+          "CHANNEL_NOT_TEXT",
+        );
+      }
+      const message = await channel.messages
+        .fetch(payload.messageId)
+        .catch(() => null);
+      if (!message) {
+        throw new AutoRoleError(
+          "No se encontró ese mensaje en el canal.",
+          404,
+          "MESSAGE_NOT_FOUND",
+        );
+      }
 
-      const result = await saveReactionRoleMappings(payload);
+      const result = await saveReactionRoleMappings(payload, bot);
 
       try {
-        if (channel.isTextBased() && "messages" in channel) {
-          const message = await channel.messages.fetch(payload.messageId);
-          for (const mapping of payload.mappings) {
-            const key = normalizeEmojiKey(mapping.emojiKey.trim());
-            const emoji = emojiKeyToResolvable(key);
-            if (!emoji) continue;
-            await message.react(emoji).catch(() => undefined);
-          }
+        for (const mapping of payload.mappings) {
+          const key = normalizeEmojiKey(mapping.emojiKey.trim());
+          const emoji = emojiKeyToResolvable(key);
+          if (!emoji) continue;
+          await message.react(emoji).catch(() => undefined);
         }
       } catch (error: unknown) {
         logger.warn({ err: error }, "Mappings guardados, pero no se pudieron añadir reacciones:");

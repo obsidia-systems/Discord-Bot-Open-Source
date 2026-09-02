@@ -1,13 +1,16 @@
 import { eq } from "drizzle-orm";
-import type {
-  AutoJoinRolesConfig,
-  GetAutoJoinRolesResponse,
-  SaveAutoJoinRolesRequest,
-  SaveAutoJoinRolesResponse,
+import type { Client } from "discord.js";
+import {
+  AUTOROLE_JOIN_ROLES_MAX,
+  type AutoJoinRolesConfig,
+  type GetAutoJoinRolesResponse,
+  type SaveAutoJoinRolesRequest,
+  type SaveAutoJoinRolesResponse,
 } from "@adobos/shared";
 import { getDb, one } from "../../db/client.js";
 import { autoRoles, guildSettings } from "../../db/schema.js";
-import { AutoRoleError } from "./api/controller.js";
+import { AutoRoleError } from "./errors.js";
+import { assertAssignableRoleIds } from "./assignable.js";
 
 function assertSnowflake(value: string, field: string): string {
   const trimmed = value.trim();
@@ -98,14 +101,16 @@ export async function getAutoJoinRoles(
 
 export async function saveAutoJoinRoles(
   input: SaveAutoJoinRolesRequest,
+  bot: Client,
 ): Promise<SaveAutoJoinRolesResponse> {
   const guildId = resolveGuildId(input.guildId);
   const humanRoles = (input.humanRoles ?? [])
     .map((id) => assertSnowflake(id, "humanRoles"))
-    .slice(0, 25);
+    .slice(0, AUTOROLE_JOIN_ROLES_MAX);
   const botRoles = (input.botRoles ?? [])
     .map((id) => assertSnowflake(id, "botRoles"))
-    .slice(0, 25);
+    .slice(0, AUTOROLE_JOIN_ROLES_MAX);
+  await assertAssignableRoleIds(bot, guildId, [...humanRoles, ...botRoles]);
 
   await ensureGuildRow(guildId);
   const now = new Date();
