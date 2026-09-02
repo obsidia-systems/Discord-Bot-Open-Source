@@ -9,6 +9,7 @@ import {
   defaultEconomyCrime,
   defaultEconomyIncomeConfig,
   defaultEconomyJob,
+  defaultEconomyRob,
 } from "@adobos/shared";
 import {
   fetchEconomyConfig,
@@ -75,6 +76,7 @@ function configFingerprint(config: EconomyIncomeConfig): string {
     roleSalaries: config.roleSalaries,
     jobs: config.jobs,
     crimes: config.crimes,
+    rob: config.rob,
   });
 }
 
@@ -149,8 +151,16 @@ export function EconomyJobsDashboard() {
         fetchEconomyConfig().catch(() => null),
         fetchGuildAssets().catch(() => null),
       ]);
-      setConfig(income);
-      setSavedFingerprint(configFingerprint(income));
+      setConfig({
+        ...income,
+        rob: income.rob ?? defaultEconomyRob(),
+      });
+      setSavedFingerprint(
+        configFingerprint({
+          ...income,
+          rob: income.rob ?? defaultEconomyRob(),
+        }),
+      );
       if (economy) {
         setCurrencyName(economy.currencyName);
         setCurrencySymbol(economy.currencySymbol);
@@ -192,6 +202,7 @@ export function EconomyJobsDashboard() {
         roleSalaries: config.roleSalaries,
         jobs: config.jobs,
         crimes: config.crimes,
+        rob: config.rob,
       });
       setConfig(next);
       setSavedFingerprint(configFingerprint(next));
@@ -313,7 +324,7 @@ export function EconomyJobsDashboard() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="min-w-0 space-y-4 lg:col-span-2">
           <Tabs>
-            <TabsList className="grid h-auto w-full grid-cols-3 gap-1">
+            <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4">
               <TabsTrigger
                 active={tab === "fixed"}
                 onClick={() => setTab("fixed")}
@@ -331,6 +342,12 @@ export function EconomyJobsDashboard() {
                 onClick={() => setTab("crimes")}
               >
                 Crímenes
+              </TabsTrigger>
+              <TabsTrigger
+                active={tab === "rob"}
+                onClick={() => setTab("rob")}
+              >
+                Robo
               </TabsTrigger>
             </TabsList>
 
@@ -454,7 +471,9 @@ export function EconomyJobsDashboard() {
                         Salarios por Rol
                       </CardTitle>
                       <CardDescription>
-                        Pagos periódicos automáticos según el rol del miembro.
+                        Pagos que el miembro cobra con{" "}
+                        <code className="text-xs">/collect-income</code>. Diario
+                        = 24 h, semanal = 7 días. No se pagan solos.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
@@ -578,8 +597,8 @@ export function EconomyJobsDashboard() {
                         Empleos para /work
                       </CardTitle>
                       <CardDescription>
-                        Cada trabajo tiene rango de pago, cooldown y mensaje de
-                        roleplay. Variables: {"{job}"}, {"{payout}"},{" "}
+                        1 empleo → se ejecuta solo. 2–5 → el usuario elige. 6+
+                        → aleatorio. Variables: {"{job}"}, {"{payout}"},{" "}
                         {"{currency}"}.
                       </CardDescription>
                     </CardHeader>
@@ -717,8 +736,9 @@ export function EconomyJobsDashboard() {
                         Crímenes para /crime
                       </CardTitle>
                       <CardDescription>
-                        Riesgo/recompensa con probabilidad. Variables:{" "}
-                        {"{crime}"}, {"{payout}"}, {"{fine}"}, {"{currency}"}.
+                        1 crimen → se ejecuta solo. 2–5 → el usuario elige. 6+
+                        → aleatorio. Variables: {"{crime}"}, {"{payout}"},{" "}
+                        {"{fine}"}, {"{currency}"}.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
@@ -881,6 +901,157 @@ export function EconomyJobsDashboard() {
                         <Plus className="size-4" />
                         Añadir Crimen
                       </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </TabsContent>
+            ) : null}
+
+            {tab === "rob" ? (
+              <TabsContent>
+                <div className="space-y-4">
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">/rob</CardTitle>
+                      <CardDescription>
+                        Apagado por defecto. Solo roba la cartera; el banco es
+                        zona segura. El cooldown arranca tras el intento.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <Label htmlFor="rob-enabled">Activar /rob</Label>
+                          <p className="text-xs text-muted-foreground">
+                            Si está apagado, el comando responde que está
+                            desactivado.
+                          </p>
+                        </div>
+                        <Switch
+                          id="rob-enabled"
+                          checked={config.rob.enabled}
+                          onCheckedChange={(enabled) =>
+                            setConfig((c) => ({
+                              ...c,
+                              rob: { ...c.rob, enabled },
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="rob-chance">Éxito (%)</Label>
+                          <Input
+                            id="rob-chance"
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={config.rob.successChance}
+                            onChange={(e) =>
+                              setConfig((c) => ({
+                                ...c,
+                                rob: {
+                                  ...c.rob,
+                                  successChance: Number(e.target.value) || 0,
+                                },
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="rob-cd">Cooldown (min)</Label>
+                          <Input
+                            id="rob-cd"
+                            type="number"
+                            min={1}
+                            value={config.rob.cooldownMinutes}
+                            onChange={(e) =>
+                              setConfig((c) => ({
+                                ...c,
+                                rob: {
+                                  ...c.rob,
+                                  cooldownMinutes: Number(e.target.value) || 1,
+                                },
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="rob-min">Mín. cartera víctima</Label>
+                          <Input
+                            id="rob-min"
+                            type="number"
+                            min={0}
+                            value={config.rob.minTargetWallet}
+                            onChange={(e) =>
+                              setConfig((c) => ({
+                                ...c,
+                                rob: {
+                                  ...c.rob,
+                                  minTargetWallet: Number(e.target.value) || 0,
+                                },
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="rob-fine">Multa al fallar (%)</Label>
+                          <Input
+                            id="rob-fine"
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={config.rob.failFinePercent}
+                            onChange={(e) =>
+                              setConfig((c) => ({
+                                ...c,
+                                rob: {
+                                  ...c.rob,
+                                  failFinePercent: Number(e.target.value) || 0,
+                                },
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="rob-steal-min">Robo mín. (%)</Label>
+                          <Input
+                            id="rob-steal-min"
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={config.rob.minStealPercent}
+                            onChange={(e) =>
+                              setConfig((c) => ({
+                                ...c,
+                                rob: {
+                                  ...c.rob,
+                                  minStealPercent: Number(e.target.value) || 0,
+                                },
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="rob-steal-max">Robo máx. (%)</Label>
+                          <Input
+                            id="rob-steal-max"
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={config.rob.maxStealPercent}
+                            onChange={(e) =>
+                              setConfig((c) => ({
+                                ...c,
+                                rob: {
+                                  ...c.rob,
+                                  maxStealPercent: Number(e.target.value) || 0,
+                                },
+                              }))
+                            }
+                          />
+                        </div>
+                      </div>
                     </CardContent>
                   </Card>
                 </div>

@@ -3,6 +3,7 @@ import type {
   EconomyCasinoCoinflipConfig,
   EconomyCasinoConfig,
   EconomyCasinoRouletteConfig,
+  EconomyCasinoSlotsConfig,
   UpdateEconomyCasinoRequest,
 } from "@adobos/shared";
 import {
@@ -13,6 +14,7 @@ import {
   defaultCasinoBlackjack,
   defaultCasinoCoinflip,
   defaultCasinoRoulette,
+  defaultCasinoSlots,
   defaultEconomyCasinoConfig,
 } from "@adobos/shared";
 import { eq } from "drizzle-orm";
@@ -105,6 +107,10 @@ function sanitizeRoulette(raw: unknown): EconomyCasinoRouletteConfig {
       Number(row.bettingTimeSeconds),
       base.bettingTimeSeconds,
     ),
+    cooldownSeconds: clampCasinoSeconds(
+      Number(row.cooldownSeconds),
+      base.cooldownSeconds,
+    ),
     showNumberHistory:
       typeof row.showNumberHistory === "boolean"
         ? row.showNumberHistory
@@ -121,6 +127,8 @@ function sanitizeBlackjack(raw: unknown): EconomyCasinoBlackjackConfig {
       typeof row.allowDoubleDown === "boolean"
         ? row.allowDoubleDown
         : base.allowDoubleDown,
+    allowSplit:
+      typeof row.allowSplit === "boolean" ? row.allowSplit : base.allowSplit,
     blackjackMultiplier: clampCasinoMultiplier(
       Number(row.blackjackMultiplier),
       base.blackjackMultiplier,
@@ -130,6 +138,18 @@ function sanitizeBlackjack(raw: unknown): EconomyCasinoBlackjackConfig {
       typeof row.standOnSoft17 === "boolean"
         ? row.standOnSoft17
         : base.standOnSoft17,
+  };
+}
+
+function sanitizeSlots(raw: unknown): EconomyCasinoSlotsConfig {
+  const base = defaultCasinoSlots();
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return base;
+  const row = raw as Record<string, unknown>;
+  return {
+    cooldownSeconds: clampCasinoSeconds(
+      Number(row.cooldownSeconds),
+      base.cooldownSeconds,
+    ),
   };
 }
 
@@ -146,6 +166,7 @@ function rowToConfig(
     coinflip: sanitizeCoinflip(parseJsonObject(row.coinflip)),
     roulette: sanitizeRoulette(parseJsonObject(row.roulette)),
     blackjack: sanitizeBlackjack(parseJsonObject(row.blackjack)),
+    slots: sanitizeSlots(parseJsonObject(row.slots)),
   };
 }
 
@@ -198,6 +219,10 @@ export async function updateEconomyCasinoConfig(
       ...current.blackjack,
       ...(input.blackjack ?? {}),
     }),
+    slots: sanitizeSlots({
+      ...current.slots,
+      ...(input.slots ?? {}),
+    }),
   };
 
   const now = new Date();
@@ -211,6 +236,7 @@ export async function updateEconomyCasinoConfig(
       coinflip: JSON.stringify(next.coinflip),
       roulette: JSON.stringify(next.roulette),
       blackjack: JSON.stringify(next.blackjack),
+      slots: JSON.stringify(next.slots),
       updatedAt: now,
     })
     .onConflictDoUpdate({
@@ -222,6 +248,7 @@ export async function updateEconomyCasinoConfig(
         coinflip: JSON.stringify(next.coinflip),
         roulette: JSON.stringify(next.roulette),
         blackjack: JSON.stringify(next.blackjack),
+        slots: JSON.stringify(next.slots),
         updatedAt: now,
       },
     })

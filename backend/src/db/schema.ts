@@ -863,6 +863,27 @@ export type UserEconomyRow = typeof userEconomy.$inferSelect;
 export type NewUserEconomyRow = typeof userEconomy.$inferInsert;
 
 /**
+ * Apuesta de blackjack cobrada mientras la mano vive en memoria.
+ * Si el proceso muere, el arranque reembolsa `bet`.
+ */
+export const economyBlackjackOpen = pgTable(
+  "economy_blackjack_open",
+  {
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    bet: integer("bet").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [primaryKey({ columns: [table.guildId, table.userId] })],
+);
+
+export type EconomyBlackjackOpenRow = typeof economyBlackjackOpen.$inferSelect;
+
+/**
  * Cooldowns de comandos de economía (`work`, `crime`, etc.).
  */
 export const economyCooldowns = pgTable(
@@ -906,6 +927,8 @@ export const economyIncome = pgTable("economy_income", {
   jobs: text("jobs").notNull().default("[]"),
   /** EconomyCrime[] */
   crimes: text("crimes").notNull().default("[]"),
+  /** EconomyRobConfig JSON. */
+  rob: text("rob").notNull().default("{}"),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
@@ -1089,6 +1112,8 @@ export const economyCasino = pgTable("economy_casino", {
   roulette: text("roulette").notNull().default("{}"),
   /** EconomyCasinoBlackjackConfig JSON. */
   blackjack: text("blackjack").notNull().default("{}"),
+  /** EconomyCasinoSlotsConfig JSON. */
+  slots: text("slots").notNull().default("{}"),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),

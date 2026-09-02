@@ -53,6 +53,17 @@ export const updateEconomyIncomeSchema = z.object({
   roleSalaries: z.array(roleSalarySchema).optional(),
   jobs: z.array(jobSchema).optional(),
   crimes: z.array(crimeSchema).optional(),
+  rob: z
+    .object({
+      enabled: z.boolean(),
+      successChance: z.number().int().min(0).max(100),
+      cooldownMinutes: nonNegInt,
+      minTargetWallet: nonNegInt,
+      minStealPercent: z.number().int().min(0).max(100),
+      maxStealPercent: z.number().int().min(0).max(100),
+      failFinePercent: z.number().int().min(0).max(100),
+    })
+    .optional(),
   guildId: snowflakeOpt,
 });
 
@@ -74,12 +85,14 @@ export const updateEconomyCasinoSchema = z.object({
       greenMultiplier: finiteNum.optional(),
       numberMultiplier: finiteNum.optional(),
       bettingTimeSeconds: nonNegInt.optional(),
+      cooldownSeconds: nonNegInt.optional(),
       showNumberHistory: z.boolean().optional(),
     })
     .optional(),
   blackjack: z
     .object({
       allowDoubleDown: z.boolean().optional(),
+      allowSplit: z.boolean().optional(),
       blackjackMultiplier: finiteNum.optional(),
       deckCount: z
         .union([
@@ -91,6 +104,11 @@ export const updateEconomyCasinoSchema = z.object({
         ])
         .optional(),
       standOnSoft17: z.boolean().optional(),
+    })
+    .optional(),
+  slots: z
+    .object({
+      cooldownSeconds: nonNegInt.optional(),
     })
     .optional(),
   guildId: snowflakeOpt,

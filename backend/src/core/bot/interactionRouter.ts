@@ -5,6 +5,7 @@ import type {
   Client,
   Interaction,
   ModalSubmitInteraction,
+  StringSelectMenuInteraction,
 } from "discord.js";
 import { MessageFlags } from "discord.js";
 import { logger } from "../log.js";
@@ -12,6 +13,7 @@ import {
   dispatchAutocomplete,
   dispatchButton,
   dispatchModal,
+  dispatchSelect,
   type ModuleRegistry,
 } from "../modules/registry.js";
 import { allowChatCommand } from "./commandRateLimit.js";
@@ -46,6 +48,10 @@ async function onInteractionCreate(
     }
     if (interaction.isButton()) {
       await handleButton(interaction, registry);
+      return;
+    }
+    if (interaction.isStringSelectMenu()) {
+      await handleSelect(interaction, registry);
       return;
     }
     if (interaction.isModalSubmit()) {
@@ -124,6 +130,20 @@ async function handleButton(
   if (interaction.replied || interaction.deferred) return;
   await interaction.reply({
     content: `No hay handler registrado para \`${interaction.customId}\`.`,
+    ...EPHEMERAL,
+  });
+}
+
+async function handleSelect(
+  interaction: StringSelectMenuInteraction,
+  registry: ModuleRegistry,
+): Promise<void> {
+  const handled = await dispatchSelect(registry, interaction);
+  if (handled) return;
+
+  if (interaction.replied || interaction.deferred) return;
+  await interaction.reply({
+    content: `No hay handler de menú para \`${interaction.customId}\`.`,
     ...EPHEMERAL,
   });
 }

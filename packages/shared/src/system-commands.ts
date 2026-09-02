@@ -559,15 +559,21 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     defaultEnabled: true,
     options: [
       opt("apuesta", "INTEGER", true, "Cantidad a apostar.", { minValue: 1 }),
-      opt("lado", "STRING", true, "Cara o cruz.", {
-        choices: [
-          { name: "Cara", value: "cara" },
-          { name: "Cruz", value: "cruz" },
-        ],
-      }),
+      opt(
+        "lado",
+        "STRING",
+        false,
+        "Atajo: cara o cruz. Si omites, eliges con botones.",
+        {
+          choices: [
+            { name: "Cara", value: "cara" },
+            { name: "Cruz", value: "cruz" },
+          ],
+        },
+      ),
     ],
-    supportsEphemeral: false,
-    defaultEphemeral: false,
+    supportsEphemeral: true,
+    defaultEphemeral: true,
     requiresAdminByDefault: false,
   },
   {
@@ -577,21 +583,27 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     defaultEnabled: true,
     options: [
       opt("apuesta", "INTEGER", true, "Cantidad a apostar.", { minValue: 1 }),
-      opt("tipo", "STRING", true, "Tipo de apuesta.", {
-        choices: [
-          { name: "Rojo", value: "rojo" },
-          { name: "Negro", value: "negro" },
-          { name: "Verde", value: "verde" },
-          { name: "Número exacto", value: "numero" },
-        ],
-      }),
+      opt(
+        "tipo",
+        "STRING",
+        false,
+        "Atajo de color o número. Si omites, eliges en la mesa.",
+        {
+          choices: [
+            { name: "Rojo", value: "rojo" },
+            { name: "Negro", value: "negro" },
+            { name: "Verde", value: "verde" },
+            { name: "Número exacto", value: "numero" },
+          ],
+        },
+      ),
       opt("valor_numero", "INTEGER", false, "Número (0–36) si tipo = numero.", {
         minValue: 0,
         maxValue: 36,
       }),
     ],
-    supportsEphemeral: false,
-    defaultEphemeral: false,
+    supportsEphemeral: true,
+    defaultEphemeral: true,
     requiresAdminByDefault: false,
   },
   {
@@ -602,9 +614,80 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     options: [
       opt("apuesta", "INTEGER", true, "Cantidad a apostar.", { minValue: 1 }),
     ],
+    supportsEphemeral: true,
+    defaultEphemeral: true,
+    requiresAdminByDefault: false,
+  },
+  {
+    name: "slots",
+    description: "Gira una máquina de 3 rodillos.",
+    category: "economy",
+    defaultEnabled: true,
+    options: [
+      opt("apuesta", "INTEGER", true, "Cantidad a apostar.", { minValue: 1 }),
+    ],
+    supportsEphemeral: true,
+    defaultEphemeral: true,
+    requiresAdminByDefault: false,
+  },
+  {
+    name: "collect-income",
+    description: "Cobra los salarios de tus roles (diario o semanal).",
+    category: "economy",
+    defaultEnabled: true,
+    options: [],
+    supportsEphemeral: true,
+    defaultEphemeral: true,
+    requiresAdminByDefault: false,
+  },
+  {
+    name: "rob",
+    description: "Intenta robar la cartera de otro miembro (no el banco).",
+    category: "economy",
+    defaultEnabled: true,
+    options: [opt("usuario", "USER", true, "Miembro a quien robar.")],
     supportsEphemeral: false,
     defaultEphemeral: false,
     requiresAdminByDefault: false,
+  },
+  {
+    name: "inventory",
+    description: "Muestra roles, canales y boosts que compraste.",
+    category: "economy",
+    defaultEnabled: true,
+    options: [],
+    supportsEphemeral: true,
+    defaultEphemeral: true,
+    requiresAdminByDefault: false,
+  },
+  {
+    name: "use",
+    description: "Equipa o quita un rol de tu inventario.",
+    category: "economy",
+    defaultEnabled: true,
+    options: [
+      opt("item", "STRING", true, "Rol comprado (escribe para buscar).", {
+        autocomplete: true,
+      }),
+    ],
+    supportsEphemeral: true,
+    defaultEphemeral: true,
+    requiresAdminByDefault: false,
+  },
+  {
+    name: "setmoney",
+    description: "Fija el saldo de cartera de un miembro (admin).",
+    category: "economy",
+    defaultEnabled: true,
+    options: [
+      opt("usuario", "USER", true, "Miembro objetivo."),
+      opt("cantidad", "INTEGER", true, "Nuevo saldo de cartera.", {
+        minValue: 0,
+      }),
+    ],
+    supportsEphemeral: true,
+    defaultEphemeral: true,
+    requiresAdminByDefault: true,
   },
 
   // ── Utilidades ──────────────────────────────────────────────

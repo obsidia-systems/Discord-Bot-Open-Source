@@ -12,6 +12,7 @@ import { EconomyError, getEconomyConfig } from "../service.js";
 import { purchaseShopItem } from "../purchaseService.js";
 import { listShopItems } from "../shopService.js";
 import { BUY_BUTTON_PREFIX } from "./shop.js";
+import { EPHEMERAL, visibility } from "./visibility.js";
 
 type PurchaseInteraction =
   | ChatInputCommandInteraction
@@ -120,7 +121,7 @@ export async function handleBuyCommand(
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
       content: "Este comando solo funciona en un servidor.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }
@@ -129,14 +130,14 @@ export async function handleBuyCommand(
   if (!economy.isActive) {
     await interaction.reply({
       content: "⛔ La economía está desactivada en este servidor.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }
 
   const itemId = interaction.options.getString("item", true).trim();
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
-  await interaction.deferReply({ ephemeral });
+  await interaction.deferReply(visibility(ephemeral));
 
   const member = await interaction.guild.members
     .fetch(interaction.user.id)
@@ -175,7 +176,7 @@ export async function handleBuyButton(
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
       content: "Este control solo funciona en un servidor.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }
@@ -184,7 +185,7 @@ export async function handleBuyButton(
   if (!economy.isActive) {
     await interaction.reply({
       content: "⛔ La economía está desactivada en este servidor.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }
@@ -193,12 +194,12 @@ export async function handleBuyButton(
   if (!itemId) {
     await interaction.reply({
       content: "Ítem inválido.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply(EPHEMERAL);
 
   const member = await interaction.guild.members
     .fetch(interaction.user.id)

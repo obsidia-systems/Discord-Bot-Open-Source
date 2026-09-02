@@ -71,6 +71,20 @@
       "when": 1788216000000,
       "tag": "0009_levels_rewards_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788222000000,
+      "tag": "0010_economy_blackjack_open",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788228000000,
+      "tag": "0011_economy_rob_slots",
+      "breakpoints": true
     }
   ]
 }

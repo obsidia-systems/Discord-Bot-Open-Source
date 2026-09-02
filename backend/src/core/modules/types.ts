@@ -7,6 +7,7 @@ import type {
   Client,
   ClientEvents,
   ModalSubmitInteraction,
+  StringSelectMenuInteraction,
 } from "discord.js";
 import type { RequestHandler, Router } from "express";
 
@@ -25,6 +26,10 @@ export type FallbackChatHandler = (
 ) => Promise<boolean>;
 
 export type ButtonHandler = (interaction: ButtonInteraction) => Promise<void>;
+
+export type SelectHandler = (
+  interaction: StringSelectMenuInteraction,
+) => Promise<void>;
 
 export type ModalHandler = (
   interaction: ModalSubmitInteraction,
@@ -74,6 +79,8 @@ export interface ModuleContext {
   fallbackChat: (handler: FallbackChatHandler) => void;
   /** Prefijo o customId exacto. Prefijos terminan en `_` (ej. `autorole_`). */
   button: (prefixOrId: string, handler: ButtonHandler) => void;
+  /** Prefijo o customId exacto de String Select. Prefijos terminan en `_`. */
+  select: (prefixOrId: string, handler: SelectHandler) => void;
   /** Prefijo o customId exacto de modal submit. Prefijos terminan en `_`. */
   modal: (prefixOrId: string, handler: ModalHandler) => void;
 }

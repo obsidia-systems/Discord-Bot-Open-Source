@@ -13,6 +13,7 @@ import { summarizeShopRewards } from "@adobos/shared";
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
 import { getEconomyConfig } from "../service.js";
 import { listShopItems } from "../shopService.js";
+import { EPHEMERAL, visibility } from "./visibility.js";
 
 export const BUY_BUTTON_PREFIX = "buy_";
 export const SHOP_PAGE_PREFIX = "shop_page_";
@@ -142,7 +143,7 @@ export async function handleShopCommand(
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
       content: "Este comando solo funciona en un servidor.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }
@@ -151,13 +152,13 @@ export async function handleShopCommand(
   if (!economy.isActive) {
     await interaction.reply({
       content: "⛔ La economía está desactivada en este servidor.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }
 
   const ephemeral = consumeInteractionEphemeral(interaction.id, false);
-  await interaction.deferReply({ ephemeral });
+  await interaction.deferReply(visibility(ephemeral));
 
   const items = await loadCatalogItems(interaction.guildId);
   if (items.length === 0) {
@@ -182,7 +183,7 @@ export async function handleShopPageButton(
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
       content: "Este control solo funciona en un servidor.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }
@@ -202,7 +203,7 @@ export async function handleShopPageButton(
   if (!Number.isFinite(page) || page < 0) {
     await interaction.reply({
       content: "Página inválida.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }

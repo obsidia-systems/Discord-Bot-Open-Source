@@ -12,99 +12,20 @@ import {
   type GuildMember,
   type TextChannel,
 } from "discord.js";
-import { and, eq } from "drizzle-orm";
-import { getDb, one } from "../../db/client.js";
+import { getDb } from "../../db/client.js";
 import {
   economyOwnedChannels,
   economyOwnedRoles,
   economyPurchases,
-  economyShopItems,
   economyUserBoosts,
-  userEconomy,
 } from "../../db/schema.js";
 import { getLevelsConfig } from "../levels/service.js";
 import { EconomyError, getEconomyConfig } from "./service.js";
-import { decrementShopStock, getShopItem } from "./shopService.js";
+import { debitShopPurchase, refundShopPurchase } from "./funds.js";
+import { getShopItem } from "./shopService.js";
 import { logger } from "../../core/log.js";
 
 const PRIVATE_CATEGORY_NAME = "Zonas Privadas";
-
-async function ensureUserEconomy(
-  guildId: string,
-  userId: string,
-): Promise<{ wallet: number; bank: number }> {
-  const existing = await one(getDb()
-    .select()
-    .from(userEconomy)
-    .where(
-      and(eq(userEconomy.guildId, guildId), eq(userEconomy.userId, userId)),
-    )
-    .limit(1));
-  if (existing) return { wallet: existing.wallet, bank: existing.bank };
-
-  const config = await getEconomyConfig(guildId);
-  const now = new Date();
-  await getDb()
-    .insert(userEconomy)
-    .values({
-      guildId,
-      userId,
-      wallet: config.startBalance,
-      bank: 0,
-      updatedAt: now,
-    })
-    ;
-  return { wallet: config.startBalance, bank: 0 };
-}
-
-async function debitFunds(
-  guildId: string,
-  userId: string,
-  price: number,
-): Promise<{ wallet: number; bank: number }> {
-  const current = await ensureUserEconomy(guildId, userId);
-  const total = current.wallet + current.bank;
-  if (total < price) {
-    throw new EconomyError(
-      `Saldo insuficiente. Necesitas ${price} (tienes ${total}).`,
-      400,
-      "INSUFFICIENT_FUNDS",
-    );
-  }
-
-  let wallet = current.wallet;
-  let bank = current.bank;
-  let remaining = price;
-
-  const fromWallet = Math.min(wallet, remaining);
-  wallet -= fromWallet;
-  remaining -= fromWallet;
-  if (remaining > 0) bank -= remaining;
-
-  await getDb()
-    .update(userEconomy)
-    .set({ wallet, bank, updatedAt: new Date() })
-    .where(
-      and(eq(userEconomy.guildId, guildId), eq(userEconomy.userId, userId)),
-    )
-    ;
-
-  return { wallet, bank };
-}
-
-async function refundFunds(guildId: string, userId: string, amount: number): Promise<void> {
-  const current = await ensureUserEconomy(guildId, userId);
-  await getDb()
-    .update(userEconomy)
-    .set({
-      wallet: current.wallet + amount,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(eq(userEconomy.guildId, guildId), eq(userEconomy.userId, userId)),
-    )
-    ;
-}
 
 async function ensurePrivateCategory(guild: Guild): Promise<string> {
   const existing = guild.channels.cache.find(
@@ -427,8 +348,12 @@ export async function purchaseShopItem(
 
   await preflightRewards(guild.id, item.rewards);
 
-  const balances = await debitFunds(guild.id, member.id, item.price);
-  await decrementShopStock(item.id, guild.id);
+  const balances = await debitShopPurchase(
+    guild.id,
+    member.id,
+    item.id,
+    item.price,
+  );
 
   const purchaseId = crypto.randomUUID();
   const results: Record<string, unknown>[] = [];
@@ -456,21 +381,13 @@ export async function purchaseShopItem(
       if (result.pending) anyPending = true;
     }
   } catch (error) {
-    await refundFunds(guild.id, member.id, item.price);
-    if (item.stock !== null) {
-      const current = await one(getDb()
-        .select()
-        .from(economyShopItems)
-        .where(eq(economyShopItems.id, item.id))
-        .limit(1));
-      if (current?.stock !== null && current?.stock !== undefined) {
-        await getDb()
-          .update(economyShopItems)
-          .set({ stock: current.stock + 1, updatedAt: new Date() })
-          .where(eq(economyShopItems.id, item.id))
-          ;
-      }
-    }
+    await refundShopPurchase(
+      guild.id,
+      member.id,
+      item.id,
+      item.price,
+      item.stock !== null,
+    );
 
     await getDb()
       .insert(economyPurchases)

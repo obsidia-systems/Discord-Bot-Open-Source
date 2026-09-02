@@ -2,6 +2,7 @@ import { GatewayIntentBits, MessageFlags } from "discord.js";
 import { SYSTEM_COMMAND_CATALOG } from "@adobos/shared";
 import type { AdobosModule } from "../../core/modules/types.js";
 import { handleBuyAutocomplete } from "../economy/commands/buy.js";
+import { handleUseAutocomplete } from "../economy/commands/inventory.js";
 import { systemCommandsRoutes } from "./api/routes.js";
 import { assertSystemCommandAllowed } from "./guard.js";
 import { dispatchDefaultCommand } from "./handlers/index.js";
@@ -17,6 +18,7 @@ export const systemCommandsModule: AdobosModule = {
       feature: "system-commands",
     });
     ctx.autocomplete("buy", handleBuyAutocomplete);
+    ctx.autocomplete("use", handleUseAutocomplete);
     for (const def of SYSTEM_COMMAND_CATALOG) {
       ctx.command({
         name: def.name,

@@ -25,12 +25,12 @@ import {
   updateEconomyIncomeConfig,
 } from "../incomeService.js";
 import {
-  adjustEconomyFunds,
   getEconomyConfig,
   getEconomyLeaderboardTotal,
   listEconomyLeaderboardRows,
   updateEconomyConfig,
 } from "../service.js";
+import { adjustEconomyFunds } from "../funds.js";
 import {
   createShopItem,
   deleteShopItem,

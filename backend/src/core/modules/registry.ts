@@ -4,6 +4,7 @@ import type {
   Client,
   ClientEvents,
   ModalSubmitInteraction,
+  StringSelectMenuInteraction,
 } from "discord.js";
 import type {
   AdobosModule,
@@ -15,6 +16,7 @@ import type {
   ModuleContext,
   RawRoute,
   RegisteredRoute,
+  SelectHandler,
 } from "./types.js";
 
 export interface ModuleRegistry {
@@ -25,6 +27,7 @@ export interface ModuleRegistry {
   fallbackChat: FallbackChatHandler | null;
   autocompleteHandlers: ReadonlyMap<string, AutocompleteHandler>;
   buttonHandlers: ReadonlyMap<string, ButtonHandler>;
+  selectHandlers: ReadonlyMap<string, SelectHandler>;
   modalHandlers: ReadonlyMap<string, ModalHandler>;
   intents: readonly number[];
   /** Enlaza eventos/comandos/botones de todos los módulos al Client. */
@@ -44,6 +47,7 @@ export function createModuleRegistry(
   let fallbackChat: FallbackChatHandler | null = null;
   const autocompleteHandlers = new Map<string, AutocompleteHandler>();
   const buttonHandlers = new Map<string, ButtonHandler>();
+  const selectHandlers = new Map<string, SelectHandler>();
   const modalHandlers = new Map<string, ModalHandler>();
   const intentSet = new Set<number>();
   const pendingEvents: Array<{
@@ -119,6 +123,12 @@ export function createModuleRegistry(
         }
         buttonHandlers.set(prefixOrId, handler);
       },
+      select(prefixOrId, handler) {
+        if (selectHandlers.has(prefixOrId)) {
+          throw new Error(`[adobos] Select handler duplicado: ${prefixOrId}`);
+        }
+        selectHandlers.set(prefixOrId, handler);
+      },
       modal(prefixOrId, handler) {
         if (modalHandlers.has(prefixOrId)) {
           throw new Error(`[adobos] Modal handler duplicado: ${prefixOrId}`);
@@ -134,6 +144,7 @@ export function createModuleRegistry(
     fallbackChat = null;
     autocompleteHandlers.clear();
     buttonHandlers.clear();
+    selectHandlers.clear();
     modalHandlers.clear();
 
     for (const mod of modules) {
@@ -168,6 +179,9 @@ export function createModuleRegistry(
     },
     get buttonHandlers() {
       return buttonHandlers;
+    },
+    get selectHandlers() {
+      return selectHandlers;
     },
     get modalHandlers() {
       return modalHandlers;
@@ -205,6 +219,24 @@ export async function dispatchButton(
   interaction: ButtonInteraction,
 ): Promise<boolean> {
   const handler = resolveButtonHandler(registry, interaction.customId);
+  if (!handler) return false;
+  await handler(interaction);
+  return true;
+}
+
+/** Resuelve un handler de String Select por customId (exacto o prefijo). */
+export function resolveSelectHandler(
+  registry: ModuleRegistry,
+  customId: string,
+): SelectHandler | undefined {
+  return resolvePrefixedHandler(registry.selectHandlers, customId);
+}
+
+export async function dispatchSelect(
+  registry: ModuleRegistry,
+  interaction: StringSelectMenuInteraction,
+): Promise<boolean> {
+  const handler = resolveSelectHandler(registry, interaction.customId);
   if (!handler) return false;
   await handler(interaction);
   return true;

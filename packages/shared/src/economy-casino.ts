@@ -5,7 +5,7 @@ export interface EconomyCasinoCoinflipConfig {
   multiplier: number;
   /** Placeholders: `{payout}`, `{side}`, `{currency}`. */
   winMessage: string;
-  /** Permite arriesgar la ganancia actual en un segundo tiro. */
+  /** @deprecated No hay segundo tiro en runtime; se conserva en JSON. */
   allowDoubleOrNothing: boolean;
   /** Segundos entre tiros por usuario. */
   cooldownSeconds: number;
@@ -15,8 +15,10 @@ export interface EconomyCasinoRouletteConfig {
   colorMultiplier: number;
   greenMultiplier: number;
   numberMultiplier: number;
-  /** Segundos que la mesa permanece abierta tras el primer `/roulette`. */
+  /** @deprecated No hay mesa en vivo; se conserva en JSON. */
   bettingTimeSeconds: number;
+  /** Segundos entre `/roulette` por usuario. */
+  cooldownSeconds: number;
   /** Muestra los últimos 5 números en el embed. */
   showNumberHistory: boolean;
 }
@@ -30,11 +32,18 @@ export const CASINO_DECK_COUNTS: readonly EconomyCasinoDeckCount[] = [
 
 export interface EconomyCasinoBlackjackConfig {
   allowDoubleDown: boolean;
+  /** Par de la misma figura + saldo para la segunda apuesta. */
+  allowSplit: boolean;
   /** Pago al sacar blackjack natural (ej. 2.5). */
   blackjackMultiplier: number;
   deckCount: EconomyCasinoDeckCount;
   /** El crupier se planta en 17 suave (soft 17). */
   standOnSoft17: boolean;
+}
+
+export interface EconomyCasinoSlotsConfig {
+  /** Segundos entre `/slots` por usuario. */
+  cooldownSeconds: number;
 }
 
 export interface EconomyCasinoConfig {
@@ -45,6 +54,7 @@ export interface EconomyCasinoConfig {
   coinflip: EconomyCasinoCoinflipConfig;
   roulette: EconomyCasinoRouletteConfig;
   blackjack: EconomyCasinoBlackjackConfig;
+  slots: EconomyCasinoSlotsConfig;
 }
 
 export interface EconomyCasinoConfigResponse {
@@ -58,6 +68,7 @@ export type UpdateEconomyCasinoRequest = Partial<{
   coinflip: Partial<EconomyCasinoCoinflipConfig>;
   roulette: Partial<EconomyCasinoRouletteConfig>;
   blackjack: Partial<EconomyCasinoBlackjackConfig>;
+  slots: Partial<EconomyCasinoSlotsConfig>;
   guildId: string;
 }>;
 
@@ -73,9 +84,11 @@ export function defaultCasinoCoinflip(): EconomyCasinoCoinflipConfig {
 export function defaultCasinoRoulette(): EconomyCasinoRouletteConfig {
   return {
     colorMultiplier: 2,
-    greenMultiplier: 14,
+    /** Mismo bolsillo que el pleno (0): 35:1 con stake cobrado = 36x. */
+    greenMultiplier: 36,
     numberMultiplier: 36,
     bettingTimeSeconds: 30,
+    cooldownSeconds: 5,
     showNumberHistory: true,
   };
 }
@@ -83,9 +96,16 @@ export function defaultCasinoRoulette(): EconomyCasinoRouletteConfig {
 export function defaultCasinoBlackjack(): EconomyCasinoBlackjackConfig {
   return {
     allowDoubleDown: true,
+    allowSplit: true,
     blackjackMultiplier: 2.5,
     deckCount: 6,
     standOnSoft17: true,
+  };
+}
+
+export function defaultCasinoSlots(): EconomyCasinoSlotsConfig {
+  return {
+    cooldownSeconds: 5,
   };
 }
 
@@ -98,6 +118,7 @@ export function defaultEconomyCasinoConfig(guildId = ""): EconomyCasinoConfig {
     coinflip: defaultCasinoCoinflip(),
     roulette: defaultCasinoRoulette(),
     blackjack: defaultCasinoBlackjack(),
+    slots: defaultCasinoSlots(),
   };
 }
 

@@ -1,36 +1,74 @@
-import type { ChatInputCommandInteraction } from "discord.js";
-import { EmbedBuilder } from "discord.js";
+import type {
+  ChatInputCommandInteraction,
+  StringSelectMenuInteraction,
+} from "discord.js";
+import {
+  ActionRowBuilder,
+  EmbedBuilder,
+  StringSelectMenuBuilder,
+} from "discord.js";
 import {
   applyEconomyMessageTemplate,
+  incomeChoiceMode,
   normalizeMinMax,
+  type EconomyCrime,
+  type EconomyJob,
 } from "@adobos/shared";
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
 import { assertCooldownAvailable, setCooldownMinutes } from "../cooldowns.js";
 import { getEconomyIncomeConfig } from "../incomeService.js";
 import {
   EconomyError,
+  getEconomyConfig,
+  getUserEconomyBalance,
+  listEconomyLeaderboardRows,
+  parseBankAmountInput,
+} from "../service.js";
+import {
   adjustEconomyFunds,
   claimFixedIncome,
   creditWallet,
   debitWallet,
   depositToBank,
-  getEconomyConfig,
-  getUserEconomyBalance,
-  listEconomyLeaderboardRows,
-  parseBankAmountInput,
+  robWallet,
   transferWalletPay,
   withdrawFromBank,
   type FixedIncomeType,
-} from "../service.js";
+} from "../funds.js";
+import { pickRandom, randomBelow, randomInclusive } from "../casino/rng.js";
+import { EPHEMERAL, visibility } from "./visibility.js";
+import {
+  TABLE_IDLE_MS,
+  clearMessageComponents,
+  parseOwnerCustomId,
+  tableKey,
+} from "./casinoCommon.js";
 
 function randomInt(min: number, max: number): number {
   const { min: a, max: b } = normalizeMinMax(min, max);
   if (a === b) return a;
-  return a + Math.floor(Math.random() * (b - a + 1));
+  return randomInclusive(a, b);
 }
 
-function pickRandom<T>(items: T[]): T {
-  return items[Math.floor(Math.random() * items.length)]!;
+export const WK_SELECT_PREFIX = "wk_";
+export const CR_SELECT_PREFIX = "cr_";
+
+interface JobPending {
+  guildId: string;
+  userId: string;
+  channelId: string;
+  messageId: string;
+  kind: "work" | "crime";
+  timeout: ReturnType<typeof setTimeout>;
+}
+
+const jobPending = new Map<string, JobPending>();
+
+function clearJobPending(key: string): void {
+  const row = jobPending.get(key);
+  if (!row) return;
+  clearTimeout(row.timeout);
+  jobPending.delete(key);
 }
 
 async function replyEconomyError(
@@ -48,9 +86,9 @@ async function replyEconomyError(
   if (deferred) {
     await interaction.editReply({ content });
   } else if (interaction.deferred || interaction.replied) {
-    await interaction.followUp({ content, ephemeral: true });
+    await interaction.followUp({ content, ...EPHEMERAL });
   } else {
-    await interaction.reply({ content, ephemeral: true });
+    await interaction.reply({ content, ...EPHEMERAL });
   }
 }
 
@@ -63,7 +101,7 @@ export async function handleBalanceCommand(
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
       content: "Este comando solo funciona en un servidor.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }
@@ -100,7 +138,7 @@ export async function handleBalanceCommand(
     )
     .setTimestamp(new Date());
 
-  await interaction.reply({ embeds: [embed], ephemeral });
+  await interaction.reply({ embeds: [embed], ...visibility(ephemeral) });
 }
 
 /**
@@ -112,13 +150,13 @@ export async function handleDepositCommand(
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
       content: "Este comando solo funciona en un servidor.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }
 
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
-  await interaction.deferReply({ ephemeral });
+  await interaction.deferReply(visibility(ephemeral));
 
   try {
     const raw = interaction.options.getString("cantidad", true);
@@ -171,13 +209,13 @@ export async function handleWithdrawCommand(
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
       content: "Este comando solo funciona en un servidor.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }
 
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
-  await interaction.deferReply({ ephemeral });
+  await interaction.deferReply(visibility(ephemeral));
 
   try {
     const raw = interaction.options.getString("cantidad", true);
@@ -230,7 +268,7 @@ export async function handlePayCommand(
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
       content: "Este comando solo funciona en un servidor.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }
@@ -240,13 +278,13 @@ export async function handlePayCommand(
   if (target.bot) {
     await interaction.reply({
       content: "No puedes pagar a un bot.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }
 
   const ephemeral = consumeInteractionEphemeral(interaction.id, false);
-  await interaction.deferReply({ ephemeral });
+  await interaction.deferReply(visibility(ephemeral));
 
   try {
     const economy = await getEconomyConfig(interaction.guildId);
@@ -292,13 +330,13 @@ async function handleFixedIncome(
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
       content: "Este comando solo funciona en un servidor.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }
 
   const ephemeral = consumeInteractionEphemeral(interaction.id, false);
-  await interaction.deferReply({ ephemeral });
+  await interaction.deferReply(visibility(ephemeral));
 
   try {
     const economy = await getEconomyConfig(interaction.guildId);
@@ -387,18 +425,17 @@ export async function handleWorkCommand(
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
       content: "Este comando solo funciona en un servidor.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }
 
   const ephemeral = consumeInteractionEphemeral(interaction.id, false);
-  await interaction.deferReply({ ephemeral });
+  await interaction.deferReply(visibility(ephemeral));
 
   try {
     await assertCooldownAvailable(interaction.guildId, interaction.user.id, "work");
 
-    const economy = await getEconomyConfig(interaction.guildId);
     const income = await getEconomyIncomeConfig(interaction.guildId);
     if (income.jobs.length === 0) {
       throw new EconomyError(
@@ -408,37 +445,15 @@ export async function handleWorkCommand(
       );
     }
 
-    const job = pickRandom(income.jobs);
-    const payout = randomInt(job.minPay, job.maxPay);
-    const bal = await creditWallet(interaction.guildId, interaction.user.id, payout);
-    await setCooldownMinutes(
-      interaction.guildId,
-      interaction.user.id,
-      "work",
-      job.cooldownMinutes,
-    );
+    const mode = incomeChoiceMode(income.jobs.length);
+    if (mode === "select") {
+      await promptJobSelect(interaction, "work", income.jobs);
+      return;
+    }
 
-    const currency = economy.currencyName || "monedas";
-    const text = applyEconomyMessageTemplate(job.successMessage, {
-      job: job.name,
-      payout: payout.toLocaleString("es-MX"),
-      currency,
-    });
-
-    const embed = new EmbedBuilder()
-      .setColor(0x3b82f6)
-      .setTitle(`Trabajo: ${job.name}`)
-      .setDescription(text)
-      .addFields({
-        name: "Cartera",
-        value: `\`${bal.wallet.toLocaleString("es-MX")}\``,
-        inline: true,
-      })
-      .setFooter({
-        text: `Próximo trabajo en ${job.cooldownMinutes} min.`,
-      });
-
-    await interaction.editReply({ embeds: [embed] });
+    const job =
+      mode === "auto" ? income.jobs[0]! : pickRandom(income.jobs);
+    await settleWork(interaction, job);
   } catch (error) {
     await replyEconomyError(interaction, error, true);
   }
@@ -453,18 +468,17 @@ export async function handleCrimeCommand(
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
       content: "Este comando solo funciona en un servidor.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }
 
   const ephemeral = consumeInteractionEphemeral(interaction.id, false);
-  await interaction.deferReply({ ephemeral });
+  await interaction.deferReply(visibility(ephemeral));
 
   try {
     await assertCooldownAvailable(interaction.guildId, interaction.user.id, "crime");
 
-    const economy = await getEconomyConfig(interaction.guildId);
     const income = await getEconomyIncomeConfig(interaction.guildId);
     if (income.crimes.length === 0) {
       throw new EconomyError(
@@ -474,73 +488,251 @@ export async function handleCrimeCommand(
       );
     }
 
-    const crime = pickRandom(income.crimes);
-    const roll = 1 + Math.floor(Math.random() * 100);
-    const success = roll <= crime.successChance;
-    const currency = economy.currencyName || "monedas";
-
-    let description: string;
-    let color: number;
-    let wallet: number;
-
-    if (success) {
-      const payout = randomInt(crime.minReward, crime.maxReward);
-      const bal = await creditWallet(
-        interaction.guildId,
-        interaction.user.id,
-        payout,
-      );
-      wallet = bal.wallet;
-      description = applyEconomyMessageTemplate(crime.successMessage, {
-        crime: crime.name,
-        payout: payout.toLocaleString("es-MX"),
-        fine: "0",
-        currency,
-      });
-      color = 0x57f287;
-    } else {
-      const fine = randomInt(crime.minFine, crime.maxFine);
-      const bal = await debitWallet(interaction.guildId, interaction.user.id, fine);
-      wallet = bal.wallet;
-      description = applyEconomyMessageTemplate(crime.failMessage, {
-        crime: crime.name,
-        payout: "0",
-        fine: bal.taken.toLocaleString("es-MX"),
-        currency,
-      });
-      color = 0xef4444;
+    const mode = incomeChoiceMode(income.crimes.length);
+    if (mode === "select") {
+      await promptJobSelect(interaction, "crime", income.crimes);
+      return;
     }
 
-    await setCooldownMinutes(
-      interaction.guildId,
-      interaction.user.id,
-      "crime",
-      crime.cooldownMinutes,
-    );
-
-    const embed = new EmbedBuilder()
-      .setColor(color)
-      .setTitle(success ? "Crimen exitoso" : "Te atraparon")
-      .setDescription(description)
-      .addFields(
-        {
-          name: "Tirada",
-          value: `\`${roll}\` / ${crime.successChance}%`,
-          inline: true,
-        },
-        {
-          name: "Cartera",
-          value: `\`${wallet.toLocaleString("es-MX")}\``,
-          inline: true,
-        },
-      )
-      .setFooter({
-        text: `Próximo intento en ${crime.cooldownMinutes} min.`,
-      });
-
-    await interaction.editReply({ embeds: [embed] });
+    const crime =
+      mode === "auto" ? income.crimes[0]! : pickRandom(income.crimes);
+    await settleCrime(interaction, crime);
   } catch (error) {
     await replyEconomyError(interaction, error, true);
+  }
+}
+
+async function promptJobSelect(
+  interaction: ChatInputCommandInteraction,
+  kind: "work" | "crime",
+  items: Array<EconomyJob | EconomyCrime>,
+): Promise<void> {
+  const prefix = kind === "work" ? WK_SELECT_PREFIX : CR_SELECT_PREFIX;
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId(`${prefix}pick:${interaction.user.id}`)
+    .setPlaceholder(kind === "work" ? "Elige un trabajo" : "Elige un crimen")
+    .addOptions(
+      items.slice(0, 5).map((item) => ({
+        label: item.name.slice(0, 100),
+        value: item.id.slice(0, 100),
+      })),
+    );
+
+  await interaction.editReply({
+    content:
+      kind === "work"
+        ? "Elige el trabajo. El cooldown empieza al confirmar."
+        : "Elige el crimen. El cooldown empieza al confirmar.",
+    components: [
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu),
+    ],
+  });
+  const reply = await interaction.fetchReply();
+  const key = tableKey(interaction.guildId!, interaction.user.id);
+  clearJobPending(key);
+  const row: JobPending = {
+    guildId: interaction.guildId!,
+    userId: interaction.user.id,
+    channelId: interaction.channelId,
+    messageId: reply.id,
+    kind,
+    timeout: setTimeout(() => undefined, 0),
+  };
+  row.timeout = setTimeout(() => {
+    void (async () => {
+      const current = jobPending.get(key);
+      if (!current) return;
+      await clearMessageComponents({
+        client: interaction.client,
+        channelId: current.channelId,
+        messageId: current.messageId,
+      });
+      clearJobPending(key);
+    })();
+  }, TABLE_IDLE_MS);
+  jobPending.set(key, row);
+}
+
+async function settleWork(
+  interaction: ChatInputCommandInteraction | StringSelectMenuInteraction,
+  job: EconomyJob,
+): Promise<void> {
+  const guildId = interaction.guildId!;
+  const economy = await getEconomyConfig(guildId);
+  const payout = randomInt(job.minPay, job.maxPay);
+  const bal = await creditWallet(guildId, interaction.user.id, payout);
+  await setCooldownMinutes(guildId, interaction.user.id, "work", job.cooldownMinutes);
+
+  const currency = economy.currencyName || "monedas";
+  const text = applyEconomyMessageTemplate(job.successMessage, {
+    job: job.name,
+    payout: payout.toLocaleString("es-MX"),
+    currency,
+  });
+
+  const embed = new EmbedBuilder()
+    .setColor(0x3b82f6)
+    .setTitle(`Trabajo: ${job.name}`)
+    .setDescription(text)
+    .addFields({
+      name: "Cartera",
+      value: `\`${bal.wallet.toLocaleString("es-MX")}\``,
+      inline: true,
+    })
+    .setFooter({
+      text: `Próximo trabajo en ${job.cooldownMinutes} min.`,
+    });
+
+  if (interaction.isStringSelectMenu()) {
+    await interaction.update({ embeds: [embed], components: [], content: null });
+  } else if (interaction.deferred || interaction.replied) {
+    await interaction.editReply({ embeds: [embed], components: [], content: null });
+  }
+}
+
+async function settleCrime(
+  interaction: ChatInputCommandInteraction | StringSelectMenuInteraction,
+  crime: EconomyCrime,
+): Promise<void> {
+  const guildId = interaction.guildId!;
+  const economy = await getEconomyConfig(guildId);
+  const roll = 1 + randomBelow(100);
+  const success = roll <= crime.successChance;
+  const currency = economy.currencyName || "monedas";
+
+  let description: string;
+  let color: number;
+  let wallet: number;
+
+  if (success) {
+    const payout = randomInt(crime.minReward, crime.maxReward);
+    const bal = await creditWallet(guildId, interaction.user.id, payout);
+    wallet = bal.wallet;
+    description = applyEconomyMessageTemplate(crime.successMessage, {
+      crime: crime.name,
+      payout: payout.toLocaleString("es-MX"),
+      fine: "0",
+      currency,
+    });
+    color = 0x57f287;
+  } else {
+    const fine = randomInt(crime.minFine, crime.maxFine);
+    const bal = await debitWallet(guildId, interaction.user.id, fine);
+    wallet = bal.wallet;
+    description = applyEconomyMessageTemplate(crime.failMessage, {
+      crime: crime.name,
+      payout: "0",
+      fine: bal.taken.toLocaleString("es-MX"),
+      currency,
+    });
+    color = 0xef4444;
+  }
+
+  await setCooldownMinutes(
+    guildId,
+    interaction.user.id,
+    "crime",
+    crime.cooldownMinutes,
+  );
+
+  const embed = new EmbedBuilder()
+    .setColor(color)
+    .setTitle(success ? "Crimen exitoso" : "Te atraparon")
+    .setDescription(description)
+    .addFields(
+      {
+        name: "Tirada",
+        value: `\`${roll}\` / ${crime.successChance}%`,
+        inline: true,
+      },
+      {
+        name: "Cartera",
+        value: `\`${wallet.toLocaleString("es-MX")}\``,
+        inline: true,
+      },
+    )
+    .setFooter({
+      text: `Próximo intento en ${crime.cooldownMinutes} min.`,
+    });
+
+  if (interaction.isStringSelectMenu()) {
+    await interaction.update({ embeds: [embed], components: [], content: null });
+  } else if (interaction.deferred || interaction.replied) {
+    await interaction.editReply({ embeds: [embed], components: [], content: null });
+  }
+}
+
+export async function handleWorkSelect(
+  interaction: StringSelectMenuInteraction,
+): Promise<void> {
+  await handleIncomeSelect(interaction, "work");
+}
+
+export async function handleCrimeSelect(
+  interaction: StringSelectMenuInteraction,
+): Promise<void> {
+  await handleIncomeSelect(interaction, "crime");
+}
+
+async function handleIncomeSelect(
+  interaction: StringSelectMenuInteraction,
+  kind: "work" | "crime",
+): Promise<void> {
+  if (!interaction.guildId) {
+    await interaction.reply({
+      content: "Este menú solo funciona en un servidor.",
+      ...EPHEMERAL,
+    });
+    return;
+  }
+
+  const { ownerId } = parseOwnerCustomId(interaction.customId);
+  if (!ownerId || interaction.user.id !== ownerId) {
+    await interaction.reply({
+      content: "❌ Esta elección no es tuya.",
+      ...EPHEMERAL,
+    });
+    return;
+  }
+
+  const key = tableKey(interaction.guildId, ownerId);
+  const pending = jobPending.get(key);
+  if (!pending || pending.kind !== kind) {
+    await interaction.reply({
+      content: "❌ Esta elección expiró.",
+      ...EPHEMERAL,
+    });
+    return;
+  }
+  clearJobPending(key);
+
+  try {
+    await assertCooldownAvailable(interaction.guildId, interaction.user.id, kind);
+    const income = await getEconomyIncomeConfig(interaction.guildId);
+    const id = interaction.values[0] ?? "";
+    if (kind === "work") {
+      const job = income.jobs.find((j) => j.id === id);
+      if (!job) {
+        throw new EconomyError("Ese trabajo ya no existe.", 400, "JOB_MISSING");
+      }
+      await settleWork(interaction, job);
+    } else {
+      const crime = income.crimes.find((c) => c.id === id);
+      if (!crime) {
+        throw new EconomyError("Ese crimen ya no existe.", 400, "CRIME_MISSING");
+      }
+      await settleCrime(interaction, crime);
+    }
+  } catch (error) {
+    const message =
+      error instanceof EconomyError
+        ? error.message
+        : "No se pudo completar la acción.";
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: `❌ ${message}`, ...EPHEMERAL });
+    } else {
+      await interaction.editReply({ content: `❌ ${message}`, components: [] });
+    }
   }
 }
 
@@ -554,13 +746,13 @@ export async function handleBaltopCommand(
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
       content: "Este comando solo funciona en un servidor.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }
 
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
-  await interaction.deferReply({ ephemeral });
+  await interaction.deferReply(visibility(ephemeral));
 
   const economy = await getEconomyConfig(interaction.guildId);
   const currency = economy.currencyName || "monedas";
@@ -608,7 +800,7 @@ export async function handleAddMoneyCommand(
   if (!interaction.guildId) {
     await interaction.reply({
       content: "Este comando solo funciona en un servidor.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }
@@ -628,7 +820,7 @@ export async function handleAddMoneyCommand(
     const economy = await getEconomyConfig(interaction.guildId);
     await interaction.reply({
       content: `Añadiste **${amount.toLocaleString("es-MX")}** ${economy.currencyName} a <@${target.id}>. Cartera: \`${result.wallet.toLocaleString("es-MX")}\`.`,
-      ephemeral,
+      ...visibility(ephemeral),
     });
   } catch (error) {
     await replyEconomyError(interaction, error, false);
@@ -644,7 +836,7 @@ export async function handleRemoveMoneyCommand(
   if (!interaction.guildId) {
     await interaction.reply({
       content: "Este comando solo funciona en un servidor.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }
@@ -664,9 +856,254 @@ export async function handleRemoveMoneyCommand(
     const economy = await getEconomyConfig(interaction.guildId);
     await interaction.reply({
       content: `Quitaste **${amount.toLocaleString("es-MX")}** ${economy.currencyName} a <@${target.id}>. Cartera: \`${result.wallet.toLocaleString("es-MX")}\`.`,
-      ephemeral,
+      ...visibility(ephemeral),
     });
   } catch (error) {
     await replyEconomyError(interaction, error, false);
+  }
+}
+
+/**
+ * /setmoney — admin. Mismo mutator atómico que el panel (`action: set`).
+ */
+export async function handleSetMoneyCommand(
+  interaction: ChatInputCommandInteraction,
+): Promise<void> {
+  if (!interaction.guildId) {
+    await interaction.reply({
+      content: "Este comando solo funciona en un servidor.",
+      ...EPHEMERAL,
+    });
+    return;
+  }
+
+  const target = interaction.options.getUser("usuario", true);
+  const amount = interaction.options.getInteger("cantidad", true);
+  const ephemeral = consumeInteractionEphemeral(interaction.id, true);
+
+  try {
+    const result = await adjustEconomyFunds({
+      guildId: interaction.guildId,
+      userId: target.id,
+      target: "wallet",
+      action: "set",
+      amount,
+    });
+    const economy = await getEconomyConfig(interaction.guildId);
+    await interaction.reply({
+      content: `Cartera de <@${target.id}> fijada en **${amount.toLocaleString("es-MX")}** ${economy.currencyName}. Banco: \`${result.bank.toLocaleString("es-MX")}\`.`,
+      ...visibility(ephemeral),
+    });
+  } catch (error) {
+    await replyEconomyError(interaction, error, false);
+  }
+}
+
+/**
+ * /collect-income — salarios de rol.
+ */
+export async function handleCollectIncomeCommand(
+  interaction: ChatInputCommandInteraction,
+): Promise<void> {
+  if (!interaction.guildId || !interaction.guild) {
+    await interaction.reply({
+      content: "Este comando solo funciona en un servidor.",
+      ...EPHEMERAL,
+    });
+    return;
+  }
+
+  const ephemeral = consumeInteractionEphemeral(interaction.id, true);
+  await interaction.deferReply(visibility(ephemeral));
+
+  try {
+    const member = await interaction.guild.members.fetch(interaction.user.id);
+    const income = await getEconomyIncomeConfig(interaction.guildId);
+    const economy = await getEconomyConfig(interaction.guildId);
+    const currency = economy.currencyName || "monedas";
+
+    if (income.roleSalaries.length === 0) {
+      throw new EconomyError(
+        "No hay salarios de rol configurados. Un admin los crea en Ingresos y Trabajos.",
+        400,
+        "NO_SALARIES",
+      );
+    }
+
+    const mine = income.roleSalaries.filter((s) => member.roles.cache.has(s.roleId));
+    if (mine.length === 0) {
+      throw new EconomyError(
+        "No tienes ningún rol con salario en este servidor.",
+        400,
+        "NO_SALARY_ROLE",
+      );
+    }
+
+    const lines: string[] = [];
+    let total = 0;
+    let wallet = (await getUserEconomyBalance(interaction.guildId, interaction.user.id))
+      .wallet;
+
+    for (const salary of mine) {
+      const key = `salary:${salary.id}`;
+      try {
+        await assertCooldownAvailable(
+          interaction.guildId,
+          interaction.user.id,
+          key,
+        );
+      } catch {
+        lines.push(
+          `<@&${salary.roleId}> — en cooldown (${salary.frequency === "weekly" ? "semanal" : "diario"})`,
+        );
+        continue;
+      }
+      const paid = await creditWallet(
+        interaction.guildId,
+        interaction.user.id,
+        salary.amount,
+      );
+      wallet = paid.wallet;
+      total += salary.amount;
+      await setCooldownMinutes(
+        interaction.guildId,
+        interaction.user.id,
+        key,
+        salary.frequency === "weekly" ? 7 * 24 * 60 : 24 * 60,
+      );
+      lines.push(
+        `<@&${salary.roleId}> — **${salary.amount.toLocaleString("es-MX")}** ${currency}`,
+      );
+    }
+
+    if (total === 0) {
+      throw new EconomyError(
+        `Todos tus salarios están en cooldown.\n${lines.join("\n")}`,
+        400,
+        "SALARY_COOLDOWN",
+      );
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(0xfbbf24)
+      .setTitle("Salario cobrado")
+      .setDescription(
+        `Reclamaste **${total.toLocaleString("es-MX")}** ${currency}.\n\n${lines.join("\n")}`,
+      )
+      .addFields({
+        name: "Cartera",
+        value: `\`${wallet.toLocaleString("es-MX")}\``,
+        inline: true,
+      });
+
+    await interaction.editReply({ embeds: [embed] });
+  } catch (error) {
+    await replyEconomyError(interaction, error, true);
+  }
+}
+
+/**
+ * /rob usuario — cartera vs cartera. Apagado por defecto.
+ */
+export async function handleRobCommand(
+  interaction: ChatInputCommandInteraction,
+): Promise<void> {
+  if (!interaction.guildId || !interaction.guild) {
+    await interaction.reply({
+      content: "Este comando solo funciona en un servidor.",
+      ...EPHEMERAL,
+    });
+    return;
+  }
+
+  const target = interaction.options.getUser("usuario", true);
+  if (target.bot) {
+    await interaction.reply({
+      content: "No puedes robar a un bot.",
+      ...EPHEMERAL,
+    });
+    return;
+  }
+  if (target.id === interaction.user.id) {
+    await interaction.reply({
+      content: "No puedes robarte a ti mismo.",
+      ...EPHEMERAL,
+    });
+    return;
+  }
+
+  const ephemeral = consumeInteractionEphemeral(interaction.id, false);
+  await interaction.deferReply(visibility(ephemeral));
+
+  try {
+    const income = await getEconomyIncomeConfig(interaction.guildId);
+    const rob = income.rob;
+    if (!rob.enabled) {
+      throw new EconomyError(
+        "El robo está desactivado en este servidor.",
+        400,
+        "ROB_DISABLED",
+      );
+    }
+
+    await assertCooldownAvailable(interaction.guildId, interaction.user.id, "rob");
+
+    const victimBal = await getUserEconomyBalance(interaction.guildId, target.id);
+    if (victimBal.wallet < rob.minTargetWallet) {
+      throw new EconomyError(
+        `Esa cartera no llega al mínimo (${rob.minTargetWallet.toLocaleString("es-MX")}). El banco no se puede robar.`,
+        400,
+        "ROB_TARGET_POOR",
+      );
+    }
+
+    const economy = await getEconomyConfig(interaction.guildId);
+    const currency = economy.currencyName || "monedas";
+    const success = randomBelow(100) < rob.successChance;
+    const stealPercent = randomInt(rob.minStealPercent, rob.maxStealPercent);
+    const stealAmount = Math.max(
+      1,
+      Math.floor((victimBal.wallet * stealPercent) / 100),
+    );
+    const robberBal = await getUserEconomyBalance(
+      interaction.guildId,
+      interaction.user.id,
+    );
+    const fineAmount = Math.floor((robberBal.wallet * rob.failFinePercent) / 100);
+
+    const result = await robWallet({
+      guildId: interaction.guildId,
+      robberId: interaction.user.id,
+      victimId: target.id,
+      success,
+      stealAmount,
+      fineAmount,
+    });
+
+    await setCooldownMinutes(
+      interaction.guildId,
+      interaction.user.id,
+      "rob",
+      rob.cooldownMinutes,
+    );
+
+    const embed = new EmbedBuilder()
+      .setColor(success ? 0x57f287 : 0xef4444)
+      .setTitle(success ? "Robo exitoso" : "Te atraparon")
+      .setDescription(
+        success
+          ? `Le quitaste **${result.stolen.toLocaleString("es-MX")}** ${currency} de la cartera a <@${target.id}>.`
+          : `Fallaste. Multa de **${result.fine.toLocaleString("es-MX")}** ${currency}. El banco de <@${target.id}> sigue intacto.`,
+      )
+      .addFields({
+        name: "Tu cartera",
+        value: `\`${result.robberWallet.toLocaleString("es-MX")}\``,
+        inline: true,
+      })
+      .setFooter({ text: `Próximo intento en ${rob.cooldownMinutes} min.` });
+
+    await interaction.editReply({ embeds: [embed] });
+  } catch (error) {
+    await replyEconomyError(interaction, error, true);
   }
 }

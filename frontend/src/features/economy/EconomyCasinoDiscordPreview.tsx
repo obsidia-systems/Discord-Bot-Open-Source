@@ -13,7 +13,8 @@ export type EconomyCasinoSimulatorTab =
   | "global"
   | "coinflip"
   | "roulette"
-  | "blackjack";
+  | "blackjack"
+  | "slots";
 
 type Suit = "spades" | "hearts" | "diamonds" | "clubs";
 
@@ -212,7 +213,7 @@ export function EconomyCasinoDiscordPreview({
       `Apuesta mínima: **${config.minBet.toLocaleString("es-MX")}** ${currency}`,
       `Apuesta máxima: **${config.maxBet.toLocaleString("es-MX")}** ${currency}`,
       "",
-      "Usa `/coinflip`, `/roulette` o `/blackjack`.",
+      "Usa `/coinflip`, `/roulette`, `/blackjack` o `/slots`.",
     ].join("\n");
     color = ACCENT;
   } else if (tab === "coinflip") {
@@ -227,26 +228,23 @@ export function EconomyCasinoDiscordPreview({
     description += [
       "",
       `Apuesta: **${sampleBet.toLocaleString("es-MX")}** · x${config.coinflip.multiplier}`,
-      `Doble o Nada: **${config.coinflip.allowDoubleOrNothing ? "Disponible" : "Desactivado"}**`,
       `Cooldown: **${config.coinflip.cooldownSeconds}s**`,
     ].join("\n");
     color = SUCCESS;
-    buttons = config.coinflip.allowDoubleOrNothing
-      ? ["🪙 Cara", "🌑 Cruz", "⚡ Doble o Nada"]
-      : ["🪙 Cara", "🌑 Cruz"];
+    buttons = ["Otra vez"];
   } else if (tab === "roulette") {
     command = "/roulette";
     title = "Ruleta";
     description = [
       `Apuesta de ejemplo: **${sampleBet.toLocaleString("es-MX")}** ${currency}`,
-      `Ventana de apuestas: **${config.roulette.bettingTimeSeconds}s**`,
+      `Cooldown: **${config.roulette.cooldownSeconds}s**`,
       "",
       `🔴/⚫ Color → **x${config.roulette.colorMultiplier}**`,
       `🟢 Verde → **x${config.roulette.greenMultiplier}**`,
       `🔢 Número exacto → **x${config.roulette.numberMultiplier}**`,
     ].join("\n");
     color = ACCENT;
-    buttons = ["Rojo", "Negro", "Verde", "Número"];
+    buttons = ["Rojo", "Negro", "Verde"];
     if (config.roulette.showNumberHistory) {
       extra = (
         <div className="space-y-1 pt-1">
@@ -269,6 +267,17 @@ export function EconomyCasinoDiscordPreview({
         </div>
       );
     }
+  } else if (tab === "slots") {
+    command = "/slots";
+    title = "Slots";
+    description = [
+      `Apuesta: **${sampleBet.toLocaleString("es-MX")}** ${currency}`,
+      `Cooldown: **${config.slots.cooldownSeconds}s**`,
+      "",
+      "Par (2 de 3) ×1.7 · 🍒🍒🍒 ×3 · 💎💎💎 ×80",
+    ].join("\n");
+    color = SUCCESS;
+    buttons = ["Otra vez"];
   } else {
     command = "/blackjack";
     title = "Blackjack";
@@ -277,11 +286,13 @@ export function EconomyCasinoDiscordPreview({
       `Blackjack natural → **x${config.blackjack.blackjackMultiplier}**`,
       `Barajas: **${config.blackjack.deckCount}** · Soft 17: **${config.blackjack.standOnSoft17 ? "Planta" : "Pide"}**`,
       `Doblar: **${config.blackjack.allowDoubleDown ? "Permitido" : "No permitido"}**`,
+      `Dividir: **${config.blackjack.allowSplit ? "Permitido" : "No permitido"}**`,
     ].join("\n");
     color = SUCCESS;
-    buttons = config.blackjack.allowDoubleDown
-      ? ["Pedir", "Plantarse", "Doblar"]
-      : ["Pedir", "Plantarse"];
+    const bjButtons = ["Pedir", "Plantarse"];
+    if (config.blackjack.allowDoubleDown) bjButtons.push("Doblar");
+    if (config.blackjack.allowSplit) bjButtons.push("Dividir");
+    buttons = bjButtons;
     extra = <BlackjackHandPreview />;
   }
 

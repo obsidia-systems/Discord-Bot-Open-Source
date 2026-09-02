@@ -1,3 +1,5 @@
+import { randomBelow } from "./rng.js";
+
 /** Ruleta europea (0–36) y colores estándar. */
 
 export type RouletteColor = "verde" | "rojo" | "negro";
@@ -7,7 +9,7 @@ const RED_NUMBERS = new Set([
 ]);
 
 export function spinEuropeanRoulette(): number {
-  return Math.floor(Math.random() * 37);
+  return randomBelow(37);
 }
 
 export function rouletteColor(number: number): RouletteColor {

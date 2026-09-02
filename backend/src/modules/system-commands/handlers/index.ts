@@ -25,21 +25,29 @@ import {
   handleBlackjackCommand,
   handleCoinflipCommand,
   handleRouletteCommand,
+  handleSlotsCommand,
 } from "../../economy/commands/casino.js";
 import {
   handleAddMoneyCommand,
   handleBalanceCommand,
   handleBaltopCommand,
+  handleCollectIncomeCommand,
   handleCrimeCommand,
   handleDailyCommand,
   handleDepositCommand,
   handleMonthlyCommand,
   handlePayCommand,
   handleRemoveMoneyCommand,
+  handleRobCommand,
+  handleSetMoneyCommand,
   handleWeeklyCommand,
   handleWithdrawCommand,
   handleWorkCommand,
 } from "../../economy/commands/income.js";
+import {
+  handleInventoryCommand,
+  handleUseCommand,
+} from "../../economy/commands/inventory.js";
 import { handleShopCommand } from "../../economy/commands/shop.js";
 import { getEconomyConfig } from "../../economy/service.js";
 import {
@@ -94,11 +102,17 @@ export const DEFAULT_COMMAND_HANDLERS: Record<string, DefaultCommandHandler> = {
   baltop: handleBaltopCommand,
   addmoney: handleAddMoneyCommand,
   removemoney: handleRemoveMoneyCommand,
+  setmoney: handleSetMoneyCommand,
   shop: handleShopCommand,
   buy: handleBuyCommand,
   coinflip: handleCoinflipCommand,
   roulette: handleRouletteCommand,
   blackjack: handleBlackjackCommand,
+  slots: handleSlotsCommand,
+  "collect-income": handleCollectIncomeCommand,
+  rob: handleRobCommand,
+  inventory: handleInventoryCommand,
+  use: handleUseCommand,
 
   // Utilidades
   userinfo: handleUserInfoCommand,

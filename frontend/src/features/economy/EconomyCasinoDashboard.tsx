@@ -1,6 +1,8 @@
 import type { EconomyCasinoConfig, EconomyConfig } from "@adobos/shared";
 import {
   CASINO_DECK_COUNTS,
+  defaultCasinoBlackjack,
+  defaultCasinoSlots,
   defaultEconomyCasinoConfig,
 } from "@adobos/shared";
 import {
@@ -69,8 +71,19 @@ export function EconomyCasinoDashboard() {
           fetchEconomyConfig().catch((): EconomyConfig | null => null),
         ]);
         if (cancelled) return;
-        setConfig(casino);
-        setSavedFingerprint(fingerprint(casino));
+        const merged = {
+          ...casino,
+          blackjack: {
+            ...defaultCasinoBlackjack(),
+            ...casino.blackjack,
+          },
+          slots: {
+            ...defaultCasinoSlots(),
+            ...casino.slots,
+          },
+        };
+        setConfig(merged);
+        setSavedFingerprint(fingerprint(merged));
         if (economy?.currencyName) setCurrencyName(economy.currencyName);
       } catch (error) {
         if (!cancelled) {
@@ -102,6 +115,7 @@ export function EconomyCasinoDashboard() {
         coinflip: config.coinflip,
         roulette: config.roulette,
         blackjack: config.blackjack,
+        slots: config.slots,
       });
       setConfig(next);
       setSavedFingerprint(fingerprint(next));
@@ -144,7 +158,7 @@ export function EconomyCasinoDashboard() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="min-w-0 space-y-4 lg:col-span-2">
           <Tabs>
-            <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4">
+            <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-5">
               <TabsTrigger
                 active={tab === "global"}
                 onClick={() => setTab("global")}
@@ -168,6 +182,12 @@ export function EconomyCasinoDashboard() {
                 onClick={() => setTab("blackjack")}
               >
                 Blackjack
+              </TabsTrigger>
+              <TabsTrigger
+                active={tab === "slots"}
+                onClick={() => setTab("slots")}
+              >
+                Slots
               </TabsTrigger>
             </TabsList>
 
@@ -202,7 +222,7 @@ export function EconomyCasinoDashboard() {
                         Límites de Apuesta
                       </CardTitle>
                       <CardDescription>
-                        Aplican a `/coinflip`, `/roulette` y `/blackjack`.
+                        Aplican a `/coinflip`, `/roulette`, `/blackjack` y `/slots`.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-4 sm:grid-cols-2">
@@ -301,36 +321,13 @@ export function EconomyCasinoDashboard() {
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">
-                        Reglas de la mesa
+                        Ritmo de juego
                       </CardTitle>
                       <CardDescription>
-                        Ritmo de juego y opción de arriesgar la ganancia.
+                        Segundos de espera entre cada coinflip.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <Label htmlFor="cf-double">
-                            Permitir Doble o Nada
-                          </Label>
-                          <p className="text-xs text-muted-foreground">
-                            El jugador puede arriesgar su ganancia actual.
-                          </p>
-                        </div>
-                        <Switch
-                          id="cf-double"
-                          checked={config.coinflip.allowDoubleOrNothing}
-                          onCheckedChange={(checked) =>
-                            setConfig((c) => ({
-                              ...c,
-                              coinflip: {
-                                ...c.coinflip,
-                                allowDoubleOrNothing: checked,
-                              },
-                            }))
-                          }
-                        />
-                      </div>
                       <div className="space-y-2">
                         <Label htmlFor="cf-cd">Cooldown entre tiros</Label>
                         <Input
@@ -432,32 +429,32 @@ export function EconomyCasinoDashboard() {
 
                   <Card>
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Mesa en vivo</CardTitle>
+                      <CardTitle className="text-base">Mesa</CardTitle>
                       <CardDescription>
-                        Ventana de apuestas e historial en el embed.
+                        Cooldown entre giros e historial en el embed.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="ro-time">Tiempo de apuestas</Label>
+                        <Label htmlFor="ro-cd">Cooldown entre giros</Label>
                         <Input
-                          id="ro-time"
+                          id="ro-cd"
                           type="number"
                           min={0}
                           step={1}
-                          value={config.roulette.bettingTimeSeconds}
+                          value={config.roulette.cooldownSeconds}
                           onChange={(e) =>
                             setConfig((c) => ({
                               ...c,
                               roulette: {
                                 ...c.roulette,
-                                bettingTimeSeconds: Number(e.target.value) || 0,
+                                cooldownSeconds: Number(e.target.value) || 0,
                               },
                             }))
                           }
                         />
                         <p className="text-xs text-muted-foreground">
-                          Segundos que la mesa permanece abierta tras el primer
+                          Segundos que debe esperar cada usuario entre
                           `/roulette`.
                         </p>
                       </div>
@@ -517,6 +514,28 @@ export function EconomyCasinoDashboard() {
                               blackjack: {
                                 ...c.blackjack,
                                 allowDoubleDown: checked,
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <Label htmlFor="bj-split">Permitir «Dividir»</Label>
+                          <p className="text-xs text-muted-foreground">
+                            Split de un par (misma figura) si hay saldo para la
+                            segunda apuesta.
+                          </p>
+                        </div>
+                        <Switch
+                          id="bj-split"
+                          checked={config.blackjack.allowSplit}
+                          onCheckedChange={(checked) =>
+                            setConfig((c) => ({
+                              ...c,
+                              blackjack: {
+                                ...c.blackjack,
+                                allowSplit: checked,
                               },
                             }))
                           }
@@ -608,6 +627,51 @@ export function EconomyCasinoDashboard() {
                             }))
                           }
                         />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </TabsContent>
+            ) : null}
+
+            {tab === "slots" ? (
+              <TabsContent>
+                <div className="space-y-4">
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Slots</CardTitle>
+                      <CardDescription>
+                        Tres rodillos, CSPRNG. Par = 2 de 3 iguales (×1.7).
+                        Casa documentada ≈ 5.6%.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="sl-cd">Cooldown entre giros</Label>
+                        <Input
+                          id="sl-cd"
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={config.slots.cooldownSeconds}
+                          onChange={(e) =>
+                            setConfig((c) => ({
+                              ...c,
+                              slots: {
+                                ...c.slots,
+                                cooldownSeconds: Number(e.target.value) || 0,
+                              },
+                            }))
+                          }
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Segundos entre cada `/slots` por usuario.
+                        </p>
+                      </div>
+                      <div className="rounded-md border border-border/70 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                        <p className="font-medium text-foreground">Pagos</p>
+                        <p>Par (2 de 3) ×1.7 · 🍒🍒🍒 ×3 · 🍋🍋🍋 ×4</p>
+                        <p>🍊 ×5 · 🍇 ×8 · 🔔 ×12 · ⭐ ×20 · 7️⃣ ×40 · 💎 ×80</p>
                       </div>
                     </CardContent>
                   </Card>

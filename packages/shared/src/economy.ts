@@ -75,9 +75,42 @@ export function clampTransferTax(value: number): number {
   return Math.min(100, Math.max(0, Math.round(value)));
 }
 
-export function clampStartBalance(value: number): number {
+/** Techo de wallet/bank. Bajo el máximo de `integer` en Postgres. */
+export const MAX_ECONOMY_BALANCE = 2_000_000_000;
+
+export function clampEconomyBalance(value: number): number {
   if (!Number.isFinite(value)) return 0;
-  return Math.max(0, Math.floor(value));
+  return Math.min(MAX_ECONOMY_BALANCE, Math.max(0, Math.floor(value)));
+}
+
+export function clampStartBalance(value: number): number {
+  return clampEconomyBalance(value);
+}
+
+/** Comisión de `/pay`: `tax` se destruye, `received` llega al destino. */
+export function computePayTax(
+  amount: number,
+  taxPercent: number,
+): { sent: number; tax: number; received: number } {
+  const sent = Math.max(0, Math.floor(amount));
+  const tax = Math.min(
+    sent,
+    Math.floor((sent * clampTransferTax(taxPercent)) / 100),
+  );
+  return { sent, tax, received: sent - tax };
+}
+
+/**
+ * `all`/`todo`/`max` → `"all"`. Entero ≥ 1. `null` si vacío o inválido.
+ */
+export function parseBankAmount(raw: string): number | "all" | null {
+  const value = raw.trim().toLowerCase();
+  if (!value) return null;
+  if (value === "all" || value === "todo" || value === "max") return "all";
+  const cleaned = value.replace(/[,\s_]/g, "");
+  const n = Number(cleaned);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1) return null;
+  return Math.floor(n);
 }
 
 /* ─── Ingresos / Trabajos / Crímenes ─── */
@@ -118,6 +151,21 @@ export interface EconomyCrime {
   failMessage: string;
 }
 
+/** `/rob` — apagado por defecto. Solo roba cartera, nunca banco. */
+export interface EconomyRobConfig {
+  enabled: boolean;
+  /** Probabilidad de éxito 0–100. */
+  successChance: number;
+  cooldownMinutes: number;
+  /** La víctima necesita al menos esto en cartera. */
+  minTargetWallet: number;
+  /** % de la cartera de la víctima (éxito). */
+  minStealPercent: number;
+  maxStealPercent: number;
+  /** % de la cartera del ladrón (falla). */
+  failFinePercent: number;
+}
+
 export interface EconomyIncomeConfig {
   guildId: string;
   dailyPay: number;
@@ -129,6 +177,7 @@ export interface EconomyIncomeConfig {
   roleSalaries: EconomyRoleSalary[];
   jobs: EconomyJob[];
   crimes: EconomyCrime[];
+  rob: EconomyRobConfig;
 }
 
 export interface EconomyIncomeConfigResponse {
@@ -173,6 +222,18 @@ export function defaultEconomyCrime(
   };
 }
 
+export function defaultEconomyRob(): EconomyRobConfig {
+  return {
+    enabled: false,
+    successChance: 40,
+    cooldownMinutes: 30,
+    minTargetWallet: 100,
+    minStealPercent: 10,
+    maxStealPercent: 25,
+    failFinePercent: 10,
+  };
+}
+
 export function defaultEconomyIncomeConfig(guildId = ""): EconomyIncomeConfig {
   return {
     guildId,
@@ -184,7 +245,17 @@ export function defaultEconomyIncomeConfig(guildId = ""): EconomyIncomeConfig {
     roleSalaries: [],
     jobs: [],
     crimes: [],
+    rob: defaultEconomyRob(),
   };
+}
+
+/**
+ * 1 oficio → se ejecuta solo. 2–5 → el usuario elige. 6+ → aleatorio.
+ */
+export function incomeChoiceMode(count: number): "auto" | "select" | "random" {
+  if (count <= 1) return "auto";
+  if (count <= 5) return "select";
+  return "random";
 }
 
 export function clampNonNegInt(value: number, fallback = 0): number {

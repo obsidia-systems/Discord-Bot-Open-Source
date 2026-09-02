@@ -1,3 +1,5 @@
+import { randomBelow } from "./rng.js";
+
 /** Cartas y evaluación de manos para blackjack. */
 
 export type Suit = "spades" | "hearts" | "diamonds" | "clubs";
@@ -58,10 +60,10 @@ export function createShoe(deckCount: number): PlayingCard[] {
   return shoe;
 }
 
-/** Fisher–Yates in-place shuffle. */
+/** Fisher–Yates in-place shuffle (CSPRNG, sin sesgo). */
 export function shuffleDeck(deck: PlayingCard[]): PlayingCard[] {
   for (let i = deck.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = randomBelow(i + 1);
     const tmp = deck[i]!;
     deck[i] = deck[j]!;
     deck[j] = tmp;
@@ -131,4 +133,18 @@ export function formatHand(cards: PlayingCard[], hideHole = false): string {
     return `${formatCard(cards[0]!)} 🂠`;
   }
   return cards.map(formatCard).join(" ");
+}
+
+/** Par inicial: dos cartas de la misma figura (no 10+J). */
+export function isSplitPair(cards: PlayingCard[]): boolean {
+  return cards.length === 2 && cards[0]!.rank === cards[1]!.rank;
+}
+
+/** Corte del zapato: queda menos del 25% de las cartas. */
+export function shoeNeedsReshuffle(
+  remaining: number,
+  deckCount: number,
+): boolean {
+  const full = 52 * Math.max(1, Math.floor(deckCount) || 1);
+  return remaining < Math.ceil(full * 0.25);
 }

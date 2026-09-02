@@ -2,6 +2,7 @@ import type {
   EconomyCrime,
   EconomyIncomeConfig,
   EconomyJob,
+  EconomyRobConfig,
   EconomyRoleSalary,
   UpdateEconomyIncomeRequest,
 } from "@adobos/shared";
@@ -9,6 +10,7 @@ import {
   clampNonNegInt,
   clampPercent,
   defaultEconomyIncomeConfig,
+  defaultEconomyRob,
   normalizeMinMax,
 } from "@adobos/shared";
 import { eq } from "drizzle-orm";
@@ -54,6 +56,18 @@ function parseJsonArray<T>(raw: string | null | undefined, fallback: T[]): T[] {
     return Array.isArray(parsed) ? (parsed as T[]) : fallback;
   } catch {
     return fallback;
+  }
+}
+
+function parseJsonObject(raw: string | null | undefined): Record<string, unknown> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
   }
 }
 
@@ -163,6 +177,34 @@ function sanitizeCrimes(raw: unknown): EconomyCrime[] {
     .slice(0, 40);
 }
 
+function sanitizeRob(raw: unknown): EconomyRobConfig {
+  const base = defaultEconomyRob();
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return base;
+  const row = raw as Record<string, unknown>;
+  const steal = normalizeMinMax(
+    clampPercent(Number(row.minStealPercent ?? base.minStealPercent)),
+    clampPercent(Number(row.maxStealPercent ?? base.maxStealPercent)),
+  );
+  return {
+    enabled: typeof row.enabled === "boolean" ? row.enabled : base.enabled,
+    successChance: clampPercent(
+      Number(row.successChance ?? base.successChance),
+    ),
+    cooldownMinutes: Math.min(
+      10080,
+      Math.max(1, clampNonNegInt(Number(row.cooldownMinutes), base.cooldownMinutes)),
+    ),
+    minTargetWallet: clampNonNegInt(
+      Number(row.minTargetWallet ?? base.minTargetWallet),
+    ),
+    minStealPercent: steal.min,
+    maxStealPercent: steal.max,
+    failFinePercent: clampPercent(
+      Number(row.failFinePercent ?? base.failFinePercent),
+    ),
+  };
+}
+
 function rowToConfig(
   guildId: string,
   row: typeof economyIncome.$inferSelect | undefined,
@@ -180,6 +222,7 @@ function rowToConfig(
     ),
     jobs: sanitizeJobs(parseJsonArray(row.jobs, [])),
     crimes: sanitizeCrimes(parseJsonArray(row.crimes, [])),
+    rob: sanitizeRob(parseJsonObject(row.rob)),
   };
 }
 
@@ -231,6 +274,7 @@ export async function updateEconomyIncomeConfig(
       input.crimes !== undefined
         ? sanitizeCrimes(input.crimes)
         : current.crimes,
+    rob: input.rob !== undefined ? sanitizeRob(input.rob) : current.rob,
   };
 
   const now = new Date();
@@ -246,6 +290,7 @@ export async function updateEconomyIncomeConfig(
       roleSalaries: JSON.stringify(next.roleSalaries),
       jobs: JSON.stringify(next.jobs),
       crimes: JSON.stringify(next.crimes),
+      rob: JSON.stringify(next.rob),
       updatedAt: now,
     })
     .onConflictDoUpdate({
@@ -259,6 +304,7 @@ export async function updateEconomyIncomeConfig(
         roleSalaries: JSON.stringify(next.roleSalaries),
         jobs: JSON.stringify(next.jobs),
         crimes: JSON.stringify(next.crimes),
+        rob: JSON.stringify(next.rob),
         updatedAt: now,
       },
     })
