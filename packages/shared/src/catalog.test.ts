@@ -22,6 +22,7 @@ describe("catálogo de módulos", () => {
     expect(MODULE_IDS).toContain("canvas-events");
     expect(MODULE_IDS).toContain("voice-rooms");
     expect(MODULE_IDS).toContain("reminders");
+    expect(MODULE_IDS).toContain("starboard");
     expect(new Set(MODULE_IDS).size).toBe(MODULE_IDS.length);
   });
 
@@ -31,6 +32,7 @@ describe("catálogo de módulos", () => {
     expect(MODULE_FEATURE["auto-mod"]).toBe("automod");
     expect(MODULE_FEATURE["voice-rooms"]).toBe("voice-rooms");
     expect(MODULE_FEATURE.reminders).toBe("reminders");
+    expect(MODULE_FEATURE.starboard).toBe("starboard");
     expect(MODULE_FEATURE.billing).toBeUndefined();
   });
 });
@@ -49,6 +51,7 @@ describe("entitlements y asientos", () => {
   it("free incluye voice-rooms y no branding", () => {
     expect(tierHasFeature("free", "voice-rooms")).toBe(true);
     expect(tierHasFeature("free", "reminders")).toBe(true);
+    expect(tierHasFeature("free", "starboard")).toBe(true);
     expect(tierHasFeature("free", "branding")).toBe(false);
     expect(tierHasFeature("pro", "branding")).toBe(true);
   });

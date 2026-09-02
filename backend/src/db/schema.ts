@@ -1381,6 +1381,55 @@ export const reminders = pgTable(
 export type ReminderSettingsRow = typeof reminderSettings.$inferSelect;
 export type ReminderRow = typeof reminders.$inferSelect;
 
+/**
+ * Un tablón Starboard por guild. emojis / ignore_channel_ids son JSON texto.
+ */
+export const starboardSettings = pgTable("starboard_settings", {
+  guildId: text("guild_id")
+    .primaryKey()
+    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+  channelId: text("channel_id"),
+  /** JSON: string[] de claves unicode:/custom: */
+  emojis: text("emojis").notNull().default('["unicode:⭐"]'),
+  threshold: integer("threshold").notNull().default(3),
+  enabled: boolean("enabled").notNull().default(false),
+  allowSelfStar: boolean("allow_self_star").notNull().default(false),
+  allowBots: boolean("allow_bots").notNull().default(false),
+  /** JSON: snowflake[] */
+  ignoreChannelIds: text("ignore_channel_ids").notNull().default("[]"),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+/**
+ * Copia en el canal del tablón. original_message_id es el mensaje fuente.
+ */
+export const starboardPosts = pgTable(
+  "starboard_posts",
+  {
+    originalMessageId: text("original_message_id").primaryKey(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    channelId: text("channel_id").notNull(),
+    starboardMessageId: text("starboard_message_id").notNull(),
+    starCount: integer("star_count").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("starboard_posts_starboard_message").on(
+      table.starboardMessageId,
+    ),
+    index("idx_starboard_posts_guild").on(table.guildId),
+  ],
+);
+
+export type StarboardSettingsRow = typeof starboardSettings.$inferSelect;
+export type StarboardPostRow = typeof starboardPosts.$inferSelect;
+
 /** Valores semilla útiles en migraciones / seeds. */
 export const DEFAULT_PLUGIN_NAMES = [
   "minecraft",

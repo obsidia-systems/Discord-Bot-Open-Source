@@ -41,7 +41,8 @@ export type FeatureKey =
   | "panel-audit"
   | "staff-roles"
   | "voice-rooms"
-  | "reminders";
+  | "reminders"
+  | "starboard";
 
 export type LimitKey =
   | "logRetentionDays"
@@ -85,6 +86,7 @@ const FREE_FEATURES: readonly FeatureKey[] = [
   "giveaways",
   "voice-rooms",
   "reminders",
+  "starboard",
 ];
 
 const PRO_FEATURES: readonly FeatureKey[] = [

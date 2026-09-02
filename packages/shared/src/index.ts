@@ -25,6 +25,7 @@ export * from "./reminders.js";
 export * from "./roles-builder.js";
 export * from "./scheduled-messages.js";
 export * from "./sent-embeds.js";
+export * from "./starboard.js";
 export * from "./system-commands.js";
 export * from "./uploads.js";
 export * from "./voice-rooms.js";

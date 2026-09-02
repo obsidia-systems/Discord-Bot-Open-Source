@@ -1,0 +1,11 @@
+---
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { StarboardDashboard } from "../../../features/starboard";
+---
+
+<DashboardLayout
+  title="Starboard"
+  description="Los mensajes con suficientes reacciones se copian al tablón."
+>
+  <StarboardDashboard client:load />
+</DashboardLayout>

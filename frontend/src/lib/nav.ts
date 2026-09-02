@@ -26,6 +26,7 @@ import {
   Shield,
   ShieldAlert,
   Sparkles,
+  Star,
   Store,
   Swords,
   Target,
@@ -209,6 +210,12 @@ export const dashboardNav: NavCategoryConfig[] = [
         href: "/dashboard/community/voice-rooms",
         icon: Mic2,
         blurb: "Salas de voz temporales (join to create).",
+      },
+      {
+        label: "Starboard",
+        href: "/dashboard/community/starboard",
+        icon: Star,
+        blurb: "Tablón de mensajes con suficientes reacciones.",
       },
       {
         label: "Roles Builder",

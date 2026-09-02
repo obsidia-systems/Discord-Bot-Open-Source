@@ -19,6 +19,7 @@ import { rolesBuilderModule } from "./roles-builder/index.js";
 import { billingModule } from "./billing/index.js";
 import { voiceRoomsModule } from "./voice-rooms/index.js";
 import { remindersModule } from "./reminders/index.js";
+import { starboardModule } from "./starboard/index.js";
 
 /**
  * Catálogo explícito de módulos habilitados.
@@ -45,6 +46,7 @@ export const ENABLED_MODULES: readonly AdobosModule[] = [
   billingModule,
   voiceRoomsModule,
   remindersModule,
+  starboardModule,
 ];
 
 export {
@@ -68,4 +70,5 @@ export {
   billingModule,
   voiceRoomsModule,
   remindersModule,
+  starboardModule,
 };
