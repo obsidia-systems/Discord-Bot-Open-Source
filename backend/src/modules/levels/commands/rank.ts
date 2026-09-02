@@ -1,7 +1,9 @@
 import type { ChatInputCommandInteraction } from "discord.js";
-import { EmbedBuilder } from "discord.js";
+import { EmbedBuilder, MessageFlags } from "discord.js";
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
 import { getLevelsConfigCached, getUserRankStats } from "../service.js";
+
+const EPHEMERAL = { flags: MessageFlags.Ephemeral } as const;
 
 /**
  * /rank — consulta user_xp, posición global y progreso al siguiente nivel.
@@ -12,7 +14,7 @@ export async function handleRankCommand(
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
       content: "Este comando solo funciona en un servidor.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }
@@ -20,14 +22,16 @@ export async function handleRankCommand(
   const config = await getLevelsConfigCached(interaction.guildId);
   if (!config.enabled) {
     await interaction.reply({
-      content: "El módulo de Rangos y XP está desactivado en este servidor.",
-      ephemeral: true,
+      content: "El módulo Levels está desactivado en este servidor.",
+      ...EPHEMERAL,
     });
     return;
   }
 
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
-  await interaction.deferReply({ ephemeral });
+  await interaction.deferReply(
+    ephemeral ? { flags: MessageFlags.Ephemeral } : {},
+  );
 
   const target = interaction.options.getUser("usuario") ?? interaction.user;
   const stats = await getUserRankStats(interaction.guildId, target.id);

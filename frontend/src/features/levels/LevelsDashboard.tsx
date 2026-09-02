@@ -7,7 +7,7 @@ import type {
   LevelsReward,
   LevelsRoleMultiplier,
 } from "@adobos/shared";
-import { defaultLevelsConfig, xpForLevel } from "@adobos/shared";
+import { defaultLevelsConfig, calculateBaseXPForLevel } from "@adobos/shared";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
   fetchGuildAssets,
@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { ToastBanner } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import {
@@ -64,7 +65,7 @@ type TabId = "xp" | "rewards" | "leaderboard" | "discord";
 type MonitorSideTab = "preview" | "datos";
 type MultipliersTab = "roles" | "channels";
 
-const TEXT_CHANNEL_TYPES = new Set([0, 5, 15]);
+const TEXT_CHANNEL_TYPES = new Set([0, 5]);
 /** Texto + voz (+ stage/anuncio/foro) para hot zones. */
 const MULTIPLIER_CHANNEL_TYPES = new Set([0, 2, 5, 13, 15]);
 const IGNORE_CHANNEL_TYPES = new Set([0, 2, 4, 5, 13, 15]);
@@ -185,7 +186,7 @@ const leaderboardColumns: ColumnDef<LevelsLeaderboardEntry, unknown>[] = [
   },
 ];
 
-/** Dashboard Rangos y XP — ajustes, recompensas, clasificación y Discord. */
+/** Dashboard Levels — ajustes, recompensas, clasificación y Discord. */
 export function LevelsDashboard() {
   const [tab, setTab] = useState<TabId>("xp");
   const [multipliersTab, setMultipliersTab] =
@@ -308,7 +309,7 @@ export function LevelsDashboard() {
       setGuildIconUrl(assets.iconUrl ?? null);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "No se pudo cargar Rangos y XP.",
+        err instanceof Error ? err.message : "No se pudo cargar Levels.",
       );
     } finally {
       setLoading(false);
@@ -451,7 +452,7 @@ export function LevelsDashboard() {
       });
       setConfig(res.config);
       setSavedFingerprint(configFingerprint(res.config));
-      setSuccess("Configuración de Rangos y XP guardada.");
+      setSuccess("Configuración de Levels guardada.");
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "No se pudo guardar la config.",
@@ -465,7 +466,7 @@ export function LevelsDashboard() {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" />
-        Cargando Rangos y XP…
+        Cargando Levels…
       </div>
     );
   }
@@ -679,12 +680,18 @@ export function LevelsDashboard() {
                           type="number"
                           min={1}
                           max={10}
-                          step={0.1}
+                          step={1}
                           className="h-9 w-24"
                           value={config.xpMultiplier}
                           onChange={(e) =>
                             patch({
-                              xpMultiplier: Number(e.target.value) || 1,
+                              xpMultiplier: Math.min(
+                                10,
+                                Math.max(
+                                  1,
+                                  Math.round(Number(e.target.value)) || 1,
+                                ),
+                              ),
                             })
                           }
                         />
@@ -1174,8 +1181,140 @@ export function LevelsDashboard() {
                         </Select>
                         <p className="text-xs text-muted-foreground">
                           Si no hay canal, no se envía el anuncio de subida de
-                          nivel.
+                          nivel. Texto y anuncios; sin foros.
                         </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">
+                        Apariencia de embeds
+                      </CardTitle>
+                      <CardDescription>
+                        Título, texto y color que Discord usa de verdad.
+                        Tokens: {"{user}"} {"{username}"} {"{level}"}{" "}
+                        {"{server}"} {"{xp}"}.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-4 sm:grid-cols-[auto_1fr]">
+                        <div className="space-y-1.5">
+                          <Label>Color de subida</Label>
+                          <Input
+                            type="color"
+                            className="h-10 w-14 cursor-pointer p-1"
+                            value={config.levelUpEmbedColor || "#34E21D"}
+                            onChange={(e) =>
+                              patch({ levelUpEmbedColor: e.target.value })
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="levelUpTitle">Título de subida</Label>
+                          <Input
+                            id="levelUpTitle"
+                            maxLength={256}
+                            value={config.levelUpEmbedTitle}
+                            onChange={(e) =>
+                              patch({ levelUpEmbedTitle: e.target.value })
+                            }
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="levelUpMessage">
+                          Descripción de subida
+                        </Label>
+                        <Textarea
+                          id="levelUpMessage"
+                          rows={3}
+                          maxLength={2000}
+                          value={config.levelUpMessage}
+                          onChange={(e) =>
+                            patch({ levelUpMessage: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
+                        <div>
+                          <p className="text-sm font-medium">
+                            Miniatura del usuario
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Avatar en el embed de subida de nivel.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={config.levelUpShowThumbnail}
+                          onCheckedChange={(levelUpShowThumbnail) =>
+                            patch({ levelUpShowThumbnail })
+                          }
+                        />
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-[auto_1fr]">
+                        <div className="space-y-1.5">
+                          <Label>Color del leaderboard</Label>
+                          <Input
+                            type="color"
+                            className="h-10 w-14 cursor-pointer p-1"
+                            value={config.leaderboardEmbedColor || "#CA7AFF"}
+                            onChange={(e) =>
+                              patch({
+                                leaderboardEmbedColor: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="lbTitle">
+                            Título del leaderboard
+                          </Label>
+                          <Input
+                            id="lbTitle"
+                            maxLength={256}
+                            value={config.leaderboardEmbedTitle}
+                            onChange={(e) =>
+                              patch({
+                                leaderboardEmbedTitle: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="lbDesc">
+                          Intro del leaderboard (opcional)
+                        </Label>
+                        <Textarea
+                          id="lbDesc"
+                          rows={2}
+                          maxLength={500}
+                          value={config.leaderboardEmbedDescription}
+                          placeholder="{total} miembros con XP"
+                          onChange={(e) =>
+                            patch({
+                              leaderboardEmbedDescription: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
+                        <div>
+                          <p className="text-sm font-medium">
+                            Miniatura del servidor
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Icono del guild en el leaderboard en vivo.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={config.leaderboardShowThumbnail}
+                          onCheckedChange={(leaderboardShowThumbnail) =>
+                            patch({ leaderboardShowThumbnail })
+                          }
+                        />
                       </div>
                     </CardContent>
                   </Card>
@@ -1342,7 +1481,7 @@ function StatusMonitorBody({
       <div className="flex items-center justify-between gap-2">
         <span className="text-muted-foreground">Multiplicador base</span>
         <span className="font-mono text-xs">
-          {config.xpMultiplier.toFixed(1)}x
+          {config.xpMultiplier}x
         </span>
       </div>
       <div className="flex items-center justify-between gap-2">
@@ -1391,7 +1530,7 @@ function StatusMonitorBody({
               className="flex items-center justify-between gap-2"
             >
               <span>Nivel {level}</span>
-              <span>{xpForLevel(level).toLocaleString("es-MX")} XP</span>
+              <span>{calculateBaseXPForLevel(level).toLocaleString("es-MX")} XP</span>
             </li>
           ))}
         </ul>

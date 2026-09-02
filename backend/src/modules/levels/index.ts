@@ -5,7 +5,7 @@ import { registerLevelsListeners } from "./events.js";
 
 export const levelsModule: AdobosModule = {
   id: "levels",
-  name: "Rangos y XP",
+  name: "Levels",
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,

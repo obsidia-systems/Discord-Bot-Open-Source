@@ -16,10 +16,12 @@ import {
   DEFAULT_LEVEL_UP_MESSAGE,
   calculateBaseXPForLevel,
   calculateLevel,
+  clampLevelsLevel,
+  clampLevelsXp,
   defaultLevelsConfig,
   normalizeEmbedColor,
   normalizeLevelUpFormat,
-  xpForLevel,
+  resolveXpMultiplier,
 } from "@adobos/shared";
 import { getDb, one } from "../../db/client.js";
 import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
@@ -158,40 +160,7 @@ function normalizeChannelMultipliers(
   return out;
 }
 
-/**
- * Multiplicador total de XP (aditivo sobre la base):
- * base + Σ(rol − 1) + (canal − 1) + (stream − 1 si streaming).
- * Ej. base 1, rol 1.5, canal 2.0 → 2.5x.
- */
-export function resolveXpMultiplier(
-  config: LevelsConfig,
-  roleIds: Iterable<string>,
-  options?: { channelId?: string | null; streaming?: boolean },
-): number {
-  const base = Math.max(0.1, Number(config.xpMultiplier) || 1);
-  let total = base;
-
-  const owned = new Set(roleIds);
-  for (const entry of config.customMultipliers) {
-    if (!owned.has(entry.roleId)) continue;
-    total += entry.multiplier - 1;
-  }
-
-  const channelId = options?.channelId ?? null;
-  if (channelId) {
-    const channelEntry = config.customChannelMultipliers.find(
-      (e) => e.channelId === channelId,
-    );
-    if (channelEntry) total += channelEntry.multiplier - 1;
-  }
-
-  if (options?.streaming) {
-    const stream = Math.max(0.1, Number(config.streamMultiplier) || 1);
-    total += stream - 1;
-  }
-
-  return Math.max(0, Math.round(total * 1000) / 1000);
-}
+export { resolveXpMultiplier };
 
 async function rowToConfig(
   guildId: string,
@@ -544,86 +513,104 @@ export interface AddXpResult {
   leveledUp: boolean;
 }
 
-/** Suma XP y recalcula nivel. No aplica recompensas Discord (eso va en events). */
+/** Suma XP de forma atómica (fila bloqueada) y recalcula nivel. */
 export async function addUserXp(
   guildId: string,
   userId: string,
   amount: number,
 ): Promise<AddXpResult> {
   const gained = Math.max(0, Math.floor(amount));
-  const existing = await one(getDb()
-    .select()
-    .from(userXp)
-    .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)))
-    .limit(1));
-
-  const previousXp = existing?.xp ?? 0;
-  const previousLevel = existing?.level ?? calculateLevel(previousXp);
-  const xp = previousXp + gained;
-  const newLevel = calculateLevel(xp);
-
-  if (existing) {
-    await getDb()
-      .update(userXp)
-      .set({ xp, level: newLevel })
-      .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)))
-      ;
-  } else {
-    await getDb()
+  return await getDb().transaction(async (tx) => {
+    await tx
       .insert(userXp)
-      .values({ guildId, userId, xp, level: newLevel })
-      ;
-  }
+      .values({ guildId, userId, xp: 0, level: 0 })
+      .onConflictDoNothing({ target: [userXp.guildId, userXp.userId] });
 
-  return {
-    xp,
-    previousLevel,
-    newLevel,
-    previousXp,
-    gained,
-    leveledUp: newLevel > previousLevel,
-  };
+    const existing = await one(
+      tx
+        .select()
+        .from(userXp)
+        .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)))
+        .limit(1)
+        .for("update"),
+    );
+    if (!existing) {
+      throw new LevelsError(
+        "No se pudo crear el progreso de XP.",
+        500,
+        "XP_UPSERT_FAILED",
+      );
+    }
+
+    const previousXp = existing.xp;
+    const previousLevel = existing.level;
+    const xp = clampLevelsXp(previousXp + gained);
+    const newLevel = calculateLevel(xp);
+
+    if (xp !== previousXp || newLevel !== previousLevel) {
+      await tx
+        .update(userXp)
+        .set({ xp, level: newLevel })
+        .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)));
+    }
+
+    return {
+      xp,
+      previousLevel,
+      newLevel,
+      previousXp,
+      gained: xp - previousXp,
+      leveledUp: newLevel > previousLevel,
+    };
+  });
 }
 
-/** Resta XP (mínimo 0) y recalcula nivel. */
+/** Resta XP (mínimo 0) de forma atómica y recalcula nivel. */
 export async function deductUserXp(
   guildId: string,
   userId: string,
   amount: number,
 ): Promise<AddXpResult> {
   const lost = Math.max(0, Math.floor(amount));
-  const existing = await one(getDb()
-    .select()
-    .from(userXp)
-    .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)))
-    .limit(1));
-
-  const previousXp = existing?.xp ?? 0;
-  const previousLevel = existing?.level ?? calculateLevel(previousXp);
-  const xp = Math.max(0, previousXp - lost);
-  const newLevel = calculateLevel(xp);
-
-  if (existing) {
-    await getDb()
-      .update(userXp)
-      .set({ xp, level: newLevel })
-      .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)))
-      ;
-  } else {
-    await getDb()
+  return await getDb().transaction(async (tx) => {
+    await tx
       .insert(userXp)
       .values({ guildId, userId, xp: 0, level: 0 })
-      ;
-  }
+      .onConflictDoNothing({ target: [userXp.guildId, userXp.userId] });
 
-  return {
-    xp,
-    previousLevel,
-    newLevel,
-    previousXp,
-    gained: -Math.min(lost, previousXp),
-    leveledUp: false,
-  };
+    const existing = await one(
+      tx
+        .select()
+        .from(userXp)
+        .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)))
+        .limit(1)
+        .for("update"),
+    );
+    if (!existing) {
+      throw new LevelsError(
+        "No se pudo crear el progreso de XP.",
+        500,
+        "XP_UPSERT_FAILED",
+      );
+    }
+
+    const previousXp = existing.xp;
+    const previousLevel = existing.level;
+    const xp = clampLevelsXp(Math.max(0, previousXp - lost));
+    const newLevel = calculateLevel(xp);
+    await tx
+      .update(userXp)
+      .set({ xp, level: newLevel })
+      .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)));
+    return {
+      xp,
+      previousLevel,
+      newLevel,
+      previousXp,
+      gained: -Math.min(lost, previousXp),
+      leveledUp: false,
+    };
+  });
 }
 
 export interface SetLevelResult {
@@ -639,32 +626,33 @@ export async function setUserLevel(
   userId: string,
   level: number,
 ): Promise<SetLevelResult> {
-  const nextLevel = Math.max(0, Math.floor(level));
+  const nextLevel = clampLevelsLevel(level);
   const xp = calculateBaseXPForLevel(nextLevel);
 
-  const existing = await one(getDb()
-    .select()
-    .from(userXp)
-    .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)))
-    .limit(1));
-
-  const previousXp = existing?.xp ?? 0;
-  const previousLevel = existing?.level ?? calculateLevel(previousXp);
-
-  if (existing) {
-    await getDb()
-      .update(userXp)
-      .set({ xp, level: nextLevel })
-      .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)))
-      ;
-  } else {
-    await getDb()
+  return await getDb().transaction(async (tx) => {
+    await tx
       .insert(userXp)
       .values({ guildId, userId, xp, level: nextLevel })
-      ;
-  }
+      .onConflictDoNothing({ target: [userXp.guildId, userXp.userId] });
 
-  return { xp, level: nextLevel, previousXp, previousLevel };
+    const existing = await one(
+      tx
+        .select()
+        .from(userXp)
+        .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)))
+        .limit(1)
+        .for("update"),
+    );
+    const previousXp = existing?.xp ?? 0;
+    const previousLevel = existing?.level ?? calculateLevel(previousXp);
+
+    await tx
+      .update(userXp)
+      .set({ xp, level: nextLevel })
+      .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)));
+
+    return { xp, level: nextLevel, previousXp, previousLevel };
+  });
 }
 
 /** ¿El usuario tiene XP congelada ahora? */
@@ -825,7 +813,7 @@ export async function getUserRankStats(
 
   const total = await getLeaderboardTotal(guildId);
   const level = row.level;
-  const nextXp = xpForLevel(level + 1);
+  const nextXp = calculateBaseXPForLevel(level + 1);
   const xpRemaining = Math.max(0, nextXp - row.xp);
 
   return {

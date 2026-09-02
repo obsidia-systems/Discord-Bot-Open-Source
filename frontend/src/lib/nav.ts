@@ -198,7 +198,7 @@ export const dashboardNav: NavCategoryConfig[] = [
         blurb: "Roles por reacción, menú o botón.",
       },
       {
-        label: "Rangos y XP",
+        label: "Levels",
         href: "/dashboard/community/levels",
         icon: TrendingUp,
         blurb: "Niveles por texto, voz y gamificación.",

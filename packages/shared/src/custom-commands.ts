@@ -275,8 +275,8 @@ export const CUSTOM_COMMAND_VARIABLE_GROUPS: {
         description: "Fecha de creación de la cuenta",
       },
       { token: "{user.joinedAt}", description: "Fecha de ingreso al servidor" },
-      { token: "{user.level}", description: "Nivel (módulo Rangos)" },
-      { token: "{user.xp}", description: "XP (módulo Rangos)" },
+      { token: "{user.level}", description: "Nivel (módulo Levels)" },
+      { token: "{user.xp}", description: "XP (módulo Levels)" },
     ],
   },
   {

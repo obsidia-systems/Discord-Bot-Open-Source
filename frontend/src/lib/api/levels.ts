@@ -11,7 +11,7 @@ export async function fetchLevelsConfig(): Promise<LevelsConfigResponse> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar Rangos y XP (${response.status})`,
+        `No se pudo cargar Levels (${response.status})`,
       ),
     );
   }
@@ -33,7 +33,7 @@ export async function saveLevelsConfig(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo guardar Rangos y XP (${response.status})`,
+        `No se pudo guardar Levels (${response.status})`,
       ),
     );
   }

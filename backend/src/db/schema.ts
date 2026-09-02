@@ -494,7 +494,7 @@ export const autoDeletePending = pgTable(
 );
 
 /**
- * Configuración de Rangos y XP por guild.
+ * Configuración de Levels por guild.
  */
 export const xpConfig = pgTable("xp_config", {
   guildId: text("guild_id")
@@ -556,15 +556,21 @@ export const xpConfig = pgTable("xp_config", {
     .$defaultFn(() => new Date()),
 });
 
-/** Recompensas de rol por nivel. */
-export const xpRewards = pgTable("xp_rewards", {
-  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-  guildId: text("guild_id")
-    .notNull()
-    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  level: integer("level").notNull(),
-  roleId: text("role_id").notNull(),
-});
+/** Recompensas de rol por nivel. Un rol por (guild, level). */
+export const xpRewards = pgTable(
+  "xp_rewards",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guildSettings.guildId, { onDelete: "cascade" }),
+    level: integer("level").notNull(),
+    roleId: text("role_id").notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_xp_rewards_guild_level").on(table.guildId, table.level),
+  ],
+);
 
 /** Progreso de XP por usuario en un guild. */
 export const userXp = pgTable(

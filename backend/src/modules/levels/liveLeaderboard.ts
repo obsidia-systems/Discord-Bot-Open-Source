@@ -5,6 +5,11 @@ import {
   type TextChannel,
 } from "discord.js";
 import {
+  applyLevelsTokens,
+  embedColorToInt,
+} from "@adobos/shared";
+import {
+  getLeaderboardTotal,
   getLevelsConfigCached,
   getTopUserXpRows,
   setLiveLeaderboardMessageId,
@@ -57,21 +62,31 @@ export async function buildLiveLeaderboardEmbed(
     );
   }
 
-  const description =
+  const config = await getLevelsConfigCached(guildId);
+  const total = await getLeaderboardTotal(guildId);
+  const intro = applyLevelsTokens(config.leaderboardEmbedDescription, {
+    "{total}": String(total),
+  }).trim();
+  const ranking =
     lines.length > 0
       ? lines.join("\n")
       : "_Todavía no hay usuarios con XP._";
+  const description = [intro, ranking].filter(Boolean).join("\n\n").slice(0, 4096);
 
   const embed = new EmbedBuilder()
-    .setColor(0xca7aff)
-    .setTitle("🏆 Tabla de Clasificación")
-    .setDescription(description.slice(0, 4096))
-    .setFooter({ text: "Actualización automática · Rangos y XP" })
+    .setColor(embedColorToInt(config.leaderboardEmbedColor, 0xca7aff))
+    .setTitle(
+      (config.leaderboardEmbedTitle || "Tabla de Clasificación").slice(0, 256),
+    )
+    .setDescription(description)
+    .setFooter({ text: "Actualización automática · Levels" })
     .setTimestamp(new Date());
 
-  const guild = client.guilds.cache.get(guildId);
-  const icon = guild?.iconURL({ size: 256 });
-  if (icon) embed.setThumbnail(icon);
+  if (config.leaderboardShowThumbnail) {
+    const guild = client.guilds.cache.get(guildId);
+    const icon = guild?.iconURL({ size: 256 });
+    if (icon) embed.setThumbnail(icon);
+  }
 
   return embed;
 }

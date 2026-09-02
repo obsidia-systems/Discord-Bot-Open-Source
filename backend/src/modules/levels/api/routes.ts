@@ -89,17 +89,15 @@ export function levelsRoutes(bot: Client): Router {
 
   /** GET /api/levels/leaderboard?limit=100 */
   router.get("/leaderboard", async (req, res, next) => {
-    void (async () => {
-      try {
-        const guildId = guildIdOf(req);
-        const { limit: limitRaw } = parseQuery(leaderboardQuerySchema, req.query);
-        const limit = limitRaw ?? 100;
-        const payload = await resolveLeaderboardEntries(bot, guildId, limit);
-        res.json(payload);
-      } catch (error) {
-        next(error);
-      }
-    })();
+    try {
+      const guildId = guildIdOf(req);
+      const { limit: limitRaw } = parseQuery(leaderboardQuerySchema, req.query);
+      const limit = limitRaw ?? 100;
+      const payload = await resolveLeaderboardEntries(bot, guildId, limit);
+      res.json(payload);
+    } catch (error) {
+      next(error);
+    }
   });
 
   return router;

@@ -104,7 +104,7 @@ export const SYSTEM_COMMAND_CATEGORY_LABELS: Record<
   string
 > = {
   moderation: "Moderación",
-  levels: "Rangos y XP",
+  levels: "Levels",
   economy: "Economía",
   utilities: "Utilidades",
   forms: "Formularios",
@@ -317,7 +317,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     requiresAdminByDefault: true,
   },
 
-  // ── Rangos y XP ─────────────────────────────────────────────
+  // ── Levels ──────────────────────────────────────────────────
   {
     name: "rank",
     description: "Muestra el nivel, XP y ranking del usuario.",

@@ -1,4 +1,4 @@
-/** Contratos Rangos y XP — texto, voz, recompensas y clasificación. */
+/** Contratos Levels — texto, voz, recompensas y clasificación. */
 
 export interface LevelsReward {
   /** Id persistido; ausente en filas nuevas del dashboard. */
@@ -21,7 +21,11 @@ export interface LevelsChannelMultiplier {
   multiplier: number;
 }
 
-export type LevelsLevelUpFormat = "TEXT" | "EMBED" | "IMAGE";
+/** El anuncio de nivel es siempre un embed. TEXT/IMAGE quedaron fuera. */
+export type LevelsLevelUpFormat = "EMBED";
+
+/** Techo de nivel (la curva cabe en integer 32-bit). */
+export const LEVELS_MAX_LEVEL = 1000;
 
 export interface LevelsConfig {
   guildId: string;
@@ -54,7 +58,7 @@ export interface LevelsConfig {
   /** Formato del anuncio de nivel. */
   levelUpFormat: LevelsLevelUpFormat;
   /**
-   * Plantilla del mensaje / descripción. Placeholders: {user} {level} {server} {username} {xp}.
+   * Plantilla de la descripción. Tokens: {user} {username} {level} {server} {xp}.
    */
   levelUpMessage: string;
   /** Título del embed (formatos EMBED / IMAGE). */
@@ -213,7 +217,10 @@ export function calculateLevel(totalXP: number): number {
   let hi = 32;
   while (calculateBaseXPForLevel(hi) <= xp) {
     hi *= 2;
-    if (hi > 1_000_000) break;
+    if (hi > LEVELS_MAX_LEVEL) {
+      hi = LEVELS_MAX_LEVEL;
+      break;
+    }
   }
   while (lo < hi) {
     const mid = Math.floor((lo + hi + 1) / 2);
@@ -235,6 +242,94 @@ export function xpForLevel(level: number): number {
 
 export function normalizeLevelUpFormat(_value?: unknown): LevelsLevelUpFormat {
   return "EMBED";
+}
+
+export function clampLevelsLevel(level: number): number {
+  const n = Math.floor(Number(level) || 0);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.min(n, LEVELS_MAX_LEVEL);
+}
+
+export function clampLevelsXp(totalXp: number): number {
+  const xp = Math.floor(Number(totalXp) || 0);
+  if (!Number.isFinite(xp) || xp < 0) return 0;
+  return Math.min(xp, calculateBaseXPForLevel(LEVELS_MAX_LEVEL));
+}
+
+/**
+ * Multiplicador total de XP (aditivo sobre la base):
+ * base + Σ(rol − 1) + (canal − 1) + (stream − 1 si streaming).
+ * Ej. base 1, rol 1.5, canal 2.0 → 2.5x.
+ */
+export function resolveXpMultiplier(
+  config: Pick<
+    LevelsConfig,
+    | "xpMultiplier"
+    | "customMultipliers"
+    | "customChannelMultipliers"
+    | "streamMultiplier"
+  >,
+  roleIds: Iterable<string>,
+  options?: { channelId?: string | null; streaming?: boolean },
+): number {
+  const base = Math.max(1, Math.round(Number(config.xpMultiplier) || 1));
+  let total = base;
+
+  const owned = new Set(roleIds);
+  for (const entry of config.customMultipliers) {
+    if (!owned.has(entry.roleId)) continue;
+    total += entry.multiplier - 1;
+  }
+
+  const channelId = options?.channelId ?? null;
+  if (channelId) {
+    const channelEntry = config.customChannelMultipliers.find(
+      (e) => e.channelId === channelId,
+    );
+    if (channelEntry) total += channelEntry.multiplier - 1;
+  }
+
+  if (options?.streaming) {
+    const stream = Math.max(0.1, Number(config.streamMultiplier) || 1);
+    total += stream - 1;
+  }
+
+  return Math.max(0, Math.round(total * 1000) / 1000);
+}
+
+/** Tokens más largos primero para no partir `{user}` dentro de `{username}`. */
+export function applyLevelsTokens(
+  input: string,
+  replacements: Record<string, string>,
+): string {
+  if (!input) return input;
+  const keys = Object.keys(replacements).sort((a, b) => b.length - a.length);
+  let out = input;
+  for (const key of keys) {
+    if (!out.includes(key)) continue;
+    out = out.split(key).join(replacements[key] ?? "");
+  }
+  return out;
+}
+
+export function levelsTemplatePingsUser(raw: string): boolean {
+  return raw.includes("{user}");
+}
+
+export function buildLevelsTokenMap(input: {
+  userId: string;
+  username: string;
+  level: number;
+  serverName: string;
+  xp: number;
+}): Record<string, string> {
+  return {
+    "{username}": input.username,
+    "{user}": `<@${input.userId}>`,
+    "{level}": String(input.level),
+    "{server}": input.serverName,
+    "{xp}": String(input.xp),
+  };
 }
 
 /** Normaliza color hex a `#RRGGBB` o fallback. */

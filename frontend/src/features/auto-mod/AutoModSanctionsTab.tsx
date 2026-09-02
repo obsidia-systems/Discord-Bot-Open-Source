@@ -98,7 +98,7 @@ export function AutoModSanctionsTab({
           <CardTitle className="text-base">Escalado de sanciones</CardTitle>
           <CardDescription>
             Al alcanzar exactamente N warns activos se ejecuta la acción.
-            Integra castigos de Discord y de Rangos y XP.
+            Integra castigos de Discord y de Levels.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

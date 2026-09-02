@@ -1,5 +1,8 @@
-import type { ChatInputCommandInteraction } from "discord.js";
-import { EmbedBuilder } from "discord.js";
+import {
+  EmbedBuilder,
+  MessageFlags,
+  type ChatInputCommandInteraction,
+} from "discord.js";
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
 import {
   addUserXp,
@@ -7,6 +10,34 @@ import {
   getLevelsConfigCached,
   setUserLevel,
 } from "../service.js";
+import { syncLevelsProgress } from "../events.js";
+
+const EPHEMERAL = { flags: MessageFlags.Ephemeral } as const;
+
+function replyFlags(ephemeral: boolean) {
+  return ephemeral ? EPHEMERAL : {};
+}
+
+async function requireLevelsGuild(
+  interaction: ChatInputCommandInteraction,
+): Promise<string | null> {
+  if (!interaction.guildId || !interaction.guild) {
+    await interaction.reply({
+      content: "Este comando solo funciona en un servidor.",
+      ...EPHEMERAL,
+    });
+    return null;
+  }
+  const config = await getLevelsConfigCached(interaction.guildId);
+  if (!config.enabled) {
+    await interaction.reply({
+      content: "El módulo Levels está desactivado en este servidor.",
+      ...EPHEMERAL,
+    });
+    return null;
+  }
+  return interaction.guildId;
+}
 
 /**
  * /givexp usuario cantidad — suma XP y recalcula nivel.
@@ -14,35 +45,29 @@ import {
 export async function handleGiveXpCommand(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
-  if (!interaction.guildId || !interaction.guild) {
-    await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
-      ephemeral: true,
-    });
-    return;
-  }
-
-  const config = await getLevelsConfigCached(interaction.guildId);
-  if (!config.enabled) {
-    await interaction.reply({
-      content: "El módulo de Rangos y XP está desactivado en este servidor.",
-      ephemeral: true,
-    });
-    return;
-  }
+  const guildId = await requireLevelsGuild(interaction);
+  if (!guildId) return;
 
   const target = interaction.options.getUser("usuario", true);
   const amount = interaction.options.getInteger("cantidad", true);
   if (amount < 1) {
     await interaction.reply({
       content: "La cantidad debe ser mayor que 0.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }
 
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
-  const result = await addUserXp(interaction.guildId, target.id, amount);
+  const result = await addUserXp(guildId, target.id, amount);
+  await syncLevelsProgress({
+    client: interaction.client,
+    guildId,
+    userId: target.id,
+    previousLevel: result.previousLevel,
+    newLevel: result.newLevel,
+    xp: result.xp,
+  });
 
   const embed = new EmbedBuilder()
     .setColor(0x57f287)
@@ -70,7 +95,7 @@ export async function handleGiveXpCommand(
     });
   }
 
-  await interaction.reply({ embeds: [embed], ephemeral });
+  await interaction.reply({ embeds: [embed], ...replyFlags(ephemeral) });
 }
 
 /**
@@ -79,35 +104,29 @@ export async function handleGiveXpCommand(
 export async function handleRemoveXpCommand(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
-  if (!interaction.guildId || !interaction.guild) {
-    await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
-      ephemeral: true,
-    });
-    return;
-  }
-
-  const config = await getLevelsConfigCached(interaction.guildId);
-  if (!config.enabled) {
-    await interaction.reply({
-      content: "El módulo de Rangos y XP está desactivado en este servidor.",
-      ephemeral: true,
-    });
-    return;
-  }
+  const guildId = await requireLevelsGuild(interaction);
+  if (!guildId) return;
 
   const target = interaction.options.getUser("usuario", true);
   const amount = interaction.options.getInteger("cantidad", true);
   if (amount < 1) {
     await interaction.reply({
       content: "La cantidad debe ser mayor que 0.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }
 
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
-  const result = await deductUserXp(interaction.guildId, target.id, amount);
+  const result = await deductUserXp(guildId, target.id, amount);
+  await syncLevelsProgress({
+    client: interaction.client,
+    guildId,
+    userId: target.id,
+    previousLevel: result.previousLevel,
+    newLevel: result.newLevel,
+    xp: result.xp,
+  });
   const removed = Math.abs(result.gained);
 
   const embed = new EmbedBuilder()
@@ -136,7 +155,7 @@ export async function handleRemoveXpCommand(
     });
   }
 
-  await interaction.reply({ embeds: [embed], ephemeral });
+  await interaction.reply({ embeds: [embed], ...replyFlags(ephemeral) });
 }
 
 /**
@@ -145,35 +164,29 @@ export async function handleRemoveXpCommand(
 export async function handleSetLevelCommand(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
-  if (!interaction.guildId || !interaction.guild) {
-    await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
-      ephemeral: true,
-    });
-    return;
-  }
-
-  const config = await getLevelsConfigCached(interaction.guildId);
-  if (!config.enabled) {
-    await interaction.reply({
-      content: "El módulo de Rangos y XP está desactivado en este servidor.",
-      ephemeral: true,
-    });
-    return;
-  }
+  const guildId = await requireLevelsGuild(interaction);
+  if (!guildId) return;
 
   const target = interaction.options.getUser("usuario", true);
   const level = interaction.options.getInteger("nivel", true);
   if (level < 0) {
     await interaction.reply({
       content: "El nivel debe ser ≥ 0.",
-      ephemeral: true,
+      ...EPHEMERAL,
     });
     return;
   }
 
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
-  const result = await setUserLevel(interaction.guildId, target.id, level);
+  const result = await setUserLevel(guildId, target.id, level);
+  await syncLevelsProgress({
+    client: interaction.client,
+    guildId,
+    userId: target.id,
+    previousLevel: result.previousLevel,
+    newLevel: result.level,
+    xp: result.xp,
+  });
 
   const embed = new EmbedBuilder()
     .setColor(0x3b82f6)
@@ -195,5 +208,5 @@ export async function handleSetLevelCommand(
     )
     .setTimestamp(new Date());
 
-  await interaction.reply({ embeds: [embed], ephemeral });
+  await interaction.reply({ embeds: [embed], ...replyFlags(ephemeral) });
 }

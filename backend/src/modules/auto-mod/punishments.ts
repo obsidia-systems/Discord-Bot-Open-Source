@@ -5,6 +5,7 @@ import {
   freezeUserXp,
   getLevelsConfigCached,
 } from "../levels/service.js";
+import { syncLevelsProgress } from "../levels/events.js";
 import {
   executeModAction,
   ModerationError,
@@ -88,7 +89,7 @@ async function executePunishment(
     case "REMOVE_XP": {
       const levels = await getLevelsConfigCached(guildId);
       if (!levels.enabled) {
-        logger.warn("auto-mod REMOVE_XP ignorado: Rangos y XP desactivado.");
+        logger.warn("auto-mod REMOVE_XP ignorado: Levels desactivado.");
         return;
       }
       const amount = Math.max(
@@ -96,7 +97,15 @@ async function executePunishment(
         Math.round(Number(punishment.actionParam) || 0),
       );
       try {
-        await deductUserXp(guildId, member.id, amount);
+        const result = await deductUserXp(guildId, member.id, amount);
+        await syncLevelsProgress({
+          client,
+          guildId,
+          userId: member.id,
+          previousLevel: result.previousLevel,
+          newLevel: result.newLevel,
+          xp: result.xp,
+        });
       } catch (error) {
         logger.warn({ err: error }, "auto-mod REMOVE_XP falló:");
       }
@@ -105,7 +114,7 @@ async function executePunishment(
     case "XP_FREEZE": {
       const levels = await getLevelsConfigCached(guildId);
       if (!levels.enabled) {
-        logger.warn("auto-mod XP_FREEZE ignorado: Rangos y XP desactivado.");
+        logger.warn("auto-mod XP_FREEZE ignorado: Levels desactivado.");
         return;
       }
       const ms = Math.max(0, Number(punishment.actionParam) || 0);

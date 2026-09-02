@@ -257,7 +257,7 @@ async function fulfillBoost(
     const levels = await getLevelsConfig(guild.id);
     if (!levels.enabled) {
       throw new EconomyError(
-        "El módulo de Rangos y XP está desactivado. No se puede aplicar este boost.",
+        "El módulo Levels está desactivado. No se puede aplicar este boost.",
         400,
         "XP_INACTIVE",
       );
@@ -383,7 +383,7 @@ async function preflightRewards(guildId: string, rewards: EconomyShopRewards): P
     const levels = await getLevelsConfig(guildId);
     if (!levels.enabled) {
       throw new EconomyError(
-        "El módulo de Rangos y XP está desactivado. No se puede comprar este ítem.",
+        "El módulo Levels está desactivado. No se puede comprar este ítem.",
         400,
         "XP_INACTIVE",
       );

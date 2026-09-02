@@ -74,7 +74,7 @@ export const DEFAULT_COMMAND_HANDLERS: Record<string, DefaultCommandHandler> = {
   lock: handleLockCommand,
   unlock: handleUnlockCommand,
 
-  // Rangos y XP
+  // Levels
   rank: handleRankCommand,
   leaderboard: handleLeaderboardCommand,
   givexp: handleGiveXpCommand,

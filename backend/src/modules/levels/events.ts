@@ -8,6 +8,12 @@ import {
   type VoiceState,
 } from "discord.js";
 import {
+  applyLevelsTokens,
+  buildLevelsTokenMap,
+  embedColorToInt,
+  levelsTemplatePingsUser,
+} from "@adobos/shared";
+import {
   addUserXp,
   getLevelsConfigCached,
   isUserXpFrozen,
@@ -20,9 +26,6 @@ import {
 import { scheduleLiveLeaderboardRefresh } from "./liveLeaderboard.js";
 import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
 import { logger } from "../../core/log.js";
-
-/** Color fijo del anuncio de subida de nivel. */
-const LEVEL_UP_EMBED_COLOR = 0x34e21d;
 
 type GuildMessage = OmitPartialGroupDMChannel<Message<true>>;
 
@@ -95,7 +98,7 @@ async function applyLevelRewards(
   for (const reward of rewards) {
     if (member.roles.cache.has(reward.roleId)) continue;
     await member.roles
-      .add(reward.roleId, `Rangos y XP — nivel ${reward.level}`)
+      .add(reward.roleId, `Levels — nivel ${reward.level}`)
       .catch(() => {});
   }
 }
@@ -120,6 +123,7 @@ async function announceLevelUp(input: {
   guildId: string;
   member: GuildMember;
   newLevel: number;
+  xp: number;
 }): Promise<void> {
   const config = await getLevelsConfigCached(input.guildId);
   if (!config.levelUpChannelId) return;
@@ -129,28 +133,84 @@ async function announceLevelUp(input: {
     .catch(() => null);
   if (!dedicated?.isTextBased() || !("send" in dedicated)) return;
 
-  const avatarUrl = input.member.user.displayAvatarURL({ size: 256 });
+  const tokens = buildLevelsTokenMap({
+    userId: input.member.id,
+    username: input.member.user.username,
+    level: input.newLevel,
+    serverName: input.member.guild.name,
+    xp: input.xp,
+  });
+  const title = applyLevelsTokens(config.levelUpEmbedTitle, tokens).slice(
+    0,
+    256,
+  );
+  const description = applyLevelsTokens(config.levelUpMessage, tokens).slice(
+    0,
+    4096,
+  );
+  const pingBlob = `${config.levelUpEmbedTitle}\n${config.levelUpMessage}`;
+
   const embed = new EmbedBuilder()
-    .setColor(LEVEL_UP_EMBED_COLOR)
-    .setTitle("¡Subida de Nivel!")
-    .setThumbnail(avatarUrl)
-    .setDescription(
-      `¡Felicidades <@${input.member.id}>! Has alcanzado el **Nivel ${input.newLevel}**.`,
-    )
+    .setColor(embedColorToInt(config.levelUpEmbedColor, 0x34e21d))
+    .setTitle(title || "¡Subida de Nivel!")
+    .setDescription(description)
     .addFields({
       name: "Recompensas",
       value: await buildLevelUpRewardsField(input.guildId, input.newLevel),
     })
     .setTimestamp(new Date());
+  if (config.levelUpShowThumbnail) {
+    embed.setThumbnail(input.member.user.displayAvatarURL({ size: 256 }));
+  }
 
   await dedicated
     .send({
       embeds: [embed],
-      allowedMentions: { users: [input.member.id], roles: [] },
+      allowedMentions: {
+        parse: [],
+        users: levelsTemplatePingsUser(pingBlob) ? [input.member.id] : [],
+        roles: [],
+      },
     })
     .catch((error) => {
       logger.warn({ err: error }, "levels: no se pudo anunciar level-up:");
     });
+}
+
+/**
+ * Tras un cambio de XP: refresca el live LB; si subió de nivel, roles + anuncio.
+ */
+export async function syncLevelsProgress(input: {
+  client: Client;
+  guildId: string;
+  userId: string;
+  previousLevel: number;
+  newLevel: number;
+  xp: number;
+}): Promise<void> {
+  await scheduleLiveLeaderboardRefresh(input.client, input.guildId);
+  if (input.newLevel <= input.previousLevel) return;
+
+  const guild =
+    input.client.guilds.cache.get(input.guildId) ??
+    (await input.client.guilds.fetch(input.guildId).catch(() => null));
+  if (!guild) return;
+  const member = await guild.members.fetch(input.userId).catch(() => null);
+  if (!member) return;
+
+  await applyLevelRewards(
+    member,
+    input.guildId,
+    input.previousLevel,
+    input.newLevel,
+  );
+  await announceLevelUp({
+    client: input.client,
+    guildId: input.guildId,
+    member,
+    newLevel: input.newLevel,
+    xp: input.xp,
+  });
 }
 
 async function grantXpAndHandleLevelUp(input: {
@@ -162,22 +222,13 @@ async function grantXpAndHandleLevelUp(input: {
   if (input.amount <= 0) return;
   if (await isUserXpFrozen(input.guildId, input.member.id)) return;
   const result = await addUserXp(input.guildId, input.member.id, input.amount);
-
-  await scheduleLiveLeaderboardRefresh(input.client, input.guildId);
-
-  if (!result.leveledUp) return;
-
-  await applyLevelRewards(
-    input.member,
-    input.guildId,
-    result.previousLevel,
-    result.newLevel,
-  );
-  await announceLevelUp({
+  await syncLevelsProgress({
     client: input.client,
     guildId: input.guildId,
-    member: input.member,
+    userId: input.member.id,
+    previousLevel: result.previousLevel,
     newLevel: result.newLevel,
+    xp: result.xp,
   });
 }
 

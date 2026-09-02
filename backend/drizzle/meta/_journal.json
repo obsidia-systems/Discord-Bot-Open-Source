@@ -64,6 +64,13 @@
       "when": 1788210000000,
       "tag": "0008_custom_commands_active",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788216000000,
+      "tag": "0009_levels_rewards_unique",
+      "breakpoints": true
     }
   ]
 }

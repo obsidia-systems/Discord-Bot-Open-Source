@@ -1,15 +1,18 @@
-import type { LevelsConfig, LevelsReward } from "@adobos/shared";
-
-/** Colores fijos de los embeds (preview y bot). */
-const LEVEL_UP_EMBED_COLOR = "#34E21D";
-const LEADERBOARD_EMBED_COLOR = "#CA7AFF";
+import {
+  applyLevelsTokens,
+  buildLevelsTokenMap,
+  type LevelsConfig,
+  type LevelsReward,
+} from "@adobos/shared";
 
 const MOCK = {
-  user: "@UsuarioDePrueba",
+  userId: "1",
+  username: "UsuarioDePrueba",
   level: 5,
+  xp: 2500,
+  serverName: "Servidor",
   avatar: "https://cdn.discordapp.com/embed/avatars/0.png",
   nextLevel: 10,
-  /** Fallback si el servidor no tiene icono. */
   guildIcon: "https://cdn.discordapp.com/embed/avatars/1.png",
 };
 
@@ -45,11 +48,11 @@ function DiscordEmbedMock({
   footer?: string;
 }) {
   return (
-    <div className="overflow-hidden rounded-md bg-[#2b2d31] text-[13px] text-[#dbdee1] shadow-sm">
+    <div className="overflow-hidden rounded-md bg-[#2b2d31] text-[13px] text-[#dbdee1]">
       <div className="flex">
         <div
           className="w-1 shrink-0 self-stretch"
-          style={{ backgroundColor: color }}
+          style={{ backgroundColor: color || "#5865F2" }}
         />
         <div className="min-w-0 flex-1 space-y-2 p-3">
           <div className="flex gap-3">
@@ -89,18 +92,28 @@ function DiscordEmbedMock({
 function previewRewardsField(rewards: LevelsReward[]): string {
   const current = rewards.find((r) => r.level === MOCK.level);
   if (current) {
-    return `🎉 Desbloqueaste el rol: @RolNivel${current.level}`;
+    return `Desbloqueaste el rol: @RolNivel${current.level}`;
   }
   const next = rewards
     .filter((r) => r.level > MOCK.level)
     .sort((a, b) => a.level - b.level)[0];
   if (next) {
-    return `🔒 Próxima recompensa: @RolNivel${next.level} al Nivel **${next.level}**.`;
+    return `Próxima recompensa: @RolNivel${next.level} al Nivel **${next.level}**.`;
   }
   if (rewards.length === 0) {
-    return `🔒 Próxima recompensa: @RolEjemplo al Nivel **${MOCK.nextLevel}**.`;
+    return `Próxima recompensa: @RolEjemplo al Nivel **${MOCK.nextLevel}**.`;
   }
-  return "🌟 ¡Has alcanzado el máximo nivel de recompensas!";
+  return "Has alcanzado el máximo nivel de recompensas.";
+}
+
+function mockTokens() {
+  return buildLevelsTokenMap({
+    userId: MOCK.userId,
+    username: MOCK.username,
+    level: MOCK.level,
+    serverName: MOCK.serverName,
+    xp: MOCK.xp,
+  });
 }
 
 export function LevelUpDiscordPreview({
@@ -108,12 +121,16 @@ export function LevelUpDiscordPreview({
 }: {
   config: LevelsConfig;
 }) {
+  const tokens = mockTokens();
+  const mention = `@${MOCK.username}`;
+  const filled = (raw: string) =>
+    applyLevelsTokens(raw, { ...tokens, "{user}": mention });
   return (
     <DiscordEmbedMock
-      color={LEVEL_UP_EMBED_COLOR}
-      title="¡Subida de Nivel!"
-      description={`¡Felicidades ${MOCK.user}! Has alcanzado el **Nivel ${MOCK.level}**.`}
-      thumbnailUrl={MOCK.avatar}
+      color={config.levelUpEmbedColor || "#34E21D"}
+      title={filled(config.levelUpEmbedTitle) || "¡Subida de Nivel!"}
+      description={filled(config.levelUpMessage)}
+      thumbnailUrl={config.levelUpShowThumbnail ? MOCK.avatar : null}
       fields={[
         {
           name: "Recompensas",
@@ -125,24 +142,34 @@ export function LevelUpDiscordPreview({
 }
 
 export function LeaderboardDiscordPreview({
+  config,
   guildIconUrl,
 }: {
   config?: LevelsConfig;
   guildIconUrl?: string | null;
 }) {
   const ranking = [
-    "🥇 | @UsuarioDePrueba | UsuarioDePrueba | Nivel **5** | `2,500 XP`",
-    "🥈 | @OtroUsuario | OtroUsuario | Nivel **4** | `1,800 XP`",
-    "🥉 | @Tercero | Tercero | Nivel **3** | `1,200 XP`",
+    "1 | @UsuarioDePrueba | UsuarioDePrueba | Nivel **5** | `2,500 XP`",
+    "2 | @OtroUsuario | OtroUsuario | Nivel **4** | `1,800 XP`",
+    "3 | @Tercero | Tercero | Nivel **3** | `1,200 XP`",
   ].join("\n");
+  const intro = applyLevelsTokens(
+    config?.leaderboardEmbedDescription ?? "",
+    { "{total}": "3" },
+  ).trim();
+  const description = [intro, ranking].filter(Boolean).join("\n\n");
 
   return (
     <DiscordEmbedMock
-      color={LEADERBOARD_EMBED_COLOR}
-      title="🏆 Tabla de Clasificación"
-      description={ranking}
-      thumbnailUrl={guildIconUrl || MOCK.guildIcon}
-      footer="Actualización automática · Rangos y XP"
+      color={config?.leaderboardEmbedColor || "#CA7AFF"}
+      title={config?.leaderboardEmbedTitle || "Tabla de Clasificación"}
+      description={description}
+      thumbnailUrl={
+        config?.leaderboardShowThumbnail
+          ? guildIconUrl || MOCK.guildIcon
+          : null
+      }
+      footer="Actualización automática · Levels"
     />
   );
 }
