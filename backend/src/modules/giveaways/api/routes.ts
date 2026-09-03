@@ -1,8 +1,8 @@
 import type { Client } from "discord.js";
 import { Router } from "express";
 import { guildIdOf } from "../../../core/http/guildContext.js";
-import { recordId } from "../../../core/http/schemas.js";
-import { parse } from "../../../core/http/validate.js";
+import { idParams } from "../../../core/http/schemas.js";
+import { defineRoute } from "../../../core/http/validate.js";
 import {
   cancelGiveawayNow,
   createAndPublishGiveaway,
@@ -33,112 +33,103 @@ function actorIdOf(req: Parameters<typeof guildIdOf>[0]): string {
 export function giveawaysRoutes(bot: Client): Router {
   const router = Router();
 
-  router.get("/settings", async (req, res, next) => {
-    try {
+  router.get(
+    "/settings",
+    defineRoute({}, async (req, res) => {
       res.json({ settings: await getGiveawaySettings(guildIdOf(req)) });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.put("/settings", async (req, res, next) => {
-    try {
-      const settings = await updateGiveawaySettings(
-        parse(updateGiveawaySettingsSchema, req.body ?? {}),
-        guildIdOf(req),
-      );
-      res.json({ settings });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+  router.put(
+    "/settings",
+    defineRoute(
+      { body: updateGiveawaySettingsSchema },
+      async (req, res, valid) => {
+        const settings = await updateGiveawaySettings(
+          valid.body,
+          guildIdOf(req),
+        );
+        res.json({ settings });
+      },
+    ),
+  );
 
-  router.get("/", async (req, res, next) => {
-    try {
+  router.get(
+    "/",
+    defineRoute({}, async (req, res) => {
       res.json({ giveaways: await listGiveaways(guildIdOf(req)) });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.post("/", async (req, res, next) => {
-    try {
+  router.post(
+    "/",
+    defineRoute({ body: createGiveawaySchema }, async (req, res, valid) => {
       const giveaway = await createAndPublishGiveaway({
         bot,
         guildId: guildIdOf(req),
         createdBy: actorIdOf(req),
-        body: parse(createGiveawaySchema, req.body ?? {}),
+        body: valid.body,
       });
       res.status(201).json({ giveaway });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.get("/:id", async (req, res, next) => {
-    try {
+  router.get(
+    "/:id",
+    defineRoute({ params: idParams }, async (req, res, valid) => {
       res.json({
-        giveaway: await getGiveawayDetail(
-          parse(recordId, req.params.id),
-          guildIdOf(req),
-        ),
+        giveaway: await getGiveawayDetail(valid.params.id, guildIdOf(req)),
       });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.post("/:id/end", async (req, res, next) => {
-    try {
+  router.post(
+    "/:id/end",
+    defineRoute({ params: idParams }, async (req, res, valid) => {
       const giveaway = await endGiveawayNow({
         bot,
-        giveawayId: parse(recordId, req.params.id),
+        giveawayId: valid.params.id,
         guildId: guildIdOf(req),
       });
       res.json({ giveaway });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.post("/:id/cancel", async (req, res, next) => {
-    try {
+  router.post(
+    "/:id/cancel",
+    defineRoute({ params: idParams }, async (req, res, valid) => {
       const giveaway = await cancelGiveawayNow({
         bot,
-        giveawayId: parse(recordId, req.params.id),
+        giveawayId: valid.params.id,
         guildId: guildIdOf(req),
       });
       res.json({ giveaway });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.post("/:id/reroll", async (req, res, next) => {
-    try {
+  router.post(
+    "/:id/reroll",
+    defineRoute({ params: idParams }, async (req, res, valid) => {
       const giveaway = await rerollGiveawayNow({
         bot,
-        giveawayId: parse(recordId, req.params.id),
+        giveawayId: valid.params.id,
         guildId: guildIdOf(req),
       });
       res.json({ giveaway });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.post("/:id/publish", async (req, res, next) => {
-    try {
+  router.post(
+    "/:id/publish",
+    defineRoute({ params: idParams }, async (req, res, valid) => {
       const giveaway = await republishGiveaway(
         bot,
-        parse(recordId, req.params.id),
+        valid.params.id,
         guildIdOf(req),
       );
       res.json({ giveaway });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   return router;
 }

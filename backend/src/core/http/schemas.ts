@@ -9,6 +9,9 @@ export const snowflakeList = z.array(snowflake);
 export const recordId = z.coerce.number().int().positive();
 export const stringId = z.string().min(1);
 
+/** `req.params` de rutas `/:id` con id numérico de fila. */
+export const idParams = z.object({ id: recordId });
+
 /** preprocess de zod infiere output `unknown`; este wrapper conserva T. */
 export function pre<T>(
   fn: (value: unknown) => unknown,

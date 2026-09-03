@@ -1,3 +1,4 @@
+import type { NextFunction, Request, RequestHandler, Response } from "express";
 import type { ZodError, ZodType } from "zod";
 
 export class ValidationError extends Error {
@@ -54,4 +55,63 @@ export function sendIfValidationError(
     issues: error.issues,
   });
   return true;
+}
+
+interface RouteSchemas {
+  body?: ZodType;
+  query?: ZodType;
+  params?: ZodType;
+}
+
+type Parsed<S extends ZodType | undefined> = S extends ZodType
+  ? ReturnType<S["parse"]>
+  : undefined;
+
+export interface ValidatedInput<S extends RouteSchemas> {
+  body: Parsed<S["body"]>;
+  query: Parsed<S["query"]>;
+  params: Parsed<S["params"]>;
+}
+
+/**
+ * Handler de ruta con validación de entrada obligatoria y `try/catch → next`
+ * incorporado. Los schemas se parsean **antes** de entrar al handler; un fallo
+ * lanza `ValidationError` (→ 400 con `issues` en `errorHandler`). El 4º argumento
+ * `valid` llega tipado desde los schemas — sin casts en el call site.
+ *
+ * ```ts
+ * router.post("/", defineRoute({ body: createSchema }, async (req, res, valid) => {
+ *   res.status(201).json(await createThing(valid.body, guildIdOf(req)));
+ * }));
+ * ```
+ */
+export function defineRoute<S extends RouteSchemas>(
+  schemas: S,
+  handler: (
+    req: Request,
+    res: Response,
+    valid: ValidatedInput<S>,
+    next: NextFunction,
+  ) => unknown | Promise<unknown>,
+): RequestHandler {
+  return (req, res, next) => {
+    let valid: ValidatedInput<S>;
+    try {
+      valid = {
+        body: (schemas.body
+          ? parse(schemas.body, req.body ?? {})
+          : undefined) as ValidatedInput<S>["body"],
+        query: (schemas.query
+          ? parseQuery(schemas.query, req.query as Record<string, unknown>)
+          : undefined) as ValidatedInput<S>["query"],
+        params: (schemas.params
+          ? parse(schemas.params, req.params)
+          : undefined) as ValidatedInput<S>["params"],
+      };
+    } catch (error) {
+      next(error);
+      return;
+    }
+    Promise.resolve(handler(req, res, valid, next)).catch(next);
+  };
 }
