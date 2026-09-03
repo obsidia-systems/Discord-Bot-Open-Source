@@ -31,8 +31,17 @@ export interface ModuleRegistry {
   selectHandlers: ReadonlyMap<string, SelectHandler>;
   modalHandlers: ReadonlyMap<string, ModalHandler>;
   intents: readonly number[];
-  /** Enlaza eventos/comandos/botones de todos los módulos al Client. */
-  bindClient: (client: Client) => void;
+  /**
+   * Ejecuta `register()` de cada módulo: recoge rutas, comandos y handlers de
+   * interacción, y encola (sin atar todavía) los listeners de gateway.
+   * Idempotente: una segunda llamada es no-op y avisa.
+   */
+  collect: (client: Client) => void;
+  /**
+   * Ata al Client los listeners de gateway recogidos en `collect()`.
+   * Requiere `collect()` previo. Idempotente.
+   */
+  attach: () => void;
 }
 
 /**
@@ -67,7 +76,7 @@ function wrapEventHandler(
 
 /**
  * Ejecuta `register` de cada módulo y recoge rutas, comandos, botones e intents.
- * Los eventos se encolan y se aplican en `bindClient`.
+ * `collect(client)` corre `register()`; `attach()` ata los listeners de gateway.
  */
 export function createModuleRegistry(
   modules: readonly AdobosModule[],
@@ -99,7 +108,18 @@ export function createModuleRegistry(
     }
   }
 
-  function bindClient(client: Client): void {
+  let collectClient: Client | null = null;
+  let collected = false;
+  let attached = false;
+
+  function collect(client: Client): void {
+    if (collected) {
+      logger.warn("[adobos] ModuleRegistry.collect() dos veces — ignorado");
+      return;
+    }
+    collected = true;
+    collectClient = client;
+
     let currentModuleId = "?";
     const ctx: ModuleContext = {
       client,
@@ -172,21 +192,23 @@ export function createModuleRegistry(
       },
     };
 
-    pendingEvents.length = 0;
-    routes.length = 0;
-    rawRoutes.length = 0;
-    commands.length = 0;
-    fallbackChat = null;
-    autocompleteHandlers.clear();
-    buttonHandlers.clear();
-    selectHandlers.clear();
-    modalHandlers.clear();
-
     for (const mod of modules) {
       currentModuleId = mod.id;
       mod.register(ctx);
     }
     currentModuleId = "?";
+  }
+
+  function attach(): void {
+    if (attached) {
+      logger.warn("[adobos] ModuleRegistry.attach() dos veces — ignorado");
+      return;
+    }
+    if (!collected || !collectClient) {
+      throw new Error("[adobos] attach() llamado antes de collect()");
+    }
+    attached = true;
+    const client = collectClient;
 
     for (const entry of pendingEvents) {
       const wrapped = wrapEventHandler(
@@ -229,7 +251,8 @@ export function createModuleRegistry(
       return modalHandlers;
     },
     intents: [...intentSet],
-    bindClient,
+    collect,
+    attach,
   };
 }
 
