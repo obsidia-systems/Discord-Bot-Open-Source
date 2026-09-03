@@ -6,7 +6,7 @@ export const guildAssetsModule: AdobosModule = {
   id: "guild-assets",
   name: "Guild Assets",
   register(ctx) {
-    ctx.route("/api/guild-assets", guildAssetsRoutes(ctx.client));
+    ctx.route("/api/guild-assets", guildAssetsRoutes(ctx.botGateway));
   },
 };
 

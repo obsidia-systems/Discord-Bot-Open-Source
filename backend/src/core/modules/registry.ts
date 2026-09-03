@@ -6,6 +6,7 @@ import type {
   ModalSubmitInteraction,
   StringSelectMenuInteraction,
 } from "discord.js";
+import { LocalClientGateway } from "../discord/localClientGateway.js";
 import { logger } from "../log.js";
 import type {
   AdobosModule,
@@ -123,6 +124,7 @@ export function createModuleRegistry(
     let currentModuleId = "?";
     const ctx: ModuleContext = {
       client,
+      botGateway: new LocalClientGateway(client),
       on(event, handler) {
         pendingEvents.push({
           once: false,

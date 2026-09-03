@@ -10,6 +10,7 @@ import type {
   StringSelectMenuInteraction,
 } from "discord.js";
 import type { RequestHandler, Router } from "express";
+import type { BotGateway } from "../discord/botGateway.js";
 
 /** Definición mínima de un slash command registrado por un módulo. */
 export interface ChatInputCommandDefinition {
@@ -54,6 +55,12 @@ export interface RawRoute {
  */
 export interface ModuleContext {
   client: Client;
+  /**
+   * Puerto HTTP → Discord. Las rutas del panel deben usar esto en vez de
+   * `client` directo, para que el rol `api` pueda servir sin gateway vivo.
+   * En `all` / `gateway` es un `LocalClientGateway` sobre `client`.
+   */
+  botGateway: BotGateway;
   on: <K extends keyof ClientEvents>(
     event: K,
     handler: (...args: ClientEvents[K]) => void,
