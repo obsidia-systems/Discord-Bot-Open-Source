@@ -177,6 +177,20 @@ Compose sigue en `all` (Express + gateway + crons, 1 proceso).
 | Disparador | Qué hacer |
 |---|---|
 | El panel necesita N réplicas HTTP | `ADOBO_ROLE=api` detrás del proxy + **un** `gateway` + **un** `worker`. El worker usa advisory lock Postgres. |
-| 2+ APIs y rate limit / XP / blackjack cruzados | Redis (o KV) como store compartido. Hasta entonces no. |
+| 2+ APIs y rate limit / XP / blackjack cruzados | **Hecho (P2.16/P2.20):** `REDIS_URL` → `RedisStore` (L1+L2+pub/sub) + store compartido de `express-rate-limit`. Sin `REDIS_URL`, todo sigue en memoria. |
+| Cron/schedulers como cuello de botella del líder único | **Hecho (P2.17):** `core/queue/` (BullMQ) + `jobs.ts` productor/consumidor con `FOR UPDATE SKIP LOCKED` (`claimed_until`). El líder solo produce; N `worker` consumen. Sin `REDIS_URL` → inline. |
+| Una query lenta retiene una conexión | **Hecho (P2.21):** `statement_timeout=15s`, `idle_in_transaction_session_timeout=30s`, pool por rol (`api`=8, `gateway`/`worker`=6, `all`=12; `DB_POOL_MAX` sobreescribe). |
 | ~2.500 guilds o CPU del websocket | `ShardingManager` en el proceso gateway. El API no abre el gateway. |
 | gateway + worker a la vez | No: ambos hacen `bot.login`. REST dedicado en el worker es el siguiente paso. |
+
+### P2.19 — Sharding multi-proceso (pendiente, no urgente)
+
+Hoy: sharding **interno** (`Client({ shards: SHARD_COUNT })`) — todos los shards en un proceso. Aguanta hasta ~2.500 guilds; luego los shards compiten por una CPU.
+
+Para ir a multi-proceso (`ShardingManager` o `discord-hybrid-sharding`) hay que romper el acoplamiento **`bot: Client` en las rutas HTTP**: hoy cada `modules/*/http/routes.ts` recibe el `Client` y hace `bot.guilds.fetch()`, `channel.send()`, `member.fetch()`… El rol `api` no tendría gateway, así que necesita hablar con los shards por un **broker** (`@discordjs/brokers` sobre Redis, o la propia cola): el `api` publica intents ("envía mensaje X", "dame el canal Y") y el `gateway`/`worker` los ejecutan.
+
+Trabajo cuando toque: (1) interfaz `BotGateway` con el subconjunto de operaciones que usan las rutas; (2) `RedisBrokerGateway` que la implemente vía Redis; (3) `LocalGateway` (el `Client` directo) para el rol `all`; (4) inyectar la interfaz, no el `Client`, en `createApp` y en los `deliver*`. ~25 ficheros de rutas + los envíos de los schedulers (ya encapsulados en `jobs.ts`).
+
+### P2.18 — Trabajo pesado de interacción → job
+
+Evaluado: **ningún slash command actual** hace trabajo que supere el margen de los 3 s (el render de tarjetas ya vive en `worker_threads`, P1.14; el resto es DB + un mensaje). La infra existe (`defineQueue` + el deadline de auto-defer del router) para cuando aparezca uno: encolar → `deferReply` → `interaction.webhook.editMessage` desde el worker (token válido 15 min).

@@ -4,7 +4,27 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { logger } from "#core/log.js";
+import { runtimeRole } from "#core/runtime/index.js";
 import * as schema from "./schema.js";
+
+/**
+ * Tamaño de pool por rol. Con N réplicas del rol `api` cada una abre su pool
+ * contra el mismo Postgres, así que el `api` es más pequeño por réplica.
+ * `DB_POOL_MAX` lo sobreescribe.
+ */
+function poolMax(): number {
+  const override = Number(process.env.DB_POOL_MAX);
+  if (Number.isInteger(override) && override > 0) return override;
+  switch (runtimeRole()) {
+    case "api":
+      return 8;
+    case "gateway":
+    case "worker":
+      return 6;
+    default:
+      return 12;
+  }
+}
 
 export type AppDatabase = ReturnType<typeof drizzle<typeof schema>>;
 
@@ -41,9 +61,21 @@ export async function initDatabase(): Promise<AppDatabase> {
       });
       await migrationClient.end({ timeout: 5 });
 
-      sql = postgres(url, { max: 10, idle_timeout: 20, max_lifetime: 60 * 30 });
+      const max = poolMax();
+      sql = postgres(url, {
+        max,
+        idle_timeout: 20,
+        max_lifetime: 60 * 30,
+        connection: {
+          // Una query que se descontrola muere sola (ms) en vez de retener
+          // una conexión del pool indefinidamente.
+          statement_timeout: 15_000,
+          idle_in_transaction_session_timeout: 30_000,
+          application_name: `adobos-${runtimeRole()}`,
+        },
+      });
       db = drizzle(sql, { schema });
-      logger.info("Postgres listo");
+      logger.info({ poolMax: max, role: runtimeRole() }, "Postgres listo");
       return db;
     } catch (error: unknown) {
       await migrationClient.end({ timeout: 5 }).catch(() => undefined);
