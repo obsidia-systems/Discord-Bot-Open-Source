@@ -122,10 +122,10 @@ export async function handleCustomChatCommand(
     interaction.user.id,
   );
   const text = command.options.acceptText
-    ? (interaction.options.getString("texto") ?? "")
+    ? (interaction.options.getString("text") ?? "")
     : "";
   const target = command.options.acceptUser
-    ? interaction.options.getUser("usuario")
+    ? interaction.options.getUser("user")
     : null;
 
   const rawBlob = [

@@ -70,7 +70,7 @@ export function createBotClient(registry: ModuleRegistry): Client {
     logger.info(`Bot listo como ${client.user?.tag ?? "desconocido"}`);
   });
   client.on("error", (error) => {
-    logger.error({ err: error }, "Error del cliente Discord:");
+    logger.error({ err: error }, "Discord client error:");
   });
   client.on("shardReconnecting", (id) => {
     logger.warn(`Reconectando shard ${id}…`);

@@ -123,7 +123,7 @@ export const SYSTEM_COMMAND_PARAM_TYPE_LABELS: Record<
   ROLE: "Role",
 };
 
-/** Discord-style syntax: `/ban <usuario> [razon]`. */
+/** Discord-style syntax: `/ban <user> [reason]`. */
 export function formatSystemCommandSyntax(
   def: Pick<SystemCommandDefinition, "name" | "options">,
 ): string {
@@ -158,10 +158,10 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     category: "moderation",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Member to ban."),
-      opt("razon", "STRING", false, "Reason for the ban."),
+      opt("user", "USER", true, "Member to ban."),
+      opt("reason", "STRING", false, "Reason for the ban."),
       opt(
-        "borrar_dias",
+        "delete_days",
         "INTEGER",
         false,
         "Delete messages from the last N days (0–7).",
@@ -181,8 +181,8 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     category: "moderation",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Member to kick."),
-      opt("razon", "STRING", false, "Reason for the kick."),
+      opt("user", "USER", true, "Member to kick."),
+      opt("reason", "STRING", false, "Reason for the kick."),
     ],
     supportsEphemeral: false,
     defaultEphemeral: false,
@@ -195,9 +195,9 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     category: "moderation",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Member to time out."),
-      opt("duracion", "STRING", true, "Duration (e.g. 10m, 1h, 24h)."),
-      opt("razon", "STRING", false, "Reason for the timeout."),
+      opt("user", "USER", true, "Member to time out."),
+      opt("duration", "STRING", true, "Duration (e.g. 10m, 1h, 24h)."),
+      opt("reason", "STRING", false, "Reason for the timeout."),
     ],
     supportsEphemeral: false,
     defaultEphemeral: false,
@@ -209,8 +209,8 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     category: "moderation",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Member to release."),
-      opt("razon", "STRING", false, "Reason."),
+      opt("user", "USER", true, "Member to release."),
+      opt("reason", "STRING", false, "Reason."),
     ],
     supportsEphemeral: false,
     defaultEphemeral: false,
@@ -222,8 +222,8 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     category: "moderation",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Member to warn."),
-      opt("razon", "STRING", true, "Reason for the warning."),
+      opt("user", "USER", true, "Member to warn."),
+      opt("reason", "STRING", true, "Reason for the warning."),
     ],
     supportsEphemeral: false,
     defaultEphemeral: false,
@@ -234,7 +234,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     description: "Shows a user's infraction history.",
     category: "moderation",
     defaultEnabled: true,
-    options: [opt("usuario", "USER", true, "Member to look up.")],
+    options: [opt("user", "USER", true, "Member to look up.")],
     supportsEphemeral: true,
     defaultEphemeral: true,
     requiresAdminByDefault: true,
@@ -244,7 +244,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     description: "Clears a user's warning record.",
     category: "moderation",
     defaultEnabled: true,
-    options: [opt("usuario", "USER", true, "Member to clear.")],
+    options: [opt("user", "USER", true, "Member to clear.")],
     supportsEphemeral: false,
     defaultEphemeral: false,
     requiresAdminByDefault: true,
@@ -256,11 +256,11 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     category: "moderation",
     defaultEnabled: true,
     options: [
-      opt("cantidad", "INTEGER", true, "Number of messages (1–100).", {
+      opt("amount", "INTEGER", true, "Number of messages (1–100).", {
         minValue: 1,
         maxValue: 100,
       }),
-      opt("usuario", "USER", false, "Only messages from this user."),
+      opt("user", "USER", false, "Only messages from this user."),
     ],
     supportsEphemeral: true,
     defaultEphemeral: true,
@@ -272,12 +272,12 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     category: "moderation",
     defaultEnabled: true,
     options: [
-      opt("segundos", "INTEGER", true, "Slowmode seconds (0–21600).", {
+      opt("seconds", "INTEGER", true, "Slowmode seconds (0–21600).", {
         minValue: 0,
         maxValue: 21600,
       }),
       opt(
-        "canal",
+        "channel",
         "CHANNEL",
         false,
         "Target channel (defaults to the current one).",
@@ -294,7 +294,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     defaultEnabled: true,
     options: [
       opt(
-        "canal",
+        "channel",
         "CHANNEL",
         false,
         "Channel to lock (defaults to the current one).",
@@ -311,7 +311,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     defaultEnabled: true,
     options: [
       opt(
-        "canal",
+        "channel",
         "CHANNEL",
         false,
         "Channel to unlock (defaults to the current one).",
@@ -328,7 +328,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     description: "Shows the user's level, XP and rank.",
     category: "levels",
     defaultEnabled: true,
-    options: [opt("usuario", "USER", false, "Member to look up (optional).")],
+    options: [opt("user", "USER", false, "Member to look up (optional).")],
     supportsEphemeral: true,
     defaultEphemeral: true,
     requiresAdminByDefault: false,
@@ -349,8 +349,8 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     category: "levels",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Member who receives XP."),
-      opt("cantidad", "INTEGER", true, "Amount of XP to grant.", {
+      opt("user", "USER", true, "Member who receives XP."),
+      opt("amount", "INTEGER", true, "Amount of XP to grant.", {
         minValue: 1,
       }),
     ],
@@ -364,8 +364,8 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     category: "levels",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Member to remove XP from."),
-      opt("cantidad", "INTEGER", true, "Amount of XP to remove.", {
+      opt("user", "USER", true, "Member to remove XP from."),
+      opt("amount", "INTEGER", true, "Amount of XP to remove.", {
         minValue: 1,
       }),
     ],
@@ -379,8 +379,8 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     category: "levels",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Target member."),
-      opt("nivel", "INTEGER", true, "Level to set.", { minValue: 0 }),
+      opt("user", "USER", true, "Target member."),
+      opt("level", "INTEGER", true, "Level to set.", { minValue: 0 }),
     ],
     supportsEphemeral: true,
     defaultEphemeral: true,
@@ -393,7 +393,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     description: "Shows wallet and bank balance.",
     category: "economy",
     defaultEnabled: true,
-    options: [opt("usuario", "USER", false, "Member to look up (optional).")],
+    options: [opt("user", "USER", false, "Member to look up (optional).")],
     supportsEphemeral: true,
     defaultEphemeral: true,
     requiresAdminByDefault: false,
@@ -405,10 +405,10 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     defaultEnabled: true,
     options: [
       opt(
-        "cantidad",
+        "amount",
         "STRING",
         true,
-        "Amount to deposit, or `all`/`todo` to empty the wallet.",
+        "Amount to deposit, or `all` to empty the wallet.",
       ),
     ],
     supportsEphemeral: true,
@@ -422,10 +422,10 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     defaultEnabled: true,
     options: [
       opt(
-        "cantidad",
+        "amount",
         "STRING",
         true,
-        "Amount to withdraw, or `all`/`todo` to empty the bank.",
+        "Amount to withdraw, or `all` to empty the bank.",
       ),
     ],
     supportsEphemeral: true,
@@ -488,8 +488,8 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     category: "economy",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Recipient."),
-      opt("cantidad", "INTEGER", true, "Amount to transfer.", {
+      opt("user", "USER", true, "Recipient."),
+      opt("amount", "INTEGER", true, "Amount to transfer.", {
         minValue: 1,
       }),
     ],
@@ -513,8 +513,8 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     category: "economy",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Target member."),
-      opt("cantidad", "INTEGER", true, "Amount to add.", { minValue: 1 }),
+      opt("user", "USER", true, "Target member."),
+      opt("amount", "INTEGER", true, "Amount to add.", { minValue: 1 }),
     ],
     supportsEphemeral: true,
     defaultEphemeral: true,
@@ -526,8 +526,8 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     category: "economy",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Target member."),
-      opt("cantidad", "INTEGER", true, "Amount to remove.", { minValue: 1 }),
+      opt("user", "USER", true, "Target member."),
+      opt("amount", "INTEGER", true, "Amount to remove.", { minValue: 1 }),
     ],
     supportsEphemeral: true,
     defaultEphemeral: true,
@@ -563,16 +563,16 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     category: "economy",
     defaultEnabled: true,
     options: [
-      opt("apuesta", "INTEGER", true, "Cantidad a apostar.", { minValue: 1 }),
+      opt("bet", "INTEGER", true, "Amount to bet.", { minValue: 1 }),
       opt(
-        "lado",
+        "side",
         "STRING",
         false,
         "Shortcut: heads or tails. If omitted, you pick with buttons.",
         {
           choices: [
-            { name: "Heads", value: "cara" },
-            { name: "Tails", value: "cruz" },
+            { name: "Heads", value: "heads" },
+            { name: "Tails", value: "tails" },
           ],
         },
       ),
@@ -587,22 +587,22 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     category: "economy",
     defaultEnabled: true,
     options: [
-      opt("apuesta", "INTEGER", true, "Cantidad a apostar.", { minValue: 1 }),
+      opt("bet", "INTEGER", true, "Amount to bet.", { minValue: 1 }),
       opt(
-        "tipo",
+        "type",
         "STRING",
         false,
         "Color or number shortcut. If omitted, you pick at the table.",
         {
           choices: [
-            { name: "Red", value: "rojo" },
-            { name: "Black", value: "negro" },
-            { name: "Green", value: "verde" },
-            { name: "Exact number", value: "numero" },
+            { name: "Red", value: "red" },
+            { name: "Black", value: "black" },
+            { name: "Green", value: "green" },
+            { name: "Exact number", value: "number" },
           ],
         },
       ),
-      opt("valor_numero", "INTEGER", false, "Number (0–36) if tipo = numero.", {
+      opt("number", "INTEGER", false, "Number (0–36) if type = number.", {
         minValue: 0,
         maxValue: 36,
       }),
@@ -616,9 +616,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     description: "Play a hand of blackjack.",
     category: "economy",
     defaultEnabled: true,
-    options: [
-      opt("apuesta", "INTEGER", true, "Cantidad a apostar.", { minValue: 1 }),
-    ],
+    options: [opt("bet", "INTEGER", true, "Amount to bet.", { minValue: 1 })],
     supportsEphemeral: true,
     defaultEphemeral: true,
     requiresAdminByDefault: false,
@@ -628,9 +626,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     description: "Spin a 3-reel machine.",
     category: "economy",
     defaultEnabled: true,
-    options: [
-      opt("apuesta", "INTEGER", true, "Cantidad a apostar.", { minValue: 1 }),
-    ],
+    options: [opt("bet", "INTEGER", true, "Amount to bet.", { minValue: 1 })],
     supportsEphemeral: true,
     defaultEphemeral: true,
     requiresAdminByDefault: false,
@@ -650,7 +646,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     description: "Try to steal another member's wallet (not the bank).",
     category: "economy",
     defaultEnabled: true,
-    options: [opt("usuario", "USER", true, "Member to rob.")],
+    options: [opt("user", "USER", true, "Member to rob.")],
     supportsEphemeral: false,
     defaultEphemeral: false,
     requiresAdminByDefault: false,
@@ -685,8 +681,8 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     category: "economy",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Target member."),
-      opt("cantidad", "INTEGER", true, "New wallet balance.", {
+      opt("user", "USER", true, "Target member."),
+      opt("amount", "INTEGER", true, "New wallet balance.", {
         minValue: 0,
       }),
     ],
@@ -702,7 +698,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
       "Shows a user's creation date, join date, roles and permissions.",
     category: "utilities",
     defaultEnabled: true,
-    options: [opt("usuario", "USER", false, "Member to look up (optional).")],
+    options: [opt("user", "USER", false, "Member to look up (optional).")],
     supportsEphemeral: true,
     defaultEphemeral: false,
     requiresAdminByDefault: false,
@@ -723,7 +719,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     description: "Shows the global and server avatar in high resolution.",
     category: "utilities",
     defaultEnabled: true,
-    options: [opt("usuario", "USER", false, "Member to look up (optional).")],
+    options: [opt("user", "USER", false, "Member to look up (optional).")],
     supportsEphemeral: true,
     defaultEphemeral: false,
     requiresAdminByDefault: false,

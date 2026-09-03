@@ -405,7 +405,7 @@ export async function applyCheckoutSession(
     await ensureBillingCustomer(userId, customerId);
   }
   if (!subId) {
-    logger.warn({ sessionId: session.id }, "Checkout sin subscription id");
+    logger.warn({ sessionId: session.id }, "Checkout without subscription id");
     return;
   }
 

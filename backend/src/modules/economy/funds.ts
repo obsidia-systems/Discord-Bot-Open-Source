@@ -309,7 +309,7 @@ export async function transferWalletPay(
   }
   if (fromUserId === toUserId) {
     throw new EconomyError(
-      "No puedes pagarte a ti mismo.",
+      "You can't pay yourself.",
       400,
       "SELF_PAY",
     );
@@ -375,7 +375,7 @@ export async function robWallet(input: {
 }> {
   if (input.robberId === input.victimId) {
     throw new EconomyError(
-      "No puedes robarte a ti mismo.",
+      "You can't rob yourself.",
       400,
       "SELF_ROB",
     );

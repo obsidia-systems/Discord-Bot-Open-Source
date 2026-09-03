@@ -17,7 +17,7 @@ export async function handleUserInfoCommand(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
   const ephemeral = consumeInteractionEphemeral(interaction.id, false);
-  const user = interaction.options.getUser("usuario") ?? interaction.user;
+  const user = interaction.options.getUser("user") ?? interaction.user;
   const member = interaction.guild
     ? await interaction.guild.members.fetch(user.id).catch(() => null)
     : null;
@@ -53,7 +53,7 @@ export async function handleAvatarCommand(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
   const ephemeral = consumeInteractionEphemeral(interaction.id, false);
-  const user = interaction.options.getUser("usuario") ?? interaction.user;
+  const user = interaction.options.getUser("user") ?? interaction.user;
   const member = interaction.guild
     ? await interaction.guild.members.fetch(user.id).catch(() => null)
     : null;

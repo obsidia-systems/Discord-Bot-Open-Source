@@ -130,7 +130,7 @@ export async function handleSlotsCommand(
 
   const guildId = interaction.guildId;
   const userId = interaction.user.id;
-  const bet = interaction.options.getInteger("apuesta", true);
+  const bet = interaction.options.getInteger("bet", true);
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
 
   try {

@@ -107,7 +107,7 @@ export async function handleBalanceCommand(
   }
 
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
-  const target = interaction.options.getUser("usuario") ?? interaction.user;
+  const target = interaction.options.getUser("user") ?? interaction.user;
   const economy = await getEconomyConfig(interaction.guildId);
   const bal = await getUserEconomyBalance(interaction.guildId, target.id);
   const currency = economy.currencyName || "coins";
@@ -159,7 +159,7 @@ export async function handleDepositCommand(
   await interaction.deferReply(visibility(ephemeral));
 
   try {
-    const raw = interaction.options.getString("cantidad", true);
+    const raw = interaction.options.getString("amount", true);
     const amount = parseBankAmountInput(raw);
     const result = await depositToBank(
       interaction.guildId,
@@ -218,7 +218,7 @@ export async function handleWithdrawCommand(
   await interaction.deferReply(visibility(ephemeral));
 
   try {
-    const raw = interaction.options.getString("cantidad", true);
+    const raw = interaction.options.getString("amount", true);
     const amount = parseBankAmountInput(raw);
     const result = await withdrawFromBank(
       interaction.guildId,
@@ -273,8 +273,8 @@ export async function handlePayCommand(
     return;
   }
 
-  const target = interaction.options.getUser("usuario", true);
-  const amount = interaction.options.getInteger("cantidad", true);
+  const target = interaction.options.getUser("user", true);
+  const amount = interaction.options.getInteger("amount", true);
   if (target.bot) {
     await interaction.reply({
       content: "You can't pay a bot.",
@@ -805,8 +805,8 @@ export async function handleAddMoneyCommand(
     return;
   }
 
-  const target = interaction.options.getUser("usuario", true);
-  const amount = interaction.options.getInteger("cantidad", true);
+  const target = interaction.options.getUser("user", true);
+  const amount = interaction.options.getInteger("amount", true);
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
 
   try {
@@ -841,8 +841,8 @@ export async function handleRemoveMoneyCommand(
     return;
   }
 
-  const target = interaction.options.getUser("usuario", true);
-  const amount = interaction.options.getInteger("cantidad", true);
+  const target = interaction.options.getUser("user", true);
+  const amount = interaction.options.getInteger("amount", true);
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
 
   try {
@@ -877,8 +877,8 @@ export async function handleSetMoneyCommand(
     return;
   }
 
-  const target = interaction.options.getUser("usuario", true);
-  const amount = interaction.options.getInteger("cantidad", true);
+  const target = interaction.options.getUser("user", true);
+  const amount = interaction.options.getInteger("amount", true);
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
 
   try {
@@ -1016,7 +1016,7 @@ export async function handleRobCommand(
     return;
   }
 
-  const target = interaction.options.getUser("usuario", true);
+  const target = interaction.options.getUser("user", true);
   if (target.bot) {
     await interaction.reply({
       content: "You can't rob a bot.",

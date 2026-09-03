@@ -44,7 +44,7 @@ async function requireGuild(
 function resolveChannelId(
   interaction: ChatInputCommandInteraction,
 ): string | null {
-  const option = interaction.options.getChannel("canal");
+  const option = interaction.options.getChannel("channel");
   return option?.id ?? interaction.channelId;
 }
 
@@ -78,9 +78,9 @@ export async function handleBanCommand(
   const ephemeral = consumeInteractionEphemeral(interaction.id, false);
   const guildId = await requireGuild(interaction, ephemeral);
   if (!guildId) return;
-  const user = interaction.options.getUser("usuario", true);
+  const user = interaction.options.getUser("user", true);
   const reason =
-    interaction.options.getString("razon")?.trim() ||
+    interaction.options.getString("reason")?.trim() ||
     `/ban action by ${interaction.user.tag}`;
   await runModAction(
     interaction,
@@ -89,7 +89,7 @@ export async function handleBanCommand(
       guildId,
       userId: user.id,
       reason,
-      deleteMessageDays: interaction.options.getInteger("borrar_dias") ?? 0,
+      deleteMessageDays: interaction.options.getInteger("delete_days") ?? 0,
       dmMode: "none",
     },
     ephemeral,
@@ -102,9 +102,9 @@ export async function handleKickCommand(
   const ephemeral = consumeInteractionEphemeral(interaction.id, false);
   const guildId = await requireGuild(interaction, ephemeral);
   if (!guildId) return;
-  const user = interaction.options.getUser("usuario", true);
+  const user = interaction.options.getUser("user", true);
   const reason =
-    interaction.options.getString("razon")?.trim() ||
+    interaction.options.getString("reason")?.trim() ||
     `/kick action by ${interaction.user.tag}`;
   await runModAction(
     interaction,
@@ -126,7 +126,7 @@ export async function handleTimeoutCommand(
   const guildId = await requireGuild(interaction, ephemeral);
   if (!guildId) return;
   const parsed = parseDurationToSeconds(
-    interaction.options.getString("duracion", true),
+    interaction.options.getString("duration", true),
   );
   const durationSeconds = parsed === null ? null : clampTimeoutSeconds(parsed);
   if (durationSeconds === null) {
@@ -137,9 +137,9 @@ export async function handleTimeoutCommand(
     );
     return;
   }
-  const user = interaction.options.getUser("usuario", true);
+  const user = interaction.options.getUser("user", true);
   const reason =
-    interaction.options.getString("razon")?.trim() ||
+    interaction.options.getString("reason")?.trim() ||
     `/timeout action by ${interaction.user.tag}`;
   await runModAction(
     interaction,
@@ -161,9 +161,9 @@ export async function handleUntimeoutCommand(
   const ephemeral = consumeInteractionEphemeral(interaction.id, false);
   const guildId = await requireGuild(interaction, ephemeral);
   if (!guildId) return;
-  const user = interaction.options.getUser("usuario", true);
+  const user = interaction.options.getUser("user", true);
   const reason =
-    interaction.options.getString("razon")?.trim() ||
+    interaction.options.getString("reason")?.trim() ||
     `/untimeout action by ${interaction.user.tag}`;
   await runModAction(
     interaction,
@@ -184,8 +184,8 @@ export async function handleWarnCommand(
   const ephemeral = consumeInteractionEphemeral(interaction.id, false);
   const guildId = await requireGuild(interaction, ephemeral);
   if (!guildId) return;
-  const user = interaction.options.getUser("usuario", true);
-  const reason = interaction.options.getString("razon", true).trim();
+  const user = interaction.options.getUser("user", true);
+  const reason = interaction.options.getString("reason", true).trim();
   await runModAction(
     interaction,
     {
@@ -205,7 +205,7 @@ export async function handleWarnsCommand(
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
   const guildId = await requireGuild(interaction, ephemeral);
   if (!guildId) return;
-  const user = interaction.options.getUser("usuario", true);
+  const user = interaction.options.getUser("user", true);
   await interaction.deferReply(
     ephemeral ? { flags: MessageFlags.Ephemeral } : {},
   );
@@ -243,7 +243,7 @@ export async function handleClearWarnsCommand(
   const ephemeral = consumeInteractionEphemeral(interaction.id, false);
   const guildId = await requireGuild(interaction, ephemeral);
   if (!guildId) return;
-  const user = interaction.options.getUser("usuario", true);
+  const user = interaction.options.getUser("user", true);
   await runModAction(
     interaction,
     {
@@ -267,7 +267,7 @@ export async function handlePurgeCommand(
     await replyOnce(interaction, "There's no text channel here.", ephemeral);
     return;
   }
-  const user = interaction.options.getUser("usuario");
+  const user = interaction.options.getUser("user");
   await runModAction(
     interaction,
     {
@@ -276,7 +276,7 @@ export async function handlePurgeCommand(
       channelId,
       userId: user?.id,
       reason: `/purge action by ${interaction.user.tag}`,
-      purgeLimit: interaction.options.getInteger("cantidad", true),
+      purgeLimit: interaction.options.getInteger("amount", true),
     },
     ephemeral,
   );
@@ -300,7 +300,7 @@ export async function handleSlowmodeCommand(
       guildId,
       channelId,
       reason: `/slowmode action by ${interaction.user.tag}`,
-      slowmodeSeconds: interaction.options.getInteger("segundos", true),
+      slowmodeSeconds: interaction.options.getInteger("seconds", true),
     },
     ephemeral,
   );

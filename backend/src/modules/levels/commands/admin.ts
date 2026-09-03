@@ -48,8 +48,8 @@ export async function handleGiveXpCommand(
   const guildId = await requireLevelsGuild(interaction);
   if (!guildId) return;
 
-  const target = interaction.options.getUser("usuario", true);
-  const amount = interaction.options.getInteger("cantidad", true);
+  const target = interaction.options.getUser("user", true);
+  const amount = interaction.options.getInteger("amount", true);
   if (amount < 1) {
     await interaction.reply({
       content: "The amount must be greater than 0.",
@@ -107,8 +107,8 @@ export async function handleRemoveXpCommand(
   const guildId = await requireLevelsGuild(interaction);
   if (!guildId) return;
 
-  const target = interaction.options.getUser("usuario", true);
-  const amount = interaction.options.getInteger("cantidad", true);
+  const target = interaction.options.getUser("user", true);
+  const amount = interaction.options.getInteger("amount", true);
   if (amount < 1) {
     await interaction.reply({
       content: "The amount must be greater than 0.",
@@ -167,8 +167,8 @@ export async function handleSetLevelCommand(
   const guildId = await requireLevelsGuild(interaction);
   if (!guildId) return;
 
-  const target = interaction.options.getUser("usuario", true);
-  const level = interaction.options.getInteger("nivel", true);
+  const target = interaction.options.getUser("user", true);
+  const level = interaction.options.getInteger("level", true);
   if (level < 0) {
     await interaction.reply({
       content: "The level must be ≥ 0.",

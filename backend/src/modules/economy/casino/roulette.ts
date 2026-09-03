@@ -2,7 +2,7 @@ import { randomBelow } from "./rng.js";
 
 /** Ruleta europea (0–36) y colores estándar. */
 
-export type RouletteColor = "verde" | "rojo" | "negro";
+export type RouletteColor = "green" | "red" | "black";
 
 const RED_NUMBERS = new Set([
   1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36,
@@ -13,13 +13,13 @@ export function spinEuropeanRoulette(): number {
 }
 
 export function rouletteColor(number: number): RouletteColor {
-  if (number === 0) return "verde";
-  return RED_NUMBERS.has(number) ? "rojo" : "negro";
+  if (number === 0) return "green";
+  return RED_NUMBERS.has(number) ? "red" : "black";
 }
 
 export function rouletteColorEmoji(color: RouletteColor): string {
-  if (color === "verde") return "🟢";
-  if (color === "rojo") return "🔴";
+  if (color === "green") return "🟢";
+  if (color === "red") return "🔴";
   return "⚫";
 }
 

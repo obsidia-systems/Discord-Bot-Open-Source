@@ -1,7 +1,7 @@
 import type { HandEvaluation } from "./cards.js";
 import { rouletteColor, type RouletteColor } from "./roulette.js";
 
-export type CoinflipSide = "cara" | "cruz";
+export type CoinflipSide = "heads" | "tails";
 
 export function coinflipPayout(
   bet: number,
@@ -12,21 +12,21 @@ export function coinflipPayout(
   return Math.floor(bet * multiplier);
 }
 
-export type RouletteBetType = "rojo" | "negro" | "verde" | "numero";
+export type RouletteBetType = "red" | "black" | "green" | "number";
 
 export function resolveRouletteBet(input: {
-  tipo: RouletteBetType;
-  valorNumero: number | null | undefined;
+  type: RouletteBetType;
+  numberValue: number | null | undefined;
   spun: number;
 }): { won: boolean; color: RouletteColor } {
   const color = rouletteColor(input.spun);
-  if (input.tipo === "numero") {
-    return { won: input.spun === input.valorNumero, color };
+  if (input.type === "number") {
+    return { won: input.spun === input.numberValue, color };
   }
-  if (input.tipo === "verde") {
-    return { won: color === "verde", color };
+  if (input.type === "green") {
+    return { won: color === "green", color };
   }
-  return { won: color === input.tipo, color };
+  return { won: color === input.type, color };
 }
 
 export type BlackjackOutcome = "win" | "lose" | "push" | "blackjack";

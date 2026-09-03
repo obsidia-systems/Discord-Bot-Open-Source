@@ -571,7 +571,7 @@ export async function handleBlackjackCommand(
   const guildId = interaction.guildId;
   const userId = interaction.user.id;
   const key = tableKey(guildId, userId);
-  const bet = interaction.options.getInteger("apuesta", true);
+  const bet = interaction.options.getInteger("bet", true);
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
 
   const existing = sessions.get(key);
@@ -758,7 +758,7 @@ export async function handleBlackjackButton(
       ).wallet;
       if (!canDouble(session, wallet)) {
         await interaction.reply({
-          content: "❌ No puedes doblar ahora.",
+          content: "❌ You can't double right now.",
           ...EPHEMERAL,
         });
         return;
@@ -775,7 +775,7 @@ export async function handleBlackjackButton(
         const msg =
           error instanceof EconomyError
             ? error.message
-            : "Saldo insuficiente para doblar.";
+            : "Not enough balance to double.";
         await interaction.reply({ content: `❌ ${msg}`, ...EPHEMERAL });
         return;
       }
@@ -791,7 +791,7 @@ export async function handleBlackjackButton(
       ).wallet;
       if (!canSplit(session, wallet)) {
         await interaction.reply({
-          content: "❌ No puedes dividir ahora.",
+          content: "❌ You can't split right now.",
           ...EPHEMERAL,
         });
         return;
@@ -806,7 +806,7 @@ export async function handleBlackjackButton(
         const msg =
           error instanceof EconomyError
             ? error.message
-            : "Saldo insuficiente para dividir.";
+            : "Not enough balance to split.";
         await interaction.reply({ content: `❌ ${msg}`, ...EPHEMERAL });
         return;
       }

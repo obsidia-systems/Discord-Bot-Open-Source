@@ -30,8 +30,8 @@ import {
 
 export const CF_BUTTON_PREFIX = "cf_";
 
-const CF_CARA = "cf_cara";
-const CF_CRUZ = "cf_cruz";
+const CF_HEADS = "cf_heads";
+const CF_TAILS = "cf_tails";
 const CF_AGAIN = "cf_again";
 
 interface CoinflipPending {
@@ -49,12 +49,12 @@ const pending = new Map<string, CoinflipPending>();
 function sideButtons(userId: string): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(`${CF_CARA}:${userId}`)
+      .setCustomId(`${CF_HEADS}:${userId}`)
       .setLabel("Heads")
       .setEmoji("🪙")
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
-      .setCustomId(`${CF_CRUZ}:${userId}`)
+      .setCustomId(`${CF_TAILS}:${userId}`)
       .setLabel("Tails")
       .setEmoji("🪙")
       .setStyle(ButtonStyle.Secondary),
@@ -85,7 +85,7 @@ async function resolveFlip(input: {
   guildId: string;
   userId: string;
   bet: number;
-  side: "cara" | "cruz";
+  side: "heads" | "tails";
 }): Promise<{
   embed: EmbedBuilder;
 }> {
@@ -96,7 +96,7 @@ async function resolveFlip(input: {
   const result = flipCoin();
   const won = result === input.side;
   const currency = currencyOf(economy);
-  const sideLabel = result === "cara" ? "Heads" : "Tails";
+  const sideLabel = result === "heads" ? "Heads" : "Tails";
 
   let payout = 0;
   let wallet = (await getUserEconomyBalance(input.guildId, input.userId)).wallet;
@@ -127,7 +127,7 @@ async function resolveFlip(input: {
     .addFields(
       {
         name: "Your pick",
-        value: input.side === "cara" ? "Heads" : "Tails",
+        value: input.side === "heads" ? "Heads" : "Tails",
         inline: true,
       },
       { name: "Result", value: sideLabel, inline: true },
@@ -156,7 +156,7 @@ function promptEmbed(bet: number, currency: string): EmbedBuilder {
 }
 
 /**
- * /coinflip apuesta [lado]
+ * /coinflip bet [side]
  */
 export async function handleCoinflipCommand(
   interaction: ChatInputCommandInteraction,
@@ -171,11 +171,11 @@ export async function handleCoinflipCommand(
 
   const guildId = interaction.guildId;
   const userId = interaction.user.id;
-  const bet = interaction.options.getInteger("apuesta", true);
-  const sideRaw = (interaction.options.getString("lado") ?? "")
+  const bet = interaction.options.getInteger("bet", true);
+  const sideRaw = (interaction.options.getString("side") ?? "")
     .trim()
     .toLowerCase();
-  const side = sideRaw === "cara" || sideRaw === "cruz" ? sideRaw : null;
+  const side = sideRaw === "heads" || sideRaw === "tails" ? sideRaw : null;
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
 
   try {
@@ -271,7 +271,7 @@ export async function handleCoinflipButton(
       return;
     }
 
-    const side = action === CF_CARA ? "cara" : action === CF_CRUZ ? "cruz" : null;
+    const side = action === CF_HEADS ? "heads" : action === CF_TAILS ? "tails" : null;
     if (!side) {
       await interaction.reply({
         content: "❌ Unknown action.",

@@ -1,8 +1,8 @@
 import { randomInt } from "node:crypto";
 
 /** Cara o cruz uniforme (CSPRNG). */
-export function flipCoin(): "cara" | "cruz" {
-  return randomInt(2) === 0 ? "cara" : "cruz";
+export function flipCoin(): "heads" | "tails" {
+  return randomInt(2) === 0 ? "heads" : "tails";
 }
 
 /** Entero uniforme en [0, maxExclusive). */

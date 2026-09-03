@@ -112,7 +112,7 @@ function sanitizeJobs(raw: unknown): EconomyJob[] {
       const successMessage =
         typeof row.successMessage === "string" && row.successMessage.trim()
           ? row.successMessage.trim().slice(0, 500)
-          : "Trabajaste de {job} y ganaste {payout} {currency}.";
+          : "You worked as {job} and earned {payout} {currency}.";
       return {
         id:
           typeof row.id === "string" && row.id.trim()
@@ -153,7 +153,7 @@ function sanitizeCrimes(raw: unknown): EconomyCrime[] {
       const failMessage =
         typeof row.failMessage === "string" && row.failMessage.trim()
           ? row.failMessage.trim().slice(0, 500)
-          : "Te atraparon en «{crime}». Multa de {fine} {currency}.";
+          : "You got caught during «{crime}». Fine of {fine} {currency}.";
       return {
         id:
           typeof row.id === "string" && row.id.trim()

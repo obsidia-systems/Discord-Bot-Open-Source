@@ -8,7 +8,7 @@ import {
   type Client,
   type Guild,
 } from "discord.js";
-import type { AutoModConfig } from "@adobos/shared";
+import type { AutoModConfig, AutoModFilterKey } from "@adobos/shared";
 import { logger } from "../../core/log.js";
 import {
   ADOBOS_NATIVE_RULE_NAMES,
@@ -16,6 +16,7 @@ import {
   DISCORD_EXEMPT_CHANNELS_MAX,
   DISCORD_EXEMPT_ROLES_MAX,
   discordInviteRegexPatterns,
+  nativeRuleKeyFromName,
   sliceExemptIds,
   toDiscordKeywordFilter,
 } from "./nativeRules.js";
@@ -61,7 +62,20 @@ export async function syncNativeAutoMod(
     const ours = [...existing.values()].filter((rule) =>
       rule.name.startsWith(ADOBOS_NATIVE_RULE_PREFIX),
     );
-    const byName = new Map(ours.map((rule) => [rule.name, rule]));
+    // Key by filter, not by raw name, so rules still carrying a pre-1c-B
+    // Spanish name are adopted and get renamed in place by the upsert.
+    const byKey = new Map<AutoModFilterKey, AutoModerationRule>();
+    for (const rule of ours) {
+      const key = nativeRuleKeyFromName(rule.name);
+      if (!key) continue;
+      // A rule already under the canonical English name always wins over a
+      // leftover Spanish-named one for the same filter.
+      const canonicalName =
+        ADOBOS_NATIVE_RULE_NAMES[
+          key as keyof typeof ADOBOS_NATIVE_RULE_NAMES
+        ];
+      if (canonicalName === rule.name || !byKey.has(key)) byKey.set(key, rule);
+    }
     const exemptRoles = sliceExemptIds(
       config.ignoredRoles,
       DISCORD_EXEMPT_ROLES_MAX,
@@ -76,7 +90,7 @@ export async function syncNativeAutoMod(
         ? config.filters.bannedWords
         : [],
     );
-    await upsertKeywordRule(guild, byName.get(ADOBOS_NATIVE_RULE_NAMES.bannedWords), {
+    await upsertKeywordRule(guild, byKey.get("bannedWords"), {
       name: ADOBOS_NATIVE_RULE_NAMES.bannedWords,
       enabled: words.length > 0,
       keywordFilter: words,
@@ -84,13 +98,13 @@ export async function syncNativeAutoMod(
       exemptChannels,
     });
 
-    await upsertInviteRule(guild, byName.get(ADOBOS_NATIVE_RULE_NAMES.antiInvites), {
+    await upsertInviteRule(guild, byKey.get("antiInvites"), {
       enabled: Boolean(config.enabled && config.filters.antiInvites),
       exemptRoles,
       exemptChannels,
     });
 
-    await upsertMentionRule(guild, byName.get(ADOBOS_NATIVE_RULE_NAMES.mentionSpam), {
+    await upsertMentionRule(guild, byKey.get("mentionSpam"), {
       enabled: Boolean(config.enabled && config.filters.mentionSpam),
       mentionTotalLimit: config.filters.mentionSpamLimit,
       exemptRoles,

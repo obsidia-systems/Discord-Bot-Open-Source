@@ -2,10 +2,21 @@ import type { AutoModFilterKey } from "@adobos/shared";
 
 /** Nombres fijos: el upsert encuentra las reglas nuestras, no las del servidor. */
 export const ADOBOS_NATIVE_RULE_NAMES = {
-  bannedWords: "Adobos · Palabras",
-  antiInvites: "Adobos · Invitaciones",
-  mentionSpam: "Adobos · Menciones",
+  bannedWords: "Adobos · Words",
+  antiInvites: "Adobos · Invites",
+  mentionSpam: "Adobos · Mentions",
 } as const;
+
+/**
+ * Pre-1c-B Spanish names. The native sync still recognises rules created under
+ * these names, adopts them, and renames them to the current English name in
+ * place, so guilds synced before the rename don't end up with orphaned rules.
+ */
+export const ADOBOS_NATIVE_RULE_LEGACY_NAMES: Record<string, AutoModFilterKey> = {
+  "Adobos · Palabras": "bannedWords",
+  "Adobos · Invitaciones": "antiInvites",
+  "Adobos · Menciones": "mentionSpam",
+};
 
 export const ADOBOS_NATIVE_RULE_PREFIX = "Adobos · ";
 
@@ -19,6 +30,7 @@ const NATIVE_NAME_TO_KEY: Record<string, AutoModFilterKey> = {
   [ADOBOS_NATIVE_RULE_NAMES.bannedWords]: "bannedWords",
   [ADOBOS_NATIVE_RULE_NAMES.antiInvites]: "antiInvites",
   [ADOBOS_NATIVE_RULE_NAMES.mentionSpam]: "mentionSpam",
+  ...ADOBOS_NATIVE_RULE_LEGACY_NAMES,
 };
 
 export function nativeRuleKeyFromName(name: string): AutoModFilterKey | null {

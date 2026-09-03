@@ -84,7 +84,7 @@ async function main(): Promise<void> {
       );
     }
   } else {
-    logger.info("ADOBO_ROLE=api — sin login Discord ni crons");
+    logger.info("ADOBO_ROLE=api — no Discord login or crons");
   }
 
   httpServer = app.listen(cfg.PORT, cfg.HOST, () => {

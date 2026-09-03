@@ -38,9 +38,9 @@ import {
 export const RL_BUTTON_PREFIX = "rl_";
 export const RL_SELECT_PREFIX = "rl_";
 
-const RL_ROJO = "rl_rojo";
-const RL_NEGRO = "rl_negro";
-const RL_VERDE = "rl_verde";
+const RL_RED = "rl_red";
+const RL_BLACK = "rl_black";
+const RL_GREEN = "rl_green";
 const RL_AGAIN = "rl_again";
 const RL_LO = "rl_lo";
 const RL_HI = "rl_hi";
@@ -60,15 +60,15 @@ const pending = new Map<string, RoulettePending>();
 function colorButtons(userId: string): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(`${RL_ROJO}:${userId}`)
+      .setCustomId(`${RL_RED}:${userId}`)
       .setLabel("Red")
       .setStyle(ButtonStyle.Danger),
     new ButtonBuilder()
-      .setCustomId(`${RL_NEGRO}:${userId}`)
+      .setCustomId(`${RL_BLACK}:${userId}`)
       .setLabel("Black")
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
-      .setCustomId(`${RL_VERDE}:${userId}`)
+      .setCustomId(`${RL_GREEN}:${userId}`)
       .setLabel("Green")
       .setStyle(ButtonStyle.Success),
   );
@@ -136,8 +136,8 @@ async function resolveSpin(input: {
   guildId: string;
   userId: string;
   bet: number;
-  tipo: RouletteBetType;
-  valorNumero: number | null;
+  type: RouletteBetType;
+  numberValue: number | null;
 }): Promise<EmbedBuilder> {
   const { economy, casino } = await assertEconomyAndCasino(input.guildId, input.bet);
   await assertCooldownAvailable(input.guildId, input.userId, "roulette");
@@ -145,17 +145,17 @@ async function resolveSpin(input: {
 
   const spun = spinEuropeanRoulette();
   const { won, color } = resolveRouletteBet({
-    tipo: input.tipo,
-    valorNumero: input.valorNumero,
+    type: input.type,
+    numberValue: input.numberValue,
     spun,
   });
   const history = pushRouletteHistory(input.guildId, spun);
   const currency = currencyOf(economy);
 
   const multiplier =
-    input.tipo === "numero"
+    input.type === "number"
       ? casino.roulette.numberMultiplier
-      : input.tipo === "verde"
+      : input.type === "green"
         ? casino.roulette.greenMultiplier
         : casino.roulette.colorMultiplier;
 
@@ -174,9 +174,9 @@ async function resolveSpin(input: {
   );
 
   const betLabel =
-    input.tipo === "numero"
-      ? `Number **${input.valorNumero}**`
-      : input.tipo.charAt(0).toUpperCase() + input.tipo.slice(1);
+    input.type === "number"
+      ? `Number **${input.numberValue}**`
+      : input.type.charAt(0).toUpperCase() + input.type.slice(1);
 
   const embed = new EmbedBuilder()
     .setColor(won ? WIN : LOSE)
@@ -209,7 +209,7 @@ async function resolveSpin(input: {
 }
 
 /**
- * /roulette apuesta [tipo] [valor_numero]
+ * /roulette bet [type] [number]
  */
 export async function handleRouletteCommand(
   interaction: ChatInputCommandInteraction,
@@ -224,26 +224,26 @@ export async function handleRouletteCommand(
 
   const guildId = interaction.guildId;
   const userId = interaction.user.id;
-  const bet = interaction.options.getInteger("apuesta", true);
-  const tipoRaw = (interaction.options.getString("tipo") ?? "")
+  const bet = interaction.options.getInteger("bet", true);
+  const typeRaw = (interaction.options.getString("type") ?? "")
     .trim()
     .toLowerCase();
-  const tipo = ["rojo", "negro", "verde", "numero"].includes(tipoRaw)
-    ? (tipoRaw as RouletteBetType)
+  const type = ["red", "black", "green", "number"].includes(typeRaw)
+    ? (typeRaw as RouletteBetType)
     : null;
-  const valorNumero = interaction.options.getInteger("valor_numero");
+  const numberValue = interaction.options.getInteger("number");
   const ephemeral = consumeInteractionEphemeral(interaction.id, true);
 
-  if (tipo === "numero") {
+  if (type === "number") {
     if (
-      valorNumero === null ||
-      !Number.isInteger(valorNumero) ||
-      valorNumero < 0 ||
-      valorNumero > 36
+      numberValue === null ||
+      !Number.isInteger(numberValue) ||
+      numberValue < 0 ||
+      numberValue > 36
     ) {
       await interaction.reply({
         content:
-          "❌ Provide `valor_numero` between 0 and 36, or pick the number at the table.",
+          "❌ Provide `number` between 0 and 36, or pick the number at the table.",
         ...EPHEMERAL,
       });
       return;
@@ -254,13 +254,13 @@ export async function handleRouletteCommand(
     const { economy } = await assertEconomyAndCasino(guildId, bet);
     const currency = currencyOf(economy);
 
-    if (tipo) {
+    if (type) {
       const embed = await resolveSpin({
         guildId,
         userId,
         bet,
-        tipo,
-        valorNumero: tipo === "numero" ? valorNumero : null,
+        type,
+        numberValue: type === "number" ? numberValue : null,
       });
       await interaction.reply({
         embeds: [embed],
@@ -349,15 +349,15 @@ export async function handleRouletteButton(
       return;
     }
 
-    const tipo: RouletteBetType | null =
-      action === RL_ROJO
-        ? "rojo"
-        : action === RL_NEGRO
-          ? "negro"
-          : action === RL_VERDE
-            ? "verde"
+    const type: RouletteBetType | null =
+      action === RL_RED
+        ? "red"
+        : action === RL_BLACK
+          ? "black"
+          : action === RL_GREEN
+            ? "green"
             : null;
-    if (!tipo) {
+    if (!type) {
       await interaction.reply({
         content: "❌ Unknown action.",
         ...EPHEMERAL,
@@ -369,8 +369,8 @@ export async function handleRouletteButton(
       guildId: row.guildId,
       userId: row.userId,
       bet: row.bet,
-      tipo,
-      valorNumero: null,
+      type,
+      numberValue: null,
     });
     await interaction.update({
       embeds: [embed],
@@ -419,8 +419,8 @@ export async function handleRouletteSelect(
   }
 
   const raw = interaction.values[0];
-  const valorNumero = Number(raw);
-  if (!Number.isInteger(valorNumero) || valorNumero < 0 || valorNumero > 36) {
+  const numberValue = Number(raw);
+  if (!Number.isInteger(numberValue) || numberValue < 0 || numberValue > 36) {
     await interaction.reply({
       content: "❌ Invalid number.",
       ...EPHEMERAL,
@@ -433,8 +433,8 @@ export async function handleRouletteSelect(
       guildId: row.guildId,
       userId: row.userId,
       bet: row.bet,
-      tipo: "numero",
-      valorNumero,
+      type: "number",
+      numberValue,
     });
     await interaction.update({
       embeds: [embed],

@@ -15,22 +15,22 @@ describe("coinflipPayout", () => {
 
 describe("resolveRouletteBet", () => {
   it("green and number 0 land in the same pocket", () => {
-    expect(resolveRouletteBet({ tipo: "verde", valorNumero: null, spun: 0 }).won).toBe(
+    expect(resolveRouletteBet({ type: "green", numberValue: null, spun: 0 }).won).toBe(
       true,
     );
-    expect(resolveRouletteBet({ tipo: "numero", valorNumero: 0, spun: 0 }).won).toBe(
+    expect(resolveRouletteBet({ type: "number", numberValue: 0, spun: 0 }).won).toBe(
       true,
     );
-    expect(resolveRouletteBet({ tipo: "rojo", valorNumero: null, spun: 0 }).won).toBe(
+    expect(resolveRouletteBet({ type: "red", numberValue: null, spun: 0 }).won).toBe(
       false,
     );
   });
 
   it("red 1 wins color and loses straight 2", () => {
-    expect(resolveRouletteBet({ tipo: "rojo", valorNumero: null, spun: 1 }).won).toBe(
+    expect(resolveRouletteBet({ type: "red", numberValue: null, spun: 1 }).won).toBe(
       true,
     );
-    expect(resolveRouletteBet({ tipo: "numero", valorNumero: 2, spun: 1 }).won).toBe(
+    expect(resolveRouletteBet({ type: "number", numberValue: 2, spun: 1 }).won).toBe(
       false,
     );
   });

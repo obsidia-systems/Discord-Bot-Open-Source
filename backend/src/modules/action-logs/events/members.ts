@@ -194,8 +194,8 @@ export async function onGuildMemberUpdate(
     details: {
       added: added.map((id) => ({ id, name: roleName(id) })),
       removed: removed.map((id) => ({ id, name: roleName(id) })),
-      oldContent: removed.map(roleName).join(", ") || "(ninguno)",
-      newContent: added.map(roleName).join(", ") || "(ninguno)",
+      oldContent: removed.map(roleName).join(", ") || "(none)",
+      newContent: added.map(roleName).join(", ") || "(none)",
     },
     actorIsBot: newMember.user.bot,
     actorRoleIds: [...newMember.roles.cache.keys()],

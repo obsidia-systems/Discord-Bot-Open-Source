@@ -57,7 +57,7 @@ export async function handleLockdownCommand(
       return;
     }
     const reason =
-      interaction.options.getString("razon")?.trim() || "/lockdown command";
+      interaction.options.getString("reason")?.trim() || "/lockdown command";
     const result = await applyGuildLockdown(
       interaction.guild,
       interaction.user.id,

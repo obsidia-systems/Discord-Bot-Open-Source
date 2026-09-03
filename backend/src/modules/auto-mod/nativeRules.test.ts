@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ADOBOS_NATIVE_RULE_LEGACY_NAMES,
   ADOBOS_NATIVE_RULE_NAMES,
   discordInviteRegexPatterns,
   nativeRuleKeyFromName,
@@ -24,6 +25,15 @@ describe("nativeRuleKeyFromName", () => {
       "antiInvites",
     );
     expect(nativeRuleKeyFromName("Keyword Filter 1")).toBeNull();
+  });
+
+  it("still resolves pre-1c-B Spanish rule names so old rules get adopted", () => {
+    for (const [legacyName, key] of Object.entries(
+      ADOBOS_NATIVE_RULE_LEGACY_NAMES,
+    )) {
+      expect(nativeRuleKeyFromName(legacyName)).toBe(key);
+    }
+    expect(nativeRuleKeyFromName("Adobos · Palabras")).toBe("bannedWords");
   });
 });
 

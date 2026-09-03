@@ -34,7 +34,7 @@ function toSlashBody(
   const options: APIApplicationCommandOption[] = [];
   if (acceptText) {
     options.push({
-      name: "texto",
+      name: "text",
       description: "Extra text for {text}.",
       type: ApplicationCommandOptionType.String,
       required: false,
@@ -42,7 +42,7 @@ function toSlashBody(
   }
   if (acceptUser) {
     options.push({
-      name: "usuario",
+      name: "user",
       description: "User for {target}.",
       type: ApplicationCommandOptionType.User,
       required: false,

@@ -160,8 +160,8 @@ export async function handleRemindCommand(
         "DISABLED",
       );
     }
-    const text = interaction.options.getString("texto", true);
-    const when = interaction.options.getString("cuando", true);
+    const text = interaction.options.getString("text", true);
+    const when = interaction.options.getString("when", true);
     if (sub === "in") {
       const seconds = parseRemindDurationSeconds(when);
       const due = seconds ? dueFromDurationSeconds(seconds, new Date()) : null;

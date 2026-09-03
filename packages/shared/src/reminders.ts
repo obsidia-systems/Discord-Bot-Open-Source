@@ -234,14 +234,14 @@ export function remindersSlashCommandBody(): {
       sub("in", "I'll ping you after a while.", [
         {
           type: STRING,
-          name: "cuando",
+          name: "when",
           description: "E.g. 20m, 2h, 1d12h, 1w.",
           required: true,
           max_length: 32,
         },
         {
           type: STRING,
-          name: "texto",
+          name: "text",
           description: "What I should remind you about.",
           required: true,
           max_length: REMIND_TEXT_MAX,
@@ -250,14 +250,14 @@ export function remindersSlashCommandBody(): {
       sub("at", "I'll ping you at a time (server timezone).", [
         {
           type: STRING,
-          name: "cuando",
+          name: "when",
           description: "15:00, 2026-09-03 18:30 or <t:…>.",
           required: true,
           max_length: 64,
         },
         {
           type: STRING,
-          name: "texto",
+          name: "text",
           description: "What I should remind you about.",
           required: true,
           max_length: REMIND_TEXT_MAX,

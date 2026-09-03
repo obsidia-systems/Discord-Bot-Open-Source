@@ -385,7 +385,7 @@ export function antiRaidLockdownSlashCommandBody(): {
       sub("on", "Enable the emergency lockdown.", [
         {
           type: STRING,
-          name: "razon",
+          name: "reason",
           description: "Reason for the audit log.",
           required: false,
           max_length: 200,

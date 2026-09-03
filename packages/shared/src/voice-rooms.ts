@@ -251,7 +251,7 @@ export function voiceRoomsSlashCommandBody(): {
       sub("name", "Change your room's name.", [
         {
           type: STRING,
-          name: "nombre",
+          name: "name",
           description: "New name.",
           required: true,
           max_length: VOICE_ROOM_NAME_MAX,
@@ -260,7 +260,7 @@ export function voiceRoomsSlashCommandBody(): {
       sub("limit", "User limit (0 = no limit).", [
         {
           type: INTEGER,
-          name: "limite",
+          name: "limit",
           description: "0–99.",
           required: true,
           min_value: 0,
@@ -273,13 +273,13 @@ export function voiceRoomsSlashCommandBody(): {
       sub("permit", "Let a user or role in.", [
         {
           type: USER,
-          name: "usuario",
+          name: "user",
           description: "Member to permit.",
           required: false,
         },
         {
           type: ROLE,
-          name: "rol",
+          name: "role",
           description: "Role to permit.",
           required: false,
         },
@@ -287,13 +287,13 @@ export function voiceRoomsSlashCommandBody(): {
       sub("reject", "Block and remove a user or role.", [
         {
           type: USER,
-          name: "usuario",
+          name: "user",
           description: "Member to reject.",
           required: false,
         },
         {
           type: ROLE,
-          name: "rol",
+          name: "role",
           description: "Role to reject.",
           required: false,
         },
@@ -301,7 +301,7 @@ export function voiceRoomsSlashCommandBody(): {
       sub("transfer", "Pass ownership to another member.", [
         {
           type: USER,
-          name: "usuario",
+          name: "user",
           description: "New owner.",
           required: true,
         },
@@ -322,13 +322,13 @@ export function voiceRoomsSlashCommandBody(): {
       sub("invite", "Invite someone with a link.", [
         {
           type: USER,
-          name: "usuario",
+          name: "user",
           description: "Who to invite.",
           required: true,
         },
         {
           type: STRING,
-          name: "mensaje",
+          name: "message",
           description: "Extra text (optional).",
           required: false,
           max_length: 200,
@@ -337,7 +337,7 @@ export function voiceRoomsSlashCommandBody(): {
       sub("status", "Visible room status.", [
         {
           type: STRING,
-          name: "texto",
+          name: "text",
           description: "What is happening.",
           required: true,
           max_length: VOICE_ROOM_STATUS_MAX,

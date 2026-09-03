@@ -50,13 +50,13 @@ export async function handleVoiceCommand(
       generator: ctx.generator,
       channel: ctx.channel,
       action: sub as VoiceRoomAction | "unlock" | "unghost",
-      name: interaction.options.getString("nombre") ?? undefined,
-      limit: interaction.options.getInteger("limite") ?? undefined,
+      name: interaction.options.getString("name") ?? undefined,
+      limit: interaction.options.getInteger("limit") ?? undefined,
       bitrate: interaction.options.getInteger("kbps") ?? undefined,
-      status: interaction.options.getString("texto") ?? undefined,
-      targetUserId: interaction.options.getUser("usuario")?.id ?? null,
-      targetRoleId: interaction.options.getRole("rol")?.id ?? null,
-      inviteMessage: interaction.options.getString("mensaje") ?? undefined,
+      status: interaction.options.getString("text") ?? undefined,
+      targetUserId: interaction.options.getUser("user")?.id ?? null,
+      targetRoleId: interaction.options.getRole("role")?.id ?? null,
+      inviteMessage: interaction.options.getString("message") ?? undefined,
     });
     await interaction.reply({ content: message, ...EPHEMERAL });
   } catch (error: unknown) {

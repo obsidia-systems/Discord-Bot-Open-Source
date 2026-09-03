@@ -298,13 +298,13 @@ export function formatRemaining(ms: number): string {
   const parts: string[] = [];
   if (days > 0) {
     parts.push(`${days} day${days === 1 ? "" : "s"}`);
-    if (hours > 0) parts.push(`${hours} hora${hours === 1 ? "" : "s"}`);
-    return parts.join(" y ");
+    if (hours > 0) parts.push(`${hours} hour${hours === 1 ? "" : "s"}`);
+    return parts.join(" and ");
   }
   if (hours > 0) {
-    parts.push(`${hours} hora${hours === 1 ? "" : "s"}`);
+    parts.push(`${hours} hour${hours === 1 ? "" : "s"}`);
     if (minutes > 0) parts.push(`${minutes} min`);
-    return parts.join(" y ");
+    return parts.join(" and ");
   }
   if (minutes > 0) return `${minutes}m ${seconds}s`;
   return `${seconds}s`;

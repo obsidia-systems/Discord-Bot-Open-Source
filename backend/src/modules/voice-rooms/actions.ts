@@ -230,7 +230,7 @@ export async function loadRoomContext(member: GuildMember): Promise<{
   const voice = member.voice.channel;
   if (!voice || voice.type !== ChannelType.GuildVoice) {
     throw new VoiceRoomsError(
-      "Entra a tu sala de voz primero.",
+      "Join your voice room first.",
       400,
       "NOT_IN_VOICE",
     );

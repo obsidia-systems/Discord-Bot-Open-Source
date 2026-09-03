@@ -33,7 +33,7 @@ export async function handleRankCommand(
     ephemeral ? { flags: MessageFlags.Ephemeral } : {},
   );
 
-  const target = interaction.options.getUser("usuario") ?? interaction.user;
+  const target = interaction.options.getUser("user") ?? interaction.user;
   const stats = await getUserRankStats(interaction.guildId, target.id);
 
   if (!stats) {
