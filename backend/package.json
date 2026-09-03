@@ -36,7 +36,7 @@
     "bullmq": "^6.3.4",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
-    "discord.js": "^14.24.2",
+    "discord.js": "^14.27.0",
     "drizzle-orm": "^0.45.2",
     "express": "^4.21.2",
     "express-rate-limit": "^8.7.0",
