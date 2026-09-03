@@ -1,6 +1,6 @@
 import { type AnyThreadChannel, AuditLogEvent } from "discord.js";
 import { resolveAuditExecutor } from "../audit.js";
-import { recordActionLog } from "../domain/action-logs.js";
+import { recordActionLog } from "../discord.js";
 
 function threadName(thread: AnyThreadChannel): string {
   const name = thread.name?.trim();

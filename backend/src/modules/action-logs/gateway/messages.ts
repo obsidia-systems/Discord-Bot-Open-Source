@@ -6,10 +6,7 @@ import {
   type Snowflake,
 } from "discord.js";
 import { resolveAuditExecutor, takeBotMessageDelete } from "../audit.js";
-import {
-  passesActionLogFilters,
-  recordActionLog,
-} from "../domain/action-logs.js";
+import { passesActionLogFilters, recordActionLog } from "../discord.js";
 import { userTag } from "../helpers.js";
 
 export async function onMessageDelete(

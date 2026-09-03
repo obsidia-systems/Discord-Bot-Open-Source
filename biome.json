@@ -38,13 +38,7 @@
     {
       "includes": [
         "backend/src/modules/*/domain/**/*.ts",
-        "!backend/src/modules/*/domain/**/*.test.ts",
-        "!backend/src/modules/action-logs/domain/action-logs.ts",
-        "!backend/src/modules/canvas-events/domain/canvas-events.ts",
-        "!backend/src/modules/roles-builder/domain/roles-builder.ts",
-        "!backend/src/modules/welcome/domain/welcome.ts",
-        "!backend/src/modules/bot-profile/domain/bot-profile.ts",
-        "!backend/src/modules/moderation/domain/moderation.ts"
+        "!backend/src/modules/*/domain/**/*.test.ts"
       ],
       "linter": {
         "rules": {

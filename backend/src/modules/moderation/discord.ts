@@ -41,11 +41,11 @@ import {
   createOneUseInvite,
   interpolateEmbedPayload,
   type SanctionDmContext,
-} from "../dm.js";
+} from "./dm.js";
 import {
   clampTimeoutSeconds,
   everyoneSendMessagesOverwrite,
-} from "../duration.js";
+} from "./duration.js";
 
 export class ModerationError extends Error {
   constructor(

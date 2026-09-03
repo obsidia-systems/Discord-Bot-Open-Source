@@ -14,7 +14,7 @@ import {
   listActiveTimeouts,
   searchChannels,
   searchMembers,
-} from "../domain/moderation.js";
+} from "../discord.js";
 import {
   discordAuditQuerySchema,
   fetchMessageQuerySchema,

@@ -1,10 +1,7 @@
 import { AuditLogEvent, type VoiceState } from "discord.js";
 import { logger } from "#core/log.js";
 import { resolveAuditExecutor } from "../audit.js";
-import {
-  passesActionLogFilters,
-  recordActionLog,
-} from "../domain/action-logs.js";
+import { passesActionLogFilters, recordActionLog } from "../discord.js";
 import { userTag } from "../helpers.js";
 
 export async function onVoiceStateUpdate(

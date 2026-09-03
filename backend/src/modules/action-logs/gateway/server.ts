@@ -8,7 +8,7 @@ import {
   type Role,
 } from "discord.js";
 import { resolveAuditExecutor } from "../audit.js";
-import { recordActionLog } from "../domain/action-logs.js";
+import { recordActionLog } from "../discord.js";
 import { diffGuildIdentity, snapshotGuildIdentity } from "../guildIdentity.js";
 import { channelTypeName, safeChannelName } from "../helpers.js";
 

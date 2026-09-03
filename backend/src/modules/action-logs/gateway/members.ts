@@ -5,10 +5,7 @@ import {
   type PartialGuildMember,
 } from "discord.js";
 import { resolveAuditExecutor } from "../audit.js";
-import {
-  passesActionLogFilters,
-  recordActionLog,
-} from "../domain/action-logs.js";
+import { passesActionLogFilters, recordActionLog } from "../discord.js";
 import { userTag } from "../helpers.js";
 
 export async function onGuildMemberAdd(member: GuildMember): Promise<void> {

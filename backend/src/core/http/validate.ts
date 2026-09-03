@@ -97,6 +97,10 @@ export function defineRoute<S extends RouteSchemas>(
   return (req, res, next) => {
     let valid: ValidatedInput<S>;
     try {
+      // No se reescribe `req.body/query/params`: la fuente de verdad es `valid`
+      // (tipado y coaccionado). Mutar `req.body` borraría el `guildId` que
+      // canoniza `requireGuildAccess` cuando el schema no lo incluye, y
+      // `req.query` es getter de solo lectura en Express 5.
       valid = {
         body: (schemas.body
           ? parse(schemas.body, req.body ?? {})

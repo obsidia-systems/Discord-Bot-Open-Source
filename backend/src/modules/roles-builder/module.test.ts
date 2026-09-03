@@ -4,7 +4,7 @@ import {
 } from "@adobos/shared";
 import { PermissionFlagsBits } from "discord.js";
 import { describe, expect, it } from "vitest";
-import { permissionsBitfieldFromKeys } from "./domain/roles-builder.js";
+import { permissionsBitfieldFromKeys } from "./discord.js";
 import { rolesBuilderModule } from "./module.js";
 
 describe("roles-builder module", () => {

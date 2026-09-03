@@ -1,10 +1,7 @@
 import type { NonThreadGuildBasedChannel } from "discord.js";
 import { logger } from "#core/log.js";
 import { onGuildAuditLogEntryCreate } from "./audit.js";
-import {
-  passesActionLogFilters,
-  recordActionLog,
-} from "./domain/action-logs.js";
+import { passesActionLogFilters, recordActionLog } from "./discord.js";
 import {
   onEmojiCreate,
   onEmojiDelete,

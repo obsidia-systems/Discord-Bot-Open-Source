@@ -34,8 +34,8 @@ import {
 import { logger } from "#core/log.js";
 import { getDb, one } from "#db/client.js";
 import { actionLogs, actionLogsConfig, guildSettings } from "#db/schema.js";
-import { buildActionLogEmbed } from "../embeds.js";
-import { sendActionLogWebhook } from "../webhooks.js";
+import { buildActionLogEmbed } from "./embeds.js";
+import { sendActionLogWebhook } from "./webhooks.js";
 
 const configCache = new BoundedTtlMap<string, ActionLogsConfig>(5_000, 60_000);
 

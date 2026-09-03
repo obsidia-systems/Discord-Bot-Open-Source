@@ -3,7 +3,7 @@ import { registerJob } from "#core/lifecycle.js";
 import { logger } from "#core/log.js";
 import type { AdobosModule } from "#core/modules/types.js";
 import { isWorkerLeader } from "#core/runtime/index.js";
-import { purgeAllExpiredActionLogs } from "./domain/action-logs.js";
+import { purgeAllExpiredActionLogs } from "./discord.js";
 import { registerActionLogListeners } from "./gateway.js";
 import { actionLogsRoutes } from "./http/routes.js";
 
@@ -62,4 +62,4 @@ export {
   recordActionLog,
   sendActionLogsTestEmbed,
   updateActionLogsConfig,
-} from "./domain/action-logs.js";
+} from "./discord.js";

@@ -4,7 +4,7 @@ import {
   executeModAction,
   getMemberInfo,
   ModerationError,
-} from "../domain/moderation.js";
+} from "../discord.js";
 import { clampTimeoutSeconds, parseDurationToSeconds } from "../duration.js";
 
 export { parseDurationToSeconds };

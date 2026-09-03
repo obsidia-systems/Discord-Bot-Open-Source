@@ -18,7 +18,7 @@ import {
 import { logger } from "#core/log.js";
 import { resolveMembersBatch, resolveUserPreview } from "#lib/discordMember.js";
 import { consolidateAuditLogs } from "./consolidateAuditLogs.js";
-import { ModerationError } from "./domain/moderation.js";
+import { ModerationError } from "./discord.js";
 
 type ActionMeta = {
   label: string;

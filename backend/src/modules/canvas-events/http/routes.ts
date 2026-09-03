@@ -3,6 +3,7 @@ import type { Client } from "discord.js";
 import { Router } from "express";
 import { guildIdOf } from "#core/http/guildContext.js";
 import { defineRoute } from "#core/http/validate.js";
+import { assertGuildWelcomeChannel } from "#modules/welcome/channel.js";
 import {
   getCanvasEventSettings,
   saveCanvasEventSettings,
@@ -27,11 +28,15 @@ export function canvasEventSettingsRoutes(
     defineRoute(
       { body: saveCanvasEventSettingsSchema },
       async (req, res, valid) => {
-        const result = await saveCanvasEventSettings(
-          eventType,
-          { ...valid.body, guildId: guildIdOf(req) },
-          bot,
-        );
+        const guildId = guildIdOf(req);
+        const channelId = valid.body.channelId?.trim();
+        if (channelId) {
+          await assertGuildWelcomeChannel(bot, guildId, channelId);
+        }
+        const result = await saveCanvasEventSettings(eventType, {
+          ...valid.body,
+          guildId,
+        });
         res.json(result);
       },
     ),

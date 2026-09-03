@@ -13,12 +13,10 @@ import {
   WELCOME_CARD_HEIGHT,
   WELCOME_CARD_WIDTH,
 } from "@adobos/shared";
-import type { Client } from "discord.js";
 import { and, eq } from "drizzle-orm";
 import { getDb, one } from "#db/client.js";
 import { canvasEventSettings, guildSettings } from "#db/schema.js";
 import { resolvePublicUploadPath } from "#lib/dataPaths.js";
-import { assertGuildWelcomeChannel } from "#modules/welcome/channel.js";
 import {
   normalizeTextLayers,
   parseTextLayersJson,
@@ -254,10 +252,13 @@ export async function getCanvasEventSettings(
   };
 }
 
+/**
+ * Persiste la config de un evento canvas. La validación del canal (existe, es
+ * de este guild, admite texto) la hace el router antes de llamar aquí.
+ */
 export async function saveCanvasEventSettings(
   eventTypeRaw: string,
   input: SaveCanvasEventSettingsRequest,
-  bot: Client,
 ): Promise<SaveCanvasEventSettingsResponse> {
   const eventType = assertEventType(eventTypeRaw);
   const guildId = assertSnowflake(input.guildId, "guildId");
@@ -274,9 +275,7 @@ export async function saveCanvasEventSettings(
       "MISSING_CHANNEL",
     );
   }
-  if (channelId) {
-    await assertGuildWelcomeChannel(bot, guildId, channelId);
-  }
+
   const blurAmount = clampBlur(input.blurAmount);
   const messageContent = (
     input.messageContent ?? DEFAULT_MESSAGE_BY_TYPE[eventType]

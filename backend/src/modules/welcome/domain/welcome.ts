@@ -15,12 +15,10 @@ import {
   WELCOME_FONT_SIZE_MAX,
   WELCOME_FONT_SIZE_MIN,
 } from "@adobos/shared";
-import type { Client } from "discord.js";
 import { eq } from "drizzle-orm";
 import { getDb, one } from "#db/client.js";
 import { guildSettings, welcomeSettings } from "#db/schema.js";
 import { resolvePublicUploadPath } from "#lib/dataPaths.js";
-import { assertGuildWelcomeChannel } from "../channel.js";
 
 export class WelcomeSettingsError extends Error {
   constructor(
@@ -245,9 +243,13 @@ export async function getWelcomeSettings(
   };
 }
 
+/**
+ * Persiste la config de bienvenida. La validación de que el canal existe,
+ * es de este guild y admite texto la hace el router (`http/routes.ts`) antes
+ * de llamar aquí — el dominio no habla con el gateway.
+ */
 export async function saveWelcomeSettings(
   input: SaveWelcomeSettingsRequest,
-  bot: Client,
 ): Promise<SaveWelcomeSettingsResponse> {
   const guildId = assertSnowflake(input.guildId, "guildId");
   const channelIdRaw = input.channelId?.trim() || "";
@@ -262,9 +264,6 @@ export async function saveWelcomeSettings(
       400,
       "MISSING_CHANNEL",
     );
-  }
-  if (channelId) {
-    await assertGuildWelcomeChannel(bot, guildId, channelId);
   }
 
   const blurAmount = clampBlur(input.blurAmount);

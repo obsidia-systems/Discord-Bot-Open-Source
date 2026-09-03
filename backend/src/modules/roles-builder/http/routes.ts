@@ -10,7 +10,7 @@ import {
   listGuildRoles,
   updateGuildRole,
   updateRolePositions,
-} from "../domain/roles-builder.js";
+} from "../discord.js";
 import {
   createGuildRoleSchema,
   updateGuildRoleSchema,

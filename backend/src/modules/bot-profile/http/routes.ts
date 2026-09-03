@@ -4,10 +4,7 @@ import multer from "multer";
 import { requireFeature } from "#core/entitlements/service.js";
 import { guildIdOf } from "#core/http/guildContext.js";
 import { defineRoute } from "#core/http/validate.js";
-import {
-  getGuildBotProfile,
-  updateGuildBotProfile,
-} from "../domain/bot-profile.js";
+import { getGuildBotProfile, updateGuildBotProfile } from "../discord.js";
 import { updateBotGuildProfileSchema } from "./schema.js";
 
 const ALLOWED_MIME = new Set([

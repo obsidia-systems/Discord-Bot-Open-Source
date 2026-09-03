@@ -10,7 +10,7 @@ import { syncLevelsProgress } from "#modules/levels/gateway.js";
 import {
   executeModAction,
   ModerationError,
-} from "#modules/moderation/domain/moderation.js";
+} from "#modules/moderation/discord.js";
 import { countActiveWarns } from "./domain/auto-mod.js";
 import {
   findPunishmentForWarnCount,

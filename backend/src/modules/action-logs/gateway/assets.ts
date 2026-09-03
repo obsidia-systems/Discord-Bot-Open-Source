@@ -1,6 +1,6 @@
 import { AuditLogEvent, type GuildEmoji, type Sticker } from "discord.js";
 import { resolveAuditExecutor } from "../audit.js";
-import { recordActionLog } from "../domain/action-logs.js";
+import { recordActionLog } from "../discord.js";
 
 export async function onEmojiCreate(emoji: GuildEmoji): Promise<void> {
   const executor = await resolveAuditExecutor(

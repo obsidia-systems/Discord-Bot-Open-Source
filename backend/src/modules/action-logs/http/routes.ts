@@ -7,7 +7,7 @@ import {
   listActionLogsHistory,
   sendActionLogsTestEmbed,
   updateActionLogsConfig,
-} from "../domain/action-logs.js";
+} from "../discord.js";
 import {
   actionLogsHistoryQuerySchema,
   updateActionLogsConfigSchema,

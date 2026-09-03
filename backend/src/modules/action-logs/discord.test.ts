@@ -9,7 +9,7 @@ import {
   configPassesFilters,
   getEventMeta,
   resolveLogChannelId,
-} from "./action-logs.js";
+} from "./discord.js";
 
 function cfg(overrides: Partial<ActionLogsConfig> = {}): ActionLogsConfig {
   return {

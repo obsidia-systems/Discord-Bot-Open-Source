@@ -1,5 +1,5 @@
 import type { AdobosModule } from "#core/modules/types.js";
-import { restorePersistedPresence } from "./domain/bot-profile.js";
+import { restorePersistedPresence } from "./discord.js";
 import { botProfileRoutes } from "./http/routes.js";
 
 export const botProfileModule: AdobosModule = {
@@ -25,4 +25,4 @@ export {
   restorePersistedPresence,
   updateBotProfile,
   updateGuildBotProfile,
-} from "./domain/bot-profile.js";
+} from "./discord.js";
