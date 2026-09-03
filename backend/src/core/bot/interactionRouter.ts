@@ -7,7 +7,7 @@ import type {
   ModalSubmitInteraction,
   StringSelectMenuInteraction,
 } from "discord.js";
-import { MessageFlags } from "discord.js";
+import { Events, MessageFlags } from "discord.js";
 import { logger } from "../log.js";
 import {
   dispatchAutocomplete,
@@ -21,6 +21,15 @@ import { allowChatCommand } from "./commandRateLimit.js";
 const EPHEMERAL = { flags: MessageFlags.Ephemeral } as const;
 
 /**
+ * Discord invalida el token de la interacción a los 3 s si no hubo ACK.
+ * Si un handler no respondió a los 2,5 s, el router hace `deferReply` por él
+ * para no perder el token — y lo registra para arreglar ese comando.
+ */
+const DEFER_DEADLINE_MS = 2_500;
+/** Umbral de log: por encima de esto la interacción va WARN, no DEBUG. */
+const SLOW_INTERACTION_MS = 1_500;
+
+/**
  * Despacha interacciones a handlers registrados por módulos
  * (slash commands + autocomplete + botones + modal submits).
  */
@@ -28,9 +37,61 @@ export function registerInteractionRouter(
   client: Client,
   registry: ModuleRegistry,
 ): void {
-  client.on("interactionCreate", (interaction) => {
-    void onInteractionCreate(interaction, registry);
+  client.on(Events.InteractionCreate, (interaction) => {
+    void routeInteraction(interaction, registry);
   });
+}
+
+function interactionLabel(interaction: Interaction): string {
+  if (interaction.isChatInputCommand()) return `/${interaction.commandName}`;
+  if (interaction.isAutocomplete()) {
+    return `autocomplete:${interaction.commandName}`;
+  }
+  if (interaction.isButton()) return `button:${interaction.customId}`;
+  if (interaction.isStringSelectMenu()) {
+    return `select:${interaction.customId}`;
+  }
+  if (interaction.isModalSubmit()) return `modal:${interaction.customId}`;
+  return `type:${interaction.type}`;
+}
+
+async function routeInteraction(
+  interaction: Interaction,
+  registry: ModuleRegistry,
+): Promise<void> {
+  const label = interactionLabel(interaction);
+  const startedAt = Date.now();
+
+  let deadline: ReturnType<typeof setTimeout> | undefined;
+  if (interaction.isRepliable()) {
+    deadline = setTimeout(() => {
+      if (
+        !interaction.isRepliable() ||
+        interaction.replied ||
+        interaction.deferred
+      ) {
+        return;
+      }
+      logger.warn(
+        { interaction: label },
+        "router: auto-defer — el handler superó 2,5 s sin ACK",
+      );
+      void interaction.deferReply().catch(() => undefined);
+    }, DEFER_DEADLINE_MS);
+    deadline.unref?.();
+  }
+
+  try {
+    await onInteractionCreate(interaction, registry);
+  } finally {
+    if (deadline) clearTimeout(deadline);
+    const ms = Date.now() - startedAt;
+    if (ms >= SLOW_INTERACTION_MS) {
+      logger.warn({ interaction: label, ms }, "interacción lenta");
+    } else {
+      logger.debug({ interaction: label, ms }, "interacción");
+    }
+  }
 }
 
 async function onInteractionCreate(

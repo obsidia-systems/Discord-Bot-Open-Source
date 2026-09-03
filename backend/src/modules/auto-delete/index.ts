@@ -5,12 +5,14 @@ import { registerAutoDeleteListeners } from "./events.js";
 import {
   bindAutoDeleteScheduler,
   rehydrateAllAutoDeleteJobs,
+  stopAllAutoDeleteJobs,
   syncAutoDeleteJobsForConfig,
 } from "./scheduler.js";
 import { processDueCountdownDeletes } from "./pending.js";
 import { setAutoDeleteConfigChangeListener } from "./service.js";
 import { logger } from "../../core/log.js";
 import { isWorkerLeader } from "../../core/runtime/index.js";
+import { onShutdown, registerJob } from "../../core/lifecycle.js";
 
 const COUNTDOWN_TICK_MS = 5_000;
 
@@ -28,6 +30,7 @@ export const autoDeleteModule: AdobosModule = {
       if (!isWorkerLeader()) return;
       await syncAutoDeleteJobsForConfig(config);
     });
+    onShutdown("auto-delete:cron", () => stopAllAutoDeleteJobs());
 
     ctx.route("/api/auto-delete", autoDeleteRoutes(ctx.client), {
       feature: "auto-delete",
@@ -51,7 +54,7 @@ export const autoDeleteModule: AdobosModule = {
         logger.warn({ err: error }, "auto-delete: tick failed:");
       });
     }, COUNTDOWN_TICK_MS);
-    timer.unref?.();
+    registerJob("auto-delete:countdown", timer);
   },
 };
 

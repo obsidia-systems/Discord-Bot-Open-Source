@@ -5,6 +5,7 @@ import { registerActionLogListeners } from "./events.js";
 import { purgeAllExpiredActionLogs } from "./service.js";
 import { logger } from "../../core/log.js";
 import { isWorkerLeader } from "../../core/runtime/index.js";
+import { registerJob } from "../../core/lifecycle.js";
 
 const RETENTION_PURGE_MS = 60 * 60 * 1000; // 1h
 
@@ -48,7 +49,7 @@ export const actionLogsModule: AdobosModule = {
         logger.warn({ err: error }, "action-logs: periodic purge failed:");
       }
     }, RETENTION_PURGE_MS);
-    timer.unref?.();
+    registerJob("action-logs:retention-purge", timer);
   },
 };
 

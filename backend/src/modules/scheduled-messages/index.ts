@@ -8,6 +8,7 @@ import {
 } from "./scheduler.js";
 import { logger } from "../../core/log.js";
 import { isWorkerLeader } from "../../core/runtime/index.js";
+import { registerJob } from "../../core/lifecycle.js";
 
 const DUE_TICK_MS = 15_000;
 
@@ -42,7 +43,7 @@ export const scheduledMessagesModule: AdobosModule = {
         logger.warn({ err: error }, "scheduled-messages: tick failed");
       });
     }, DUE_TICK_MS);
-    timer.unref?.();
+    registerJob("scheduled-messages:due", timer);
   },
 };
 

@@ -2,6 +2,7 @@ import { GatewayIntentBits } from "discord.js";
 import { STREAM_ALERT_POLL_MS } from "@adobos/shared";
 import type { AdobosModule } from "../../core/modules/types.js";
 import { isWorkerLeader } from "../../core/runtime/index.js";
+import { registerJob } from "../../core/lifecycle.js";
 import { logger } from "../../core/log.js";
 import { streamAlertsRoutes } from "./api/routes.js";
 import { bindStreamAlertsPoller, processStreamAlerts } from "./poller.js";
@@ -27,7 +28,7 @@ export const streamAlertsModule: AdobosModule = {
         logger.warn({ err: error }, "stream-alerts: tick failed");
       });
     }, STREAM_ALERT_POLL_MS);
-    timer.unref?.();
+    registerJob("stream-alerts:poll", timer);
   },
 };
 

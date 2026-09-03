@@ -5,6 +5,7 @@ import {
 } from "@adobos/shared";
 import type { AdobosModule } from "../../core/modules/types.js";
 import { isWorkerLeader } from "../../core/runtime/index.js";
+import { registerJob } from "../../core/lifecycle.js";
 import { logger } from "../../core/log.js";
 import { remindersRoutes } from "./api/routes.js";
 import {
@@ -46,7 +47,7 @@ export const remindersModule: AdobosModule = {
         logger.warn({ err: error }, "reminders: tick failed");
       });
     }, DUE_TICK_MS);
-    timer.unref?.();
+    registerJob("reminders:due", timer);
   },
 };
 

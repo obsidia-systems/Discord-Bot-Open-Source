@@ -6,6 +6,7 @@ import type {
   ModalSubmitInteraction,
   StringSelectMenuInteraction,
 } from "discord.js";
+import { logger } from "../log.js";
 import type {
   AdobosModule,
   AutocompleteHandler,
@@ -35,6 +36,36 @@ export interface ModuleRegistry {
 }
 
 /**
+ * Envuelve el handler de evento de un módulo: una excepción síncrona o una
+ * promesa rechazada se registran y se contienen, nunca escalan al Client
+ * (un throw sin capturar puede cerrar la conexión WebSocket del gateway).
+ */
+function wrapEventHandler(
+  moduleId: string,
+  event: keyof ClientEvents,
+  handler: (...args: never[]) => unknown,
+): (...args: never[]) => void {
+  return (...args: never[]) => {
+    try {
+      const out = handler(...args);
+      if (out instanceof Promise) {
+        out.catch((err: unknown) => {
+          logger.error(
+            { err, moduleId, event },
+            "handler de evento de módulo: promesa rechazada",
+          );
+        });
+      }
+    } catch (err: unknown) {
+      logger.error(
+        { err, moduleId, event },
+        "handler de evento de módulo: excepción",
+      );
+    }
+  };
+}
+
+/**
  * Ejecuta `register` de cada módulo y recoge rutas, comandos, botones e intents.
  * Los eventos se encolan y se aplican en `bindClient`.
  */
@@ -53,6 +84,7 @@ export function createModuleRegistry(
   const pendingEvents: Array<{
     once: boolean;
     event: keyof ClientEvents;
+    moduleId: string;
     handler: (...args: never[]) => void;
   }> = [];
 
@@ -68,12 +100,14 @@ export function createModuleRegistry(
   }
 
   function bindClient(client: Client): void {
+    let currentModuleId = "?";
     const ctx: ModuleContext = {
       client,
       on(event, handler) {
         pendingEvents.push({
           once: false,
           event,
+          moduleId: currentModuleId,
           handler: handler as (...args: never[]) => void,
         });
       },
@@ -81,6 +115,7 @@ export function createModuleRegistry(
         pendingEvents.push({
           once: true,
           event,
+          moduleId: currentModuleId,
           handler: handler as (...args: never[]) => void,
         });
       },
@@ -148,14 +183,21 @@ export function createModuleRegistry(
     modalHandlers.clear();
 
     for (const mod of modules) {
+      currentModuleId = mod.id;
       mod.register(ctx);
     }
+    currentModuleId = "?";
 
     for (const entry of pendingEvents) {
+      const wrapped = wrapEventHandler(
+        entry.moduleId,
+        entry.event,
+        entry.handler,
+      );
       if (entry.once) {
-        client.once(entry.event, entry.handler as never);
+        client.once(entry.event, wrapped as never);
       } else {
-        client.on(entry.event, entry.handler as never);
+        client.on(entry.event, wrapped as never);
       }
     }
   }

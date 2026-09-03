@@ -2,6 +2,7 @@ import type { Client } from "discord.js";
 import { and, eq, isNotNull, lte } from "drizzle-orm";
 import { getDb } from "../../db/client.js";
 import { logger } from "../../core/log.js";
+import { registerJob } from "../../core/lifecycle.js";
 import {
   economyOwnedChannels,
   economyOwnedRoles,
@@ -121,5 +122,5 @@ export async function startShopExpirationSweeper(bot: Client): Promise<void> {
   sweepTimer = setInterval(() => {
     void sweepExpiredShopGrants(bot);
   }, SWEEP_MS);
-  if (typeof sweepTimer.unref === "function") sweepTimer.unref();
+  registerJob("economy:shop-expiration", sweepTimer);
 }

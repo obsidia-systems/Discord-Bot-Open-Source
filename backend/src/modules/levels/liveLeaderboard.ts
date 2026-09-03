@@ -1,4 +1,5 @@
 import { logger } from "../../core/log.js";
+import { registerJob } from "../../core/lifecycle.js";
 import {
   EmbedBuilder,
   type Client,
@@ -208,9 +209,10 @@ export async function forceLiveLeaderboardRefresh(
 async function ensureFlushInterval(client: Client): Promise<void> {
   if (flushIntervalStarted) return;
   flushIntervalStarted = true;
-  setInterval(() => {
+  const timer = setInterval(() => {
     for (const guildId of [...dirtyGuilds]) {
       void flushLiveLeaderboard(client, guildId);
     }
   }, MIN_EDIT_INTERVAL_MS);
+  registerJob("levels:live-leaderboard-flush", timer);
 }

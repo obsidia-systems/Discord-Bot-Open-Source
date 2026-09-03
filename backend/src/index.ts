@@ -2,8 +2,6 @@ import "zod/compile";
 import "dotenv/config";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Server } from "node:http";
-import type { Client } from "discord.js";
 import { initDatabase, closeDatabase } from "./db/client.js";
 import { loadModules } from "./core/modules/index.js";
 import { createBotClient } from "./core/bot/createClient.js";
@@ -12,6 +10,11 @@ import { ENABLED_MODULES } from "./modules/index.js";
 import { wireCustomCommandsBuiltinSync } from "./modules/custom-commands/index.js";
 import { logger } from "./core/log.js";
 import { loadEnv } from "./core/env.js";
+import {
+  installProcessGuards,
+  onShutdown,
+  runShutdown,
+} from "./core/lifecycle.js";
 import {
   roleRunsGateway,
   roleRunsHttp,
@@ -24,48 +27,30 @@ import { startSessionPruneJob, stopSessionPruneJob } from "./core/auth/sessionSt
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-let httpServer: Server | null = null;
-let botClient: Client | null = null;
-let shuttingDown = false;
-
-async function shutdown(signal: string): Promise<void> {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  logger.info({ signal }, "apagando");
-  stopSessionPruneJob();
-  await new Promise<void>((resolve) => {
-    if (!httpServer) {
-      resolve();
-      return;
-    }
-    httpServer.close(() => resolve());
-    setTimeout(resolve, 8_000).unref();
-  });
-  botClient?.destroy();
-  await releaseWorkerLock();
-  await closeDatabase();
-  process.exit(0);
-}
-
 async function main(): Promise<void> {
+  installProcessGuards();
+
   const cfg = loadEnv();
   setRuntimeRole(cfg.ADOBO_ROLE);
 
   await initDatabase();
+  onShutdown("db", () => closeDatabase());
 
   if (roleRunsWorker(cfg.ADOBO_ROLE)) {
     const leader = await acquireWorkerLock(cfg.DATABASE_URL);
     setWorkerLeader(leader);
+    onShutdown("worker-lock", () => releaseWorkerLock());
   }
 
   if (roleRunsHttp(cfg.ADOBO_ROLE)) {
     startSessionPruneJob();
+    onShutdown("session-prune", () => stopSessionPruneJob());
   }
 
   const registry = loadModules(ENABLED_MODULES);
   wireCustomCommandsBuiltinSync();
   const bot = createBotClient(registry);
-  botClient = bot;
+  onShutdown("discord", () => bot.destroy());
 
   const app = roleRunsHttp(cfg.ADOBO_ROLE)
     ? createApp({
@@ -87,7 +72,7 @@ async function main(): Promise<void> {
     logger.info("ADOBO_ROLE=api — no Discord login or crons");
   }
 
-  httpServer = app.listen(cfg.PORT, cfg.HOST, () => {
+  const httpServer = app.listen(cfg.PORT, cfg.HOST, () => {
     const kind = roleRunsHttp(cfg.ADOBO_ROLE)
       ? cfg.SERVE_STATIC
         ? "Panel + API"
@@ -98,15 +83,18 @@ async function main(): Promise<void> {
     );
   });
 
-  process.on("SIGINT", () => {
-    void shutdown("SIGINT");
-  });
-  process.on("SIGTERM", () => {
-    void shutdown("SIGTERM");
-  });
+  // `close()` deja de aceptar conexiones nuevas y espera a las abiertas.
+  // Sin timer que compita: el timeout por-hook del lifecycle es la red de seguridad.
+  onShutdown(
+    "http",
+    () =>
+      new Promise<void>((resolve) => {
+        httpServer.close(() => resolve());
+      }),
+  );
 }
 
 main().catch((error: unknown) => {
   logger.error({ err: error }, "Fallo al iniciar:");
-  process.exit(1);
+  void runShutdown("startup-failure", 1);
 });
