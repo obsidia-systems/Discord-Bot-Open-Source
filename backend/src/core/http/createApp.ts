@@ -9,8 +9,6 @@ import express, {
 } from "express";
 import helmet from "helmet";
 import { getUploadsRoot } from "#lib/dataPaths.js";
-import { healthRouter } from "../../api/routes/health.js";
-import { uploadRoutes } from "../../api/routes/uploads.routes.js";
 import { authRouter, meRouter } from "../auth/oauth.js";
 import { entitlementsRoutes, requireFeature } from "../entitlements/index.js";
 import { env } from "../env.js";
@@ -18,12 +16,14 @@ import { logger } from "../log.js";
 import type { ModuleRegistry } from "../modules/registry.js";
 import { errorHandler, notFoundHandler } from "./errorHandler.js";
 import { requireAuth, requireGuildAccess } from "./guildContext.js";
+import { healthRouter } from "./health.js";
 import {
   apiRateLimiter,
   authRateLimiter,
   uploadRateLimiter,
 } from "./rateLimit.js";
 import { requestIdMiddleware } from "./requestContext.js";
+import { uploadRoutes } from "./uploads.js";
 
 export interface CreateAppOptions {
   bot: Client;

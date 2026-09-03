@@ -17,7 +17,7 @@ import {
   getForm,
   setFormPublishedMessage,
   updateForm,
-} from "./service.js";
+} from "./domain/forms.js";
 
 function embedColorInt(hex: string): number {
   const n = Number.parseInt(hex.replace("#", ""), 16);

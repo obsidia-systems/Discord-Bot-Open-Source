@@ -11,8 +11,8 @@ import {
   EmbedBuilder,
 } from "discord.js";
 import { consumeInteractionEphemeral } from "#modules/system-commands/ephemeral.js";
-import { getEconomyConfig } from "../service.js";
-import { listShopItems } from "../shopService.js";
+import { getEconomyConfig } from "../domain/economy.js";
+import { listShopItems } from "../domain/shopService.js";
 import { EPHEMERAL, visibility } from "./visibility.js";
 
 export const BUY_BUTTON_PREFIX = "buy_";

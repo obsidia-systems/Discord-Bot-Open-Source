@@ -39,7 +39,7 @@ import {
   removeTicketParticipant,
   setTicketChannelId,
   TicketsError,
-} from "./service.js";
+} from "./domain/tickets.js";
 
 const TICKET_ALLOW = [
   PermissionFlagsBits.ViewChannel,

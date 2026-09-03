@@ -4,8 +4,8 @@ import {
   PermissionFlagsBits,
 } from "discord.js";
 import { resolveAlertChannel, sendAntiRaidAlert } from "./alerts.js";
+import { getAntiRaidSettings } from "./domain/anti-raid.js";
 import { applyGuildLockdown, liftGuildLockdown } from "./lockdown.js";
-import { getAntiRaidSettings } from "./service.js";
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral } as const;
 

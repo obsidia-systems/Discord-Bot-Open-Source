@@ -9,7 +9,7 @@ import {
   applyCheckoutSession,
   applyInvoiceEvent,
   applyStripeSubscription,
-} from "./service.js";
+} from "./domain/billing.js";
 import { requireStripe, requireWebhookSecret } from "./stripe.js";
 
 async function alreadyProcessed(eventId: string): Promise<boolean> {

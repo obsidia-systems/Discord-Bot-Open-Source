@@ -1,8 +1,8 @@
 import { SYSTEM_COMMAND_CATALOG } from "@adobos/shared";
 import type { ChatInputCommandInteraction, GuildMember } from "discord.js";
 import { EmbedBuilder, MessageFlags, PermissionFlagsBits } from "discord.js";
+import { getCommandPermission } from "../domain/system-commands.js";
 import { consumeInteractionEphemeral } from "../ephemeral.js";
-import { getCommandPermission } from "../service.js";
 
 function asGuildMember(
   member: ChatInputCommandInteraction["member"],

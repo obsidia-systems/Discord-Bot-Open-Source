@@ -7,8 +7,8 @@ import type { ChatInputCommandInteraction, GuildMember } from "discord.js";
 import { PermissionFlagsBits } from "discord.js";
 import { featureForCommandCategory } from "#core/entitlements/features.js";
 import { getGuildTier } from "#core/entitlements/service.js";
+import { getCommandPermission } from "./domain/system-commands.js";
 import { setInteractionEphemeral } from "./ephemeral.js";
-import { getCommandPermission } from "./service.js";
 
 export type SystemCommandGuardResult =
   | { ok: true; ephemeral: boolean }

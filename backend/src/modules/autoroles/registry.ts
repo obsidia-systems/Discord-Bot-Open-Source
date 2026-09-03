@@ -45,9 +45,9 @@ import {
 import { autorolesRegistry, guildSettings } from "#db/schema.js";
 import { getEmbedTemplate } from "#modules/messages/templates/service.js";
 import { buildEmbedFromPayload } from "#modules/moderation/dm.js";
-import { createAutoRoleSetup, normalizeEmojiKey } from "./api/controller.js";
 import { assertAssignableRoleIds } from "./assignable.js";
 import { AutoRoleError } from "./errors.js";
+import { createAutoRoleSetup, normalizeEmojiKey } from "./http/controller.js";
 
 const BUTTON_STYLE_MAP: Record<
   NonNullable<AutoroleMappingItem["style"]>,

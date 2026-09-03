@@ -6,8 +6,8 @@ import {
   ButtonStyle,
   type Client,
 } from "discord.js";
-import { assertCasinoBetAllowed } from "../casinoService.js";
-import { EconomyError, getEconomyConfig } from "../service.js";
+import { assertCasinoBetAllowed } from "../domain/casinoService.js";
+import { EconomyError, getEconomyConfig } from "../domain/economy.js";
 import { EPHEMERAL } from "./visibility.js";
 
 export const WIN = 0x57f287;

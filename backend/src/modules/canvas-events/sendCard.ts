@@ -6,12 +6,12 @@ import { renderWelcomeCard } from "#core/workers/welcomeCardPool.js";
 import { getDb, one } from "#db/client.js";
 import { canvasEventSettings } from "#db/schema.js";
 import { isWelcomeSendChannel } from "#modules/welcome/channel.js";
-import { parseTextLayersJson } from "#modules/welcome/service.js";
+import { parseTextLayersJson } from "#modules/welcome/domain/welcome.js";
 import {
   applyWelcomeVariables,
   type WelcomeTemplateContext,
 } from "#modules/welcome/text/welcomeEmbed.js";
-import { disableCanvasEventSettings } from "./service.js";
+import { disableCanvasEventSettings } from "./domain/canvas-events.js";
 
 export interface CanvasEventUserPayload {
   id: string;

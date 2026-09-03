@@ -28,7 +28,7 @@ import {
   releaseWorkerLock,
 } from "#core/runtime/workerLock.js";
 import { closeDatabase, initDatabase } from "#db/client.js";
-import { wireCustomCommandsBuiltinSync } from "#modules/custom-commands/index.js";
+import { wireCustomCommandsBuiltinSync } from "#modules/custom-commands/module.js";
 import { ENABLED_MODULES } from "#modules/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

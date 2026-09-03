@@ -16,7 +16,17 @@ import {
 } from "discord.js";
 import { consumeInteractionEphemeral } from "#modules/system-commands/ephemeral.js";
 import { pickRandom, randomBelow, randomInclusive } from "../casino/rng.js";
-import { assertCooldownAvailable, setCooldownMinutes } from "../cooldowns.js";
+import {
+  assertCooldownAvailable,
+  setCooldownMinutes,
+} from "../domain/cooldowns.js";
+import {
+  EconomyError,
+  getEconomyConfig,
+  getUserEconomyBalance,
+  listEconomyLeaderboardRows,
+  parseBankAmountInput,
+} from "../domain/economy.js";
 import {
   adjustEconomyFunds,
   claimFixedIncome,
@@ -27,15 +37,8 @@ import {
   robWallet,
   transferWalletPay,
   withdrawFromBank,
-} from "../funds.js";
-import { getEconomyIncomeConfig } from "../incomeService.js";
-import {
-  EconomyError,
-  getEconomyConfig,
-  getUserEconomyBalance,
-  listEconomyLeaderboardRows,
-  parseBankAmountInput,
-} from "../service.js";
+} from "../domain/funds.js";
+import { getEconomyIncomeConfig } from "../domain/incomeService.js";
 import {
   clearMessageComponents,
   parseOwnerCustomId,

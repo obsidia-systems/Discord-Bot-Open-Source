@@ -11,9 +11,9 @@ import {
 import { consumeInteractionEphemeral } from "#modules/system-commands/ephemeral.js";
 import { coinflipPayout } from "../casino/payouts.js";
 import { flipCoin } from "../casino/rng.js";
-import { assertCooldownAvailable, setCooldownMs } from "../cooldowns.js";
-import { creditWallet, debitWalletStrict } from "../funds.js";
-import { EconomyError, getUserEconomyBalance } from "../service.js";
+import { assertCooldownAvailable, setCooldownMs } from "../domain/cooldowns.js";
+import { EconomyError, getUserEconomyBalance } from "../domain/economy.js";
+import { creditWallet, debitWalletStrict } from "../domain/funds.js";
 import {
   assertEconomyAndCasino,
   clearMessageComponents,

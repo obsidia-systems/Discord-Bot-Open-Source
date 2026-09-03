@@ -18,7 +18,7 @@ import {
   discordApplicationId,
 } from "#core/discord/discordApp.js";
 import { logger } from "#core/log.js";
-import { getCommandPermission } from "./service.js";
+import { getCommandPermission } from "./domain/system-commands.js";
 
 /** Bitfield Discord para ocultar el comando en el autocomplete. */
 function defaultMemberPermissionsFor(

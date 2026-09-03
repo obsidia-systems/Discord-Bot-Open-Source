@@ -11,7 +11,7 @@ import {
   economyUserBoosts,
 } from "#db/schema.js";
 import { consumeInteractionEphemeral } from "#modules/system-commands/ephemeral.js";
-import { EconomyError } from "../service.js";
+import { EconomyError } from "../domain/economy.js";
 import { EPHEMERAL, visibility } from "./visibility.js";
 
 function stillActive(expiresAt: Date | null): boolean {

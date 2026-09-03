@@ -20,10 +20,10 @@ import {
   economyPurchases,
   economyUserBoosts,
 } from "#db/schema.js";
-import { getLevelsConfig } from "#modules/levels/service.js";
-import { debitShopPurchase, refundShopPurchase } from "./funds.js";
-import { EconomyError, getEconomyConfig } from "./service.js";
-import { getShopItem } from "./shopService.js";
+import { getLevelsConfig } from "#modules/levels/domain/levels.js";
+import { EconomyError, getEconomyConfig } from "./domain/economy.js";
+import { debitShopPurchase, refundShopPurchase } from "./domain/funds.js";
+import { getShopItem } from "./domain/shopService.js";
 
 const PRIVATE_CATEGORY_NAME = "Private Zones";
 

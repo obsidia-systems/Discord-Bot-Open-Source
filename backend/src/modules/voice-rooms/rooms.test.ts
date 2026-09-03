@@ -1,8 +1,8 @@
 import { defaultVoiceRoomActions } from "@adobos/shared";
 import { type GuildMember, PermissionFlagsBits } from "discord.js";
 import { describe, expect, it } from "vitest";
+import { VoiceRoomsError } from "./domain/voice-rooms.js";
 import { assertCanControl } from "./rooms.js";
-import { VoiceRoomsError } from "./service.js";
 
 function member(id: string, staff: boolean): GuildMember {
   return {

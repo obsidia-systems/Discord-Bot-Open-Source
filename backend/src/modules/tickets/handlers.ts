@@ -46,7 +46,7 @@ import {
   getTicketPanel,
   getTicketSettings,
   TicketsError,
-} from "./service.js";
+} from "./domain/tickets.js";
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral } as const;
 

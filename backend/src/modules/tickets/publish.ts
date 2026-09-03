@@ -19,7 +19,7 @@ import {
   setPanelPublishedMessage,
   TicketsError,
   updateTicketPanel,
-} from "./service.js";
+} from "./domain/tickets.js";
 
 function embedColorInt(hex: string): number {
   const n = Number.parseInt(hex.replace("#", ""), 16);

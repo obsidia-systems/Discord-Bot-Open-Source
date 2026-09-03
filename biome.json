@@ -38,13 +38,13 @@
     {
       "includes": [
         "backend/src/modules/*/domain/**/*.ts",
-        "backend/src/modules/*/service.ts",
-        "!backend/src/modules/action-logs/service.ts",
-        "!backend/src/modules/canvas-events/service.ts",
-        "!backend/src/modules/roles-builder/service.ts",
-        "!backend/src/modules/welcome/service.ts",
-        "!backend/src/modules/bot-profile/service.ts",
-        "!backend/src/modules/moderation/service.ts"
+        "!backend/src/modules/*/domain/**/*.test.ts",
+        "!backend/src/modules/action-logs/domain/action-logs.ts",
+        "!backend/src/modules/canvas-events/domain/canvas-events.ts",
+        "!backend/src/modules/roles-builder/domain/roles-builder.ts",
+        "!backend/src/modules/welcome/domain/welcome.ts",
+        "!backend/src/modules/bot-profile/domain/bot-profile.ts",
+        "!backend/src/modules/moderation/domain/moderation.ts"
       ],
       "linter": {
         "rules": {
@@ -53,8 +53,25 @@
               "level": "error",
               "options": {
                 "paths": {
-                  "discord.js": "La capa de dominio no habla con el gateway; mueve esto a events/, commands/, handlers/ o api/.",
-                  "express": "La capa de dominio no conoce HTTP; el router (api/routes.ts) adapta request → dominio."
+                  "discord.js": "La capa de dominio no habla con el gateway; mueve esto a gateway/, commands/, handlers/ o http/.",
+                  "express": "La capa de dominio no conoce HTTP; el router (http/routes.ts) adapta request → dominio."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["backend/src/modules/*/gateway.ts", "backend/src/modules/*/gateway/**/*.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "express": "gateway/ maneja eventos de Discord, no HTTP."
                 }
               }
             }

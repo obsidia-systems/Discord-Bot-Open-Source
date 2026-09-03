@@ -18,7 +18,7 @@ import {
   editEmbedMessage,
   MessageSendError,
   sendEmbedMessage,
-} from "./api/controller.js";
+} from "./http/controller.js";
 import { listEmbedTemplates } from "./templates/service.js";
 
 function resolveGuildId(raw?: string): string {

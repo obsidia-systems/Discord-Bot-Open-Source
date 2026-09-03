@@ -1,11 +1,11 @@
 import { type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { consumeInteractionEphemeral } from "#modules/system-commands/ephemeral.js";
-import { clampTimeoutSeconds, parseDurationToSeconds } from "../duration.js";
 import {
   executeModAction,
   getMemberInfo,
   ModerationError,
-} from "../service.js";
+} from "../domain/moderation.js";
+import { clampTimeoutSeconds, parseDurationToSeconds } from "../duration.js";
 
 export { parseDurationToSeconds };
 

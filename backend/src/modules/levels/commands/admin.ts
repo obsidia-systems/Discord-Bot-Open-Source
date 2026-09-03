@@ -4,13 +4,13 @@ import {
   MessageFlags,
 } from "discord.js";
 import { consumeInteractionEphemeral } from "#modules/system-commands/ephemeral.js";
-import { syncLevelsProgress } from "../events.js";
 import {
   addUserXp,
   deductUserXp,
   getLevelsConfigCached,
   setUserLevel,
-} from "../service.js";
+} from "../domain/levels.js";
+import { syncLevelsProgress } from "../gateway.js";
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral } as const;
 

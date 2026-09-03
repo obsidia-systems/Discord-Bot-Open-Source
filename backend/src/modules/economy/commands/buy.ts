@@ -8,9 +8,9 @@ import type {
 import { EmbedBuilder } from "discord.js";
 import { resolveEmbedMedia } from "#lib/embedMedia.js";
 import { consumeInteractionEphemeral } from "#modules/system-commands/ephemeral.js";
+import { EconomyError, getEconomyConfig } from "../domain/economy.js";
+import { listShopItems } from "../domain/shopService.js";
 import { purchaseShopItem } from "../purchaseService.js";
-import { EconomyError, getEconomyConfig } from "../service.js";
-import { listShopItems } from "../shopService.js";
 import { BUY_BUTTON_PREFIX } from "./shop.js";
 import { EPHEMERAL, visibility } from "./visibility.js";
 

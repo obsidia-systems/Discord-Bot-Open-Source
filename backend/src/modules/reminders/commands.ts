@@ -22,7 +22,7 @@ import {
   getReminderSettings,
   listUserReminders,
   RemindersError,
-} from "./service.js";
+} from "./domain/reminders.js";
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral } as const;
 

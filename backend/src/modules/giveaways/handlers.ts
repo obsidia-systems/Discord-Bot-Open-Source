@@ -5,7 +5,7 @@ import {
   MessageFlags,
 } from "discord.js";
 import { joinGiveawayFromMember } from "./actions.js";
-import { GiveawaysError } from "./service.js";
+import { GiveawaysError } from "./domain/giveaways.js";
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral } as const;
 

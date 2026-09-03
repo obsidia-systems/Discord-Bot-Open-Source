@@ -15,7 +15,7 @@ import {
   insertGiveaway,
   setGiveawayMessageId,
   toggleGiveawayEntry,
-} from "./service.js";
+} from "./domain/giveaways.js";
 
 export async function createAndPublishGiveaway(input: {
   bot: Client;

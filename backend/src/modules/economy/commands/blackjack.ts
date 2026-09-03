@@ -21,13 +21,13 @@ import {
   shuffleDeck,
 } from "../casino/cards.js";
 import { blackjackCredit } from "../casino/payouts.js";
+import { EconomyError, getUserEconomyBalance } from "../domain/economy.js";
 import {
   closeBlackjackStake,
   openBlackjackStake,
   raiseBlackjackStake,
   refundBlackjackStakeIfOpen,
-} from "../funds.js";
-import { EconomyError, getUserEconomyBalance } from "../service.js";
+} from "../domain/funds.js";
 import {
   assertEconomyAndCasino,
   clearMessageComponents,

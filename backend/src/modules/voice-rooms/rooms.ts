@@ -20,7 +20,7 @@ import {
   type VoiceChannel,
 } from "discord.js";
 import { logger } from "#core/log.js";
-import { VoiceRoomsError } from "./service.js";
+import { VoiceRoomsError } from "./domain/voice-rooms.js";
 
 const OWNER_ALLOW = [
   PermissionFlagsBits.ViewChannel,

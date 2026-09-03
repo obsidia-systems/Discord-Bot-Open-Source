@@ -15,16 +15,16 @@ import {
 } from "discord.js";
 import { logger } from "#core/log.js";
 import {
+  applyStreamLiveState,
+  listEnabledStreamAlerts,
+  touchStreamAlertChecked,
+} from "./domain/stream-alerts.js";
+import {
   fetchKickLive,
   fetchTwitchLiveMap,
   fetchYouTubeLive,
   offlineSnapshot,
 } from "./providers.js";
-import {
-  applyStreamLiveState,
-  listEnabledStreamAlerts,
-  touchStreamAlertChecked,
-} from "./service.js";
 
 let botClient: Client | null = null;
 const inFlight = new Set<number>();

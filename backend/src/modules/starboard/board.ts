@@ -25,7 +25,7 @@ import {
   getPostByStarboardMessage,
   getStarboardSettings,
   upsertStarboardPost,
-} from "./service.js";
+} from "./domain/starboard.js";
 
 const BOARD_COLOR = 0xffac33;
 const BOARD_PERMS =

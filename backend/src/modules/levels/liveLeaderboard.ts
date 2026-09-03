@@ -8,7 +8,7 @@ import {
   getTopUserXpRows,
   setLiveLeaderboardMessageId,
   topFingerprint,
-} from "./service.js";
+} from "./domain/levels.js";
 
 /** Debounce tras un cambio de Top 10. */
 const DEBOUNCE_MS = 45_000;

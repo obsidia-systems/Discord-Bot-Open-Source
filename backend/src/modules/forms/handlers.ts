@@ -38,7 +38,7 @@ import {
   getUserCooldownRemainingMs,
   insertFormResponse,
   reviewFormResponse,
-} from "./service.js";
+} from "./domain/forms.js";
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral } as const;
 

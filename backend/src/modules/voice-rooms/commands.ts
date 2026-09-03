@@ -4,8 +4,8 @@ import type {
   StringSelectMenuInteraction,
 } from "discord.js";
 import { EPHEMERAL, loadRoomContext, runVoiceRoomAction } from "./actions.js";
+import { VoiceRoomsError } from "./domain/voice-rooms.js";
 import { buildControlSelect } from "./rooms.js";
-import { VoiceRoomsError } from "./service.js";
 
 async function replyError(
   interaction: ChatInputCommandInteraction | StringSelectMenuInteraction,

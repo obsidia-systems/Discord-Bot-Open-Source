@@ -14,6 +14,13 @@ import {
   type VoiceChannel,
 } from "discord.js";
 import {
+  getGeneratorById,
+  getRoomByChannel,
+  getRoomByOwner,
+  patchRoom,
+  VoiceRoomsError,
+} from "./domain/voice-rooms.js";
+import {
   applyGhost,
   applyLock,
   assertCanControl,
@@ -28,13 +35,6 @@ import {
   setRoomStatus,
   transferOwnerOverwrites,
 } from "./rooms.js";
-import {
-  getGeneratorById,
-  getRoomByChannel,
-  getRoomByOwner,
-  patchRoom,
-  VoiceRoomsError,
-} from "./service.js";
 
 export interface VoiceActionInput {
   member: GuildMember;

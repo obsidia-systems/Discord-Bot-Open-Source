@@ -10,7 +10,7 @@ import {
   getAntiRaidSettings,
   getLockdownSnapshot,
   setLockdownState,
-} from "./service.js";
+} from "./domain/anti-raid.js";
 
 const LOCK_PERMS = {
   SendMessages: false,

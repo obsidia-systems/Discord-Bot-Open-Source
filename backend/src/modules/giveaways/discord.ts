@@ -12,7 +12,7 @@ import {
 } from "discord.js";
 import { channelBelongsToGuild } from "#core/http/channelScope.js";
 import { logger } from "#core/log.js";
-import { GiveawaysError } from "./service.js";
+import { GiveawaysError } from "./domain/giveaways.js";
 
 function asTextChannel(channel: unknown): TextChannel | null {
   if (

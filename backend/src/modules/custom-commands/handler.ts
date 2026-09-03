@@ -15,7 +15,7 @@ import {
 import { can, getGuildTier } from "#core/entitlements/service.js";
 import { logger } from "#core/log.js";
 import { resolveEmbedMedia } from "#lib/embedMedia.js";
-import { getCustomCommandByName } from "./service.js";
+import { getCustomCommandByName } from "./domain/custom-commands.js";
 import { parseCustomCommandVariables } from "./variables.js";
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral } as const;
@@ -69,7 +69,7 @@ async function resolveLevelStats(
   userId: string,
 ): Promise<{ level: number | null; xp: number | null }> {
   try {
-    const { getUserRankStats } = await import("../levels/service.js");
+    const { getUserRankStats } = await import("../levels/domain/levels.js");
     const stats = await getUserRankStats(guildId, userId);
     return { level: stats?.level ?? null, xp: stats?.xp ?? null };
   } catch {

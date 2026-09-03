@@ -29,7 +29,7 @@ import {
   handleUseCommand,
 } from "#modules/economy/commands/inventory.js";
 import { handleShopCommand } from "#modules/economy/commands/shop.js";
-import { getEconomyConfig } from "#modules/economy/service.js";
+import { getEconomyConfig } from "#modules/economy/domain/economy.js";
 import {
   handleGiveXpCommand,
   handleRemoveXpCommand,

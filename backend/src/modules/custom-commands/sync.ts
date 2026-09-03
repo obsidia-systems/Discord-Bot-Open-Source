@@ -12,7 +12,10 @@ import {
   discordApplicationId,
 } from "#core/discord/discordApp.js";
 import { logger } from "#core/log.js";
-import { CustomCommandsError, listActiveCustomCommands } from "./service.js";
+import {
+  CustomCommandsError,
+  listActiveCustomCommands,
+} from "./domain/custom-commands.js";
 
 function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
