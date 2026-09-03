@@ -8,6 +8,7 @@ import { registerAutoDeleteListeners } from "./gateway.js";
 import { autoDeleteRoutes } from "./http/routes.js";
 import {
   bindAutoDeleteScheduler,
+  processDueScheduledCleanups,
   rehydrateAllAutoDeleteJobs,
   stopAllAutoDeleteJobs,
   syncAutoDeleteJobsForConfig,
@@ -15,6 +16,8 @@ import {
 import { processDueCountdownDeletes } from "./pending.js";
 
 const COUNTDOWN_TICK_MS = 5_000;
+// Las reglas SCHEDULED son de minuto: un tick < 60s no pierde el minuto.
+const SCHEDULED_TICK_MS = 20_000;
 
 export const autoDeleteModule: AdobosModule = {
   id: "auto-delete",
@@ -26,11 +29,11 @@ export const autoDeleteModule: AdobosModule = {
   ],
   register(ctx) {
     bindAutoDeleteScheduler(ctx.client);
-    setAutoDeleteConfigChangeListener(async (config) => {
+    setAutoDeleteConfigChangeListener((config) => {
       if (!isWorkerLeader()) return;
-      await syncAutoDeleteJobsForConfig(config);
+      syncAutoDeleteJobsForConfig(config);
     });
-    onShutdown("auto-delete:cron", () => stopAllAutoDeleteJobs());
+    onShutdown("auto-delete:scheduled-rules", () => stopAllAutoDeleteJobs());
 
     ctx.route("/api/auto-delete", autoDeleteRoutes(ctx.client), {
       feature: "auto-delete",
@@ -48,13 +51,21 @@ export const autoDeleteModule: AdobosModule = {
       }
     });
 
-    const timer = setInterval(() => {
+    const countdownTimer = setInterval(() => {
       if (!isWorkerLeader()) return;
       void processDueCountdownDeletes(ctx.client).catch((error: unknown) => {
         logger.warn({ err: error }, "auto-delete: tick failed:");
       });
     }, COUNTDOWN_TICK_MS);
-    registerJob("auto-delete:countdown", timer);
+    registerJob("auto-delete:countdown", countdownTimer);
+
+    const scheduledTimer = setInterval(() => {
+      if (!isWorkerLeader()) return;
+      void processDueScheduledCleanups(ctx.client).catch((error: unknown) => {
+        logger.warn({ err: error }, "auto-delete: scheduled tick failed:");
+      });
+    }, SCHEDULED_TICK_MS);
+    registerJob("auto-delete:scheduled", scheduledTimer);
   },
 };
 

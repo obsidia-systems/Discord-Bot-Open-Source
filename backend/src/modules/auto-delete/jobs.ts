@@ -15,17 +15,27 @@ import {
   type GuildTextBasedChannel,
   type Message,
 } from "discord.js";
-import cron, { type ScheduledTask } from "node-cron";
 import { logger } from "#core/log.js";
-import { timeAndDaysToCron } from "#lib/schedulerTimezone.js";
+import {
+  clockPartsInZone,
+  isDailyScheduleDue,
+} from "#lib/schedulerTimezone.js";
 import { rememberBotMessageDeletes } from "#modules/action-logs/audit.js";
 import { listAllAutoDeleteConfigs } from "./domain/auto-delete.js";
 
 const MAX_PAGES = 25;
 const PAUSE_MS = 350;
 
-/** Tasks por guildId → lista de jobs activos. */
-const guildJobs = new Map<string, ScheduledTask[]>();
+interface ScheduledEntry {
+  guildId: string;
+  rule: AutoDeleteRule;
+  timezone: string;
+}
+
+/** guildId → reglas SCHEDULED activas (reemplaza los cron tasks de node-cron). */
+const scheduledRules = new Map<string, ScheduledEntry[]>();
+/** `${guildId}:${channelId}` → último minuto (stamp de su zona) ya disparado. */
+const lastFired = new Map<string, string>();
 
 let botClient: Client | null = null;
 
@@ -156,79 +166,76 @@ async function runScheduledCleanup(
   }
 }
 
-/** Convierte hora + días a cron `m h * * dow`. */
-export function scheduledTimeToCron(
-  time: string,
-  days: number[] = [],
-): string | null {
-  return timeAndDaysToCron(time, days);
-}
-
 export function stopAutoDeleteJobsForGuild(guildId: string): void {
-  const jobs = guildJobs.get(guildId);
-  if (!jobs) return;
-  for (const job of jobs) {
-    try {
-      job.stop();
-    } catch {
-      /* ignore */
-    }
+  scheduledRules.delete(guildId);
+  for (const key of [...lastFired.keys()]) {
+    if (key.startsWith(`${guildId}:`)) lastFired.delete(key);
   }
-  guildJobs.delete(guildId);
 }
 
 export function stopAllAutoDeleteJobs(): void {
-  for (const guildId of [...guildJobs.keys()]) {
-    stopAutoDeleteJobsForGuild(guildId);
+  scheduledRules.clear();
+  lastFired.clear();
+}
+
+/**
+ * Reemplaza las reglas SCHEDULED en memoria para el guild. Si el módulo está
+ * desactivado, solo limpia. El tick (`processDueScheduledCleanups`) las ejecuta.
+ */
+export function syncAutoDeleteJobsForConfig(config: AutoDeleteConfig): void {
+  stopAutoDeleteJobsForGuild(config.guildId);
+  if (!botClient || !config.enabled) return;
+
+  const timezone = normalizeScheduledTimezone(config.timezone);
+  const entries = config.rules
+    .filter((rule) => rule.mode === "SCHEDULED")
+    .map((rule) => ({ guildId: config.guildId, rule, timezone }));
+
+  if (entries.length > 0) {
+    scheduledRules.set(config.guildId, entries);
   }
 }
 
 /**
- * Destruye jobs previos del guild y registra crons de reglas SCHEDULED.
- * Si el módulo está desactivado, solo limpia.
+ * Tick del scheduler interno: ejecuta las reglas SCHEDULED cuyo `HH:mm` (+ días)
+ * coincide con el minuto actual de su zona. De-dup por minuto/regla.
  */
-export async function syncAutoDeleteJobsForConfig(
-  config: AutoDeleteConfig,
-): Promise<void> {
-  const client = botClient;
-  stopAutoDeleteJobsForGuild(config.guildId);
-  if (!client || !config.enabled) return;
-
-  const timezone = normalizeScheduledTimezone(config.timezone);
-
-  const jobs: ScheduledTask[] = [];
-  for (const rule of config.rules) {
-    if (rule.mode !== "SCHEDULED") continue;
-    const expression = scheduledTimeToCron(
-      rule.scheduledTime,
-      rule.scheduledDays ?? [],
-    );
-    if (!expression || !cron.validate(expression)) continue;
-
-    const task = cron.schedule(
-      expression,
-      () => {
-        void runScheduledCleanup(client, config.guildId, rule);
-      },
-      { timezone },
-    );
-    jobs.push(task);
+export async function processDueScheduledCleanups(
+  client: Client,
+  at: Date = new Date(),
+): Promise<number> {
+  let fired = 0;
+  for (const entries of scheduledRules.values()) {
+    for (const { guildId, rule, timezone } of entries) {
+      const clock = clockPartsInZone(timezone, at);
+      if (
+        !isDailyScheduleDue(rule.scheduledTime, rule.scheduledDays ?? [], clock)
+      ) {
+        continue;
+      }
+      const key = `${guildId}:${rule.channelId}`;
+      if (lastFired.get(key) === clock.stamp) continue;
+      lastFired.set(key, clock.stamp);
+      fired += 1;
+      void runScheduledCleanup(client, guildId, rule);
+    }
   }
-
-  if (jobs.length > 0) {
-    guildJobs.set(config.guildId, jobs);
-  }
+  if (lastFired.size > 5_000) lastFired.clear();
+  return fired;
 }
 
-/** Rehidrata todos los crons desde Postgres (arranque del bot). */
+/** Rehidrata las reglas SCHEDULED desde Postgres (arranque del bot). */
 export async function rehydrateAllAutoDeleteJobs(): Promise<void> {
   stopAllAutoDeleteJobs();
   try {
     const configs = await listAllAutoDeleteConfigs();
     for (const config of configs) {
-      await syncAutoDeleteJobsForConfig(config);
+      syncAutoDeleteJobsForConfig(config);
     }
   } catch (error) {
-    logger.warn({ err: error }, "auto-delete: rehydrate cron failed:");
+    logger.warn(
+      { err: error },
+      "auto-delete: rehydrate scheduled rules failed:",
+    );
   }
 }

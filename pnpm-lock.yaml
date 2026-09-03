@@ -50,9 +50,6 @@ importers:
       multer:
         specifier: ^2.3.0
         version: 2.3.0
-      node-cron:
-        specifier: ^4.6.0
-        version: 4.6.0
       pino:
         specifier: ^10.3.1
         version: 10.3.1
@@ -84,9 +81,6 @@ importers:
       '@types/node':
         specifier: ^24.13.3
         version: 24.13.3
-      '@types/node-cron':
-        specifier: ^3.0.11
-        version: 3.0.11
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
@@ -1914,9 +1908,6 @@ packages:
   '@types/nlcst@2.0.3':
     resolution: {integrity: sha512-vSYNSDe6Ix3q+6Z7ri9lyWqgGhJTmzRjZRqyq15N0Z/1/UnVsno9G/N40NBijoYx2seFDIl0+B2mgAb9mezUCA==}
 
-  '@types/node-cron@3.0.11':
-    resolution: {integrity: sha512-0ikrnug3/IyneSHqCBeslAhlK2aBfYek1fGo4bP4QnZPmiqSGRK+Oy7ZMisLWkesffJvQ1cqAcBnJC+8+nxIAg==}
-
   '@types/node@22.20.1':
     resolution: {integrity: sha512-EANqOCF9QFyra+4pfxUcX9STKJpCLjMbObVzljIJomAWSnuSIEAvyzEU53GaajbXJEgdh0iEcPL+DGvpUd4k1Q==}
 
@@ -3311,10 +3302,6 @@ packages:
 
   node-abort-controller@3.1.1:
     resolution: {integrity: sha512-AGK2yQKIjRuqnc6VkX2Xj5d+QW8xZ87pa1UK6yA6ouUyuxfHuMP6umE5QK7UmTeOAymo+Zx1Fxiuw9rVx8taHQ==}
-
-  node-cron@4.6.0:
-    resolution: {integrity: sha512-Si/bzYiKRHOB8/a99T2+SDGN582ONDMSTlJr5oCkT6GtnqPjZ2s10eoQRYkW9ZHwjVxONL+W8Fb+qR0AHMQsdg==}
-    engines: {node: '>=20'}
 
   node-fetch-native@1.6.7:
     resolution: {integrity: sha512-g9yhqoedzIUm0nTnTqAQvueMPVOuIY16bqgAJJC8XOOubYFNwz6IER9qs0Gq2Xd0+CecCKFjtdDTMA4u4xG06Q==}
@@ -5933,8 +5920,6 @@ snapshots:
     dependencies:
       '@types/unist': 3.0.3
 
-  '@types/node-cron@3.0.11': {}
-
   '@types/node@22.20.1':
     dependencies:
       undici-types: 6.21.0
@@ -7694,8 +7679,6 @@ snapshots:
     optional: true
 
   node-abort-controller@3.1.1: {}
-
-  node-cron@4.6.0: {}
 
   node-fetch-native@1.6.7: {}
 

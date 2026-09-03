@@ -41,58 +41,52 @@ export function normalizeClockTime(value: unknown, fallback = "12:00"): string {
 }
 
 /**
- * Cron diario/semanal: `m h * * dow`.
- * Días vacíos → todos (`*`). 0=Dom … 6=Sáb.
+ * Partes de reloj (hora `HH:mm` + día de semana) de una fecha vista desde una
+ * zona IANA. `weekday`: 0=Dom … 6=Sáb. `stamp` (`YYYY-MM-DDTHH:mm` en esa zona)
+ * sirve para de-duplicar un disparo por minuto.
  */
-export function timeAndDaysToCron(
-  time: string,
-  days: number[] = [],
-): string | null {
-  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time.trim());
-  if (!match) return null;
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  const uniqueDays = [
-    ...new Set(
-      days
-        .map((d) => Math.round(Number(d)))
-        .filter((d) => Number.isFinite(d) && d >= 0 && d <= 6),
-    ),
-  ].sort((a, b) => a - b);
-  const dow = uniqueDays.length === 0 ? "*" : uniqueDays.join(",");
-  return `${minute} ${hour} * * ${dow}`;
+export function clockPartsInZone(
+  timezone: string,
+  at: Date,
+): { hm: string; weekday: number; stamp: string } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    weekday: "short",
+    hourCycle: "h23",
+  }).formatToParts(at);
+  const pick = (type: string): string =>
+    parts.find((part) => part.type === type)?.value ?? "";
+  const hm = `${pick("hour")}:${pick("minute")}`;
+  const stamp = `${pick("year")}-${pick("month")}-${pick("day")}T${hm}`;
+  const weekdayIndex: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+  return { hm, weekday: weekdayIndex[pick("weekday")] ?? -1, stamp };
 }
 
 /**
- * Cron mensual: `m h day * *` (día del mes 1–31).
+ * ¿Toca una regla diaria `HH:mm` (con días opcionales) en el minuto que
+ * describe `clock`? `days` vacío = todos los días. Reemplaza a `cron.schedule`
+ * de node-cron para horarios diario/semanal.
  */
-export function timeAndMonthDayToCron(
-  time: string,
-  dayOfMonth: number,
-): string | null {
-  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time.trim());
-  if (!match) return null;
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  const day = Math.max(1, Math.min(31, Math.round(Number(dayOfMonth) || 1)));
-  return `${minute} ${hour} ${day} * *`;
-}
-
-/**
- * Cron fecha específica: `m h day month *` (se dispara cada año ese día/mes).
- * El filtrado por año (one-shot) se hace en el tick del job.
- */
-export function timeAndSpecificDateToCron(
-  time: string,
-  dateYmd: string,
-): string | null {
-  const timeMatch = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time.trim());
-  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateYmd.trim());
-  if (!timeMatch || !dateMatch) return null;
-  const hour = Number(timeMatch[1]);
-  const minute = Number(timeMatch[2]);
-  const month = Number(dateMatch[2]);
-  const day = Number(dateMatch[3]);
-  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-  return `${minute} ${hour} ${day} ${month} *`;
+export function isDailyScheduleDue(
+  scheduledTime: string,
+  scheduledDays: number[],
+  clock: { hm: string; weekday: number },
+): boolean {
+  const time = normalizeClockTime(scheduledTime, "");
+  if (!time || time !== clock.hm) return false;
+  if (scheduledDays.length === 0) return true;
+  return scheduledDays.includes(clock.weekday);
 }
