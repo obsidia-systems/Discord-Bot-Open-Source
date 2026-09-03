@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { antiRaidModule } from "./index.js";
 
 describe("anti-raid module", () => {
-  it("se llama Anti-Raid y registra /lockdown + joins + audit", () => {
+  it("is named Anti-Raid and registers /lockdown + joins + audit", () => {
     expect(antiRaidModule.id).toBe("anti-raid");
     expect(antiRaidModule.name).toBe("Anti-Raid");
     const commands: string[] = [];

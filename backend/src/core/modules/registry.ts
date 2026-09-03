@@ -59,7 +59,7 @@ export function createModuleRegistry(
   const ids = new Set<string>();
   for (const mod of modules) {
     if (ids.has(mod.id)) {
-      throw new Error(`[adobos] Módulo duplicado: ${mod.id}`);
+      throw new Error(`[adobos] Duplicate module: ${mod.id}`);
     }
     ids.add(mod.id);
     for (const intent of mod.intents ?? []) {
@@ -101,7 +101,7 @@ export function createModuleRegistry(
       },
       command(def) {
         if (commands.some((c) => c.name === def.name)) {
-          throw new Error(`[adobos] Comando duplicado: /${def.name}`);
+          throw new Error(`[adobos] Duplicate command: /${def.name}`);
         }
         commands.push(def);
       },

@@ -14,7 +14,7 @@ import {
 } from "./levels.js";
 
 describe("curva Mee6", () => {
-  it("nivel 0→1 son 100 XP; remaining cuadra con el umbral", () => {
+  it("level 0→1 is 100 XP; remaining matches the threshold", () => {
     expect(xpToAdvanceFromLevel(0)).toBe(100);
     expect(calculateBaseXPForLevel(1)).toBe(100);
     expect(calculateLevel(0)).toBe(0);
@@ -27,7 +27,7 @@ describe("curva Mee6", () => {
     expect(next - xp).toBe(115);
   });
 
-  it("el techo cabe en integer 32-bit", () => {
+  it("the ceiling fits in a 32-bit integer", () => {
     const capXp = calculateBaseXPForLevel(LEVELS_MAX_LEVEL);
     expect(capXp).toBeLessThan(2_147_483_647);
     expect(clampLevelsLevel(LEVELS_MAX_LEVEL + 50)).toBe(LEVELS_MAX_LEVEL);
@@ -37,7 +37,7 @@ describe("curva Mee6", () => {
 });
 
 describe("resolveXpMultiplier", () => {
-  it("suma bonus de rol, canal y stream sobre la base entera", () => {
+  it("adds role, channel and stream bonuses over the integer base", () => {
     const config = defaultLevelsConfig("g");
     config.xpMultiplier = 1;
     config.customMultipliers = [{ roleId: "1".repeat(17), multiplier: 1.5 }];
@@ -60,7 +60,7 @@ describe("resolveXpMultiplier", () => {
 });
 
 describe("plantilla Levels", () => {
-  it("no parte {user} dentro de {username} y detecta ping", () => {
+  it("does not split {user} inside {username} and detects ping", () => {
     const out = applyLevelsTokens("Hola {user} ({username}) nv {level}", {
       "{username}": "ada",
       "{user}": "<@1>",
@@ -71,7 +71,7 @@ describe("plantilla Levels", () => {
     expect(levelsTemplatePingsUser("Hola {username}")).toBe(false);
   });
 
-  it("el formato de anuncio es siempre EMBED", () => {
+  it("the announcement format is always EMBED", () => {
     expect(normalizeLevelUpFormat("IMAGE")).toBe("EMBED");
     expect(normalizeLevelUpFormat("TEXT")).toBe("EMBED");
   });

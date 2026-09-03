@@ -37,7 +37,7 @@ const listCache = new BoundedTtlMap<string, AutoReply[]>(2_000, 60_000);
 function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new AutoRepliesError("Falta guildId.", 400, "MISSING_GUILD_ID");
+    throw new AutoRepliesError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
   return id;
 }
@@ -121,7 +121,7 @@ async function getReply(alertId: number, guildId: string): Promise<AutoReply> {
       .limit(1),
   );
   if (!row) {
-    throw new AutoRepliesError("Auto-Reply no encontrada.", 404, "NOT_FOUND");
+    throw new AutoRepliesError("Auto-Reply not found.", 404, "NOT_FOUND");
   }
   return mapReply(row);
 }
@@ -139,7 +139,7 @@ async function assertUniqueTrigger(
   );
   if (clash) {
     throw new AutoRepliesError(
-      "Ya hay una Auto-Reply con ese trigger.",
+      "There is already an Auto-Reply with that trigger.",
       409,
       "DUPLICATE_TRIGGER",
     );
@@ -156,7 +156,7 @@ export async function createAutoReply(
   const trigger = normalizeAutoReplyTrigger(input.trigger);
   if (!trigger) {
     throw new AutoRepliesError(
-      "Escribe un trigger de 1 a 200 caracteres.",
+      "Enter a trigger of 1 to 200 characters.",
       400,
       "INVALID_TRIGGER",
     );
@@ -164,7 +164,7 @@ export async function createAutoReply(
   const response = clampAutoReplyResponse(input.response);
   if (!response) {
     throw new AutoRepliesError(
-      "Escribe una respuesta de 1 a 2000 caracteres.",
+      "Enter a response of 1 to 2000 characters.",
       400,
       "INVALID_RESPONSE",
     );
@@ -204,7 +204,7 @@ export async function createAutoReply(
     })
     .returning();
   if (!inserted) {
-    throw new AutoRepliesError("No se pudo crear la Auto-Reply.", 500, "INSERT_FAILED");
+    throw new AutoRepliesError("Couldn't create the Auto-Reply.", 500, "INSERT_FAILED");
   }
   invalidate(id);
   return mapReply(inserted);
@@ -224,7 +224,7 @@ export async function updateAutoReply(
       : current.trigger;
   if (!trigger) {
     throw new AutoRepliesError(
-      "Escribe un trigger de 1 a 200 caracteres.",
+      "Enter a trigger of 1 to 200 characters.",
       400,
       "INVALID_TRIGGER",
     );
@@ -235,7 +235,7 @@ export async function updateAutoReply(
       : current.response;
   if (!response) {
     throw new AutoRepliesError(
-      "Escribe una respuesta de 1 a 2000 caracteres.",
+      "Enter a response of 1 to 2000 characters.",
       400,
       "INVALID_RESPONSE",
     );
@@ -280,7 +280,7 @@ export async function updateAutoReply(
     .where(and(eq(autoReplies.id, replyId), eq(autoReplies.guildId, id)))
     .returning();
   if (!updated) {
-    throw new AutoRepliesError("Auto-Reply no encontrada.", 404, "NOT_FOUND");
+    throw new AutoRepliesError("Auto-Reply not found.", 404, "NOT_FOUND");
   }
   invalidate(id);
   return mapReply(updated);
@@ -296,7 +296,7 @@ export async function deleteAutoReply(
     .where(and(eq(autoReplies.id, replyId), eq(autoReplies.guildId, id)))
     .returning({ id: autoReplies.id });
   if (deleted.length === 0) {
-    throw new AutoRepliesError("Auto-Reply no encontrada.", 404, "NOT_FOUND");
+    throw new AutoRepliesError("Auto-Reply not found.", 404, "NOT_FOUND");
   }
   invalidate(id);
 }

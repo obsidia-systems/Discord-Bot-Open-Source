@@ -26,7 +26,7 @@ function parseId(raw: string): number {
 async function syncOrThrow(bot: Client, guildId: string): Promise<number> {
   if (!bot.isReady()) {
     throw new CustomCommandsError(
-      "El bot no está conectado. El comando se guardó; usa Re-sync cuando el bot esté listo.",
+      "The bot is not connected. The command was saved; use Re-sync when the bot is ready.",
       503,
       "BOT_NOT_READY",
     );

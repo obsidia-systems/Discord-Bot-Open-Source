@@ -25,7 +25,7 @@ import {
 function actorIdOf(req: Parameters<typeof guildIdOf>[0]): string {
   const id = req.guild?.userId;
   if (!id) {
-    throw new GiveawaysError("Falta el usuario del panel.", 401, "UNAUTHENTICATED");
+    throw new GiveawaysError("Missing panel user.", 401, "UNAUTHENTICATED");
   }
   return id;
 }

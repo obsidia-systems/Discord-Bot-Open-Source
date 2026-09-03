@@ -7,14 +7,14 @@ function card(rank: PlayingCard["rank"]): PlayingCard {
 }
 
 describe("coinflipPayout", () => {
-  it("2x con stake cobrado es even money", () => {
+  it("2x with charged stake is even money", () => {
     expect(coinflipPayout(100, 2, true)).toBe(200);
     expect(coinflipPayout(100, 2, false)).toBe(0);
   });
 });
 
 describe("resolveRouletteBet", () => {
-  it("verde y número 0 coinciden en el mismo bolsillo", () => {
+  it("green and number 0 land in the same pocket", () => {
     expect(resolveRouletteBet({ tipo: "verde", valorNumero: null, spun: 0 }).won).toBe(
       true,
     );
@@ -26,7 +26,7 @@ describe("resolveRouletteBet", () => {
     );
   });
 
-  it("rojo 1 gana color y pierde pleno 2", () => {
+  it("red 1 wins color and loses straight 2", () => {
     expect(resolveRouletteBet({ tipo: "rojo", valorNumero: null, spun: 1 }).won).toBe(
       true,
     );
@@ -42,7 +42,7 @@ describe("blackjackCredit", () => {
   const eighteen = evaluateHand([card("10"), card("8")]);
   const bust = evaluateHand([card("K"), card("Q"), card("5")]);
 
-  it("natural 3:2 con multiplier 2.5", () => {
+  it("natural 3:2 with multiplier 2.5", () => {
     expect(
       blackjackCredit({
         player: natural,
@@ -54,7 +54,7 @@ describe("blackjackCredit", () => {
     ).toEqual({ outcome: "blackjack", credit: 250 });
   });
 
-  it("win even money y push devuelven stake", () => {
+  it("win even money and push return stake", () => {
     expect(
       blackjackCredit({
         player: twenty,
@@ -75,7 +75,7 @@ describe("blackjackCredit", () => {
     ).toEqual({ outcome: "push", credit: 100 });
   });
 
-  it("bust del jugador no paga", () => {
+  it("player bust pays nothing", () => {
     expect(
       blackjackCredit({
         player: bust,

@@ -49,7 +49,7 @@ export async function onAutoModMessageCreate(
     if (!resolved) return;
     await handleAutoModMessage(resolved);
   } catch (error) {
-    logger.warn({ err: error }, "auto-mod messageCreate falló:");
+    logger.warn({ err: error }, "auto-mod messageCreate failed:");
   }
 }
 
@@ -64,7 +64,7 @@ export async function onAutoModMessageUpdate(
     if (oldContent !== null && oldContent === resolved.content) return;
     await handleAutoModMessage(resolved);
   } catch (error) {
-    logger.warn({ err: error }, "auto-mod messageUpdate falló:");
+    logger.warn({ err: error }, "auto-mod messageUpdate failed:");
   }
 }
 
@@ -191,7 +191,7 @@ export async function onAutoModNativeExecution(
       nativeBlock: true,
     });
   } catch (error) {
-    logger.warn({ err: error }, "auto-mod native execution falló:");
+    logger.warn({ err: error }, "auto-mod native execution failed:");
   }
 }
 

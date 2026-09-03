@@ -11,7 +11,7 @@ import {
 } from "./economy.js";
 
 describe("parseBankAmount", () => {
-  it("acepta all/todo/max y enteros ≥ 1", () => {
+  it("accepts all/todo/max and integers ≥ 1", () => {
     expect(parseBankAmount("all")).toBe("all");
     expect(parseBankAmount(" TODO ")).toBe("all");
     expect(parseBankAmount("max")).toBe("all");
@@ -19,7 +19,7 @@ describe("parseBankAmount", () => {
     expect(parseBankAmount("42")).toBe(42);
   });
 
-  it("rechaza vacío, decimales y negativos", () => {
+  it("rejects empty, decimals and negatives", () => {
     expect(parseBankAmount("")).toBeNull();
     expect(parseBankAmount("1.5")).toBeNull();
     expect(parseBankAmount("0")).toBeNull();
@@ -28,7 +28,7 @@ describe("parseBankAmount", () => {
 });
 
 describe("computePayTax", () => {
-  it("10% de 100 deja 90 al destino", () => {
+  it("10% of 100 leaves 90 for the recipient", () => {
     expect(computePayTax(100, 10)).toEqual({
       sent: 100,
       tax: 10,
@@ -36,14 +36,14 @@ describe("computePayTax", () => {
     });
   });
 
-  it("clampa el porcentaje a 0–100", () => {
+  it("clamps the percentage to 0–100", () => {
     expect(computePayTax(50, 200).tax).toBe(50);
     expect(computePayTax(50, -5).tax).toBe(0);
   });
 });
 
 describe("clampEconomyBalance", () => {
-  it("no baja de 0 ni pasa el techo", () => {
+  it("does not go below 0 or above the ceiling", () => {
     expect(clampEconomyBalance(-1)).toBe(0);
     expect(clampEconomyBalance(MAX_ECONOMY_BALANCE + 1)).toBe(
       MAX_ECONOMY_BALANCE,
@@ -64,7 +64,7 @@ describe("incomeChoiceMode", () => {
 });
 
 describe("defaultEconomyRob", () => {
-  it("arranca apagado y solo mira cartera", () => {
+  it("starts off and only looks at the wallet", () => {
     const rob = defaultEconomyRob();
     expect(rob.enabled).toBe(false);
     expect(rob.minStealPercent).toBeLessThanOrEqual(rob.maxStealPercent);

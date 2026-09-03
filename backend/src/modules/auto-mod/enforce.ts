@@ -26,7 +26,7 @@ export async function enforceAutoModHit(input: {
     await input.messageToDelete.delete().catch(() => {});
   }
 
-  const reason = `[AutoMod] Filtro detonado: ${filterLabel}`;
+  const reason = `[AutoMod] Filter triggered: ${filterLabel}`;
   let warned = false;
   if (input.config.warnOnHit) {
     try {
@@ -37,12 +37,12 @@ export async function enforceAutoModHit(input: {
         reason,
         dmMode: input.config.dmOnHit ? "text" : "none",
         dmText: input.config.dmOnHit
-          ? `Tu mensaje en el servidor **${input.guildName}** fue bloqueado por Auto-Mod (Razón: ${filterLabel}).`
+          ? `Your message in the server **${input.guildName}** was blocked by Auto-Mod (Reason: ${filterLabel}).`
           : undefined,
       });
       warned = true;
     } catch (error) {
-      logger.warn({ err: error }, "auto-mod: no se pudo registrar warn:");
+      logger.warn({ err: error }, "auto-mod: couldn't record warn:");
     }
   }
 
@@ -53,7 +53,7 @@ export async function enforceAutoModHit(input: {
       member: input.member,
       config: input.config,
     }).catch((error) => {
-      logger.warn({ err: error }, "auto-mod: sanción escalada falló:");
+      logger.warn({ err: error }, "auto-mod: escalated sanction failed:");
     });
   }
 

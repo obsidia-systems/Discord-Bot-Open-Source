@@ -52,7 +52,7 @@ const templateUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024, files: 4 },
   fileFilter: (_req, file, cb) => {
     if (!ALLOWED_MIME.has(file.mimetype)) {
-      cb(new Error("Solo PNG, JPG, WEBP o GIF (máx. 5MB)."));
+      cb(new Error("Only PNG, JPG, WEBP or GIF (max 5MB)."));
       return;
     }
     cb(null, true);
@@ -81,7 +81,7 @@ function assertSniffedTemplateFiles(
     if (!sniffImageFile(file.path)) {
       fs.unlink(file.path, () => undefined);
       throw new EmbedTemplateError(
-        "El archivo no es una imagen PNG, JPG, WEBP o GIF válida.",
+        "The file is not a valid PNG, JPG, WEBP or GIF image.",
         400,
         "INVALID_IMAGE_CONTENT",
       );

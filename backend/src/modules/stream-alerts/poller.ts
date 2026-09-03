@@ -100,7 +100,7 @@ async function announce(
   } catch (error: unknown) {
     logger.warn(
       { err: error, id: alert.id },
-      "stream-alerts: no se pudo publicar",
+      "stream-alerts: couldn't publish",
     );
     return false;
   }
@@ -173,7 +173,7 @@ export async function processStreamAlerts(
       }
       if (await applySnapshot(client, alert, snapshot)) announced += 1;
     } catch (error: unknown) {
-      logger.warn({ err: error, id: alert.id }, "stream-alerts: tick falló");
+      logger.warn({ err: error, id: alert.id }, "stream-alerts: tick failed");
       await touchStreamAlertChecked(alert.id).catch(() => undefined);
     } finally {
       inFlight.delete(alert.id);

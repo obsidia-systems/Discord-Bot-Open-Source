@@ -15,7 +15,7 @@ export interface GuildIdentityDiff {
 
 function fmt(value: string | null | undefined): string {
   const t = (value ?? "").trim();
-  return t || "(ninguno)";
+  return t || "(none)";
 }
 
 /** Diff de nombre / icono / vanity / descripción. Vacío → no loguear. */
@@ -26,22 +26,22 @@ export function diffGuildIdentity(
   const diffs: GuildIdentityDiff[] = [];
   if (oldG.name !== newG.name) {
     diffs.push({
-      name: "Nombre",
+      name: "Name",
       value: `\`${oldG.name}\` ➔ \`${newG.name}\``,
     });
   }
   if (oldG.icon !== newG.icon) {
-    diffs.push({ name: "Icono", value: "Cambió el icono del servidor" });
+    diffs.push({ name: "Icon", value: "The server icon changed" });
   }
   if (oldG.banner !== newG.banner) {
-    diffs.push({ name: "Banner", value: "Cambió el banner" });
+    diffs.push({ name: "Banner", value: "The banner changed" });
   }
   if (oldG.splash !== newG.splash) {
-    diffs.push({ name: "Splash de invitación", value: "Cambió el splash" });
+    diffs.push({ name: "Invite splash", value: "The splash changed" });
   }
   if ((oldG.description ?? "") !== (newG.description ?? "")) {
     diffs.push({
-      name: "Descripción",
+      name: "Description",
       value: `${fmt(oldG.description)} ➔ ${fmt(newG.description)}`,
     });
   }

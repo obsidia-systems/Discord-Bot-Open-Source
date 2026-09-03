@@ -10,12 +10,12 @@ import {
 } from "./messages.js";
 
 describe("parseEmbedHexColor", () => {
-  it("acepta #RRGGBB y RRGGBB", () => {
+  it("accepts #RRGGBB and RRGGBB", () => {
     expect(parseEmbedHexColor("#C45C26")).toBe(0xc45c26);
     expect(parseEmbedHexColor("00ff00")).toBe(0x00ff00);
   });
 
-  it("rechaza valores inválidos", () => {
+  it("rejects invalid values", () => {
     expect(parseEmbedHexColor("red")).toBeUndefined();
     expect(parseEmbedHexColor("#fff")).toBeUndefined();
     expect(parseEmbedHexColor("")).toBeUndefined();
@@ -23,7 +23,7 @@ describe("parseEmbedHexColor", () => {
 });
 
 describe("sanitizeEmbedFields", () => {
-  it("exige name y value, recorta a 25 y clamp de longitud", () => {
+  it("requires name and value, trims to 25 and clamps length", () => {
     const fields = sanitizeEmbedFields([
       { name: "  A  ", value: "  1  ", inline: true },
       { name: "   ", value: "x" },
@@ -40,7 +40,7 @@ describe("sanitizeEmbedFields", () => {
 });
 
 describe("sanitizeLinkActionRows", () => {
-  it("deja solo botones Link con URL http(s)", () => {
+  it("keeps only Link buttons with an http(s) URL", () => {
     const rows = sanitizeLinkActionRows([
       {
         buttons: [
@@ -50,7 +50,7 @@ describe("sanitizeLinkActionRows", () => {
           { label: "  Go  ", style: "Link", url: "http://localhost/x" },
         ],
       },
-      { buttons: [{ label: "Solo acción", style: "Danger", customId: "x" }] },
+      { buttons: [{ label: "Action only", style: "Danger", customId: "x" }] },
     ]);
     expect(rows).toEqual([
       {
@@ -64,7 +64,7 @@ describe("sanitizeLinkActionRows", () => {
 });
 
 describe("embedCharacterCount", () => {
-  it("suma título, desc, autor, footer y fields", () => {
+  it("adds title, desc, author, footer and fields", () => {
     expect(
       embedCharacterCount({
         title: "ab",
@@ -80,7 +80,7 @@ describe("embedCharacterCount", () => {
 });
 
 describe("persistEmbedMediaUrl", () => {
-  it("prioriza CDN http y nunca guarda attachment://", () => {
+  it("prioritizes http CDN and never stores attachment://", () => {
     expect(
       persistEmbedMediaUrl(
         "attachment://image.png",
@@ -98,7 +98,7 @@ describe("persistEmbedMediaUrl", () => {
 });
 
 describe("groupEmbedFields", () => {
-  it("empaqueta inline de a 3 y parte en no-inline", () => {
+  it("packs inline in groups of 3 and breaks on non-inline", () => {
     const rows = groupEmbedFields([
       { name: "a", value: "1", inline: true },
       { name: "b", value: "2", inline: true },

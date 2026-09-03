@@ -41,7 +41,7 @@ function enqueue(key: string, task: () => Promise<void>): void {
   const next = prev
     .then(task, task)
     .catch((error: unknown) => {
-      logger.warn({ err: error }, "starboard: cola falló");
+      logger.warn({ err: error }, "starboard: queue failed");
     })
     .finally(() => {
       if (queues.get(key) === next) queues.delete(key);
@@ -62,7 +62,7 @@ async function resolveMessage(
   try {
     return await message.fetch();
   } catch (error: unknown) {
-    logger.warn({ err: error }, "starboard: no se pudo fetch del mensaje");
+    logger.warn({ err: error }, "starboard: couldn't fetch the message");
     return null;
   }
 }
@@ -74,7 +74,7 @@ async function resolveReaction(
   try {
     return await reaction.fetch();
   } catch (error: unknown) {
-    logger.warn({ err: error }, "starboard: no se pudo fetch de la reacción");
+    logger.warn({ err: error }, "starboard: couldn't fetch the reaction");
     return null;
   }
 }
@@ -100,7 +100,7 @@ async function destinationChannel(
   if (me && !channel.permissionsFor(me)?.has(BOARD_PERMS)) {
     logger.warn(
       { guildId: guild.id, channelId },
-      "starboard: faltan permisos en el canal del tablón",
+      "starboard: missing permissions in the board channel",
     );
     return null;
   }
@@ -128,7 +128,7 @@ function buildBoardPayload(
     ? message.content.slice(0, 4096)
     : "\u200b";
   const authorName =
-    message.member?.displayName ?? message.author.displayName ?? "Usuario";
+    message.member?.displayName ?? message.author.displayName ?? "User";
   const embed = new EmbedBuilder()
     .setColor(BOARD_COLOR)
     .setAuthor({
@@ -139,8 +139,8 @@ function buildBoardPayload(
     .setFooter({ text: `ID ${message.id}` })
     .setTimestamp(message.createdAt)
     .addFields({
-      name: "Mensaje",
-      value: `[Ir al original](${message.url})`,
+      name: "Message",
+      value: `[Go to original](${message.url})`,
     });
   const image = firstImageUrl(message);
   if (image) embed.setImage(image);

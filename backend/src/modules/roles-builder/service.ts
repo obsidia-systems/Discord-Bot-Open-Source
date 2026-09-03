@@ -40,7 +40,7 @@ export class RolesBuilderError extends Error {
 function resolveGuild(bot: Client, guildId?: string): Guild {
   if (!bot.isReady()) {
     throw new RolesBuilderError(
-      "El bot de Discord no está conectado.",
+      "The Discord bot is not connected.",
       503,
       "BOT_NOT_READY",
     );
@@ -48,13 +48,13 @@ function resolveGuild(bot: Client, guildId?: string): Guild {
 
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new RolesBuilderError("Falta guildId.", 400, "MISSING_GUILD_ID");
+    throw new RolesBuilderError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
 
   const guild = bot.guilds.cache.get(id);
   if (!guild) {
     throw new RolesBuilderError(
-      "El bot no está en ese servidor o el guild aún no está en caché.",
+      "The bot is not in that server or the guild is not cached yet.",
       404,
       "GUILD_NOT_FOUND",
     );
@@ -122,7 +122,7 @@ function botMemberContext(guild: Guild): {
 function assertCanManageRoles(canManageRoles: boolean): void {
   if (!canManageRoles) {
     throw new RolesBuilderError(
-      "El bot no tiene el permiso «Gestionar roles» en este servidor.",
+      "The bot does not have the «Manage Roles» permission in this server.",
       403,
       "MISSING_MANAGE_ROLES",
     );
@@ -150,7 +150,7 @@ function resolveColor(value: string | null | undefined): number {
   const color = parseRoleColor(value);
   if (color === null) {
     throw new RolesBuilderError(
-      "Color inválido. Usa formato #RRGGBB.",
+      "Invalid color. Use the #RRGGBB format.",
       400,
       "INVALID_COLOR",
     );
@@ -162,14 +162,14 @@ function resolveRoleName(raw: string | undefined): string {
   const name = (raw ?? "").trim();
   if (!name) {
     throw new RolesBuilderError(
-      "El nombre del rol es obligatorio.",
+      "The role name is required.",
       400,
       "MISSING_NAME",
     );
   }
   if (name.length > 100) {
     throw new RolesBuilderError(
-      "El nombre del rol no puede superar 100 caracteres.",
+      "The role name can't exceed 100 characters.",
       400,
       "NAME_TOO_LONG",
     );
@@ -180,16 +180,16 @@ function resolveRoleName(raw: string | undefined): string {
 function friendlyDiscordError(error: unknown, fallback: string): string {
   if (error instanceof DiscordAPIError) {
     if (error.code === 50013) {
-      return "Permisos insuficientes: el bot no puede gestionar ese rol o esa posición (jerarquía).";
+      return "Insufficient permissions: the bot can't manage that role or position (hierarchy).";
     }
     if (error.code === 50035) {
-      return "Datos inválidos al actualizar roles en Discord.";
+      return "Invalid data while updating roles on Discord.";
     }
     if (error.code === 30035) {
-      return `Este servidor ya tiene el máximo de ${DISCORD_GUILD_ROLE_LIMIT} roles de Discord.`;
+      return `This server already has the maximum of ${DISCORD_GUILD_ROLE_LIMIT} Discord roles.`;
     }
     if (error.code === 10011) {
-      return "Ese rol ya no existe en Discord.";
+      return "That role no longer exists on Discord.";
     }
     return error.message || fallback;
   }
@@ -207,7 +207,7 @@ function sortedRoles(guild: Guild): RolesBuilderRole[] {
 function assertRoleLimit(guild: Guild): void {
   if (guild.roles.cache.size >= DISCORD_GUILD_ROLE_LIMIT) {
     throw new RolesBuilderError(
-      `Este servidor ya tiene el máximo de ${DISCORD_GUILD_ROLE_LIMIT} roles de Discord.`,
+      `This server already has the maximum of ${DISCORD_GUILD_ROLE_LIMIT} Discord roles.`,
       400,
       "ROLE_LIMIT",
     );
@@ -223,21 +223,21 @@ function resolveEditableRole(
   const role = guild.roles.cache.get(id);
   if (!role || role.id === guild.id) {
     throw new RolesBuilderError(
-      `Rol no encontrado: ${id}`,
+      `Role not found: ${id}`,
       404,
       "ROLE_NOT_FOUND",
     );
   }
   if (role.managed) {
     throw new RolesBuilderError(
-      `El rol «${role.name}» es managed y no se puede gestionar.`,
+      `The role «${role.name}» is managed and can't be managed.`,
       400,
       "ROLE_MANAGED",
     );
   }
   if (role.position >= highestPosition) {
     throw new RolesBuilderError(
-      `El rol «${role.name}» está por encima (o al nivel) del bot y no se puede gestionar.`,
+      `The role «${role.name}» is above (or at the level of) the bot and can't be managed.`,
       403,
       "ROLE_ABOVE_BOT",
     );
@@ -301,7 +301,7 @@ export async function createGuildRole(
     });
   } catch (error) {
     throw new RolesBuilderError(
-      friendlyDiscordError(error, "No se pudo crear el rol."),
+      friendlyDiscordError(error, "Couldn't create the role."),
       502,
       "DISCORD_CREATE_FAILED",
     );
@@ -311,7 +311,7 @@ export async function createGuildRole(
     role: mapRole(role),
     warning:
       role.position !== position
-        ? "Discord colocó el rol en otra posición. Reordena en la lista si hace falta."
+        ? "Discord placed the role in a different position. Reorder in the list if needed."
         : null,
   };
 }
@@ -334,7 +334,7 @@ export async function updateGuildRole(
     role.permissions.has(PermissionFlagsBits.Administrator)
   ) {
     throw new RolesBuilderError(
-      "No se pueden cambiar los permisos de un rol con Administrator.",
+      "You can't change the permissions of a role with Administrator.",
       403,
       "PERMISSIONS_ADMIN_LOCKED",
     );
@@ -366,7 +366,7 @@ export async function updateGuildRole(
     updated = await role.edit(edit);
   } catch (error) {
     throw new RolesBuilderError(
-      friendlyDiscordError(error, "No se pudo actualizar el rol."),
+      friendlyDiscordError(error, "Couldn't update the role."),
       502,
       "DISCORD_UPDATE_FAILED",
     );
@@ -391,7 +391,7 @@ export async function deleteGuildRole(
     await role.delete(AUDIT_REASON);
   } catch (error) {
     throw new RolesBuilderError(
-      friendlyDiscordError(error, "No se pudo borrar el rol."),
+      friendlyDiscordError(error, "Couldn't delete the role."),
       502,
       "DISCORD_DELETE_FAILED",
     );
@@ -412,7 +412,7 @@ export async function updateRolePositions(
 
   if (!Array.isArray(positions) || positions.length === 0) {
     throw new RolesBuilderError(
-      "Envía al menos un cambio de posición.",
+      "Send at least one position change.",
       400,
       "EMPTY_POSITIONS",
     );
@@ -429,21 +429,21 @@ export async function updateRolePositions(
 
     if (!roleId) {
       throw new RolesBuilderError(
-        "Cada entrada necesita un roleId válido.",
+        "Each entry needs a valid roleId.",
         400,
         "INVALID_ROLE_ID",
       );
     }
     if (!Number.isFinite(position) || position < 0) {
       throw new RolesBuilderError(
-        "Las posiciones deben ser números ≥ 0.",
+        "Positions must be numbers ≥ 0.",
         400,
         "INVALID_POSITION",
       );
     }
     if (position >= botCtx.highestPosition || position > maxAllowed) {
       throw new RolesBuilderError(
-        `La posición ${position} iguala o supera el rol del bot (pos ${botCtx.highestPosition}).`,
+        `Position ${position} matches or exceeds the bot's role (pos ${botCtx.highestPosition}).`,
         400,
         "POSITION_ABOVE_BOT",
       );
@@ -459,7 +459,7 @@ export async function updateRolePositions(
     throw new RolesBuilderError(
       friendlyDiscordError(
         error,
-        "No se pudo guardar la nueva jerarquía en Discord.",
+        "Couldn't save the new hierarchy on Discord.",
       ),
       502,
       "DISCORD_POSITIONS_FAILED",

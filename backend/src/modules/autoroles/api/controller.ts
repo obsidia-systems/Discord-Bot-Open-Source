@@ -84,7 +84,7 @@ function assertSnowflake(value: string, field: string): string {
   const trimmed = value.trim();
   if (!/^\d{17,20}$/.test(trimmed)) {
     throw new AutoRoleError(
-      `${field} debe ser un snowflake válido.`,
+      `${field} must be a valid snowflake.`,
       400,
       "INVALID_IDS",
     );
@@ -97,7 +97,7 @@ export function normalizeEmojiKey(raw: string): string {
   try {
     return normalizeAutoroleEmojiKey(raw);
   } catch {
-    throw new AutoRoleError("emojiKey vacío.", 400, "INVALID_EMOJI_KEY");
+    throw new AutoRoleError("emojiKey is empty.", 400, "INVALID_EMOJI_KEY");
   }
 }
 
@@ -105,7 +105,7 @@ function parseHexColor(color?: string): ColorResolvable | undefined {
   if (!color?.trim()) return undefined;
   const raw = color.trim().replace(/^#/, "");
   if (!/^[0-9a-fA-F]{6}$/.test(raw)) {
-    throw new AutoRoleError("Color hex inválido.", 400, "INVALID_COLOR");
+    throw new AutoRoleError("Invalid hex color.", 400, "INVALID_COLOR");
   }
   return Number.parseInt(raw, 16);
 }
@@ -206,11 +206,11 @@ function buildButtonRows(
   mappings: ButtonRoleMappingInput[],
 ): ActionRowBuilder<ButtonBuilder>[] {
   if (mappings.length === 0) {
-    throw new AutoRoleError("Añade al menos un botón → rol.", 400, "EMPTY_BUTTONS");
+    throw new AutoRoleError("Add at least one button → role.", 400, "EMPTY_BUTTONS");
   }
   if (mappings.length > AUTOROLE_BUTTONS_MAX) {
     throw new AutoRoleError(
-      `Máximo ${AUTOROLE_BUTTONS_MAX} botones (5×5).`,
+      `At most ${AUTOROLE_BUTTONS_MAX} buttons (5×5).`,
       400,
       "TOO_MANY_BUTTONS",
     );
@@ -223,7 +223,7 @@ function buildButtonRows(
     row.addComponents(
       chunk.map((mapping) => {
         const roleId = assertSnowflake(mapping.roleId, "roleId");
-        const label = mapping.label.trim() || "Rol";
+        const label = mapping.label.trim() || "Role";
         const customId =
           mapping.customId.trim() || `autorole_${roleId}`;
         const button = new ButtonBuilder()
@@ -268,7 +268,7 @@ async function resolveSendableChannel(
     !("send" in channel)
   ) {
     throw new AutoRoleError(
-      "El canal no admite mensajes de texto.",
+      "The channel does not support text messages.",
       400,
       "CHANNEL_NOT_TEXT",
     );
@@ -286,14 +286,14 @@ export async function saveReactionRoleMappings(
 
   if (!Array.isArray(input.mappings) || input.mappings.length === 0) {
     throw new AutoRoleError(
-      "Debes enviar al menos un mapping emoji → rol.",
+      "You must send at least one emoji → role mapping.",
       400,
       "EMPTY_MAPPINGS",
     );
   }
   if (input.mappings.length > AUTOROLE_REACTIONS_MAX) {
     throw new AutoRoleError(
-      `Máximo ${AUTOROLE_REACTIONS_MAX} reacciones por mensaje.`,
+      `At most ${AUTOROLE_REACTIONS_MAX} reactions per message.`,
       400,
       "TOO_MANY_REACTIONS",
     );
@@ -387,7 +387,7 @@ export async function createAutoRoleSetup(
   input: CreateAutoRoleRequest,
 ): Promise<CreateAutoRoleResponse> {
   if (!bot.isReady()) {
-    throw new AutoRoleError("El bot no está conectado.", 503, "BOT_NOT_READY");
+    throw new AutoRoleError("The bot is not connected.", 503, "BOT_NOT_READY");
   }
 
   const guildId = assertSnowflake(input.guildId, "guildId");
@@ -407,7 +407,7 @@ export async function createAutoRoleSetup(
     const existing = await channel.messages.fetch(messageId).catch(() => null);
     if (!existing) {
       throw new AutoRoleError(
-        "No se encontró ese mensaje en el canal.",
+        "That message was not found in the channel.",
         404,
         "MESSAGE_NOT_FOUND",
       );
@@ -437,7 +437,7 @@ export async function createAutoRoleSetup(
       const buttons = input.buttonMappings ?? [];
       if (buttons.length === 0) {
         throw new AutoRoleError(
-          "Añade al menos un botón → rol.",
+          "Add at least one button → role.",
           400,
           "EMPTY_BUTTONS",
         );
@@ -446,8 +446,8 @@ export async function createAutoRoleSetup(
       await existing.edit({ components }).catch((error: unknown) => {
         throw new AutoRoleError(
           error instanceof Error
-            ? `No se pudo editar el mensaje: ${error.message}`
-            : "No se pudo editar el mensaje (¿faltan permisos?).",
+            ? `Couldn't edit the message: ${error.message}`
+            : "Couldn't edit the message (missing permissions?).",
           403,
           "MESSAGE_EDIT_FAILED",
         );
@@ -474,14 +474,14 @@ export async function createAutoRoleSetup(
     const mappings = input.reactionMappings ?? [];
     if (mappings.length === 0) {
       throw new AutoRoleError(
-        "Añade al menos un emoji → rol.",
+        "Add at least one emoji → role.",
         400,
         "EMPTY_MAPPINGS",
       );
     }
     if (!embed && !content) {
       throw new AutoRoleError(
-        "El embed/mensaje no puede estar vacío.",
+        "The embed/message can't be empty.",
         400,
         "EMPTY_EMBED",
       );
@@ -524,7 +524,7 @@ export async function createAutoRoleSetup(
   const components = buildButtonRows(buttonMappings);
   if (!embed && !content) {
     throw new AutoRoleError(
-      "El embed/mensaje no puede estar vacío.",
+      "The embed/message can't be empty.",
       400,
       "EMPTY_EMBED",
     );

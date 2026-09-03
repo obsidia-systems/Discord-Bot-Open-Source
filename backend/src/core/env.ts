@@ -67,23 +67,23 @@ export function loadEnv(): AppEnv {
     const detail = parsed.error.issues
       .map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
       .join("; ");
-    throw new Error(`Env inválido: ${detail}`);
+    throw new Error(`Invalid env: ${detail}`);
   }
   const raw = parsed.data;
   if (!isAdobosRole(raw.ADOBO_ROLE)) {
     throw new Error(
-      `ADOBO_ROLE inválido (${raw.ADOBO_ROLE}). Usa all | api | gateway | worker.`,
+      `Invalid ADOBO_ROLE (${raw.ADOBO_ROLE}). Use all | api | gateway | worker.`,
     );
   }
   if (raw.NODE_ENV === "production" && !raw.CORS_ORIGIN?.trim()) {
     throw new Error(
-      "CORS_ORIGIN es obligatorio en producción (allowlist, no origin:true).",
+      "CORS_ORIGIN is required in production (allowlist, not origin:true).",
     );
   }
   const token = raw.DISCORD_TOKEN?.trim();
   if (token && raw.DISCORD_CLIENT_SECRET === token) {
     throw new Error(
-      "DISCORD_CLIENT_SECRET no puede ser el token del bot. Usa OAuth2 → Client Secret.",
+      "DISCORD_CLIENT_SECRET can't be the bot token. Use OAuth2 → Client Secret.",
     );
   }
   cached = {

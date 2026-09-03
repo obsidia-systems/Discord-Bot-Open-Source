@@ -23,7 +23,7 @@ export const customCommandsModule: AdobosModule = {
       void syncGuildSlashCommands(ctx.client, guild.id).catch((error) => {
         logger.warn(
           { err: error },
-          `custom-commands: sync al unirse falló guild=${guild.id}`,
+          `custom-commands: sync on join failed guild=${guild.id}`,
         );
       });
     });

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { includeGuildAssetRole, isGuildAssetChannelType } from "./common.js";
 
-describe("catálogo Guild Assets", () => {
-  it("incluye voz y foro; no recorta a texto+anuncios", () => {
+describe("Guild Assets catalog", () => {
+  it("includes voice and forum; does not trim to text+announcements", () => {
     expect(isGuildAssetChannelType(0)).toBe(true);
     expect(isGuildAssetChannelType(5)).toBe(true);
     expect(isGuildAssetChannelType(2)).toBe(true);

@@ -14,7 +14,7 @@ import {
 function userIdOf(req: Parameters<typeof guildIdOf>[0]): string {
   const id = req.guild?.userId ?? req.panelSession?.userId;
   if (!id) {
-    throw new HttpError("Sesión ausente.", 401, "UNAUTHENTICATED");
+    throw new HttpError("Missing session.", 401, "UNAUTHENTICATED");
   }
   return id;
 }

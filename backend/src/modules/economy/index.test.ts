@@ -3,14 +3,14 @@ import { economyModule } from "./index.js";
 import { parseBankAmountInput, EconomyError } from "./service.js";
 
 describe("economy module", () => {
-  it("se llama Economy", () => {
+  it("is named Economy", () => {
     expect(economyModule.id).toBe("economy");
     expect(economyModule.name).toBe("Economy");
   });
 });
 
 describe("parseBankAmountInput", () => {
-  it("traduce all y lanza en inválido", () => {
+  it("translates all and throws on invalid", () => {
     expect(parseBankAmountInput("todo")).toBe("all");
     expect(parseBankAmountInput("25")).toBe(25);
     try {

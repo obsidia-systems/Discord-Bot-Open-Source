@@ -23,7 +23,7 @@ async function requireLevelsGuild(
 ): Promise<string | null> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return null;
@@ -31,7 +31,7 @@ async function requireLevelsGuild(
   const config = await getLevelsConfigCached(interaction.guildId);
   if (!config.enabled) {
     await interaction.reply({
-      content: "El módulo Levels está desactivado en este servidor.",
+      content: "The Levels module is disabled in this server.",
       ...EPHEMERAL,
     });
     return null;
@@ -52,7 +52,7 @@ export async function handleGiveXpCommand(
   const amount = interaction.options.getInteger("cantidad", true);
   if (amount < 1) {
     await interaction.reply({
-      content: "La cantidad debe ser mayor que 0.",
+      content: "The amount must be greater than 0.",
       ...EPHEMERAL,
     });
     return;
@@ -71,9 +71,9 @@ export async function handleGiveXpCommand(
 
   const embed = new EmbedBuilder()
     .setColor(0x57f287)
-    .setTitle("XP otorgada")
+    .setTitle("XP granted")
     .setDescription(
-      `Añadiste **${amount.toLocaleString("es-MX")}** XP a <@${target.id}>.`,
+      `You added **${amount.toLocaleString("es-MX")}** XP to <@${target.id}>.`,
     )
     .addFields(
       {
@@ -82,7 +82,7 @@ export async function handleGiveXpCommand(
         inline: true,
       },
       {
-        name: "Nivel",
+        name: "Level",
         value: `\`${result.newLevel}\``,
         inline: true,
       },
@@ -91,7 +91,7 @@ export async function handleGiveXpCommand(
 
   if (result.leveledUp) {
     embed.setFooter({
-      text: `Subió del nivel ${result.previousLevel} → ${result.newLevel}`,
+      text: `Leveled up from ${result.previousLevel} → ${result.newLevel}`,
     });
   }
 
@@ -111,7 +111,7 @@ export async function handleRemoveXpCommand(
   const amount = interaction.options.getInteger("cantidad", true);
   if (amount < 1) {
     await interaction.reply({
-      content: "La cantidad debe ser mayor que 0.",
+      content: "The amount must be greater than 0.",
       ...EPHEMERAL,
     });
     return;
@@ -131,9 +131,9 @@ export async function handleRemoveXpCommand(
 
   const embed = new EmbedBuilder()
     .setColor(0xf59e0b)
-    .setTitle("XP retirada")
+    .setTitle("XP removed")
     .setDescription(
-      `Quitaste **${removed.toLocaleString("es-MX")}** XP a <@${target.id}>.`,
+      `You removed **${removed.toLocaleString("es-MX")}** XP from <@${target.id}>.`,
     )
     .addFields(
       {
@@ -142,7 +142,7 @@ export async function handleRemoveXpCommand(
         inline: true,
       },
       {
-        name: "Nivel",
+        name: "Level",
         value: `\`${result.newLevel}\``,
         inline: true,
       },
@@ -151,7 +151,7 @@ export async function handleRemoveXpCommand(
 
   if (result.newLevel < result.previousLevel) {
     embed.setFooter({
-      text: `Bajó del nivel ${result.previousLevel} → ${result.newLevel}`,
+      text: `Leveled down from ${result.previousLevel} → ${result.newLevel}`,
     });
   }
 
@@ -171,7 +171,7 @@ export async function handleSetLevelCommand(
   const level = interaction.options.getInteger("nivel", true);
   if (level < 0) {
     await interaction.reply({
-      content: "El nivel debe ser ≥ 0.",
+      content: "The level must be ≥ 0.",
       ...EPHEMERAL,
     });
     return;
@@ -190,9 +190,9 @@ export async function handleSetLevelCommand(
 
   const embed = new EmbedBuilder()
     .setColor(0x3b82f6)
-    .setTitle("Nivel establecido")
+    .setTitle("Level set")
     .setDescription(
-      `El nivel de <@${target.id}> se fijó manualmente en **${result.level}**.`,
+      `<@${target.id}>'s level was manually set to **${result.level}**.`,
     )
     .addFields(
       {
@@ -201,8 +201,8 @@ export async function handleSetLevelCommand(
         inline: true,
       },
       {
-        name: "Antes",
-        value: `Nivel ${result.previousLevel} · \`${result.previousXp.toLocaleString("es-MX")}\` XP`,
+        name: "Before",
+        value: `Level ${result.previousLevel} · \`${result.previousXp.toLocaleString("es-MX")}\` XP`,
         inline: true,
       },
     )

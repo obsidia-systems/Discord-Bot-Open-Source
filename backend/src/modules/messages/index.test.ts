@@ -7,14 +7,14 @@ import {
 import { messagesModule } from "./index.js";
 
 describe("messages module", () => {
-  it("se llama Messages", () => {
+  it("is named Messages", () => {
     expect(messagesModule.id).toBe("messages");
     expect(messagesModule.name).toBe("Messages");
   });
 });
 
-describe("contrato del embed", () => {
-  it("no deja customId de casino en un botón Link", () => {
+describe("embed contract", () => {
+  it("does not leave a casino customId on a Link button", () => {
     const rows = sanitizeLinkActionRows([
       {
         buttons: [
@@ -28,7 +28,7 @@ describe("contrato del embed", () => {
     ]);
   });
 
-  it("no persiste attachment:// y cuenta el tope 6000", () => {
+  it("does not persist attachment:// and counts the 6000 cap", () => {
     expect(persistEmbedMediaUrl("attachment://x.png")).toBeUndefined();
     expect(
       embedCharacterCount({

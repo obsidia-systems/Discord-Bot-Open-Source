@@ -17,18 +17,18 @@ import {
 const allOff = defaultAutoModFilters();
 
 describe("detectZalgo", () => {
-  it("ignora texto normal", () => {
+  it("ignores normal text", () => {
     expect(detectZalgo("hola mundo")).toBe(false);
   });
 
-  it("detona combining marks densos", () => {
+  it("triggers on dense combining marks", () => {
     const zalgo = `H${"\u0301".repeat(20)}o${"\u0308".repeat(20)}la`;
     expect(detectZalgo(zalgo)).toBe(true);
   });
 });
 
 describe("detectExcessCaps", () => {
-  it("respeta longitud mínima y porcentaje", () => {
+  it("respects minimum length and percentage", () => {
     expect(detectExcessCaps("HOLA", 70, 8)).toBe(false);
     expect(detectExcessCaps("HOLA MUNDO AQUI", 70, 8)).toBe(true);
     expect(detectExcessCaps("Hola mundo aqui", 70, 8)).toBe(false);
@@ -36,7 +36,7 @@ describe("detectExcessCaps", () => {
 });
 
 describe("detectAntiInvites", () => {
-  it("cubre gg, discord.com/invite, ptb, canary y discord.new", () => {
+  it("covers gg, discord.com/invite, ptb, canary and discord.new", () => {
     expect(detectAntiInvites("entra discord.gg/abc123")).toBe(true);
     expect(detectAntiInvites("https://discord.com/invite/abc")).toBe(true);
     expect(detectAntiInvites("https://discordapp.com/invite/abc")).toBe(true);
@@ -48,7 +48,7 @@ describe("detectAntiInvites", () => {
     expect(detectAntiInvites("mira https://example.com/invite")).toBe(false);
   });
 
-  it("ve spoilers, zero-width y leet d1scord", () => {
+  it("sees spoilers, zero-width and leet d1scord", () => {
     expect(detectAntiInvites(deobfuscateInviteText("||discord.gg/abc||"))).toBe(
       true,
     );
@@ -62,7 +62,7 @@ describe("detectAntiInvites", () => {
 });
 
 describe("detectAntiLinks", () => {
-  it("permite CDN de Discord y allowlist; bloquea el resto", () => {
+  it("allows Discord CDN and allowlist; blocks the rest", () => {
     const cdn =
       "https://cdn.discordapp.com/attachments/1/2/foto.png";
     expect(detectAntiLinks(cdn, [], [cdn])).toBe(false);
@@ -76,31 +76,31 @@ describe("detectAntiLinks", () => {
 });
 
 describe("detectBannedWords", () => {
-  it("usa palabra entera en tokens latinos", () => {
+  it("uses whole word on Latin tokens", () => {
     expect(detectBannedWords("foo bar", ["foo"])).toBe(true);
     expect(detectBannedWords("food bar", ["foo"])).toBe(false);
   });
 
-  it("usa substring si el needle no es solo palabra", () => {
+  it("uses substring if the needle is not just a word", () => {
     expect(detectBannedWords("visita foo.bar ahora", ["foo.bar"])).toBe(true);
   });
 });
 
-describe("detectTextFlood y menciones", () => {
-  it("corta por caracteres y saltos de línea", () => {
+describe("detectTextFlood and mentions", () => {
+  it("cuts by characters and line breaks", () => {
     expect(detectTextFlood("corto", 800, 6)).toBe(false);
     expect(detectTextFlood("x".repeat(801), 800, 6)).toBe(true);
     expect(detectTextFlood("a\nb\nc\nd\ne\nf\ng\n", 800, 6)).toBe(true);
   });
 
-  it("menciones superan el límite", () => {
+  it("mentions exceed the limit", () => {
     expect(detectMentionSpam(5, 5)).toBe(false);
     expect(detectMentionSpam(6, 5)).toBe(true);
   });
 });
 
 describe("evaluateAutoModFilters", () => {
-  it("sin texto no dispara invites; sí cuenta spam de mensajes", () => {
+  it("no text does not trigger invites; it does count message spam", () => {
     const inviteOnly = {
       ...allOff,
       antiInvites: true,
@@ -131,7 +131,7 @@ describe("evaluateAutoModFilters", () => {
     expect(hit?.key).toBe("messageSpam");
   });
 
-  it("prioridad: invite gana a palabras", () => {
+  it("priority: invite beats words", () => {
     const hit = evaluateAutoModFilters({
       filters: {
         ...allOff,
@@ -147,7 +147,7 @@ describe("evaluateAutoModFilters", () => {
     expect(hit?.key).toBe("antiInvites");
   });
 
-  it("invite ofuscado en evaluate (spoiler)", () => {
+  it("obfuscated invite in evaluate (spoiler)", () => {
     const hit = evaluateAutoModFilters({
       filters: { ...allOff, antiInvites: true },
       content: "mira ||discord.gg/abc||",
@@ -160,14 +160,14 @@ describe("evaluateAutoModFilters", () => {
 });
 
 describe("normalizeFilterText", () => {
-  it("desnuda spoilers y zero-width", () => {
+  it("strips spoilers and zero-width", () => {
     expect(normalizeFilterText("||hola||")).toBe("hola");
     expect(normalizeFilterText("ho\u200Bla")).toBe("hola");
   });
 });
 
 describe("trackMessageSpam", () => {
-  it("dispara a la quinta ráfaga", () => {
+  it("fires on the fifth burst", () => {
     const guildId = `g-spam-${Date.now()}`;
     const userId = "u-spam";
     expect(trackMessageSpam(guildId, userId, 1_000)).toBe(false);

@@ -17,7 +17,7 @@ import {
 } from "./punishmentMatch.js";
 import { logger } from "../../core/log.js";
 
-const AUDIT = "Sanción automática de Auto-Mod";
+const AUDIT = "Automatic Auto-Mod sanction";
 
 /**
  * Tras registrar un Warn: si el total activo coincide con una regla,
@@ -89,7 +89,7 @@ async function executePunishment(
     case "REMOVE_XP": {
       const levels = await getLevelsConfigCached(guildId);
       if (!levels.enabled) {
-        logger.warn("auto-mod REMOVE_XP ignorado: Levels desactivado.");
+        logger.warn("auto-mod REMOVE_XP ignored: Levels disabled.");
         return;
       }
       const amount = Math.max(
@@ -107,14 +107,14 @@ async function executePunishment(
           xp: result.xp,
         });
       } catch (error) {
-        logger.warn({ err: error }, "auto-mod REMOVE_XP falló:");
+        logger.warn({ err: error }, "auto-mod REMOVE_XP failed:");
       }
       return;
     }
     case "XP_FREEZE": {
       const levels = await getLevelsConfigCached(guildId);
       if (!levels.enabled) {
-        logger.warn("auto-mod XP_FREEZE ignorado: Levels desactivado.");
+        logger.warn("auto-mod XP_FREEZE ignored: Levels disabled.");
         return;
       }
       const ms = Math.max(0, Number(punishment.actionParam) || 0);
@@ -122,7 +122,7 @@ async function executePunishment(
       try {
         await freezeUserXp(guildId, member.id, new Date(Date.now() + ms));
       } catch (error) {
-        logger.warn({ err: error }, "auto-mod XP_FREEZE falló:");
+        logger.warn({ err: error }, "auto-mod XP_FREEZE failed:");
       }
       return;
     }
@@ -141,10 +141,10 @@ async function runDiscordAction(
     if (error instanceof ModerationError) {
       logger.warn(
         { code: error.code, err: error },
-        "auto-mod sanción Discord rechazada:",
+        "auto-mod Discord sanction rejected:",
       );
       return;
     }
-    logger.warn({ err: error }, "auto-mod sanción Discord falló:");
+    logger.warn({ err: error }, "auto-mod Discord sanction failed:");
   }
 }

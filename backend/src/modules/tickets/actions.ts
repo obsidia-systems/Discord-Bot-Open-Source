@@ -83,7 +83,7 @@ export async function requireGuild(
     return await bot.guilds.fetch(guildId);
   } catch {
     throw new TicketsError(
-      "El bot no está en este servidor.",
+      "The bot is not in this server.",
       400,
       "GUILD_NOT_FOUND",
     );
@@ -138,18 +138,18 @@ function controlRows(ticket: TicketSummary): ActionRowBuilder<ButtonBuilder>[] {
     row1.addComponents(
       new ButtonBuilder()
         .setCustomId(`${TICKET_CLOSE_PREFIX}${id}`)
-        .setLabel("Cerrar")
+        .setLabel("Close")
         .setStyle(ButtonStyle.Danger),
     );
   }
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`${TICKET_ADD_PREFIX}${id}`)
-      .setLabel("Añadir")
+      .setLabel("Add")
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(`${TICKET_REMOVE_PREFIX}${id}`)
-      .setLabel("Quitar")
+      .setLabel("Remove")
       .setStyle(ButtonStyle.Secondary),
   );
   return ticket.status === "closed" ? [] : [row1, row2];
@@ -158,15 +158,15 @@ function controlRows(ticket: TicketSummary): ActionRowBuilder<ButtonBuilder>[] {
 function ticketEmbed(ticket: TicketSummary): EmbedBuilder {
   const staff = ticket.claimedBy
     ? `<@${ticket.claimedBy}>`
-    : "Nadie todavía";
+    : "Nobody yet";
   return new EmbedBuilder()
     .setColor(embedColorInt("#5865F2"))
     .setTitle(`Ticket #${ticket.number}`)
     .setDescription(
       [
-        `Estado: **${TICKET_STATUS_LABEL[ticket.status]}**`,
-        `Tipo: \`${ticket.typeKey}\``,
-        `Abierto por: <@${ticket.openerId}>`,
+        `Status: **${TICKET_STATUS_LABEL[ticket.status]}**`,
+        `Type: \`${ticket.typeKey}\``,
+        `Opened by: <@${ticket.openerId}>`,
         `Staff: ${staff}`,
       ].join("\n"),
     );
@@ -206,14 +206,14 @@ async function createTicketChannel(
   const botId = guild.members.me?.id ?? guild.client.user?.id;
   if (!botId) {
     throw new TicketsError(
-      "El bot no está en este servidor.",
+      "The bot is not in this server.",
       500,
       "BOT_NOT_IN_GUILD",
     );
   }
   if (!settings.categoryId) {
     throw new TicketsError(
-      "Configura una categoría de tickets en el panel.",
+      "Configure a ticket category in the panel.",
       400,
       "MISSING_CATEGORY",
     );
@@ -254,9 +254,9 @@ async function createTicketChannel(
     });
     return channel;
   } catch (error: unknown) {
-    logger.warn({ err: error, guildId: guild.id }, "No se pudo crear el canal de ticket");
+    logger.warn({ err: error, guildId: guild.id }, "Couldn't create the ticket channel");
     throw new TicketsError(
-      "No pude crear el canal. Revisa que el bot tenga Permiso de gestionar canales en esa categoría.",
+      "Couldn't create the channel. Make sure the bot has the Manage Channels permission in that category.",
       400,
       "CHANNEL_CREATE_FAILED",
     );
@@ -279,9 +279,9 @@ async function collectTranscript(channel: TextChannel): Promise<string> {
     const when = msg.createdAt.toISOString();
     const name = msg.author.tag;
     const extra = msg.attachments.size
-      ? ` [${msg.attachments.size} adjunto(s)]`
+      ? ` [${msg.attachments.size} attachment(s)]`
       : "";
-    const body = msg.content?.trim() ? msg.content : extra ? "" : "(sin texto)";
+    const body = msg.content?.trim() ? msg.content : extra ? "" : "(no text)";
     return `[${when}] ${name}: ${body}${extra}`;
   });
   return clampTicketTranscript(lines.join("\n"));
@@ -310,7 +310,7 @@ async function postTicketLog(
   await channel
     .send({ embeds: [embed], files })
     .catch((error: unknown) => {
-      logger.warn({ err: error }, "No se pudo enviar el log de ticket");
+      logger.warn({ err: error }, "Couldn't send the ticket log");
     });
 }
 
@@ -323,7 +323,7 @@ async function dmTranscript(
   try {
     const user = await guild.client.users.fetch(openerId);
     await user.send({
-      content: `Transcript del ticket #${ticket.number} (${ticket.typeKey}).`,
+      content: `Transcript for ticket #${ticket.number} (${ticket.typeKey}).`,
       files: [
         new AttachmentBuilder(Buffer.from(text, "utf8"), {
           name: `ticket-${ticket.number}.txt`,
@@ -362,7 +362,7 @@ export async function openTicket(input: {
       guildId: ticket.guildId,
       action: "close",
       actorId: "system",
-      closeReason: "No se pudo crear el canal",
+      closeReason: "Couldn't create the channel",
       channelId: null,
     }).catch(() => undefined);
     throw error;
@@ -376,7 +376,7 @@ export async function openTicket(input: {
         .setColor(embedColorInt("#5865F2"))
         .setTitle(`Ticket #${ticket.number}`)
         .setDescription(
-          `Tipo: \`${ticket.typeKey}\`\nUn miembro del staff te atenderá aquí.`,
+          `Type: \`${ticket.typeKey}\`\nA staff member will assist you here.`,
         ),
     ],
   });
@@ -397,7 +397,7 @@ async function requireLiveChannel(
 ): Promise<TextChannel> {
   if (!ticket.channelId) {
     throw new TicketsError(
-      "Este ticket ya no tiene canal de Discord.",
+      "This ticket no longer has a Discord channel.",
       409,
       "NO_CHANNEL",
     );
@@ -405,7 +405,7 @@ async function requireLiveChannel(
   const channel = await fetchTextInGuild(guild, ticket.channelId);
   if (!channel) {
     throw new TicketsError(
-      "No encuentro el canal de este ticket.",
+      "I can't find this ticket's channel.",
       404,
       "CHANNEL_NOT_FOUND",
     );
@@ -420,7 +420,7 @@ export async function claimTicket(input: {
 }): Promise<TicketSummary> {
   const current = await getTicketById(input.ticketId, input.guild.id);
   if (current.claimedBy === input.actor.id && current.status === "claimed") {
-    throw new TicketsError("Ya tienes este ticket.", 409, "ALREADY_CLAIMER");
+    throw new TicketsError("You already have this ticket.", 409, "ALREADY_CLAIMER");
   }
   const action =
     current.status === "claimed" || current.status === "waiting"
@@ -539,8 +539,8 @@ export async function closeTicket(input: {
     input.guild,
     settings,
     ticket,
-    `Ticket #${ticket.number} cerrado`,
-    `Motivo: ${input.reason}\nPor: <@${input.actorId}>`,
+    `Ticket #${ticket.number} closed`,
+    `Reason: ${input.reason}\nBy: <@${input.actorId}>`,
     transcript
       ? { name: `ticket-${ticket.number}.txt`, text: transcript }
       : undefined,
@@ -550,9 +550,9 @@ export async function closeTicket(input: {
   }
   if (channel) {
     await channel
-      .delete(`Tickets: cierre #${ticket.number}`)
+      .delete(`Tickets: close #${ticket.number}`)
       .catch((error: unknown) => {
-        logger.warn({ err: error }, "No se pudo borrar el canal del ticket");
+        logger.warn({ err: error }, "Couldn't delete the ticket channel");
       });
   }
   return ticket;
@@ -567,7 +567,7 @@ export async function reopenTicket(input: {
   const settings = await getTicketSettings(input.guild.id);
   if (!settings.categoryId || settings.staffRoleIds.length === 0) {
     throw new TicketsError(
-      "Configura categoría y roles de staff antes de reabrir.",
+      "Configure a category and staff roles before reopening.",
       400,
       "MISSING_SETTINGS",
     );
@@ -596,8 +596,8 @@ export async function reopenTicket(input: {
     embeds: [
       new EmbedBuilder()
         .setColor(embedColorInt("#5865F2"))
-        .setTitle(`Ticket #${current.number} reabierto`)
-        .setDescription(`Tipo: \`${current.typeKey}\``),
+        .setTitle(`Ticket #${current.number} reopened`)
+        .setDescription(`Type: \`${current.typeKey}\``),
     ],
   });
   await upsertControlMessage(channel, live);
@@ -605,7 +605,7 @@ export async function reopenTicket(input: {
     input.guild,
     settings,
     live,
-    `Ticket #${current.number} reabierto`,
+    `Ticket #${current.number} reopened`,
     `<@${input.actor.id}> · ${channel}`,
   );
   return live;
@@ -631,7 +631,7 @@ export async function addUserToTicket(input: {
     AttachFiles: true,
     EmbedLinks: true,
   });
-  await channel.send(`<@${input.userId}> fue añadido al ticket.`);
+  await channel.send(`<@${input.userId}> was added to the ticket.`);
   return ticket;
 }
 

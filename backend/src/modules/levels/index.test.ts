@@ -9,14 +9,14 @@ import {
 } from "@adobos/shared";
 
 describe("levels module", () => {
-  it("se llama Levels", () => {
+  it("is named Levels", () => {
     expect(levelsModule.id).toBe("levels");
     expect(levelsModule.name).toBe("Levels");
   });
 });
 
 describe("grant math (shared)", () => {
-  it("floor del multiplicador produce enteros de XP", () => {
+  it("flooring the multiplier yields integer XP", () => {
     const config = defaultLevelsConfig("g");
     config.xpMultiplier = 1;
     config.customMultipliers = [{ roleId: "1".repeat(17), multiplier: 1.5 }];

@@ -98,7 +98,7 @@ async function applyLevelRewards(
   for (const reward of rewards) {
     if (member.roles.cache.has(reward.roleId)) continue;
     await member.roles
-      .add(reward.roleId, `Levels — nivel ${reward.level}`)
+      .add(reward.roleId, `Levels — level ${reward.level}`)
       .catch(() => {});
   }
 }
@@ -109,13 +109,13 @@ async function buildLevelUpRewardsField(
 ): Promise<string> {
   const current = await rewardAtLevel(guildId, newLevel);
   if (current) {
-    return `🎉 Desbloqueaste el rol: <@&${current.roleId}>`;
+    return `🎉 You unlocked the role: <@&${current.roleId}>`;
   }
   const next = await nextRewardAfter(guildId, newLevel);
   if (next) {
-    return `🔒 Próxima recompensa: <@&${next.roleId}> al Nivel **${next.level}**.`;
+    return `🔒 Next reward: <@&${next.roleId}> at Level **${next.level}**.`;
   }
-  return "🌟 ¡Has alcanzado el máximo nivel de recompensas!";
+  return "🌟 You've reached the highest reward level!";
 }
 
 async function announceLevelUp(input: {
@@ -152,10 +152,10 @@ async function announceLevelUp(input: {
 
   const embed = new EmbedBuilder()
     .setColor(embedColorToInt(config.levelUpEmbedColor, 0x34e21d))
-    .setTitle(title || "¡Subida de Nivel!")
+    .setTitle(title || "Level Up!")
     .setDescription(description)
     .addFields({
-      name: "Recompensas",
+      name: "Rewards",
       value: await buildLevelUpRewardsField(input.guildId, input.newLevel),
     })
     .setTimestamp(new Date());
@@ -173,7 +173,7 @@ async function announceLevelUp(input: {
       },
     })
     .catch((error) => {
-      logger.warn({ err: error }, "levels: no se pudo anunciar level-up:");
+      logger.warn({ err: error }, "levels: couldn't announce level-up:");
     });
 }
 
@@ -283,7 +283,7 @@ export async function onLevelsMessageCreate(
       amount,
     });
   } catch (error) {
-    logger.warn({ err: error }, "levels messageCreate falló:");
+    logger.warn({ err: error }, "levels messageCreate failed:");
   }
 }
 
@@ -450,7 +450,7 @@ export async function onLevelsVoiceStateUpdate(
       }
     }
   } catch (error) {
-    logger.warn({ err: error }, "levels voiceStateUpdate falló:");
+    logger.warn({ err: error }, "levels voiceStateUpdate failed:");
   }
 }
 

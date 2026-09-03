@@ -11,7 +11,7 @@ import { logger } from "../../core/log.js";
 
 export const systemCommandsModule: AdobosModule = {
   id: "system-commands",
-  name: "Comandos del Sistema",
+  name: "System Commands",
   intents: [GatewayIntentBits.Guilds],
   register(ctx) {
     ctx.route("/api/system-commands", systemCommandsRoutes(ctx.client), {
@@ -40,7 +40,7 @@ export const systemCommandsModule: AdobosModule = {
       try {
         await syncGlobalCommands(ctx.client);
       } catch (error) {
-        logger.warn({ err: error }, "system-commands: slash sync global falló");
+        logger.warn({ err: error }, "system-commands: global slash sync failed");
       }
     });
   },

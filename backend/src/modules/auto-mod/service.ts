@@ -45,7 +45,7 @@ function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
     throw new AutoModError(
-      "Falta guildId.",
+      "Missing guildId.",
       400,
       "MISSING_GUILD_ID",
     );

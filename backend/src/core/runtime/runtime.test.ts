@@ -7,19 +7,19 @@ import {
 } from "./index.js";
 
 describe("ADOBO_ROLE", () => {
-  it("acepta los cuatro roles", () => {
+  it("accepts the four roles", () => {
     expect(isAdobosRole("all")).toBe(true);
     expect(isAdobosRole("api")).toBe(true);
     expect(isAdobosRole("bot")).toBe(false);
   });
 
-  it("api no corre gateway ni worker", () => {
+  it("api does not run gateway or worker", () => {
     expect(roleRunsHttp("api")).toBe(true);
     expect(roleRunsGateway("api")).toBe(false);
     expect(roleRunsWorker("api")).toBe(false);
   });
 
-  it("all corre las tres capas", () => {
+  it("all runs all three layers", () => {
     expect(roleRunsHttp("all")).toBe(true);
     expect(roleRunsGateway("all")).toBe(true);
     expect(roleRunsWorker("all")).toBe(true);

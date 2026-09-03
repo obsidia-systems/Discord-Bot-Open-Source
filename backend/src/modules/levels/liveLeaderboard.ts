@@ -58,7 +58,7 @@ export async function buildLiveLeaderboardEmbed(
     const name = await resolveDisplayName(client, guildId, row.userId);
     const rank = i + 1;
     lines.push(
-      `${medals(rank)} | <@${row.userId}> | ${name} | Nivel **${row.level}** | \`${row.xp.toLocaleString("es-MX")} XP\``,
+      `${medals(rank)} | <@${row.userId}> | ${name} | Level **${row.level}** | \`${row.xp.toLocaleString("es-MX")} XP\``,
     );
   }
 
@@ -70,16 +70,16 @@ export async function buildLiveLeaderboardEmbed(
   const ranking =
     lines.length > 0
       ? lines.join("\n")
-      : "_Todavía no hay usuarios con XP._";
+      : "_No users with XP yet._";
   const description = [intro, ranking].filter(Boolean).join("\n\n").slice(0, 4096);
 
   const embed = new EmbedBuilder()
     .setColor(embedColorToInt(config.leaderboardEmbedColor, 0xca7aff))
     .setTitle(
-      (config.leaderboardEmbedTitle || "Tabla de Clasificación").slice(0, 256),
+      (config.leaderboardEmbedTitle || "Leaderboard").slice(0, 256),
     )
     .setDescription(description)
-    .setFooter({ text: "Actualización automática · Levels" })
+    .setFooter({ text: "Auto-updated · Levels" })
     .setTimestamp(new Date());
 
   if (config.leaderboardShowThumbnail) {
@@ -150,7 +150,7 @@ async function flushLiveLeaderboard(
     lastEditAt.set(guildId, Date.now());
     dirtyGuilds.delete(guildId);
   } catch (error) {
-    logger.warn({ err: error }, `levels: no se pudo actualizar leaderboard en vivo (${guildId}):`);
+    logger.warn({ err: error }, `levels: couldn't update the live leaderboard (${guildId}):`);
   }
 }
 

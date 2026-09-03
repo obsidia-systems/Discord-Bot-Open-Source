@@ -379,20 +379,20 @@ export function antiRaidLockdownSlashCommandBody(): {
 } {
   return {
     name: "lockdown",
-    description: "Cierra el servidor ante un raid (Anti-Raid).",
+    description: "Locks down the server during a raid (Anti-Raid).",
     default_member_permissions: "32",
     options: [
-      sub("on", "Activa el lockdown de emergencia.", [
+      sub("on", "Enable the emergency lockdown.", [
         {
           type: STRING,
           name: "razon",
-          description: "Motivo para el audit log.",
+          description: "Reason for the audit log.",
           required: false,
           max_length: 200,
         },
       ]),
-      sub("off", "Quita el lockdown y restaura @everyone."),
-      sub("status", "Dice si el lockdown está activo."),
+      sub("off", "Remove the lockdown and restore @everyone."),
+      sub("status", "Tells whether the lockdown is active."),
     ],
   };
 }

@@ -17,8 +17,8 @@ import {
   xpToAdvanceFromLevel,
 } from "./index.js";
 
-describe("catálogo de módulos", () => {
-  it("incluye canvas-events y no duplica ids", () => {
+describe("module catalog", () => {
+  it("includes canvas-events and does not duplicate ids", () => {
     expect(MODULE_IDS).toContain("canvas-events");
     expect(MODULE_IDS).toContain("voice-rooms");
     expect(MODULE_IDS).toContain("reminders");
@@ -31,7 +31,7 @@ describe("catálogo de módulos", () => {
     expect(new Set(MODULE_IDS).size).toBe(MODULE_IDS.length);
   });
 
-  it("mapea ModuleId a FeatureKey sin cobrar billing", () => {
+  it("maps ModuleId to FeatureKey without charging billing", () => {
     expect(MODULE_FEATURE["canvas-events"]).toBe("welcome");
     expect(MODULE_FEATURE["action-logs"]).toBe("logs");
     expect(MODULE_FEATURE["auto-mod"]).toBe("automod");
@@ -47,8 +47,8 @@ describe("catálogo de módulos", () => {
   });
 });
 
-describe("códigos de error del kernel", () => {
-  it("cubre auth, guild y entitlements", () => {
+describe("kernel error codes", () => {
+  it("covers auth, guild and entitlements", () => {
     expect(KERNEL_ERROR_CODES).toContain("UNAUTHENTICATED");
     expect(KERNEL_ERROR_CODES).toContain("GUILD_FORBIDDEN");
     expect(KERNEL_ERROR_CODES).toContain("FEATURE_LOCKED");
@@ -57,8 +57,8 @@ describe("códigos de error del kernel", () => {
   });
 });
 
-describe("entitlements y asientos", () => {
-  it("free incluye voice-rooms y no branding", () => {
+describe("entitlements and seats", () => {
+  it("free includes voice-rooms and no branding", () => {
     expect(tierHasFeature("free", "voice-rooms")).toBe(true);
     expect(tierHasFeature("free", "reminders")).toBe(true);
     expect(tierHasFeature("free", "starboard")).toBe(true);
@@ -73,14 +73,14 @@ describe("entitlements y asientos", () => {
     expect(tierHasFeature("pro", "branding")).toBe(true);
   });
 
-  it("asientos máximos por plan", () => {
+  it("maximum seats per plan", () => {
     expect(seatsMaxForTier("free")).toBe(3);
     expect(seatsMaxForTier("pro")).toBe(3);
     expect(seatsMaxForTier("business")).toBe(UNLIMITED);
   });
 });
 
-describe("curva de XP", () => {
+describe("XP curve", () => {
   it("es estrictamente creciente", () => {
     let prev = calculateBaseXPForLevel(0);
     expect(prev).toBe(0);
@@ -95,21 +95,21 @@ describe("curva de XP", () => {
 });
 
 describe("zona IANA", () => {
-  it("acepta zonas reales y rechaza basura", () => {
+  it("accepts real timezones and rejects garbage", () => {
     expect(isValidIanaTimezone("UTC")).toBe(true);
     expect(isValidIanaTimezone("America/Mexico_City")).toBe(true);
     expect(isValidIanaTimezone("Not/AZone")).toBe(false);
     expect(isValidIanaTimezone("")).toBe(false);
   });
 
-  it("normaliza inválidas a UTC", () => {
+  it("normalizes invalid ones to UTC", () => {
     expect(normalizeScheduledTimezone("garbage")).toBe("UTC");
     expect(normalizeScheduledTimezone("Europe/Madrid")).toBe("Europe/Madrid");
   });
 });
 
 describe("auto-mod defaults", () => {
-  it("warn+DM encendidos y staff skip apagado; listas con tope", () => {
+  it("warn+DM on and staff skip off; capped lists", () => {
     const config = defaultAutoModConfig("1");
     expect(config.warnOnHit).toBe(true);
     expect(config.dmOnHit).toBe(true);
@@ -119,8 +119,8 @@ describe("auto-mod defaults", () => {
   });
 });
 
-describe("invite del bot", () => {
-  it("arma la URL de Discord con bot + applications.commands", () => {
+describe("bot invite", () => {
+  it("builds the Discord URL with bot + applications.commands", () => {
     const url = buildBotInviteUrl({
       clientId: "123",
       guildId: "111111111111111111",

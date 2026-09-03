@@ -19,9 +19,9 @@ async function assertDestinationChannel(
   const channel = await fetchChannelInGuild(bot, channelId, guildId);
   if (!isStarboardDestinationChannelType(channel.type)) {
     const kind =
-      channel.type === ChannelType.GuildForum ? "foro" : "este tipo de canal";
+      channel.type === ChannelType.GuildForum ? "a forum" : "this channel type";
     throw new StarboardError(
-      `Usa un canal de texto o anuncios (no ${kind}).`,
+      `Use a text or announcement channel (not ${kind}).`,
       400,
       "INVALID_CHANNEL_TYPE",
     );

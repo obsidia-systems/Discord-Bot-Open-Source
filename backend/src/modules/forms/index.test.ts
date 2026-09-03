@@ -9,7 +9,7 @@ import { formsModule } from "./index.js";
 import { remainingMsFromLast } from "./service.js";
 
 describe("formsModule.register", () => {
-  it("registra open/accept/deny y el modal", () => {
+  it("registers open/accept/deny and the modal", () => {
     const buttons: string[] = [];
     const modals: string[] = [];
     formsModule.register({
@@ -39,7 +39,7 @@ describe("formsModule.register", () => {
 });
 
 describe("remainingMsFromLast", () => {
-  it("once bloquea para siempre; cooldown 0 no espera", () => {
+  it("once blocks forever; cooldown 0 does not wait", () => {
     const last = new Date(Date.now() - 1_000);
     expect(remainingMsFromLast(last, "once", 0)).toBe(
       Number.POSITIVE_INFINITY,

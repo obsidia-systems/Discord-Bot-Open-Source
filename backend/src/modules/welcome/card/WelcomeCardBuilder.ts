@@ -57,7 +57,7 @@ function ensureFontsRegistered(): void {
   const regularPath = path.join(fontsDir, "Inter-Regular.ttf");
 
   if (!fs.existsSync(boldPath)) {
-    logger.warn(`Fuente no encontrada: ${boldPath}. El texto de la tarjeta puede no renderizar.`);
+    logger.warn(`Font not found: . The card text may not render.`);
   } else {
     GlobalFonts.registerFromPath(boldPath, FONT_FAMILY);
   }
@@ -106,7 +106,7 @@ async function fetchImageBuffer(url: string): Promise<Buffer> {
     signal: AbortSignal.timeout(12_000),
   });
   if (!response.ok) {
-    throw new Error(`No se pudo descargar imagen (${response.status})`);
+    throw new Error(`Couldn't download image (${response.status})`);
   }
   return Buffer.from(await response.arrayBuffer());
 }
@@ -118,7 +118,7 @@ async function loadRemoteImage(url: string): Promise<Image> {
 
 async function loadLocalUpload(publicPath: string): Promise<Image> {
   const absolute = resolvePublicUploadPath(publicPath);
-  if (!absolute) throw new Error("Ruta de upload inválida");
+  if (!absolute) throw new Error("Invalid upload path");
   return loadImage(absolute);
 }
 
@@ -155,7 +155,7 @@ function legacyLayersFromOptions(
   const textX = clamp(toInt(options.textX, CARD_WIDTH / 2), 0, CARD_WIDTH);
   const textY = clamp(toInt(options.textY, 560), 0, CARD_HEIGHT);
   const color = normalizeHexColor(options.textColor);
-  const primary = (options.primaryText ?? "").trim() || "¡Bienvenido!";
+  const primary = (options.primaryText ?? "").trim() || "Welcome!";
   const secondary =
     (options.secondaryText ?? "").trim() || options.user.username;
 

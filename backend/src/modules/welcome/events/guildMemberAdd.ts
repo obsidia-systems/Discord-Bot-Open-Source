@@ -40,13 +40,13 @@ export async function onGuildMemberAdd(member: GuildMember): Promise<void> {
     if (!channel) {
       await disableWelcomeSettings(member.guild.id);
       logger.warn(
-        `Welcome desactivado en ${member.guild.id}: canal borrado.`,
+        `Welcome disabled in ${member.guild.id}: channel deleted.`,
       );
       return;
     }
     if (!isWelcomeSendChannel(channel)) {
       logger.warn(
-        `Welcome: canal ${row.channelId} no admite texto en ${member.guild.id}.`,
+        `Welcome: channel ${row.channelId} does not support text in ${member.guild.id}.`,
       );
       return;
     }
@@ -98,6 +98,6 @@ export async function onGuildMemberAdd(member: GuildMember): Promise<void> {
       files: [attachment],
     });
   } catch (error: unknown) {
-    logger.warn({ err: error instanceof Error ? error.message : error }, "Error silencioso en guildMemberAdd (bienvenida):");
+    logger.warn({ err: error instanceof Error ? error.message : error }, "Silent error in guildMemberAdd (welcome):");
   }
 }

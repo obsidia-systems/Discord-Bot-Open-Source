@@ -25,7 +25,7 @@ const room = {
 };
 
 describe("assertCanControl", () => {
-  it("claim lo puede un no-dueño si el dueño se fue", () => {
+  it("a non-owner can claim if the owner left", () => {
     expect(() =>
       assertCanControl(
         member("other", false),
@@ -36,7 +36,7 @@ describe("assertCanControl", () => {
     ).not.toThrow();
   });
 
-  it("lock lo bloquea si no es dueño ni staff", () => {
+  it("lock is blocked if not owner or staff", () => {
     expect(() =>
       assertCanControl(
         member("other", false),
@@ -47,7 +47,7 @@ describe("assertCanControl", () => {
     ).toThrow(VoiceRoomsError);
   });
 
-  it("staff puede lock aunque no sea dueño", () => {
+  it("staff can lock even if not the owner", () => {
     expect(() =>
       assertCanControl(
         member("mod", true),

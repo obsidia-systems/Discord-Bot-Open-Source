@@ -4,7 +4,7 @@ import { moderationRoutes } from "./api/routes.js";
 
 export const moderationModule: AdobosModule = {
   id: "moderation",
-  name: "Moderación",
+  name: "Moderation",
   intents: [
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildModeration,

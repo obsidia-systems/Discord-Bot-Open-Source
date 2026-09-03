@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ticketsModule } from "./index.js";
 
 describe("tickets module", () => {
-  it("se llama Tickets, sin slash, con botones, modales y channelDelete", () => {
+  it("is named Tickets, no slash, with buttons, modals and channelDelete", () => {
     expect(ticketsModule.id).toBe("tickets");
     expect(ticketsModule.name).toBe("Tickets");
     const commands: string[] = [];

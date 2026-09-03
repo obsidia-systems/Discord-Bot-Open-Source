@@ -81,7 +81,7 @@ async function replyEconomyError(
       ? error.message
       : error instanceof Error
         ? error.message
-        : "No se pudo completar la acción.";
+        : "Couldn't complete the action.";
   const content = `❌ ${message}`;
   if (deferred) {
     await interaction.editReply({ content });
@@ -100,7 +100,7 @@ export async function handleBalanceCommand(
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -110,7 +110,7 @@ export async function handleBalanceCommand(
   const target = interaction.options.getUser("usuario") ?? interaction.user;
   const economy = await getEconomyConfig(interaction.guildId);
   const bal = await getUserEconomyBalance(interaction.guildId, target.id);
-  const currency = economy.currencyName || "monedas";
+  const currency = economy.currencyName || "coins";
 
   const embed = new EmbedBuilder()
     .setColor(0xe11d48)
@@ -121,17 +121,17 @@ export async function handleBalanceCommand(
     .setTitle("Balance")
     .addFields(
       {
-        name: "Cartera",
+        name: "Wallet",
         value: `\`${bal.wallet.toLocaleString("es-MX")}\` ${currency}`,
         inline: true,
       },
       {
-        name: "Banco",
+        name: "Bank",
         value: `\`${bal.bank.toLocaleString("es-MX")}\` ${currency}`,
         inline: true,
       },
       {
-        name: "Patrimonio",
+        name: "Net worth",
         value: `\`${bal.total.toLocaleString("es-MX")}\` ${currency}`,
         inline: true,
       },
@@ -149,7 +149,7 @@ export async function handleDepositCommand(
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -167,27 +167,27 @@ export async function handleDepositCommand(
       amount,
     );
     const economy = await getEconomyConfig(interaction.guildId);
-    const currency = economy.currencyName || "monedas";
+    const currency = economy.currencyName || "coins";
 
     const embed = new EmbedBuilder()
       .setColor(0x57f287)
-      .setTitle("Depósito realizado")
+      .setTitle("Deposit complete")
       .setDescription(
-        `Guardaste **${result.moved.toLocaleString("es-MX")}** ${currency} en el banco.`,
+        `You moved **${result.moved.toLocaleString("es-MX")}** ${currency} into the bank.`,
       )
       .addFields(
         {
-          name: "Cartera",
+          name: "Wallet",
           value: `\`${result.wallet.toLocaleString("es-MX")}\``,
           inline: true,
         },
         {
-          name: "Banco",
+          name: "Bank",
           value: `\`${result.bank.toLocaleString("es-MX")}\``,
           inline: true,
         },
         {
-          name: "Patrimonio",
+          name: "Net worth",
           value: `\`${result.total.toLocaleString("es-MX")}\``,
           inline: true,
         },
@@ -208,7 +208,7 @@ export async function handleWithdrawCommand(
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -226,27 +226,27 @@ export async function handleWithdrawCommand(
       amount,
     );
     const economy = await getEconomyConfig(interaction.guildId);
-    const currency = economy.currencyName || "monedas";
+    const currency = economy.currencyName || "coins";
 
     const embed = new EmbedBuilder()
       .setColor(0x3b82f6)
-      .setTitle("Retiro realizado")
+      .setTitle("Withdrawal complete")
       .setDescription(
-        `Retiraste **${result.moved.toLocaleString("es-MX")}** ${currency} del banco.`,
+        `You withdrew **${result.moved.toLocaleString("es-MX")}** ${currency} from the bank.`,
       )
       .addFields(
         {
-          name: "Cartera",
+          name: "Wallet",
           value: `\`${result.wallet.toLocaleString("es-MX")}\``,
           inline: true,
         },
         {
-          name: "Banco",
+          name: "Bank",
           value: `\`${result.bank.toLocaleString("es-MX")}\``,
           inline: true,
         },
         {
-          name: "Patrimonio",
+          name: "Net worth",
           value: `\`${result.total.toLocaleString("es-MX")}\``,
           inline: true,
         },
@@ -267,7 +267,7 @@ export async function handlePayCommand(
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -277,7 +277,7 @@ export async function handlePayCommand(
   const amount = interaction.options.getInteger("cantidad", true);
   if (target.bot) {
     await interaction.reply({
-      content: "No puedes pagar a un bot.",
+      content: "You can't pay a bot.",
       ...EPHEMERAL,
     });
     return;
@@ -295,21 +295,21 @@ export async function handlePayCommand(
       amount,
       economy.transferTax,
     );
-    const currency = economy.currencyName || "monedas";
+    const currency = economy.currencyName || "coins";
     const taxNote =
       result.tax > 0
-        ? `\nImpuesto (${economy.transferTax}%): **${result.tax.toLocaleString("es-MX")}** ${currency}`
+        ? `\nTax (${economy.transferTax}%): **${result.tax.toLocaleString("es-MX")}** ${currency}`
         : "";
 
     const embed = new EmbedBuilder()
       .setColor(0x57f287)
-      .setTitle("Transferencia realizada")
+      .setTitle("Transfer complete")
       .setDescription(
-        `Enviaste **${result.sent.toLocaleString("es-MX")}** ${currency} a <@${target.id}>.${taxNote}\n` +
-          `<@${target.id}> recibió **${result.received.toLocaleString("es-MX")}** ${currency}.`,
+        `You sent **${result.sent.toLocaleString("es-MX")}** ${currency} to <@${target.id}>.${taxNote}\n` +
+          `<@${target.id}> received **${result.received.toLocaleString("es-MX")}** ${currency}.`,
       )
       .addFields({
-        name: "Tu cartera",
+        name: "Your wallet",
         value: `\`${result.fromWallet.toLocaleString("es-MX")}\``,
         inline: true,
       });
@@ -329,7 +329,7 @@ async function handleFixedIncome(
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -357,33 +357,33 @@ async function handleFixedIncome(
       income.streakBonusPercent,
     );
 
-    const currency = economy.currencyName || "monedas";
+    const currency = economy.currencyName || "coins";
     const symbol = economy.currencySymbol?.trim() || "";
     const currencyLabel = symbol ? `${currency} (${symbol})` : currency;
 
     const titles: Record<FixedIncomeType, string> = {
-      daily: "Recompensa diaria",
-      weekly: "Recompensa semanal",
-      monthly: "Recompensa mensual",
+      daily: "Daily reward",
+      weekly: "Weekly reward",
+      monthly: "Monthly reward",
     };
     const footers: Record<FixedIncomeType, string> = {
-      daily: "Vuelve en 24 horas.",
-      weekly: "Vuelve en 7 días.",
-      monthly: "Vuelve en 30 días.",
+      daily: "Come back in 24 hours.",
+      weekly: "Come back in 7 days.",
+      monthly: "Come back in 30 days.",
     };
 
-    let description = `Has reclamado **${result.amount.toLocaleString("es-MX")}** ${currencyLabel}.`;
+    let description = `You claimed **${result.amount.toLocaleString("es-MX")}** ${currencyLabel}.`;
     if (incomeType === "daily" && income.streakEnabled) {
-      description += `\n🔥 Racha x${result.streak} → +${result.bonusPercent}% bonus`;
+      description += `\n🔥 Streak x${result.streak} → +${result.bonusPercent}% bonus`;
     }
-    description += `\nTambién disponibles: \`/weekly\` (${income.weeklyPay.toLocaleString("es-MX")}) · \`/monthly\` (${income.monthlyPay.toLocaleString("es-MX")})`;
+    description += `\nAlso available: \`/weekly\` (${income.weeklyPay.toLocaleString("es-MX")}) · \`/monthly\` (${income.monthlyPay.toLocaleString("es-MX")})`;
 
     const embed = new EmbedBuilder()
       .setColor(0xfbbf24)
       .setTitle(titles[incomeType])
       .setDescription(description)
       .addFields({
-        name: "Cartera",
+        name: "Wallet",
         value: `\`${result.wallet.toLocaleString("es-MX")}\``,
         inline: true,
       })
@@ -424,7 +424,7 @@ export async function handleWorkCommand(
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -439,7 +439,7 @@ export async function handleWorkCommand(
     const income = await getEconomyIncomeConfig(interaction.guildId);
     if (income.jobs.length === 0) {
       throw new EconomyError(
-        "No hay trabajos configurados. Un admin puede crearlos en el panel (Ingresos y Trabajos).",
+        "No jobs configured. An admin can create them in the panel (Income and Jobs).",
         400,
         "NO_JOBS",
       );
@@ -467,7 +467,7 @@ export async function handleCrimeCommand(
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -482,7 +482,7 @@ export async function handleCrimeCommand(
     const income = await getEconomyIncomeConfig(interaction.guildId);
     if (income.crimes.length === 0) {
       throw new EconomyError(
-        "No hay crímenes configurados. Un admin puede crearlos en el panel (Ingresos y Trabajos).",
+        "No crimes configured. An admin can create them in the panel (Income and Jobs).",
         400,
         "NO_CRIMES",
       );
@@ -510,7 +510,7 @@ async function promptJobSelect(
   const prefix = kind === "work" ? WK_SELECT_PREFIX : CR_SELECT_PREFIX;
   const menu = new StringSelectMenuBuilder()
     .setCustomId(`${prefix}pick:${interaction.user.id}`)
-    .setPlaceholder(kind === "work" ? "Elige un trabajo" : "Elige un crimen")
+    .setPlaceholder(kind === "work" ? "Choose a job" : "Choose a crime")
     .addOptions(
       items.slice(0, 5).map((item) => ({
         label: item.name.slice(0, 100),
@@ -521,8 +521,8 @@ async function promptJobSelect(
   await interaction.editReply({
     content:
       kind === "work"
-        ? "Elige el trabajo. El cooldown empieza al confirmar."
-        : "Elige el crimen. El cooldown empieza al confirmar.",
+        ? "Choose the job. The cooldown starts on confirm."
+        : "Choose the crime. The cooldown starts on confirm.",
     components: [
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu),
     ],
@@ -563,7 +563,7 @@ async function settleWork(
   const bal = await creditWallet(guildId, interaction.user.id, payout);
   await setCooldownMinutes(guildId, interaction.user.id, "work", job.cooldownMinutes);
 
-  const currency = economy.currencyName || "monedas";
+  const currency = economy.currencyName || "coins";
   const text = applyEconomyMessageTemplate(job.successMessage, {
     job: job.name,
     payout: payout.toLocaleString("es-MX"),
@@ -572,15 +572,15 @@ async function settleWork(
 
   const embed = new EmbedBuilder()
     .setColor(0x3b82f6)
-    .setTitle(`Trabajo: ${job.name}`)
+    .setTitle(`Job: ${job.name}`)
     .setDescription(text)
     .addFields({
-      name: "Cartera",
+      name: "Wallet",
       value: `\`${bal.wallet.toLocaleString("es-MX")}\``,
       inline: true,
     })
     .setFooter({
-      text: `Próximo trabajo en ${job.cooldownMinutes} min.`,
+      text: `Next job in ${job.cooldownMinutes} min.`,
     });
 
   if (interaction.isStringSelectMenu()) {
@@ -598,7 +598,7 @@ async function settleCrime(
   const economy = await getEconomyConfig(guildId);
   const roll = 1 + randomBelow(100);
   const success = roll <= crime.successChance;
-  const currency = economy.currencyName || "monedas";
+  const currency = economy.currencyName || "coins";
 
   let description: string;
   let color: number;
@@ -637,7 +637,7 @@ async function settleCrime(
 
   const embed = new EmbedBuilder()
     .setColor(color)
-    .setTitle(success ? "Crimen exitoso" : "Te atraparon")
+    .setTitle(success ? "Crime succeeded" : "You got caught")
     .setDescription(description)
     .addFields(
       {
@@ -646,13 +646,13 @@ async function settleCrime(
         inline: true,
       },
       {
-        name: "Cartera",
+        name: "Wallet",
         value: `\`${wallet.toLocaleString("es-MX")}\``,
         inline: true,
       },
     )
     .setFooter({
-      text: `Próximo intento en ${crime.cooldownMinutes} min.`,
+      text: `Next attempt in ${crime.cooldownMinutes} min.`,
     });
 
   if (interaction.isStringSelectMenu()) {
@@ -680,7 +680,7 @@ async function handleIncomeSelect(
 ): Promise<void> {
   if (!interaction.guildId) {
     await interaction.reply({
-      content: "Este menú solo funciona en un servidor.",
+      content: "This menu only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -689,7 +689,7 @@ async function handleIncomeSelect(
   const { ownerId } = parseOwnerCustomId(interaction.customId);
   if (!ownerId || interaction.user.id !== ownerId) {
     await interaction.reply({
-      content: "❌ Esta elección no es tuya.",
+      content: "❌ This choice isn't yours.",
       ...EPHEMERAL,
     });
     return;
@@ -699,7 +699,7 @@ async function handleIncomeSelect(
   const pending = jobPending.get(key);
   if (!pending || pending.kind !== kind) {
     await interaction.reply({
-      content: "❌ Esta elección expiró.",
+      content: "❌ This choice expired.",
       ...EPHEMERAL,
     });
     return;
@@ -713,13 +713,13 @@ async function handleIncomeSelect(
     if (kind === "work") {
       const job = income.jobs.find((j) => j.id === id);
       if (!job) {
-        throw new EconomyError("Ese trabajo ya no existe.", 400, "JOB_MISSING");
+        throw new EconomyError("That job no longer exists.", 400, "JOB_MISSING");
       }
       await settleWork(interaction, job);
     } else {
       const crime = income.crimes.find((c) => c.id === id);
       if (!crime) {
-        throw new EconomyError("Ese crimen ya no existe.", 400, "CRIME_MISSING");
+        throw new EconomyError("That crime no longer exists.", 400, "CRIME_MISSING");
       }
       await settleCrime(interaction, crime);
     }
@@ -727,7 +727,7 @@ async function handleIncomeSelect(
     const message =
       error instanceof EconomyError
         ? error.message
-        : "No se pudo completar la acción.";
+        : "Couldn't complete the action.";
     if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({ content: `❌ ${message}`, ...EPHEMERAL });
     } else {
@@ -745,7 +745,7 @@ export async function handleBaltopCommand(
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -755,12 +755,12 @@ export async function handleBaltopCommand(
   await interaction.deferReply(visibility(ephemeral));
 
   const economy = await getEconomyConfig(interaction.guildId);
-  const currency = economy.currencyName || "monedas";
+  const currency = economy.currencyName || "coins";
   const rows = await listEconomyLeaderboardRows(interaction.guildId, 10);
 
   if (rows.length === 0) {
     await interaction.editReply({
-      content: "Aún no hay saldos registrados en este servidor.",
+      content: "No balances recorded in this server yet.",
     });
     return;
   }
@@ -773,7 +773,7 @@ export async function handleBaltopCommand(
     const name =
       member?.displayName ??
       member?.user.username ??
-      `Usuario ${row.userId.slice(-4)}`;
+      `User ${row.userId.slice(-4)}`;
     const medal =
       row.rank === 1 ? "🥇" : row.rank === 2 ? "🥈" : row.rank === 3 ? "🥉" : `**${row.rank}.**`;
     lines.push(
@@ -783,9 +783,9 @@ export async function handleBaltopCommand(
 
   const embed = new EmbedBuilder()
     .setColor(0xe11d48)
-    .setTitle("Top de riqueza")
+    .setTitle("Wealth leaderboard")
     .setDescription(lines.join("\n"))
-    .setFooter({ text: "Ordenado por cartera + banco" })
+    .setFooter({ text: "Sorted by wallet + bank" })
     .setTimestamp(new Date());
 
   await interaction.editReply({ embeds: [embed] });
@@ -799,7 +799,7 @@ export async function handleAddMoneyCommand(
 ): Promise<void> {
   if (!interaction.guildId) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -819,7 +819,7 @@ export async function handleAddMoneyCommand(
     });
     const economy = await getEconomyConfig(interaction.guildId);
     await interaction.reply({
-      content: `Añadiste **${amount.toLocaleString("es-MX")}** ${economy.currencyName} a <@${target.id}>. Cartera: \`${result.wallet.toLocaleString("es-MX")}\`.`,
+      content: `Added **${amount.toLocaleString("es-MX")}** ${economy.currencyName} to <@${target.id}>. Wallet: \`${result.wallet.toLocaleString("es-MX")}\`.`,
       ...visibility(ephemeral),
     });
   } catch (error) {
@@ -835,7 +835,7 @@ export async function handleRemoveMoneyCommand(
 ): Promise<void> {
   if (!interaction.guildId) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -855,7 +855,7 @@ export async function handleRemoveMoneyCommand(
     });
     const economy = await getEconomyConfig(interaction.guildId);
     await interaction.reply({
-      content: `Quitaste **${amount.toLocaleString("es-MX")}** ${economy.currencyName} a <@${target.id}>. Cartera: \`${result.wallet.toLocaleString("es-MX")}\`.`,
+      content: `Removed **${amount.toLocaleString("es-MX")}** ${economy.currencyName} from <@${target.id}>. Wallet: \`${result.wallet.toLocaleString("es-MX")}\`.`,
       ...visibility(ephemeral),
     });
   } catch (error) {
@@ -871,7 +871,7 @@ export async function handleSetMoneyCommand(
 ): Promise<void> {
   if (!interaction.guildId) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -891,7 +891,7 @@ export async function handleSetMoneyCommand(
     });
     const economy = await getEconomyConfig(interaction.guildId);
     await interaction.reply({
-      content: `Cartera de <@${target.id}> fijada en **${amount.toLocaleString("es-MX")}** ${economy.currencyName}. Banco: \`${result.bank.toLocaleString("es-MX")}\`.`,
+      content: `<@${target.id}>'s wallet set to **${amount.toLocaleString("es-MX")}** ${economy.currencyName}. Bank: \`${result.bank.toLocaleString("es-MX")}\`.`,
       ...visibility(ephemeral),
     });
   } catch (error) {
@@ -907,7 +907,7 @@ export async function handleCollectIncomeCommand(
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -920,11 +920,11 @@ export async function handleCollectIncomeCommand(
     const member = await interaction.guild.members.fetch(interaction.user.id);
     const income = await getEconomyIncomeConfig(interaction.guildId);
     const economy = await getEconomyConfig(interaction.guildId);
-    const currency = economy.currencyName || "monedas";
+    const currency = economy.currencyName || "coins";
 
     if (income.roleSalaries.length === 0) {
       throw new EconomyError(
-        "No hay salarios de rol configurados. Un admin los crea en Ingresos y Trabajos.",
+        "No role salaries configured. An admin creates them in Income and Jobs.",
         400,
         "NO_SALARIES",
       );
@@ -933,7 +933,7 @@ export async function handleCollectIncomeCommand(
     const mine = income.roleSalaries.filter((s) => member.roles.cache.has(s.roleId));
     if (mine.length === 0) {
       throw new EconomyError(
-        "No tienes ningún rol con salario en este servidor.",
+        "You don't have any salaried role in this server.",
         400,
         "NO_SALARY_ROLE",
       );
@@ -954,7 +954,7 @@ export async function handleCollectIncomeCommand(
         );
       } catch {
         lines.push(
-          `<@&${salary.roleId}> — en cooldown (${salary.frequency === "weekly" ? "semanal" : "diario"})`,
+          `<@&${salary.roleId}> — on cooldown (${salary.frequency === "weekly" ? "weekly" : "daily"})`,
         );
         continue;
       }
@@ -978,7 +978,7 @@ export async function handleCollectIncomeCommand(
 
     if (total === 0) {
       throw new EconomyError(
-        `Todos tus salarios están en cooldown.\n${lines.join("\n")}`,
+        `All your salaries are on cooldown.\n${lines.join("\n")}`,
         400,
         "SALARY_COOLDOWN",
       );
@@ -986,12 +986,12 @@ export async function handleCollectIncomeCommand(
 
     const embed = new EmbedBuilder()
       .setColor(0xfbbf24)
-      .setTitle("Salario cobrado")
+      .setTitle("Salary collected")
       .setDescription(
-        `Reclamaste **${total.toLocaleString("es-MX")}** ${currency}.\n\n${lines.join("\n")}`,
+        `You claimed **${total.toLocaleString("es-MX")}** ${currency}.\n\n${lines.join("\n")}`,
       )
       .addFields({
-        name: "Cartera",
+        name: "Wallet",
         value: `\`${wallet.toLocaleString("es-MX")}\``,
         inline: true,
       });
@@ -1010,7 +1010,7 @@ export async function handleRobCommand(
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -1019,14 +1019,14 @@ export async function handleRobCommand(
   const target = interaction.options.getUser("usuario", true);
   if (target.bot) {
     await interaction.reply({
-      content: "No puedes robar a un bot.",
+      content: "You can't rob a bot.",
       ...EPHEMERAL,
     });
     return;
   }
   if (target.id === interaction.user.id) {
     await interaction.reply({
-      content: "No puedes robarte a ti mismo.",
+      content: "You can't rob yourself.",
       ...EPHEMERAL,
     });
     return;
@@ -1040,7 +1040,7 @@ export async function handleRobCommand(
     const rob = income.rob;
     if (!rob.enabled) {
       throw new EconomyError(
-        "El robo está desactivado en este servidor.",
+        "Robbing is disabled in this server.",
         400,
         "ROB_DISABLED",
       );
@@ -1051,14 +1051,14 @@ export async function handleRobCommand(
     const victimBal = await getUserEconomyBalance(interaction.guildId, target.id);
     if (victimBal.wallet < rob.minTargetWallet) {
       throw new EconomyError(
-        `Esa cartera no llega al mínimo (${rob.minTargetWallet.toLocaleString("es-MX")}). El banco no se puede robar.`,
+        `That wallet is below the minimum (${rob.minTargetWallet.toLocaleString("es-MX")}). The bank can't be robbed.`,
         400,
         "ROB_TARGET_POOR",
       );
     }
 
     const economy = await getEconomyConfig(interaction.guildId);
-    const currency = economy.currencyName || "monedas";
+    const currency = economy.currencyName || "coins";
     const success = randomBelow(100) < rob.successChance;
     const stealPercent = randomInt(rob.minStealPercent, rob.maxStealPercent);
     const stealAmount = Math.max(
@@ -1089,18 +1089,18 @@ export async function handleRobCommand(
 
     const embed = new EmbedBuilder()
       .setColor(success ? 0x57f287 : 0xef4444)
-      .setTitle(success ? "Robo exitoso" : "Te atraparon")
+      .setTitle(success ? "Robbery succeeded" : "You got caught")
       .setDescription(
         success
-          ? `Le quitaste **${result.stolen.toLocaleString("es-MX")}** ${currency} de la cartera a <@${target.id}>.`
-          : `Fallaste. Multa de **${result.fine.toLocaleString("es-MX")}** ${currency}. El banco de <@${target.id}> sigue intacto.`,
+          ? `You took **${result.stolen.toLocaleString("es-MX")}** ${currency} from <@${target.id}>'s wallet.`
+          : `You failed. Fine of **${result.fine.toLocaleString("es-MX")}** ${currency}. <@${target.id}>'s bank is untouched.`,
       )
       .addFields({
-        name: "Tu cartera",
+        name: "Your wallet",
         value: `\`${result.robberWallet.toLocaleString("es-MX")}\``,
         inline: true,
       })
-      .setFooter({ text: `Próximo intento en ${rob.cooldownMinutes} min.` });
+      .setFooter({ text: `Next attempt in ${rob.cooldownMinutes} min.` });
 
     await interaction.editReply({ embeds: [embed] });
   } catch (error) {

@@ -30,8 +30,8 @@ function reply(
   };
 }
 
-describe("normalize y cooldown", () => {
-  it("recorta trigger vacío y tope", () => {
+describe("normalize and cooldown", () => {
+  it("trims an empty trigger and the cap", () => {
     expect(normalizeAutoReplyTrigger("  hola  ")).toBe("hola");
     expect(normalizeAutoReplyTrigger("")).toBeNull();
     expect(normalizeAutoReplyTrigger("x".repeat(201))).toBeNull();
@@ -43,7 +43,7 @@ describe("normalize y cooldown", () => {
     expect(clampAutoReplyCooldown(99999)).toBe(3600);
   });
 
-  it("cooldown: sin disparo previo o 0 s no bloquea", () => {
+  it("cooldown: no prior fire or 0s does not block", () => {
     expect(isAutoReplyOnCooldown(null, 10, 1000)).toBe(false);
     expect(isAutoReplyOnCooldown(900, 0, 1000)).toBe(false);
     expect(isAutoReplyOnCooldown(500, 1, 1000)).toBe(true);
@@ -82,7 +82,7 @@ describe("messageMatchesTrigger", () => {
     ).toBe(false);
   });
 
-  it("contains: hola dentro de holanda; wholeWord no", () => {
+  it("contains: hola inside holanda; wholeWord does not", () => {
     expect(
       messageMatchesTrigger({
         content: "di holanda ya",
@@ -112,7 +112,7 @@ describe("messageMatchesTrigger", () => {
     ).toBe(true);
   });
 
-  it("starts_with + wholeWord: hola mundo sí, holanda no", () => {
+  it("starts_with + wholeWord: hola mundo yes, holanda no", () => {
     expect(
       messageMatchesTrigger({
         content: " holanda",
@@ -135,7 +135,7 @@ describe("messageMatchesTrigger", () => {
 });
 
 describe("pickMatchingAutoReply", () => {
-  it("exact gana a contains; más largo gana; un solo reply", () => {
+  it("exact beats contains; longer wins; a single reply", () => {
     const picked = pickMatchingAutoReply(
       [
         reply({ id: 1, trigger: "hola", matchMode: "contains" }),
@@ -148,7 +148,7 @@ describe("pickMatchingAutoReply", () => {
     expect(picked?.id).toBe(2);
   });
 
-  it("respeta canales allow/ignore y enabled", () => {
+  it("respects allow/ignore channels and enabled", () => {
     expect(
       pickMatchingAutoReply(
         [
@@ -193,7 +193,7 @@ describe("pickMatchingAutoReply", () => {
 });
 
 describe("tokens", () => {
-  it("username antes que user para no partir el token", () => {
+  it("username before user to avoid splitting the token", () => {
     expect(
       applyAutoReplyTokens("hey {user} ({username}) en {server} #{channel}", {
         user: "<@1>",

@@ -32,14 +32,14 @@ export const scheduledMessagesModule: AdobosModule = {
       try {
         await processDueScheduledMessages();
       } catch (error) {
-        logger.warn({ err: error }, "scheduled-messages: tick inicial falló");
+        logger.warn({ err: error }, "scheduled-messages: initial tick failed");
       }
     });
 
     const timer = setInterval(() => {
       if (!isWorkerLeader()) return;
       void processDueScheduledMessages().catch((error: unknown) => {
-        logger.warn({ err: error }, "scheduled-messages: tick falló");
+        logger.warn({ err: error }, "scheduled-messages: tick failed");
       });
     }, DUE_TICK_MS);
     timer.unref?.();

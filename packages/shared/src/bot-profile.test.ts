@@ -6,8 +6,8 @@ import {
   parseBotPresenceStatus,
 } from "./bot-profile.js";
 
-describe("apodo del bot en la guild", () => {
-  it("el tope es 32", () => {
+describe("bot nickname in the guild", () => {
+  it("the cap is 32", () => {
     expect(BOT_GUILD_NICKNAME_MAX).toBe(32);
     expect(isBotGuildNicknameTooLong("a".repeat(32))).toBe(false);
     expect(isBotGuildNicknameTooLong("a".repeat(33))).toBe(true);
@@ -15,8 +15,8 @@ describe("apodo del bot en la guild", () => {
   });
 });
 
-describe("presencia persistida (restore, sin UI)", () => {
-  it("status y activity caen a defaults seguros", () => {
+describe("persisted presence (restore, no UI)", () => {
+  it("status and activity fall back to safe defaults", () => {
     expect(parseBotPresenceStatus("dnd")).toBe("dnd");
     expect(parseBotPresenceStatus("nope")).toBe("online");
     expect(parseBotActivityType("Watching")).toBe("Watching");

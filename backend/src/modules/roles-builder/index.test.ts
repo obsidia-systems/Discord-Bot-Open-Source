@@ -8,14 +8,14 @@ import { rolesBuilderModule } from "./index.js";
 import { permissionsBitfieldFromKeys } from "./service.js";
 
 describe("roles-builder module", () => {
-  it("se llama Roles Builder", () => {
+  it("is named Roles Builder", () => {
     expect(rolesBuilderModule.id).toBe("roles-builder");
     expect(rolesBuilderModule.name).toBe("Roles Builder");
   });
 });
 
-describe("catálogo vs discord.js", () => {
-  it("cada key existe en PermissionFlagsBits y Administrator no entra", () => {
+describe("catalog vs discord.js", () => {
+  it("every key exists in PermissionFlagsBits and Administrator is excluded", () => {
     const keys = listRolePermissionKeys();
     expect(keys.length).toBeGreaterThan(0);
     for (const key of keys) {
@@ -27,7 +27,7 @@ describe("catálogo vs discord.js", () => {
     expect(isRolesBuilderPermissionKey("Administrator")).toBe(false);
   });
 
-  it("el bitfield ignora Administrator y claves fuera del catálogo", () => {
+  it("the bitfield ignores Administrator and keys outside the catalog", () => {
     expect(permissionsBitfieldFromKeys(["Administrator"])).toBe(0n);
     expect(permissionsBitfieldFromKeys(["NotARealFlag"])).toBe(0n);
     expect(permissionsBitfieldFromKeys(["PinMessages"])).toBe(

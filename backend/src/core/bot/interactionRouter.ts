@@ -58,7 +58,7 @@ async function onInteractionCreate(
       await handleModal(interaction, registry);
     }
   } catch (error: unknown) {
-    logger.error({ err: error }, "Error en interactionCreate:");
+    logger.error({ err: error }, "Error in interactionCreate:");
     if (
       interaction.isRepliable() &&
       !interaction.replied &&
@@ -66,7 +66,7 @@ async function onInteractionCreate(
     ) {
       await interaction
         .reply({
-          content: "Ocurrió un error al procesar la interacción.",
+          content: "An error occurred while processing the interaction.",
           ...EPHEMERAL,
         })
         .catch(() => undefined);
@@ -84,7 +84,7 @@ async function handleAutocomplete(
       await interaction.respond([]);
     }
   } catch (error) {
-    logger.warn({ err: error }, "autocomplete falló:");
+    logger.warn({ err: error }, "autocomplete failed:");
     if (!interaction.responded) {
       await interaction.respond([]).catch(() => undefined);
     }
@@ -97,7 +97,7 @@ async function handleChatInput(
 ): Promise<void> {
   if (!allowChatCommand(interaction.user.id, interaction.commandName)) {
     await interaction.reply({
-      content: "⏳ Vas demasiado rápido. Espera unos segundos.",
+      content: "⏳ You're going too fast. Wait a few seconds.",
       ...EPHEMERAL,
     });
     return;
@@ -115,7 +115,7 @@ async function handleChatInput(
   }
 
   await interaction.reply({
-    content: `Comando \`/${interaction.commandName}\` no registrado.`,
+    content: `Command \`/${interaction.commandName}\` is not registered.`,
     ...EPHEMERAL,
   });
 }
@@ -129,7 +129,7 @@ async function handleButton(
 
   if (interaction.replied || interaction.deferred) return;
   await interaction.reply({
-    content: `No hay handler registrado para \`${interaction.customId}\`.`,
+    content: `No handler registered for \`${interaction.customId}\`.`,
     ...EPHEMERAL,
   });
 }
@@ -143,7 +143,7 @@ async function handleSelect(
 
   if (interaction.replied || interaction.deferred) return;
   await interaction.reply({
-    content: `No hay handler de menú para \`${interaction.customId}\`.`,
+    content: `No select handler for \`${interaction.customId}\`.`,
     ...EPHEMERAL,
   });
 }
@@ -157,7 +157,7 @@ async function handleModal(
 
   if (interaction.replied || interaction.deferred) return;
   await interaction.reply({
-    content: `No hay handler de modal para \`${interaction.customId}\`.`,
+    content: `No modal handler for \`${interaction.customId}\`.`,
     ...EPHEMERAL,
   });
 }

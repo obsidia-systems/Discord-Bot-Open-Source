@@ -51,7 +51,7 @@ export function resolveEmbedMedia(
     const absolute = resolvePublicUploadPath(trimmed);
     if (!absolute || !fs.existsSync(absolute)) {
       throw new EmbedMediaError(
-        `${field}: archivo local no encontrado (${trimmed}).`,
+        `${field}: local file not found (${trimmed}).`,
         400,
         "UPLOAD_NOT_FOUND",
       );
@@ -67,7 +67,7 @@ export function resolveEmbedMedia(
   }
 
   throw new EmbedMediaError(
-    `${field} debe ser una URL http(s) o una ruta /uploads/...`,
+    `${field} must be an http(s) URL or a /uploads/... path`,
     400,
     "INVALID_URL",
   );
@@ -82,7 +82,7 @@ export function requireHttpUrl(
   if (!trimmed) return undefined;
   if (!isHttpUrl(trimmed)) {
     throw new EmbedMediaError(
-      `${field} debe ser una URL http(s) válida.`,
+      `${field} must be a valid http(s) URL.`,
       400,
       "INVALID_URL",
     );
@@ -101,7 +101,7 @@ export function resolveMulterEmbedMedia(
   const sniffed = sniffImageMime(file.buffer);
   if (!sniffed) {
     throw new EmbedMediaError(
-      "El archivo no es una imagen PNG, JPG, WEBP o GIF válida.",
+      "The file is not a valid PNG, JPG, WEBP or GIF image.",
       400,
       "INVALID_IMAGE_CONTENT",
     );

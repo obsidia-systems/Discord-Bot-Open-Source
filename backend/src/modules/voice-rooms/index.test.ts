@@ -3,7 +3,7 @@ import { VOICE_ROOM_SELECT_PREFIX } from "@adobos/shared";
 import { voiceRoomsModule } from "./index.js";
 
 describe("voice-rooms module", () => {
-  it("se llama Voice Rooms y registra slash + select + voz", () => {
+  it("is named Voice Rooms and registers slash + select + voice", () => {
     expect(voiceRoomsModule.id).toBe("voice-rooms");
     expect(voiceRoomsModule.name).toBe("Voice Rooms");
     const commands: string[] = [];

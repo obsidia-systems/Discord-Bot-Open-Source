@@ -21,7 +21,7 @@ function assertHubVoice(bot: Client, guildId: string, hubId: string): void {
   const channel = guild?.channels.cache.get(hubId);
   if (!channel) return;
   if (channel.type !== ChannelType.GuildVoice) {
-    throw Object.assign(new Error("El hub tiene que ser un canal de voz."), {
+    throw Object.assign(new Error("The hub has to be a voice channel."), {
       status: 400,
       code: "INVALID_HUB_TYPE",
     });
@@ -38,7 +38,7 @@ function assertCategory(
   const channel = guild?.channels.cache.get(categoryId);
   if (!channel) return;
   if (channel.type !== ChannelType.GuildCategory) {
-    throw Object.assign(new Error("El destino tiene que ser una categoría."), {
+    throw Object.assign(new Error("The destination has to be a category."), {
       status: 400,
       code: "INVALID_CATEGORY_TYPE",
     });

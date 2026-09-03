@@ -79,7 +79,7 @@ export async function assertSystemCommandAllowed(
   if (!guildId) {
     return {
       ok: false,
-      message: "Este comando solo funciona en un servidor.",
+      message: "This command only works in a server.",
     };
   }
 
@@ -91,7 +91,7 @@ export async function assertSystemCommandAllowed(
   if (!perm.enabled) {
     return {
       ok: false,
-      message: "❌ Este comando ha sido desactivado por los administradores.",
+      message: "❌ This command has been disabled by the administrators.",
     };
   }
 
@@ -110,7 +110,7 @@ export async function assertSystemCommandAllowed(
   ) {
     return {
       ok: false,
-      message: "🚫 Este comando no se puede usar en este canal.",
+      message: "🚫 This command can't be used in this channel.",
     };
   }
 
@@ -118,7 +118,7 @@ export async function assertSystemCommandAllowed(
   if (!member || typeof member === "string" || !("roles" in member)) {
     return {
       ok: false,
-      message: "No se pudo verificar tus roles en este servidor.",
+      message: "Couldn't verify your roles in this server.",
     };
   }
 
@@ -128,7 +128,7 @@ export async function assertSystemCommandAllowed(
     if (!memberHasAnyRole(guildMember, perm.allowedRoles)) {
       return {
         ok: false,
-        message: "🚫 No tienes el rol requerido para usar este comando.",
+        message: "🚫 You don't have the required role to use this command.",
       };
     }
   } else if (def.requiresAdminByDefault) {
@@ -136,7 +136,7 @@ export async function assertSystemCommandAllowed(
       return {
         ok: false,
         message:
-          "🚫 Necesitas permisos de moderación de Discord para usar este comando.",
+          "🚫 You need Discord moderation permissions to use this command.",
       };
     }
   }

@@ -58,7 +58,7 @@ function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
     throw new AutoDeleteError(
-      "Falta guildId.",
+      "Missing guildId.",
       400,
       "MISSING_GUILD_ID",
     );
@@ -220,12 +220,12 @@ export async function updateAutoDeleteConfig(
   try {
     onConfigChanged?.(next);
   } catch (error) {
-    logger.warn({ err: error }, "auto-delete: onConfigChanged falló:");
+    logger.warn({ err: error }, "auto-delete: onConfigChanged failed:");
   }
   try {
     await prunePendingForConfig(next);
   } catch (error) {
-    logger.warn({ err: error }, "auto-delete: prune pending falló:");
+    logger.warn({ err: error }, "auto-delete: prune pending failed:");
   }
   return next;
 }

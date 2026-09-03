@@ -10,7 +10,7 @@ describe("zod compile (global)", () => {
     tags: z.array(z.string()),
   });
 
-  it("parsea un objeto válido", () => {
+  it("parses a valid object", () => {
     expect(parse(schema, { name: "ok", count: 2, tags: ["a"] })).toEqual({
       name: "ok",
       count: 2,

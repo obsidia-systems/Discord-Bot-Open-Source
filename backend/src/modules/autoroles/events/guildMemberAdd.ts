@@ -24,8 +24,8 @@ export async function onGuildMemberAddAutoRoles(
     );
     if (assignable.length === 0) return;
 
-    await member.roles.add(assignable, "Adobos auto-roles al unirse");
+    await member.roles.add(assignable, "Adobos auto-roles on join");
   } catch (error: unknown) {
-    logger.warn({ err: error instanceof Error ? error.message : error }, "Auto-roles al unirse falló:");
+    logger.warn({ err: error instanceof Error ? error.message : error }, "Auto-roles on join failed:");
   }
 }

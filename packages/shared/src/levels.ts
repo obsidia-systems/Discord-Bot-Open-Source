@@ -146,12 +146,12 @@ export interface LevelsUserRankStats {
 }
 
 export const DEFAULT_LEVEL_UP_MESSAGE =
-  "¡Felicidades {user}! Has alcanzado el **Nivel {level}**.";
+  "Congratulations {user}! You've reached **Level {level}**.";
 
-export const DEFAULT_LEVEL_UP_EMBED_TITLE = "¡Subida de Nivel!";
+export const DEFAULT_LEVEL_UP_EMBED_TITLE = "Level Up!";
 /** Color fijo del embed de subida de nivel. */
 export const DEFAULT_LEVEL_UP_EMBED_COLOR = "#34E21D";
-export const DEFAULT_LEADERBOARD_EMBED_TITLE = "🏆 Tabla de Clasificación";
+export const DEFAULT_LEADERBOARD_EMBED_TITLE = "🏆 Leaderboard";
 /** Color fijo del embed de leaderboard en vivo. */
 export const DEFAULT_LEADERBOARD_EMBED_COLOR = "#CA7AFF";
 

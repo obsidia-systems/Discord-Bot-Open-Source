@@ -31,14 +31,14 @@ async function toggleRole(
   roleId: string,
 ): Promise<void> {
   if (!/^\d{17,20}$/.test(roleId)) {
-    await replyEphemeral(interaction, "Rol inválido.");
+    await replyEphemeral(interaction, "Invalid role.");
     return;
   }
 
   if (!interaction.inGuild() || !interaction.guild) {
     await replyEphemeral(
       interaction,
-      "Este control solo funciona dentro de un servidor.",
+      "This control only works inside a server.",
     );
     return;
   }
@@ -60,11 +60,11 @@ async function toggleRole(
     const hasRole = member.roles.cache.has(roleId);
     if (hasRole) {
       await member.roles.remove(roleId, "Adobos autorole");
-      await replyEphemeral(interaction, "Rol eliminado.");
+      await replyEphemeral(interaction, "Role removed.");
       return;
     }
     await member.roles.add(roleId, "Adobos autorole");
-    await replyEphemeral(interaction, "¡Rol asignado!");
+    await replyEphemeral(interaction, "Role assigned!");
   } catch {
     await replyEphemeral(interaction, assignableSkipMessage(roleId, guild));
   }
@@ -76,7 +76,7 @@ async function handleAutoroleSelect(
   if (!interaction.inGuild() || !interaction.guild) {
     await replyEphemeral(
       interaction,
-      "Este control solo funciona dentro de un servidor.",
+      "This control only works inside a server.",
     );
     return;
   }
@@ -92,7 +92,7 @@ async function handleAutoroleSelect(
   const selected = interaction.values[0] ?? "";
   const plan = exclusiveSelectRoleIds(mappingRoleIds, selected);
   if (!plan.add) {
-    await replyEphemeral(interaction, "Rol inválido.");
+    await replyEphemeral(interaction, "Invalid role.");
     return;
   }
 
@@ -116,7 +116,7 @@ async function handleAutoroleSelect(
     if (!member.roles.cache.has(plan.add)) {
       await member.roles.add(plan.add, "Adobos autorole");
     }
-    await replyEphemeral(interaction, "¡Rol asignado!");
+    await replyEphemeral(interaction, "Role assigned!");
   } catch {
     await replyEphemeral(interaction, assignableSkipMessage(plan.add, guild));
   }

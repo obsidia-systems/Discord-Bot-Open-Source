@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { extractGuildId } from "./guildContext.js";
 
 describe("extractGuildId", () => {
-  it("prioriza params", () => {
+  it("prioritizes params", () => {
     const req = {
       params: { guildId: "111111111111111111" },
       query: { guildId: "222222222222222222" },
@@ -11,7 +11,7 @@ describe("extractGuildId", () => {
     expect(extractGuildId(req as never)).toBe("111111111111111111");
   });
 
-  it("cae a query y body", () => {
+  it("falls back to query and body", () => {
     expect(
       extractGuildId({
         params: {},
@@ -28,7 +28,7 @@ describe("extractGuildId", () => {
     ).toBe("333333333333333333");
   });
 
-  it("devuelve undefined si falta", () => {
+  it("returns undefined if missing", () => {
     expect(
       extractGuildId({ params: {}, query: {}, body: {} } as never),
     ).toBeUndefined();

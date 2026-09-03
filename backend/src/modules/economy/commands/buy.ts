@@ -26,10 +26,10 @@ async function replyPurchaseResult(
 ): Promise<void> {
   const economy = await getEconomyConfig(guild.id);
   const result = await purchaseShopItem(guild, member, itemId);
-  const currency = economy.currencyName || "monedas";
+  const currency = economy.currencyName || "coins";
   const statusNote =
     result.status === "pending"
-      ? "\n\nEl staff ha sido notificado para completar tu pedido."
+      ? "\n\nStaff have been notified to fulfill your order."
       : "";
 
   const icon = (result.item.icon || "").trim();
@@ -43,23 +43,23 @@ async function replyPurchaseResult(
 
   const embed = new EmbedBuilder()
     .setColor(0x57f287)
-    .setTitle("Compra realizada")
+    .setTitle("Purchase complete")
     .setDescription(
-      `Compraste ${itemLabel} por **${result.item.price.toLocaleString("es-MX")}** ${currency}.${statusNote}`,
+      `You bought ${itemLabel} for **${result.item.price.toLocaleString("es-MX")}** ${currency}.${statusNote}`,
     )
     .addFields(
       {
-        name: "Cartera",
+        name: "Wallet",
         value: `\`${result.wallet.toLocaleString("es-MX")}\``,
         inline: true,
       },
       {
-        name: "Banco",
+        name: "Bank",
         value: `\`${result.bank.toLocaleString("es-MX")}\``,
         inline: true,
       },
     )
-    .setFooter({ text: `ID compra: ${result.purchaseId}` })
+    .setFooter({ text: `Purchase ID: ${result.purchaseId}` })
     .setTimestamp(new Date());
 
   const files = [];
@@ -120,7 +120,7 @@ export async function handleBuyCommand(
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -129,7 +129,7 @@ export async function handleBuyCommand(
   const economy = await getEconomyConfig(interaction.guildId);
   if (!economy.isActive) {
     await interaction.reply({
-      content: "⛔ La economía está desactivada en este servidor.",
+      content: "⛔ The economy is disabled in this server.",
       ...EPHEMERAL,
     });
     return;
@@ -144,7 +144,7 @@ export async function handleBuyCommand(
     .catch(() => null);
   if (!member) {
     await interaction.editReply({
-      content: "No se pudo resolver tu membresía en el servidor.",
+      content: "Couldn't resolve your membership in the server.",
     });
     return;
   }
@@ -162,7 +162,7 @@ export async function handleBuyCommand(
         ? error.message
         : error instanceof Error
           ? error.message
-          : "No se pudo completar la compra.";
+          : "Couldn't complete the purchase.";
     await interaction.editReply({ content: `❌ ${message}` });
   }
 }
@@ -175,7 +175,7 @@ export async function handleBuyButton(
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este control solo funciona en un servidor.",
+      content: "This control only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -184,7 +184,7 @@ export async function handleBuyButton(
   const economy = await getEconomyConfig(interaction.guildId);
   if (!economy.isActive) {
     await interaction.reply({
-      content: "⛔ La economía está desactivada en este servidor.",
+      content: "⛔ The economy is disabled in this server.",
       ...EPHEMERAL,
     });
     return;
@@ -193,7 +193,7 @@ export async function handleBuyButton(
   const itemId = interaction.customId.slice(BUY_BUTTON_PREFIX.length).trim();
   if (!itemId) {
     await interaction.reply({
-      content: "Ítem inválido.",
+      content: "Invalid item.",
       ...EPHEMERAL,
     });
     return;
@@ -206,7 +206,7 @@ export async function handleBuyButton(
     .catch(() => null);
   if (!member) {
     await interaction.editReply({
-      content: "No se pudo resolver tu membresía en el servidor.",
+      content: "Couldn't resolve your membership in the server.",
     });
     return;
   }
@@ -224,7 +224,7 @@ export async function handleBuyButton(
         ? error.message
         : error instanceof Error
           ? error.message
-          : "No se pudo completar la compra.";
+          : "Couldn't complete the purchase.";
     await interaction.editReply({ content: `❌ ${message}` });
   }
 }

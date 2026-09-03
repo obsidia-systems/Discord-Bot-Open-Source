@@ -41,7 +41,7 @@ export async function publishTicketPanel(
 ): Promise<PublishTicketPanelResponse> {
   if (!bot.isReady()) {
     throw new TicketsError(
-      "El bot de Discord no está conectado.",
+      "The Discord bot is not connected.",
       503,
       "BOT_NOT_READY",
     );
@@ -52,14 +52,14 @@ export async function publishTicketPanel(
 
   if (!panel.channelId) {
     throw new TicketsError(
-      "Selecciona un canal de publicación para el panel.",
+      "Select a publish channel for the panel.",
       400,
       "MISSING_PUBLISH_CHANNEL",
     );
   }
   if (panel.buttons.length === 0) {
     throw new TicketsError(
-      "Añade al menos un botón / tipo de ticket.",
+      "Add at least one button / ticket type.",
       400,
       "NO_BUTTONS",
     );
@@ -72,14 +72,14 @@ export async function publishTicketPanel(
       channel.type !== ChannelType.GuildAnnouncement)
   ) {
     throw new TicketsError(
-      "El canal de publicación no es válido o no es de texto.",
+      "The publish channel is invalid or not a text channel.",
       400,
       "INVALID_PUBLISH_CHANNEL",
     );
   }
   if (!channelBelongsToGuild(channel, panel.guildId)) {
     throw new TicketsError(
-      "El canal de publicación no pertenece a este servidor.",
+      "The publish channel does not belong to this server.",
       403,
       "CHANNEL_GUILD_MISMATCH",
     );

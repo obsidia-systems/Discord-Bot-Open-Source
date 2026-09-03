@@ -50,7 +50,7 @@ export const economyModule: AdobosModule = {
       const refunded = await refundAbandonedBlackjackStakes();
       logger.info(
         { refunded },
-        "economy: sweeper de grants temporales activo",
+        "economy: temporary grants sweeper active",
       );
     });
   },

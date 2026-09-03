@@ -32,7 +32,7 @@ function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
     throw new EconomyError(
-      "Falta guildId.",
+      "Missing guildId.",
       400,
       "MISSING_GUILD_ID",
     );
@@ -243,7 +243,7 @@ async function getOrCreateUserEconomy(
     .limit(1));
   if (!row) {
     throw new EconomyError(
-      "No se pudo crear el saldo.",
+      "Couldn't create the balance.",
       500,
       "ECONOMY_UPSERT_FAILED",
     );
@@ -279,8 +279,8 @@ export function parseBankAmountInput(raw: string): number | "all" {
   if (parsed === null) {
     throw new EconomyError(
       raw.trim()
-        ? "Cantidad inválida. Usa un entero ≥ 1, o `all`/`todo`."
-        : "Indica una cantidad (número o `all`/`todo`).",
+        ? "Invalid amount. Use an integer ≥ 1, or `all`/`todo`."
+        : "Provide an amount (number or `all`/`todo`).",
       400,
       "INVALID_AMOUNT",
     );
@@ -297,7 +297,7 @@ export function formatRemaining(ms: number): string {
 
   const parts: string[] = [];
   if (days > 0) {
-    parts.push(`${days} día${days === 1 ? "" : "s"}`);
+    parts.push(`${days} day${days === 1 ? "" : "s"}`);
     if (hours > 0) parts.push(`${hours} hora${hours === 1 ? "" : "s"}`);
     return parts.join(" y ");
   }

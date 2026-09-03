@@ -24,7 +24,7 @@ import {
 function resolveGuildId(raw?: string): string {
   const guildId = raw?.trim() || "";
   if (!/^\d{17,20}$/.test(guildId)) {
-    throw new MessageSendError("guildId inválido.", 400, "INVALID_GUILD");
+    throw new MessageSendError("Invalid guildId.", 400, "INVALID_GUILD");
   }
   return guildId;
 }
@@ -116,7 +116,7 @@ export async function editSentEmbed(
     .limit(1));
 
   if (!row || row.guildId !== guildId) {
-    throw new MessageSendError("Mensaje enviado no encontrado.", 404, "NOT_FOUND");
+    throw new MessageSendError("Sent message not found.", 404, "NOT_FOUND");
   }
 
   const payload: SendEmbedRequest = {
@@ -171,7 +171,7 @@ export async function editSentEmbed(
     .where(eq(sentEmbeds.id, id))
     .limit(1));
   if (!updated) {
-    throw new MessageSendError("Mensaje no encontrado.", 404, "NOT_FOUND");
+    throw new MessageSendError("Message not found.", 404, "NOT_FOUND");
   }
 
   return { ok: true, entry: toSentRecord(updated), orphaned: false };
@@ -190,7 +190,7 @@ export async function deleteSentEmbed(
     .limit(1));
 
   if (!row || row.guildId !== guildId) {
-    throw new MessageSendError("Mensaje enviado no encontrado.", 404, "NOT_FOUND");
+    throw new MessageSendError("Sent message not found.", 404, "NOT_FOUND");
   }
 
   const { orphaned } = await deleteDiscordMessage(

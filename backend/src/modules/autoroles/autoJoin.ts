@@ -16,7 +16,7 @@ function assertSnowflake(value: string, field: string): string {
   const trimmed = value.trim();
   if (!/^\d{17,20}$/.test(trimmed)) {
     throw new AutoRoleError(
-      `${field} inválido.`,
+      `Invalid ${field}.`,
       400,
       "INVALID_IDS",
     );

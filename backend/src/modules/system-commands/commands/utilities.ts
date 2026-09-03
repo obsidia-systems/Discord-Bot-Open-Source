@@ -25,7 +25,7 @@ export async function handleServerInfoCommand(
   const guild = interaction.guild;
   if (!guild) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ephemeral: true,
     });
     return;
@@ -37,12 +37,12 @@ export async function handleServerInfoCommand(
     .setThumbnail(guild.iconURL({ size: 128 }) ?? null)
     .addFields(
       {
-        name: "Miembros",
+        name: "Members",
         value: String(guild.memberCount),
         inline: true,
       },
       {
-        name: "Creado",
+        name: "Created",
         value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:R>`,
         inline: true,
       },

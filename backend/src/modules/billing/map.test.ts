@@ -11,14 +11,14 @@ import {
 } from "./map.js";
 
 describe("normalizeStripeStatus", () => {
-  it("conserva estados de pago", () => {
+  it("keeps paid statuses", () => {
     expect(normalizeStripeStatus("active")).toBe("active");
     expect(normalizeStripeStatus("trialing")).toBe("trialing");
     expect(normalizeStripeStatus("past_due")).toBe("past_due");
     expect(normalizeStripeStatus("paused")).toBe("paused");
   });
 
-  it("mapea cancelaciones y fallos", () => {
+  it("maps cancellations and failures", () => {
     expect(normalizeStripeStatus("canceled")).toBe("canceled");
     expect(normalizeStripeStatus("unpaid")).toBe("unpaid");
     expect(normalizeStripeStatus("incomplete")).toBe("unpaid");
@@ -27,7 +27,7 @@ describe("normalizeStripeStatus", () => {
 });
 
 describe("isPaidStripeStatus", () => {
-  it("incluye gracia past_due y pause collections", () => {
+  it("includes past_due grace and pause collections", () => {
     expect(isPaidStripeStatus("active")).toBe(true);
     expect(isPaidStripeStatus("trialing")).toBe(true);
     expect(isPaidStripeStatus("past_due")).toBe(true);
@@ -38,7 +38,7 @@ describe("isPaidStripeStatus", () => {
 });
 
 describe("invoiceSubscriptionId", () => {
-  it("prioriza parent.subscription_details y cae al campo plano", () => {
+  it("prioritizes parent.subscription_details and falls back to the flat field", () => {
     expect(
       invoiceSubscriptionId({
         parent: { subscription_details: { subscription: "sub_new" } },
@@ -56,7 +56,7 @@ describe("invoiceSubscriptionId", () => {
 });
 
 describe("subscriptionPeriodEndUnix", () => {
-  it("lee el item (API 2025) y cae al campo del subscription", () => {
+  it("reads the item (API 2025) and falls back to the subscription field", () => {
     expect(
       subscriptionPeriodEndUnix({
         items: { data: [{ current_period_end: 1_700_000_000 }] },
@@ -69,7 +69,7 @@ describe("subscriptionPeriodEndUnix", () => {
 });
 
 describe("stripeObjectId", () => {
-  it("acepta string o { id }", () => {
+  it("accepts a string or { id }", () => {
     expect(stripeObjectId("cus_1")).toBe("cus_1");
     expect(stripeObjectId({ id: "sub_1" })).toBe("sub_1");
     expect(stripeObjectId("")).toBeNull();
@@ -80,19 +80,19 @@ describe("stripeObjectId", () => {
 describe("tierFromPriceId", () => {
   const prices = { pro: "price_pro", business: "price_biz" };
 
-  it("mapea price id a plan de pago", () => {
+  it("maps price id to a paid plan", () => {
     expect(tierFromPriceId("price_biz", prices)).toBe("business");
     expect(tierFromPriceId("price_pro", prices)).toBe("pro");
   });
 
-  it("devuelve null si el price no está configurado", () => {
+  it("returns null if the price is not configured", () => {
     expect(tierFromPriceId("price_other", prices)).toBeNull();
     expect(tierFromPriceId(null, prices)).toBeNull();
   });
 });
 
 describe("unixToDate", () => {
-  it("convierte epoch a Date", () => {
+  it("converts epoch to Date", () => {
     expect(unixToDate(1_700_000_000)?.toISOString()).toBe(
       "2023-11-14T22:13:20.000Z",
     );
@@ -101,7 +101,7 @@ describe("unixToDate", () => {
 });
 
 describe("checkout 409", () => {
-  it("bloquea guild cubierto por otro pagador de pago", () => {
+  it("blocks a guild covered by another paying customer", () => {
     expect(
       guildCoveredByOtherPayer("buyer", {
         userId: "other",
@@ -123,7 +123,7 @@ describe("checkout 409", () => {
     expect(guildCoveredByOtherPayer("buyer", null)).toBe(false);
   });
 
-  it("plazas: 3/3 bloquea uno nuevo; ilimitado no", () => {
+  it("seats: 3/3 blocks a new one; unlimited does not", () => {
     expect(seatsAtCapacity(3, 3, false)).toBe(true);
     expect(seatsAtCapacity(3, 3, true)).toBe(false);
     expect(seatsAtCapacity(5, -1, false)).toBe(false);

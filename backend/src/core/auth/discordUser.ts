@@ -8,13 +8,13 @@ const DISCORD_API = "https://discord.com/api/v10";
 
 function clientId(): string {
   const id = process.env.DISCORD_CLIENT_ID?.trim();
-  if (!id) throw new Error("DISCORD_CLIENT_ID no está definido.");
+  if (!id) throw new Error("DISCORD_CLIENT_ID is not defined.");
   return id;
 }
 
 function clientSecret(): string {
   const secret = process.env.DISCORD_CLIENT_SECRET?.trim();
-  if (!secret) throw new Error("DISCORD_CLIENT_SECRET no está definido.");
+  if (!secret) throw new Error("DISCORD_CLIENT_SECRET is not defined.");
   return secret;
 }
 
@@ -34,7 +34,7 @@ async function refreshAccessToken(
     }),
   });
   if (!res.ok) {
-    logger.warn({ status: res.status }, "Discord refresh_token falló");
+    logger.warn({ status: res.status }, "Discord refresh_token failed");
     return null;
   }
   const json = (await res.json()) as {
@@ -63,7 +63,7 @@ function throwIfLimited(res: Response): void {
   if (res.status !== 429) return;
   const retryAfter = Number(res.headers.get("retry-after") ?? "1");
   throw new DiscordHttpError(
-    "Discord está limitando peticiones.",
+    "Discord is rate limiting requests.",
     429,
     Number.isFinite(retryAfter) ? retryAfter : 1,
   );
@@ -93,7 +93,7 @@ export async function fetchDiscordAsUser(
 
   if (res.status === 401) {
     await deleteSession(session.id);
-    throw new DiscordHttpError("Sesión de Discord expirada.", 401);
+    throw new DiscordHttpError("Discord session expired.", 401);
   }
 
   return res;

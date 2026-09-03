@@ -54,7 +54,7 @@ export const stripeWebhookHandler: RequestHandler = async (req, res, next) => {
   try {
     if (!Buffer.isBuffer(req.body)) {
       throw new HttpError(
-        "El webhook de Stripe requiere el body crudo.",
+        "The Stripe webhook requires the raw body.",
         500,
         "WEBHOOK_BODY_PARSED",
       );
@@ -63,7 +63,7 @@ export const stripeWebhookHandler: RequestHandler = async (req, res, next) => {
     const signature = req.headers["stripe-signature"];
     if (!signature || Array.isArray(signature)) {
       throw new HttpError(
-        "Falta la cabecera Stripe-Signature.",
+        "Missing the Stripe-Signature header.",
         400,
         "STRIPE_SIGNATURE_MISSING",
       );
@@ -82,7 +82,7 @@ export const stripeWebhookHandler: RequestHandler = async (req, res, next) => {
           error.name === "StripeSignatureVerificationError")
       ) {
         throw new HttpError(
-          "Firma de webhook inválida.",
+          "Invalid webhook signature.",
           400,
           "STRIPE_SIGNATURE_INVALID",
         );

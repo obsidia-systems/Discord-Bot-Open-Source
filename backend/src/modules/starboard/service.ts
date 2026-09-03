@@ -34,7 +34,7 @@ export class StarboardError extends Error {
 function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new StarboardError("Falta guildId.", 400, "MISSING_GUILD_ID");
+    throw new StarboardError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
   return id;
 }
@@ -156,7 +156,7 @@ export async function updateStarboardSettings(
 
   if (enabled && !channelId) {
     throw new StarboardError(
-      "Elige un canal de texto o anuncios para el tablón.",
+      "Choose a text or announcement channel for the board.",
       400,
       "CHANNEL_REQUIRED",
     );
@@ -248,7 +248,7 @@ export async function upsertStarboardPost(input: {
     .returning();
   if (!row) {
     throw new StarboardError(
-      "No se pudo guardar el post del tablón.",
+      "Couldn't save the board post.",
       500,
       "UPSERT_FAILED",
     );

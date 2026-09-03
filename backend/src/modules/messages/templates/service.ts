@@ -26,7 +26,7 @@ function assertSnowflake(value: string, field: string): string {
   const trimmed = value.trim();
   if (!/^\d{17,20}$/.test(trimmed)) {
     throw new EmbedTemplateError(
-      `${field} inválido.`,
+      `Invalid ${field}.`,
       400,
       "INVALID_IDS",
     );
@@ -71,7 +71,7 @@ function parseEmbedData(raw: string): EmbedPayload {
     return parsed;
   } catch {
     throw new EmbedTemplateError(
-      "embedData JSON inválido.",
+      "Invalid embedData JSON.",
       400,
       "INVALID_EMBED_DATA",
     );
@@ -94,7 +94,7 @@ function sanitizeEmbedPayload(input: EmbedPayload): EmbedPayload {
     if (!trimmed) return undefined;
     if (!isAllowedMediaRef(trimmed)) {
       throw new EmbedTemplateError(
-        "Las imágenes deben ser URL http(s) o ruta /uploads/…",
+        "Images must be an http(s) URL or a /uploads/… path",
         400,
         "INVALID_MEDIA",
       );
@@ -113,7 +113,7 @@ function sanitizeEmbedPayload(input: EmbedPayload): EmbedPayload {
       return trimmed.slice(0, 500);
     } catch {
       throw new EmbedTemplateError(
-        "url del título debe ser http(s).",
+        "The title url must be http(s).",
         400,
         "INVALID_URL",
       );
@@ -205,7 +205,7 @@ export async function getEmbedTemplate(
 
   if (!row) {
     throw new EmbedTemplateError(
-      "Plantilla no encontrada.",
+      "Template not found.",
       404,
       "TEMPLATE_NOT_FOUND",
     );
@@ -227,7 +227,7 @@ export async function saveEmbedTemplate(
   const name = input.name.trim().slice(0, 80);
   if (!name) {
     throw new EmbedTemplateError(
-      "El nombre de la plantilla es obligatorio.",
+      "The template name is required.",
       400,
       "MISSING_NAME",
     );
@@ -263,7 +263,7 @@ export async function saveEmbedTemplate(
   );
   if (!hasBody) {
     throw new EmbedTemplateError(
-      "La plantilla no puede estar vacía.",
+      "The template can't be empty.",
       400,
       "EMPTY_EMBED",
     );
@@ -277,7 +277,7 @@ export async function saveEmbedTemplate(
   if (input.id != null) {
     const id = Number(input.id);
     if (!Number.isFinite(id)) {
-      throw new EmbedTemplateError("id inválido.", 400, "INVALID_ID");
+      throw new EmbedTemplateError("Invalid id.", 400, "INVALID_ID");
     }
     const existing = await one(
       db
@@ -290,7 +290,7 @@ export async function saveEmbedTemplate(
     );
     if (!existing) {
       throw new EmbedTemplateError(
-        "Plantilla no encontrada.",
+        "Template not found.",
         404,
         "TEMPLATE_NOT_FOUND",
       );
@@ -316,7 +316,7 @@ export async function saveEmbedTemplate(
     .returning({ id: embedTemplates.id });
   if (!inserted) {
     throw new EmbedTemplateError(
-      "No se pudo guardar la plantilla.",
+      "Couldn't save the template.",
       500,
       "INSERT_FAILED",
     );
@@ -331,7 +331,7 @@ export async function deleteEmbedTemplate(
   const guildId = resolveGuildId(guildIdRaw);
   const id = Number.parseInt(idRaw, 10);
   if (!Number.isFinite(id)) {
-    throw new EmbedTemplateError("id inválido.", 400, "INVALID_ID");
+    throw new EmbedTemplateError("Invalid id.", 400, "INVALID_ID");
   }
 
   const existing = await one(getDb()
@@ -344,7 +344,7 @@ export async function deleteEmbedTemplate(
 
   if (!existing) {
     throw new EmbedTemplateError(
-      "Plantilla no encontrada.",
+      "Template not found.",
       404,
       "TEMPLATE_NOT_FOUND",
     );

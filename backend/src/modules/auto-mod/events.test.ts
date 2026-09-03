@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { registerAutoModListeners } from "./events.js";
 
 describe("registerAutoModListeners", () => {
-  it("escucha create, update y AutoMod nativo", () => {
+  it("listens for create, update and native AutoMod", () => {
     const names: string[] = [];
     registerAutoModListeners({
       on: (event) => {

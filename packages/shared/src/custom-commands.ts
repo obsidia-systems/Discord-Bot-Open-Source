@@ -131,7 +131,7 @@ export function defaultCustomCommand(guildId = ""): CustomCommand {
     id: 0,
     guildId,
     name: "",
-    description: "Comando personalizado",
+    description: "Custom command",
     responseData: defaultCustomCommandResponseData(),
     options: defaultCustomCommandOptions(),
     permissions: defaultCustomCommandPermissions(),
@@ -252,76 +252,76 @@ export const CUSTOM_COMMAND_VARIABLE_GROUPS: {
 }[] = [
   {
     id: "general",
-    title: "Generales",
+    title: "General",
     items: [
-      { token: "{user}", description: "Mención del usuario" },
-      { token: "{username}", description: "Nombre de usuario" },
-      { token: "{avatar}", description: "URL del avatar" },
-      { token: "{server}", description: "Nombre del servidor" },
-      { token: "{channel}", description: "Nombre del canal" },
+      { token: "{user}", description: "User mention" },
+      { token: "{username}", description: "Username" },
+      { token: "{avatar}", description: "Avatar URL" },
+      { token: "{server}", description: "Server name" },
+      { token: "{channel}", description: "Channel name" },
     ],
   },
   {
     id: "user",
-    title: "Usuario",
+    title: "User",
     items: [
-      { token: "{user.id}", description: "ID del usuario" },
-      { token: "{user.mention}", description: "Mención" },
+      { token: "{user.id}", description: "User ID" },
+      { token: "{user.mention}", description: "Mention" },
       { token: "{user.username}", description: "Username" },
-      { token: "{user.nick}", description: "Apodo en el servidor" },
-      { token: "{user.avatar}", description: "URL del avatar" },
+      { token: "{user.nick}", description: "Server nickname" },
+      { token: "{user.avatar}", description: "Avatar URL" },
       {
         token: "{user.createdAt}",
-        description: "Fecha de creación de la cuenta",
+        description: "Account creation date",
       },
-      { token: "{user.joinedAt}", description: "Fecha de ingreso al servidor" },
-      { token: "{user.level}", description: "Nivel (módulo Levels)" },
-      { token: "{user.xp}", description: "XP (módulo Levels)" },
+      { token: "{user.joinedAt}", description: "Server join date" },
+      { token: "{user.level}", description: "Level (Levels module)" },
+      { token: "{user.xp}", description: "XP (Levels module)" },
     ],
   },
   {
     id: "server",
-    title: "Servidor",
+    title: "Server",
     items: [
-      { token: "{server.id}", description: "ID del servidor" },
-      { token: "{server.name}", description: "Nombre" },
-      { token: "{server.icon}", description: "URL del icono" },
-      { token: "{server.memberCount}", description: "Cantidad de miembros" },
-      { token: "{server.ownerID}", description: "ID del dueño" },
-      { token: "{server.createdAt}", description: "Fecha de creación" },
+      { token: "{server.id}", description: "Server ID" },
+      { token: "{server.name}", description: "Name" },
+      { token: "{server.icon}", description: "Icon URL" },
+      { token: "{server.memberCount}", description: "Member count" },
+      { token: "{server.ownerID}", description: "Owner ID" },
+      { token: "{server.createdAt}", description: "Creation date" },
     ],
   },
   {
     id: "channel",
-    title: "Canal",
+    title: "Channel",
     items: [
-      { token: "{channel.id}", description: "ID del canal" },
-      { token: "{channel.name}", description: "Nombre" },
-      { token: "{channel.mention}", description: "Mención del canal" },
+      { token: "{channel.id}", description: "Channel ID" },
+      { token: "{channel.name}", description: "Name" },
+      { token: "{channel.mention}", description: "Channel mention" },
     ],
   },
   {
     id: "args",
-    title: "Argumentos slash",
+    title: "Slash arguments",
     items: [
-      { token: "{text}", description: "Opción `texto` (si está activa)" },
-      { token: "{target}", description: "Mención del usuario elegido" },
+      { token: "{text}", description: "Option `texto` (if enabled)" },
+      { token: "{target}", description: "Mention of the chosen user" },
       {
         token: "{target.username}",
-        description: "Username del usuario elegido",
+        description: "Username of the chosen user",
       },
-      { token: "{target.id}", description: "ID del usuario elegido" },
+      { token: "{target.id}", description: "ID of the chosen user" },
     ],
   },
   {
     id: "time",
-    title: "Fecha y hora",
+    title: "Date and time",
     items: [
-      { token: "{time}", description: "Hora 24h (UTC)" },
-      { token: "{time12}", description: "Hora 12h (UTC)" },
-      { token: "{date}", description: "Fecha (UTC)" },
-      { token: "{datetime}", description: "Fecha + hora 24h (UTC)" },
-      { token: "{datetime12}", description: "Fecha + hora 12h (UTC)" },
+      { token: "{time}", description: "24h time (UTC)" },
+      { token: "{time12}", description: "12h time (UTC)" },
+      { token: "{date}", description: "Date (UTC)" },
+      { token: "{datetime}", description: "Date + 24h time (UTC)" },
+      { token: "{datetime12}", description: "Date + 12h time (UTC)" },
     ],
   },
 ];
@@ -377,22 +377,22 @@ export function customCommandPermissionDenial(
   channelId: string,
 ): string | null {
   if (permissions.ignoredRoleIds.some((id) => roleIds.includes(id))) {
-    return "No tienes permiso para usar este comando (rol ignorado).";
+    return "You don't have permission to use this command (ignored role).";
   }
   if (
     permissions.allowedRoleIds.length > 0 &&
     !permissions.allowedRoleIds.some((id) => roleIds.includes(id))
   ) {
-    return "No tienes un rol permitido para usar este comando.";
+    return "You don't have an allowed role to use this command.";
   }
   if (permissions.ignoredChannelIds.includes(channelId)) {
-    return "Este comando no se puede usar en este canal.";
+    return "This command can't be used in this channel.";
   }
   if (
     permissions.allowedChannelIds.length > 0 &&
     !permissions.allowedChannelIds.includes(channelId)
   ) {
-    return "Este comando solo se puede usar en canales permitidos.";
+    return "This command can only be used in allowed channels.";
   }
   return null;
 }

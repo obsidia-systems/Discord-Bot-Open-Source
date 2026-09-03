@@ -224,7 +224,7 @@ export async function fetchTwitchLiveMap(
     const now = Date.now();
     if (now - twitchWarnAt > 3_600_000) {
       twitchWarnAt = now;
-      logger.warn({ err: error }, "stream-alerts: Twitch Helix falló");
+      logger.warn({ err: error }, "stream-alerts: Twitch Helix failed");
     }
     return { ok: false };
   }
@@ -239,7 +239,7 @@ export async function fetchKickLive(
     );
     return parseKickChannelPayload(slug, json);
   } catch (error: unknown) {
-    logger.warn({ err: error, slug }, "stream-alerts: Kick falló");
+    logger.warn({ err: error, slug }, "stream-alerts: Kick failed");
     return null;
   }
 }
@@ -294,7 +294,7 @@ export async function fetchYouTubeLive(
     const now = Date.now();
     if (now - youtubeWarnAt > 3_600_000) {
       youtubeWarnAt = now;
-      logger.warn({ err: error, handle }, "stream-alerts: YouTube Data API falló");
+      logger.warn({ err: error, handle }, "stream-alerts: YouTube Data API failed");
     }
     return null;
   }

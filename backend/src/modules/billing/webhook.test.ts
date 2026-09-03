@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 import { describe, expect, it } from "vitest";
 
-describe("firma de webhook Stripe", () => {
+describe("Stripe webhook signature", () => {
   const stripe = new Stripe("sk_test_adobos_dummy");
   const secret = "whsec_test_secret";
   const payload = JSON.stringify({
@@ -11,13 +11,13 @@ describe("firma de webhook Stripe", () => {
     data: { object: {} },
   });
 
-  it("rechaza una firma inválida", () => {
+  it("rejects an invalid signature", () => {
     expect(() =>
       stripe.webhooks.constructEvent(payload, "t=1,v1=deadbeef", secret),
     ).toThrow(Stripe.errors.StripeSignatureVerificationError);
   });
 
-  it("acepta una firma de prueba válida", () => {
+  it("accepts a valid test signature", () => {
     const header = stripe.webhooks.generateTestHeaderString({
       payload,
       secret,

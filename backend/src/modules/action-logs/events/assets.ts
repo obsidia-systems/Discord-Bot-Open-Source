@@ -21,8 +21,8 @@ export async function onEmojiCreate(emoji: GuildEmoji): Promise<void> {
     executorTag: executor?.tag ?? null,
     targetId: emoji.id,
     targetTag: emojiName,
-    summary: `Emoji creado: :${emojiName}:`,
-    description: `✨ **Emoji creado:** \`:${emojiName}:\``,
+    summary: `Emoji created: :${emojiName}:`,
+    description: `✨ **Emoji created:** \`:${emojiName}:\``,
     details: {
       name: emojiName,
       url: emojiUrl,
@@ -108,8 +108,8 @@ export async function onStickerCreate(sticker: Sticker): Promise<void> {
     executorTag: executor?.tag ?? null,
     targetId: sticker.id,
     targetTag: name,
-    summary: `Sticker creado: ${name}`,
-    description: `✨ **Sticker creado:** \`${name}\``,
+    summary: `Sticker created: ${name}`,
+    description: `✨ **Sticker created:** \`${name}\``,
     details: {
       name,
       description: sticker.description,

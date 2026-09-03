@@ -50,12 +50,12 @@ function sideButtons(userId: string): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`${CF_CARA}:${userId}`)
-      .setLabel("Cara")
+      .setLabel("Heads")
       .setEmoji("🪙")
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
       .setCustomId(`${CF_CRUZ}:${userId}`)
-      .setLabel("Cruz")
+      .setLabel("Tails")
       .setEmoji("🪙")
       .setStyle(ButtonStyle.Secondary),
   );
@@ -96,7 +96,7 @@ async function resolveFlip(input: {
   const result = flipCoin();
   const won = result === input.side;
   const currency = currencyOf(economy);
-  const sideLabel = result === "cara" ? "Cara" : "Cruz";
+  const sideLabel = result === "cara" ? "Heads" : "Tails";
 
   let payout = 0;
   let wallet = (await getUserEconomyBalance(input.guildId, input.userId)).wallet;
@@ -118,21 +118,21 @@ async function resolveFlip(input: {
         payout: payout.toLocaleString("es-MX"),
         currency,
       })
-    : `La moneda cayó en **${sideLabel}**. Perdiste **${input.bet.toLocaleString("es-MX")}** ${currency}.`;
+    : `The coin landed on **${sideLabel}**. You lost **${input.bet.toLocaleString("es-MX")}** ${currency}.`;
 
   const embed = new EmbedBuilder()
     .setColor(won ? WIN : LOSE)
-    .setTitle(won ? "🪙 Coinflip — ¡Ganaste!" : "🪙 Coinflip — Perdiste")
+    .setTitle(won ? "🪙 Coinflip — You won!" : "🪙 Coinflip — You lost")
     .setDescription(description)
     .addFields(
       {
-        name: "Tu elección",
-        value: input.side === "cara" ? "Cara" : "Cruz",
+        name: "Your pick",
+        value: input.side === "cara" ? "Heads" : "Tails",
         inline: true,
       },
-      { name: "Resultado", value: sideLabel, inline: true },
+      { name: "Result", value: sideLabel, inline: true },
       {
-        name: "Cartera",
+        name: "Wallet",
         value: `**${wallet.toLocaleString("es-MX")}** ${currency}`,
         inline: true,
       },
@@ -151,7 +151,7 @@ function promptEmbed(bet: number, currency: string): EmbedBuilder {
     .setColor(0x5865f2)
     .setTitle("🪙 Coinflip")
     .setDescription(
-      `Apuesta: **${bet.toLocaleString("es-MX")}** ${currency}.\nElige **Cara** o **Cruz**. El dinero se cobra al pulsar.`,
+      `Bet: **${bet.toLocaleString("es-MX")}** ${currency}.\nChoose **Heads** or **Tails**. Money is charged on click.`,
     );
 }
 
@@ -163,7 +163,7 @@ export async function handleCoinflipCommand(
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -235,7 +235,7 @@ export async function handleCoinflipButton(
 ): Promise<void> {
   if (!interaction.guildId) {
     await interaction.reply({
-      content: "Este botón solo funciona en un servidor.",
+      content: "This button only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -244,7 +244,7 @@ export async function handleCoinflipButton(
   const { action, ownerId } = parseOwnerCustomId(interaction.customId);
   if (!ownerId || interaction.user.id !== ownerId) {
     await interaction.reply({
-      content: "❌ Esta moneda no es tuya.",
+      content: "❌ This coin isn't yours.",
       ...EPHEMERAL,
     });
     return;
@@ -254,7 +254,7 @@ export async function handleCoinflipButton(
   const row = pending.get(key);
   if (!row) {
     await interaction.reply({
-      content: "❌ Esta mesa expiró.",
+      content: "❌ This table expired.",
       ...EPHEMERAL,
     });
     return;
@@ -274,7 +274,7 @@ export async function handleCoinflipButton(
     const side = action === CF_CARA ? "cara" : action === CF_CRUZ ? "cruz" : null;
     if (!side) {
       await interaction.reply({
-        content: "❌ Acción desconocida.",
+        content: "❌ Unknown action.",
         ...EPHEMERAL,
       });
       return;
@@ -295,7 +295,7 @@ export async function handleCoinflipButton(
     const msg =
       error instanceof EconomyError
         ? error.message
-        : "No se pudo completar el coinflip.";
+        : "Couldn't finish the coinflip.";
     if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({ content: `❌ ${msg}`, ...EPHEMERAL });
     }

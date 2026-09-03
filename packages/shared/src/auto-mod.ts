@@ -72,8 +72,8 @@ export const AUTO_MOD_PUNISHMENT_ACTION_OPTIONS: ReadonlyArray<{
   { value: "TIMEOUT", label: "Timeout" },
   { value: "KICK", label: "Kick" },
   { value: "BAN", label: "Ban" },
-  { value: "REMOVE_XP", label: "Quitar XP" },
-  { value: "XP_FREEZE", label: "Congelar XP" },
+  { value: "REMOVE_XP", label: "Remove XP" },
+  { value: "XP_FREEZE", label: "Freeze XP" },
 ];
 
 /** Duraciones para TIMEOUT y XP_FREEZE (valor = ms). */
@@ -82,21 +82,21 @@ export const AUTO_MOD_DURATION_OPTIONS: ReadonlyArray<{
   label: string;
 }> = [
   { value: 10 * 60 * 1000, label: "10 min" },
-  { value: 60 * 60 * 1000, label: "1 hora" },
-  { value: 12 * 60 * 60 * 1000, label: "12 horas" },
-  { value: 24 * 60 * 60 * 1000, label: "24 horas" },
-  { value: 7 * 24 * 60 * 60 * 1000, label: "1 semana" },
+  { value: 60 * 60 * 1000, label: "1 hour" },
+  { value: 12 * 60 * 60 * 1000, label: "12 hours" },
+  { value: 24 * 60 * 60 * 1000, label: "24 hours" },
+  { value: 7 * 24 * 60 * 60 * 1000, label: "1 week" },
 ];
 
 export const AUTO_MOD_WARN_DECAY_OPTIONS: ReadonlyArray<{
   value: AutoModWarnDecayDays;
   label: string;
 }> = [
-  { value: 14, label: "14 días" },
-  { value: 30, label: "30 días" },
-  { value: 60, label: "60 días" },
-  { value: 90, label: "90 días" },
-  { value: 0, label: "Nunca" },
+  { value: 14, label: "14 days" },
+  { value: 30, label: "30 days" },
+  { value: 60, label: "60 days" },
+  { value: 90, label: "90 days" },
+  { value: 0, label: "Never" },
 ];
 
 export interface AutoModConfig {
@@ -192,14 +192,14 @@ export function defaultAutoModConfig(guildId = ""): AutoModConfig {
 /** Etiquetas UI de filtros detonados (también en reason del Warn). */
 export const AUTO_MOD_FILTER_LABELS = {
   zalgo: "Zalgo",
-  excessCaps: "Exceso de mayúsculas",
-  bannedWords: "Palabras prohibidas",
+  excessCaps: "Excess caps",
+  bannedWords: "Blocked words",
   antiLinks: "Anti-Links",
-  antiInvites: "Anti-Invitaciones",
-  messageSpam: "Spam de mensajes",
-  repeatedText: "Texto repetido",
-  mentionSpam: "Spam de menciones",
-  textFlood: "Muros de texto",
+  antiInvites: "Anti-Invites",
+  messageSpam: "Message spam",
+  repeatedText: "Repeated text",
+  mentionSpam: "Mention spam",
+  textFlood: "Text walls",
 } as const;
 
 export type AutoModFilterKey = keyof typeof AUTO_MOD_FILTER_LABELS;

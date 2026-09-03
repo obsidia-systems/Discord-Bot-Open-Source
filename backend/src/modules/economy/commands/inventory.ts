@@ -26,7 +26,7 @@ export async function handleInventoryCommand(
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -73,24 +73,24 @@ export async function handleInventoryCommand(
     .filter((r) => stillActive(r.expiresAt))
     .map((r) => {
       const exp = r.expiresAt
-        ? ` · caduca <t:${Math.floor(r.expiresAt.getTime() / 1000)}:R>`
-        : " · permanente";
-      return `• Rol <@&${r.roleId}>${exp}`;
+        ? ` · expires <t:${Math.floor(r.expiresAt.getTime() / 1000)}:R>`
+        : " · permanent";
+      return `• Role <@&${r.roleId}>${exp}`;
     });
   const channelLines = channels
     .filter((c) => stillActive(c.expiresAt))
     .map((c) => {
       const exp = c.expiresAt
-        ? ` · caduca <t:${Math.floor(c.expiresAt.getTime() / 1000)}:R>`
-        : " · permanente";
-      return `• Canal <#${c.channelId}>${exp}`;
+        ? ` · expires <t:${Math.floor(c.expiresAt.getTime() / 1000)}:R>`
+        : " · permanent";
+      return `• Channel <#${c.channelId}>${exp}`;
     });
   const boostLines = boosts
     .filter((b) => stillActive(b.expiresAt))
     .map((b) => {
       const exp = b.expiresAt
-        ? ` · caduca <t:${Math.floor(b.expiresAt.getTime() / 1000)}:R>`
-        : " · permanente";
+        ? ` · expires <t:${Math.floor(b.expiresAt.getTime() / 1000)}:R>`
+        : " · permanent";
       return `• Boost ${b.module} ×${b.multiplier}${exp}`;
     });
 
@@ -101,24 +101,24 @@ export async function handleInventoryCommand(
   ) {
     await interaction.editReply({
       content:
-        "Tu inventario está vacío. Compra en `/shop`. Los roles se pueden equipar con `/use`.",
+        "Your inventory is empty. Buy from `/shop`. Roles can be equipped with `/use`.",
     });
     return;
   }
 
   const embed = new EmbedBuilder()
     .setColor(0xe11d48)
-    .setTitle("Inventario")
+    .setTitle("Inventory")
     .setDescription(
       [
         roleLines.length ? `**Roles**\n${roleLines.join("\n")}` : "",
-        channelLines.length ? `**Canales**\n${channelLines.join("\n")}` : "",
+        channelLines.length ? `**Channels**\n${channelLines.join("\n")}` : "",
         boostLines.length ? `**Boosts**\n${boostLines.join("\n")}` : "",
       ]
         .filter(Boolean)
         .join("\n\n"),
     )
-    .setFooter({ text: "Usa /use para equipar o quitar un rol comprado." });
+    .setFooter({ text: "Use /use to equip or remove a purchased role." });
 
   await interaction.editReply({ embeds: [embed] });
 }
@@ -147,7 +147,7 @@ export async function handleUseAutocomplete(
     const role = guild
       ? await guild.roles.fetch(row.roleId).catch(() => null)
       : null;
-    const name = role?.name ?? `Rol ${row.roleId.slice(-4)}`;
+    const name = role?.name ?? `Role ${row.roleId.slice(-4)}`;
     if (focused && !name.toLowerCase().includes(focused)) continue;
     choices.push({ name: name.slice(0, 100), value: row.id });
     if (choices.length >= 25) break;
@@ -163,7 +163,7 @@ export async function handleUseCommand(
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -184,33 +184,33 @@ export async function handleUseCommand(
       row.userId !== interaction.user.id
     ) {
       throw new EconomyError(
-        "Ese ítem no está en tu inventario.",
+        "That item is not in your inventory.",
         400,
         "NOT_OWNED",
       );
     }
     if (!stillActive(row.expiresAt)) {
-      throw new EconomyError("Ese rol ya caducó.", 400, "EXPIRED");
+      throw new EconomyError("That role has already expired.", 400, "EXPIRED");
     }
 
     const member = await interaction.guild.members.fetch(interaction.user.id);
     const role = await interaction.guild.roles.fetch(row.roleId);
     if (!role) {
-      throw new EconomyError("El rol ya no existe en el servidor.", 400, "ROLE_GONE");
+      throw new EconomyError("The role no longer exists in the server.", 400, "ROLE_GONE");
     }
 
     if (member.roles.cache.has(role.id)) {
-      await member.roles.remove(role, "Inventario: unequip");
+      await member.roles.remove(role, "Inventory: unequip");
       await interaction.reply({
-        content: `Quitaste **${role.name}**. Sigue en tu inventario; usa \`/use\` para volver a ponerlo.`,
+        content: `Removed **${role.name}**. It stays in your inventory; use \`/use\` to put it back.`,
         ...visibility(ephemeral),
       });
       return;
     }
 
-    await member.roles.add(role, "Inventario: equip");
+    await member.roles.add(role, "Inventory: equip");
     await interaction.reply({
-      content: `Equipaste **${role.name}**.`,
+      content: `Equipped **${role.name}**.`,
       ...visibility(ephemeral),
     });
   } catch (error) {
@@ -219,7 +219,7 @@ export async function handleUseCommand(
         ? error.message
         : error instanceof Error
           ? error.message
-          : "No se pudo usar el ítem.";
+          : "Couldn't use the item.";
     await interaction.reply({ content: `❌ ${message}`, ...EPHEMERAL });
   }
 }

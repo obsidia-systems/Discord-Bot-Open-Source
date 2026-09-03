@@ -36,8 +36,8 @@ export async function onThreadCreate(thread: AnyThreadChannel): Promise<void> {
     targetTag: label,
     channelId: thread.id,
     parentId: thread.parentId,
-    summary: `Hilo creado: ${label}`,
-    description: `🧵 **Hilo creado:** \`${label}\``,
+    summary: `Thread created: ${label}`,
+    description: `🧵 **Thread created:** \`${label}\``,
     details: {
       name: threadName(thread),
       parentId: thread.parentId,

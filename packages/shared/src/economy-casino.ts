@@ -75,7 +75,7 @@ export type UpdateEconomyCasinoRequest = Partial<{
 export function defaultCasinoCoinflip(): EconomyCasinoCoinflipConfig {
   return {
     multiplier: 2,
-    winMessage: "¡La moneda cayó en {side} y ganaste {payout} {currency}!",
+    winMessage: "The coin landed on {side} and you won {payout} {currency}!",
     allowDoubleOrNothing: false,
     cooldownSeconds: 5,
   };

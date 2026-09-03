@@ -11,7 +11,7 @@ export async function onVoiceStateUpdate(
   try {
     await handleVoiceStateUpdate(oldState, newState);
   } catch (err) {
-    logger.warn({ err: err }, "voiceStateUpdate falló (no se detiene el bot):");
+    logger.warn({ err: err }, "voiceStateUpdate failed (bot not stopped):");
   }
 }
 
@@ -56,8 +56,8 @@ async function handleVoiceStateUpdate(
       targetTag: userTag(user),
       channelId: newCh,
       parentId: newParent,
-      summary: `${userTag(user)} entró a voz`,
-      description: `**Usuario conectó** al canal de voz <#${newCh}>`,
+      summary: `${userTag(user)} joined voice`,
+      description: `**User connected** to voice channel <#${newCh}>`,
       details: { channelId: newCh },
       actorIsBot: user.bot,
       actorRoleIds: roleIds,
@@ -105,10 +105,10 @@ async function handleVoiceStateUpdate(
         targetTag: userTag(user),
         channelId: disconnectChannelId,
         parentId: disconnectParentId,
-        summary: `${userTag(user)} expulsado de voz por ${kickedBy.tag}`,
+        summary: `${userTag(user)} kicked from voice by ${kickedBy.tag}`,
         description: disconnectChannelId
-          ? `**Usuario desconectado a la fuerza** del canal de voz <#${disconnectChannelId}>`
-          : `**Usuario desconectado a la fuerza** de un canal de voz`,
+          ? `**User forcibly disconnected** from voice channel <#${disconnectChannelId}>`
+          : `**User forcibly disconnected** from a voice channel`,
         details: {
           channelId: disconnectChannelId,
           targetId: user.id,
@@ -132,10 +132,10 @@ async function handleVoiceStateUpdate(
       targetTag: userTag(user),
       channelId: disconnectChannelId,
       parentId: disconnectParentId,
-      summary: `${userTag(user)} abandonó voz`,
+      summary: `${userTag(user)} left voice`,
       description: disconnectChannelId
-        ? `**Usuario abandonó** el canal de voz <#${disconnectChannelId}>`
-        : `**Usuario abandonó** un canal de voz`,
+        ? `**User left** voice channel <#${disconnectChannelId}>`
+        : `**User left** a voice channel`,
       details: { channelId: disconnectChannelId, forced: false },
       actorIsBot: user.bot,
       actorRoleIds: roleIds,
@@ -165,8 +165,8 @@ async function handleVoiceStateUpdate(
       targetTag: userTag(user),
       channelId: newCh,
       parentId: newParent,
-      summary: `${userTag(user)}: voz ${oldCh} → ${newCh}`,
-      description: `**Usuario se movió** de <#${oldCh}> a <#${newCh}>`,
+      summary: `${userTag(user)}: voice ${oldCh} → ${newCh}`,
+      description: `**User moved** from <#${oldCh}> to <#${newCh}>`,
       details: {
         oldContent: `<#${oldCh}>`,
         newContent: `<#${newCh}>`,

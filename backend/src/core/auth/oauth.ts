@@ -27,7 +27,7 @@ const DISCORD_AUTHORIZE = "https://discord.com/oauth2/authorize";
 function publicAppUrl(): string {
   const url = process.env.PUBLIC_APP_URL?.trim();
   if (!url) {
-    throw new Error("PUBLIC_APP_URL no está definido.");
+    throw new Error("PUBLIC_APP_URL is not defined.");
   }
   return url.replace(/\/$/, "");
 }
@@ -38,17 +38,17 @@ function redirectUri(): string {
 
 function clientId(): string {
   const id = process.env.DISCORD_CLIENT_ID?.trim();
-  if (!id) throw new Error("DISCORD_CLIENT_ID no está definido.");
+  if (!id) throw new Error("DISCORD_CLIENT_ID is not defined.");
   return id;
 }
 
 function clientSecret(): string {
   const secret = process.env.DISCORD_CLIENT_SECRET?.trim();
-  if (!secret) throw new Error("DISCORD_CLIENT_SECRET no está definido.");
+  if (!secret) throw new Error("DISCORD_CLIENT_SECRET is not defined.");
   const botToken = process.env.DISCORD_TOKEN?.trim();
   if (botToken && secret === botToken) {
     throw new Error(
-      "DISCORD_CLIENT_SECRET no puede ser el token del bot. Usa OAuth2 → Client Secret en el portal de Discord.",
+      "DISCORD_CLIENT_SECRET can't be the bot token. Use OAuth2 → Client Secret in the Discord portal.",
     );
   }
   return secret;
@@ -95,7 +95,7 @@ export function authRouter(): Router {
       });
       res.redirect(`${DISCORD_AUTHORIZE}?${params.toString()}`);
     } catch (error: unknown) {
-      logger.error({ err: error }, "OAuth authorize falló:");
+      logger.error({ err: error }, "OAuth authorize failed:");
       res.redirect("/login?error=oauth_config");
     }
   });
@@ -113,7 +113,7 @@ export function authRouter(): Router {
           : undefined;
       res.redirect(buildBotInviteUrl({ clientId: clientId(), guildId }));
     } catch (error: unknown) {
-      logger.error({ err: error }, "OAuth invite falló:");
+      logger.error({ err: error }, "OAuth invite failed:");
       res.redirect("/login?error=oauth_config");
     }
   });
@@ -208,7 +208,7 @@ export function authRouter(): Router {
       res.cookie(SESSION_COOKIE, sessionId, cookieOptions());
       res.redirect("/dashboard");
     } catch (error: unknown) {
-      logger.error({ err: error }, "OAuth callback falló:");
+      logger.error({ err: error }, "OAuth callback failed:");
       res.redirect("/login?error=oauth_callback");
     }
   });
@@ -260,7 +260,7 @@ export function meRouter(bot: Client): Router {
       if (error instanceof DiscordHttpError && error.status === 401) {
         res
           .status(401)
-          .json({ error: "Sesión expirada.", code: "UNAUTHENTICATED" });
+          .json({ error: "Session expired.", code: "UNAUTHENTICATED" });
         return;
       }
       if (error instanceof DiscordHttpError && error.status === 429) {
@@ -268,14 +268,14 @@ export function meRouter(bot: Client): Router {
           res.setHeader("Retry-After", String(error.retryAfterSec));
         }
         res.status(429).json({
-          error: "Discord está limitando peticiones. Espera un momento.",
+          error: "Discord is rate limiting requests. Try again in a moment.",
           code: "DISCORD_RATE_LIMITED",
         });
         return;
       }
-      logger.error({ err: error }, "GET /api/me falló:");
+      logger.error({ err: error }, "GET /api/me failed:");
       res.status(502).json({
-        error: "No se pudieron cargar tus servidores.",
+        error: "Couldn't load your servers.",
         code: "DISCORD_GUILDS_FAILED",
       });
     }

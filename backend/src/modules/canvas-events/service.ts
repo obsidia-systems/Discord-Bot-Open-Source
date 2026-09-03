@@ -39,7 +39,7 @@ const DEFAULT_LAYERS_BY_TYPE: Record<CanvasEventType, WelcomeTextLayer[]> = {
   leave: [
     {
       id: "default-primary",
-      text: "¡Hasta pronto!",
+      text: "See you soon!",
       x: Math.round(WELCOME_CARD_WIDTH / 2),
       y: 560,
       fontSize: 64,
@@ -61,7 +61,7 @@ const DEFAULT_LAYERS_BY_TYPE: Record<CanvasEventType, WelcomeTextLayer[]> = {
   ban: [
     {
       id: "default-primary",
-      text: "Usuario baneado",
+      text: "User banned",
       x: Math.round(WELCOME_CARD_WIDTH / 2),
       y: 560,
       fontSize: 64,
@@ -83,7 +83,7 @@ const DEFAULT_LAYERS_BY_TYPE: Record<CanvasEventType, WelcomeTextLayer[]> = {
   boost: [
     {
       id: "default-primary",
-      text: "¡Gracias por el boost!",
+      text: "Thanks for the boost!",
       x: Math.round(WELCOME_CARD_WIDTH / 2),
       y: 560,
       fontSize: 64,
@@ -105,9 +105,9 @@ const DEFAULT_LAYERS_BY_TYPE: Record<CanvasEventType, WelcomeTextLayer[]> = {
 };
 
 const DEFAULT_MESSAGE_BY_TYPE: Record<CanvasEventType, string> = {
-  leave: "{user} abandonó el servidor. Ahora somos {membercount}.",
-  ban: "{user} fue baneado del servidor.",
-  boost: "{user} impulsó el servidor. ¡Gracias!",
+  leave: "{user} left the server. We are now {membercount}.",
+  ban: "{user} was banned from the server.",
+  boost: "{user} boosted the server. Thank you!",
 };
 
 function assertEventType(raw: string): CanvasEventType {
@@ -115,7 +115,7 @@ function assertEventType(raw: string): CanvasEventType {
     return raw as CanvasEventType;
   }
   throw new CanvasEventSettingsError(
-    "eventType inválido.",
+    "Invalid eventType.",
     400,
     "INVALID_EVENT_TYPE",
   );
@@ -125,7 +125,7 @@ function assertSnowflake(value: string, field: string): string {
   const trimmed = value.trim();
   if (!/^\d{17,20}$/.test(trimmed)) {
     throw new CanvasEventSettingsError(
-      `${field} debe ser un snowflake válido.`,
+      `${field} must be a valid snowflake.`,
       400,
       "INVALID_IDS",
     );
@@ -152,7 +152,7 @@ function normalizeHexColor(raw: string | undefined): string {
   if (/^#[0-9a-fA-F]{6}$/.test(value)) return value;
   if (/^[0-9a-fA-F]{6}$/.test(value)) return `#${value}`;
   throw new CanvasEventSettingsError(
-    "Color debe ser un hex #RRGGBB.",
+    "Color must be a #RRGGBB hex.",
     400,
     "INVALID_COLOR",
   );
@@ -267,7 +267,7 @@ export async function saveCanvasEventSettings(
 
   if (isEnabled && !channelId) {
     throw new CanvasEventSettingsError(
-      "Selecciona un canal de destino para activar el módulo.",
+      "Select a destination channel to enable the module.",
       400,
       "MISSING_CHANNEL",
     );
@@ -300,7 +300,7 @@ export async function saveCanvasEventSettings(
   const bgFilepath = input.bgFilepath?.trim() || null;
   if (bgFilepath && !resolvePublicUploadPath(bgFilepath)) {
     throw new CanvasEventSettingsError(
-      "bgFilepath inválido. Debe ser /uploads/backgrounds/...",
+      "Invalid bgFilepath. It must be /uploads/backgrounds/...",
       400,
       "INVALID_BG_FILEPATH",
     );

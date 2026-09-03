@@ -60,7 +60,7 @@ export class ModerationError extends Error {
 function resolveGuild(bot: Client, guildId?: string): Guild {
   if (!bot.isReady()) {
     throw new ModerationError(
-      "El bot de Discord no está conectado.",
+      "The Discord bot is not connected.",
       503,
       "BOT_NOT_READY",
     );
@@ -69,7 +69,7 @@ function resolveGuild(bot: Client, guildId?: string): Guild {
   const id = (guildId ?? "").trim();
   if (!id) {
     throw new ModerationError(
-      "Falta guildId.",
+      "Missing guildId.",
       400,
       "MISSING_GUILD_ID",
     );
@@ -78,7 +78,7 @@ function resolveGuild(bot: Client, guildId?: string): Guild {
   const guild = bot.guilds.cache.get(id);
   if (!guild) {
     throw new ModerationError(
-      "El bot no está en ese servidor.",
+      "The bot is not in that server.",
       404,
       "GUILD_NOT_FOUND",
     );
@@ -91,7 +91,7 @@ function assertSnowflake(value: string, field: string): string {
   const trimmed = value.trim();
   if (!/^\d{17,20}$/.test(trimmed)) {
     throw new ModerationError(
-      `${field} inválido.`,
+      `Invalid ${field}.`,
       400,
       "INVALID_IDS",
     );
@@ -126,20 +126,20 @@ function mapDiscordError(error: unknown): never {
   if (error instanceof DiscordAPIError) {
     if (error.code === 50013 || error.status === 403) {
       throw new ModerationError(
-        "Permisos insuficientes o jerarquía de roles: el bot no puede aplicar esta acción.",
+        "Insufficient permissions or role hierarchy: the bot can't apply this action.",
         403,
         "MISSING_PERMISSIONS",
       );
     }
     if (error.code === 50035) {
       throw new ModerationError(
-        "Parámetros inválidos para Discord.",
+        "Invalid parameters for Discord.",
         400,
         "INVALID_DISCORD_PARAMS",
       );
     }
     throw new ModerationError(
-      error.message || "Error de la API de Discord.",
+      error.message || "Discord API error.",
       error.status && error.status >= 400 ? error.status : 502,
       "DISCORD_API_ERROR",
     );
@@ -149,7 +149,7 @@ function mapDiscordError(error: unknown): never {
     throw new ModerationError(error.message, 502, "ACTION_FAILED");
   }
 
-  throw new ModerationError("Error desconocido.", 500, "INTERNAL_ERROR");
+  throw new ModerationError("Unknown error.", 500, "INTERNAL_ERROR");
 }
 
 function assertBotCanAct(
@@ -160,7 +160,7 @@ function assertBotCanAct(
   const me = member.guild.members.me;
   if (me && member.id === me.id) {
     throw new ModerationError(
-      "No puedes aplicar esta acción al bot.",
+      "You can't apply this action to the bot.",
       400,
       "TARGET_IS_BOT",
     );
@@ -171,21 +171,21 @@ function assertBotCanAct(
     (action === "ban" || action === "kick" || action === "timeout")
   ) {
     throw new ModerationError(
-      "No puedes aplicarte esta acción a ti mismo.",
+      "You can't apply this action to yourself.",
       400,
       "TARGET_IS_SELF",
     );
   }
   if (action === "ban" && !member.bannable) {
     throw new ModerationError(
-      "Jerarquía de roles: no puedo banear a ese miembro.",
+      "Role hierarchy: I can't ban that member.",
       403,
       "MEMBER_NOT_BANNABLE",
     );
   }
   if (action === "kick" && !member.kickable) {
     throw new ModerationError(
-      "Jerarquía de roles: no puedo expulsar a ese miembro.",
+      "Role hierarchy: I can't kick that member.",
       403,
       "MEMBER_NOT_KICKABLE",
     );
@@ -195,7 +195,7 @@ function assertBotCanAct(
     !member.moderatable
   ) {
     throw new ModerationError(
-      "Jerarquía de roles: no puedo aislar a ese miembro.",
+      "Role hierarchy: I can't time out that member.",
       403,
       "MEMBER_NOT_MODERATABLE",
     );
@@ -473,7 +473,7 @@ export async function getChannelInfo(
         channel.type !== ChannelType.GuildAnnouncement)
     ) {
       throw new ModerationError(
-        "Canal de texto no encontrado.",
+        "Text channel not found.",
         404,
         "CHANNEL_NOT_FOUND",
       );
@@ -497,7 +497,7 @@ function assertAction(raw: string): ModActionType {
   if (MOD_ACTION_TYPES.includes(raw as ModActionType)) {
     return raw as ModActionType;
   }
-  throw new ModerationError("Acción inválida.", 400, "INVALID_ACTION");
+  throw new ModerationError("Invalid action.", 400, "INVALID_ACTION");
 }
 
 async function writeModLog(input: {
@@ -567,11 +567,11 @@ async function sendSanctionDm(options: {
     if (dmMode === "text") {
       let content = applySanctionTextVars(
         (options.dmText ?? "").trim() ||
-          `Has recibido una sanción (${action}) en {server}.\nRazón: {reason}`,
+          `You received a sanction (${action}) in {server}.\nReason: {reason}`,
         vars,
       );
       if (inviteUrl) {
-        content = `${content}\n\nPuedes volver con esta invitación (1 uso): ${inviteUrl}`;
+        content = `${content}\n\nYou can come back with this invite (1 use): ${inviteUrl}`;
       }
       await user.send({ content: content.slice(0, 2000) });
       return { dmSent: true, dmSkipped: false, dmFailed: false };
@@ -581,7 +581,7 @@ async function sendSanctionDm(options: {
     const templateId = Number(options.templateId);
     if (!Number.isFinite(templateId)) {
       throw new ModerationError(
-        "templateId inválido.",
+        "Invalid templateId.",
         400,
         "INVALID_TEMPLATE",
       );
@@ -594,8 +594,8 @@ async function sendSanctionDm(options: {
       : undefined;
     if (inviteUrl) {
       content = content
-        ? `${content}\n\nPuedes volver con esta invitación (1 uso): ${inviteUrl}`
-        : `Puedes volver con esta invitación (1 uso): ${inviteUrl}`;
+        ? `${content}\n\nYou can come back with this invite (1 use): ${inviteUrl}`
+        : `You can come back with this invite (1 use): ${inviteUrl}`;
     }
     await user.send({
       content,
@@ -605,7 +605,7 @@ async function sendSanctionDm(options: {
     return { dmSent: true, dmSkipped: false, dmFailed: false };
   } catch (error: unknown) {
     if (error instanceof ModerationError) throw error;
-    logger.warn({ err: error instanceof Error ? error.message : error }, "DM de sanción no enviado:");
+    logger.warn({ err: error instanceof Error ? error.message : error }, "Sanction DM not sent:");
     return { dmSent: false, dmSkipped: false, dmFailed: true };
   }
 }
@@ -630,13 +630,13 @@ export async function executeModAction(
     action !== "clearwarns"
   ) {
     throw new ModerationError(
-      "La razón es obligatoria.",
+      "A reason is required.",
       400,
       "MISSING_REASON",
     );
   }
 
-  const auditReason = reason.slice(0, 400) || "Acción desde panel Adobos";
+  const auditReason = reason.slice(0, 400) || "Action from Adobos panel";
   const moderatorId = actorUserId ?? bot.user?.id ?? "dashboard";
 
   try {
@@ -684,7 +684,7 @@ export async function executeModAction(
         targetUserId = userId;
         await guild.members.fetch(userId).catch(() => {
           throw new ModerationError(
-            "Miembro no encontrado.",
+            "Member not found.",
             404,
             "MEMBER_NOT_FOUND",
           );
@@ -699,7 +699,7 @@ export async function executeModAction(
             createdAt: new Date(),
           })
           ;
-        message = `Advertencia registrada para <@${userId}>.`;
+        message = `Warning recorded for <@${userId}>.`;
         break;
       }
 
@@ -726,7 +726,7 @@ export async function executeModAction(
           reason: auditReason,
           deleteMessageSeconds: days * 24 * 60 * 60,
         });
-        message = `Usuario ${userId} baneado.`;
+        message = `User ${userId} banned.`;
         break;
       }
 
@@ -734,7 +734,7 @@ export async function executeModAction(
         const userId = assertSnowflake(input.userId ?? "", "userId");
         targetUserId = userId;
         await guild.members.unban(userId, auditReason);
-        message = `Usuario ${userId} desbaneado.`;
+        message = `User ${userId} unbanned.`;
         dmResult = { dmSent: false, dmSkipped: true, dmFailed: false };
         break;
       }
@@ -745,7 +745,7 @@ export async function executeModAction(
         const seconds = clampTimeoutSeconds(input.durationSeconds);
         if (seconds === null) {
           throw new ModerationError(
-            "Duración de timeout inválida. Usa entre 1 segundo y 28 días (ej. 10m, 1h, 24h).",
+            "Invalid timeout duration. Use between 1 second and 28 days (e.g. 10m, 1h, 24h).",
             400,
             "INVALID_TIMEOUT",
           );
@@ -779,8 +779,8 @@ export async function executeModAction(
           .returning({ id: warnings.id });
         message =
           deleted.length === 0
-            ? `No había advertencias para <@${userId}>.`
-            : `Se eliminaron ${deleted.length} advertencias de <@${userId}>.`;
+            ? `There were no warnings for <@${userId}>.`
+            : `Removed ${deleted.length} warnings from <@${userId}>.`;
         break;
       }
 
@@ -797,14 +797,14 @@ export async function executeModAction(
         const channel = await guild.channels.fetch(channelId);
         if (!channel || !channel.isTextBased() || channel.isDMBased()) {
           throw new ModerationError(
-            "Canal no válido para purge.",
+            "Invalid channel for purge.",
             400,
             "CHANNEL_NOT_TEXT",
           );
         }
         if (!("bulkDelete" in channel)) {
           throw new ModerationError(
-            "Este canal no admite bulk delete.",
+            "This channel does not support bulk delete.",
             400,
             "CHANNEL_NOT_TEXT",
           );
@@ -816,14 +816,14 @@ export async function executeModAction(
             .filter((msg) => msg.author.id === filterUserId)
             .slice(0, limit);
           if (matched.length === 0) {
-            message = `No hay mensajes recientes de <@${filterUserId}> en #${channelName} (máx. 14 días).`;
+            message = `No recent messages from <@${filterUserId}> in #${channelName} (max 14 days).`;
             break;
           }
           const deleted = await channel.bulkDelete(matched, true);
-          message = `Se eliminaron ${deleted.size} mensajes de <@${filterUserId}> en #${channelName}.`;
+          message = `Deleted ${deleted.size} messages from <@${filterUserId}> in #${channelName}.`;
         } else {
           const deleted = await channel.bulkDelete(limit, true);
-          message = `Se eliminaron ${deleted.size} mensajes en #${channelName}.`;
+          message = `Deleted ${deleted.size} messages in #${channelName}.`;
         }
         break;
       }
@@ -842,7 +842,7 @@ export async function executeModAction(
             channel.type !== ChannelType.GuildAnnouncement)
         ) {
           throw new ModerationError(
-            "Canal de texto no encontrado.",
+            "Text channel not found.",
             404,
             "CHANNEL_NOT_FOUND",
           );
@@ -870,7 +870,7 @@ export async function executeModAction(
             channel.type !== ChannelType.GuildAnnouncement)
         ) {
           throw new ModerationError(
-            "Canal de texto no encontrado.",
+            "Text channel not found.",
             404,
             "CHANNEL_NOT_FOUND",
           );
@@ -881,13 +881,13 @@ export async function executeModAction(
           { reason: auditReason },
         );
         message = locked
-          ? `Canal #${channel.name} bloqueado (@everyone no puede escribir).`
-          : `Canal #${channel.name} desbloqueado.`;
+          ? `Channel #${channel.name} locked (@everyone can't send messages).`
+          : `Channel #${channel.name} unlocked.`;
         break;
       }
 
       default:
-        throw new ModerationError("Acción no implementada.", 400, "INVALID_ACTION");
+        throw new ModerationError("Action not implemented.", 400, "INVALID_ACTION");
     }
 
     await writeModLog({
@@ -905,7 +905,7 @@ export async function executeModAction(
     });
 
     if (dmResult.dmFailed) {
-      message = `${message} Sanción aplicada, pero el usuario tenía los DMs cerrados.`;
+      message = `${message} Sanction applied, but the user had DMs closed.`;
     }
 
     return {
@@ -988,14 +988,14 @@ export async function fetchDiscordMessage(
     if (error instanceof DiscordAPIError) {
       if (error.code === 10003) {
         throw new ModerationError(
-          "El canal no existe en este servidor.",
+          "The channel does not exist in this server.",
           404,
           "CHANNEL_NOT_FOUND",
         );
       }
       if (error.code === 50001 || error.code === 50013) {
         throw new ModerationError(
-          "Missing Access: el bot no puede ver ese canal.",
+          "Missing Access: the bot can't see that channel.",
           403,
           "MISSING_ACCESS",
         );
@@ -1006,7 +1006,7 @@ export async function fetchDiscordMessage(
 
   if (!channel) {
     throw new ModerationError(
-      "El canal no existe en este servidor.",
+      "The channel does not exist in this server.",
       404,
       "CHANNEL_NOT_FOUND",
     );
@@ -1017,7 +1017,7 @@ export async function fetchDiscordMessage(
     channel.type !== ChannelType.GuildAnnouncement
   ) {
     throw new ModerationError(
-      "El canal debe ser de texto o anuncios.",
+      "The channel must be a text or announcement channel.",
       400,
       "INVALID_CHANNEL_TYPE",
     );
@@ -1025,7 +1025,7 @@ export async function fetchDiscordMessage(
 
   if (!channel.isTextBased() || channel.isDMBased()) {
     throw new ModerationError(
-      "El canal no admite lectura de mensajes.",
+      "The channel does not support reading messages.",
       400,
       "INVALID_CHANNEL_TYPE",
     );
@@ -1035,7 +1035,7 @@ export async function fetchDiscordMessage(
     const message = await channel.messages.fetch(messageId);
     if (message.channelId !== channel.id) {
       throw new ModerationError(
-        "El mensaje no existe en el canal seleccionado.",
+        "The message does not exist in the selected channel.",
         404,
         "MESSAGE_NOT_IN_CHANNEL",
       );
@@ -1081,21 +1081,21 @@ export async function fetchDiscordMessage(
     if (error instanceof DiscordAPIError) {
       if (error.code === 10008) {
         throw new ModerationError(
-          "El mensaje no existe en el canal seleccionado.",
+          "The message does not exist in the selected channel.",
           404,
           "MESSAGE_NOT_FOUND",
         );
       }
       if (error.code === 10003) {
         throw new ModerationError(
-          "El canal no existe en este servidor.",
+          "The channel does not exist in this server.",
           404,
           "CHANNEL_NOT_FOUND",
         );
       }
       if (error.code === 50001 || error.code === 50013) {
         throw new ModerationError(
-          "Missing Access: el bot no puede leer el historial de ese canal.",
+          "Missing Access: the bot can't read that channel's history.",
           403,
           "MISSING_ACCESS",
         );

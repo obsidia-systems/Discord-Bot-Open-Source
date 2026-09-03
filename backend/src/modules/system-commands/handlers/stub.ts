@@ -12,7 +12,7 @@ export async function stubCommand(
     `stub /${interaction.commandName} (${feature}) guild=${interaction.guildId}`,
   );
   await interaction.reply({
-    content: `🚧 \`/${interaction.commandName}\` está registrado. Lógica de **${feature}** pendiente.`,
+    content: `🚧 \`/${interaction.commandName}\` is registered. **${feature}** logic pending.`,
     ephemeral,
   });
 }

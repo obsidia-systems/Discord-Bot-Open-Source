@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { starboardModule } from "./index.js";
 
 describe("starboard module", () => {
-  it("se llama Starboard, sin slash, y escucha reacciones", () => {
+  it("is named Starboard, no slash, and listens for reactions", () => {
     expect(starboardModule.id).toBe("starboard");
     expect(starboardModule.name).toBe("Starboard");
     const commands: string[] = [];

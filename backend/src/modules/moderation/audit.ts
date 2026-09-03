@@ -32,283 +32,283 @@ type ActionMeta = {
 
 const ACTION_META: Partial<Record<AuditLogEvent, ActionMeta>> = {
   [AuditLogEvent.GuildUpdate]: {
-    label: "Actualizó el servidor",
+    label: "Updated the server",
     category: "server",
     tone: "update",
     targetKind: "guild",
   },
   [AuditLogEvent.ChannelCreate]: {
-    label: "Creó un canal",
+    label: "Created a channel",
     category: "channels",
     tone: "create",
     targetKind: "channel",
   },
   [AuditLogEvent.ChannelUpdate]: {
-    label: "Actualizó un canal",
+    label: "Updated a channel",
     category: "channels",
     tone: "update",
     targetKind: "channel",
   },
   [AuditLogEvent.ChannelDelete]: {
-    label: "Eliminó un canal",
+    label: "Deleted a channel",
     category: "channels",
     tone: "delete",
     targetKind: "channel",
   },
   [AuditLogEvent.ChannelOverwriteCreate]: {
-    label: "Creó un permiso de canal",
+    label: "Created a channel permission",
     category: "channels",
     tone: "create",
     targetKind: "channel",
   },
   [AuditLogEvent.ChannelOverwriteUpdate]: {
-    label: "Actualizó un permiso de canal",
+    label: "Updated a channel permission",
     category: "channels",
     tone: "update",
     targetKind: "channel",
   },
   [AuditLogEvent.ChannelOverwriteDelete]: {
-    label: "Eliminó un permiso de canal",
+    label: "Deleted a channel permission",
     category: "channels",
     tone: "delete",
     targetKind: "channel",
   },
   [AuditLogEvent.MemberKick]: {
-    label: "Expulsó a un miembro",
+    label: "Kicked a member",
     category: "members",
     tone: "delete",
     targetKind: "user",
   },
   [AuditLogEvent.MemberPrune]: {
-    label: "Purgó miembros inactivos",
+    label: "Pruned inactive members",
     category: "members",
     tone: "delete",
     targetKind: "user",
   },
   [AuditLogEvent.MemberBanAdd]: {
-    label: "Baneó a un miembro",
+    label: "Banned a member",
     category: "members",
     tone: "delete",
     targetKind: "user",
   },
   [AuditLogEvent.MemberBanRemove]: {
-    label: "Desbaneó a un miembro",
+    label: "Unbanned a member",
     category: "members",
     tone: "create",
     targetKind: "user",
   },
   [AuditLogEvent.MemberUpdate]: {
-    label: "Actualizó a un miembro",
+    label: "Updated a member",
     category: "members",
     tone: "update",
     targetKind: "user",
   },
   [AuditLogEvent.MemberRoleUpdate]: {
-    label: "Actualizó roles de un miembro",
+    label: "Updated a member's roles",
     category: "members",
     tone: "update",
     targetKind: "user",
   },
   [AuditLogEvent.MemberMove]: {
-    label: "Movió a un miembro de voz",
+    label: "Moved a member in voice",
     category: "members",
     tone: "update",
     targetKind: "user",
   },
   [AuditLogEvent.MemberDisconnect]: {
-    label: "Desconectó a un miembro de voz",
+    label: "Disconnected a member from voice",
     category: "members",
     tone: "delete",
     targetKind: "user",
   },
   [AuditLogEvent.BotAdd]: {
-    label: "Añadió un bot",
+    label: "Added a bot",
     category: "members",
     tone: "create",
     targetKind: "user",
   },
   [AuditLogEvent.RoleCreate]: {
-    label: "Creó un rol",
+    label: "Created a role",
     category: "roles",
     tone: "create",
     targetKind: "role",
   },
   [AuditLogEvent.RoleUpdate]: {
-    label: "Actualizó un rol",
+    label: "Updated a role",
     category: "roles",
     tone: "update",
     targetKind: "role",
   },
   [AuditLogEvent.RoleDelete]: {
-    label: "Eliminó un rol",
+    label: "Deleted a role",
     category: "roles",
     tone: "delete",
     targetKind: "role",
   },
   [AuditLogEvent.InviteCreate]: {
-    label: "Creó una invitación",
+    label: "Created an invite",
     category: "server",
     tone: "create",
     targetKind: "invite",
   },
   [AuditLogEvent.InviteUpdate]: {
-    label: "Actualizó una invitación",
+    label: "Updated an invite",
     category: "server",
     tone: "update",
     targetKind: "invite",
   },
   [AuditLogEvent.InviteDelete]: {
-    label: "Eliminó una invitación",
+    label: "Deleted an invite",
     category: "server",
     tone: "delete",
     targetKind: "invite",
   },
   [AuditLogEvent.WebhookCreate]: {
-    label: "Creó un webhook",
+    label: "Created a webhook",
     category: "server",
     tone: "create",
     targetKind: "webhook",
   },
   [AuditLogEvent.WebhookUpdate]: {
-    label: "Actualizó un webhook",
+    label: "Updated a webhook",
     category: "server",
     tone: "update",
     targetKind: "webhook",
   },
   [AuditLogEvent.WebhookDelete]: {
-    label: "Eliminó un webhook",
+    label: "Deleted a webhook",
     category: "server",
     tone: "delete",
     targetKind: "webhook",
   },
   [AuditLogEvent.EmojiCreate]: {
-    label: "Creó un emoji",
+    label: "Created an emoji",
     category: "server",
     tone: "create",
     targetKind: "emoji",
   },
   [AuditLogEvent.EmojiUpdate]: {
-    label: "Actualizó un emoji",
+    label: "Updated an emoji",
     category: "server",
     tone: "update",
     targetKind: "emoji",
   },
   [AuditLogEvent.EmojiDelete]: {
-    label: "Eliminó un emoji",
+    label: "Deleted an emoji",
     category: "server",
     tone: "delete",
     targetKind: "emoji",
   },
   [AuditLogEvent.MessageDelete]: {
-    label: "Eliminó un mensaje",
+    label: "Deleted a message",
     category: "server",
     tone: "delete",
     targetKind: "message",
   },
   [AuditLogEvent.MessageBulkDelete]: {
-    label: "Eliminó mensajes en masa",
+    label: "Bulk-deleted messages",
     category: "server",
     tone: "delete",
     targetKind: "message",
   },
   [AuditLogEvent.MessagePin]: {
-    label: "Fijó un mensaje",
+    label: "Pinned a message",
     category: "server",
     tone: "update",
     targetKind: "message",
   },
   [AuditLogEvent.MessageUnpin]: {
-    label: "Desfijó un mensaje",
+    label: "Unpinned a message",
     category: "server",
     tone: "update",
     targetKind: "message",
   },
   [AuditLogEvent.IntegrationCreate]: {
-    label: "Creó una integración",
+    label: "Created an integration",
     category: "server",
     tone: "create",
     targetKind: "integration",
   },
   [AuditLogEvent.IntegrationUpdate]: {
-    label: "Actualizó una integración",
+    label: "Updated an integration",
     category: "server",
     tone: "update",
     targetKind: "integration",
   },
   [AuditLogEvent.IntegrationDelete]: {
-    label: "Eliminó una integración",
+    label: "Deleted an integration",
     category: "server",
     tone: "delete",
     targetKind: "integration",
   },
   [AuditLogEvent.StageInstanceCreate]: {
-    label: "Creó un escenario",
+    label: "Created a stage",
     category: "server",
     tone: "create",
     targetKind: "channel",
   },
   [AuditLogEvent.StageInstanceUpdate]: {
-    label: "Actualizó un escenario",
+    label: "Updated a stage",
     category: "server",
     tone: "update",
     targetKind: "channel",
   },
   [AuditLogEvent.StageInstanceDelete]: {
-    label: "Eliminó un escenario",
+    label: "Deleted a stage",
     category: "server",
     tone: "delete",
     targetKind: "channel",
   },
   [AuditLogEvent.StickerCreate]: {
-    label: "Creó un sticker",
+    label: "Created a sticker",
     category: "server",
     tone: "create",
     targetKind: "sticker",
   },
   [AuditLogEvent.StickerUpdate]: {
-    label: "Actualizó un sticker",
+    label: "Updated a sticker",
     category: "server",
     tone: "update",
     targetKind: "sticker",
   },
   [AuditLogEvent.StickerDelete]: {
-    label: "Eliminó un sticker",
+    label: "Deleted a sticker",
     category: "server",
     tone: "delete",
     targetKind: "sticker",
   },
   [AuditLogEvent.GuildScheduledEventCreate]: {
-    label: "Creó un evento",
+    label: "Created an event",
     category: "server",
     tone: "create",
     targetKind: "unknown",
   },
   [AuditLogEvent.GuildScheduledEventUpdate]: {
-    label: "Actualizó un evento",
+    label: "Updated an event",
     category: "server",
     tone: "update",
     targetKind: "unknown",
   },
   [AuditLogEvent.GuildScheduledEventDelete]: {
-    label: "Eliminó un evento",
+    label: "Deleted an event",
     category: "server",
     tone: "delete",
     targetKind: "unknown",
   },
   [AuditLogEvent.ThreadCreate]: {
-    label: "Creó un hilo",
+    label: "Created a thread",
     category: "channels",
     tone: "create",
     targetKind: "channel",
   },
   [AuditLogEvent.ThreadUpdate]: {
-    label: "Actualizó un hilo",
+    label: "Updated a thread",
     category: "channels",
     tone: "update",
     targetKind: "channel",
   },
   [AuditLogEvent.ThreadDelete]: {
-    label: "Eliminó un hilo",
+    label: "Deleted a thread",
     category: "channels",
     tone: "delete",
     targetKind: "channel",
@@ -316,53 +316,53 @@ const ACTION_META: Partial<Record<AuditLogEvent, ActionMeta>> = {
 };
 
 const CHANGE_KEY_LABELS: Record<string, string> = {
-  name: "Nombre",
-  topic: "Tema",
+  name: "Name",
+  topic: "Topic",
   bitrate: "Bitrate",
   nsfw: "NSFW",
   rate_limit_per_user: "Slowmode",
-  position: "Posición",
+  position: "Position",
   color: "Color",
-  hoist: "Mostrar separado",
-  mentionable: "Mencionable",
-  permissions: "Permisos",
-  allow: "Permitir",
-  deny: "Denegar",
-  code: "Código",
-  channel_id: "Canal",
-  inviter_id: "Invitador",
-  max_uses: "Usos máximos",
-  max_age: "Caducidad",
-  temporary: "Temporal",
-  nick: "Apodo",
+  hoist: "Display separately",
+  mentionable: "Mentionable",
+  permissions: "Permissions",
+  allow: "Allow",
+  deny: "Deny",
+  code: "Code",
+  channel_id: "Channel",
+  inviter_id: "Inviter",
+  max_uses: "Max uses",
+  max_age: "Expiry",
+  temporary: "Temporary",
+  nick: "Nickname",
   mute: "Mute",
-  deaf: "Sordo",
+  deaf: "Deaf",
   communication_disabled_until: "Timeout",
   avatar_hash: "Avatar",
-  icon_hash: "Icono",
+  icon_hash: "Icon",
   splash_hash: "Splash",
   banner_hash: "Banner",
   vanity_url_code: "URL vanity",
-  description: "Descripción",
-  preferred_locale: "Idioma",
-  afk_channel_id: "Canal AFK",
-  afk_timeout: "Timeout AFK",
-  system_channel_id: "Canal de sistema",
-  rules_channel_id: "Canal de reglas",
-  public_updates_channel_id: "Canal de actualizaciones",
+  description: "Description",
+  preferred_locale: "Language",
+  afk_channel_id: "AFK channel",
+  afk_timeout: "AFK timeout",
+  system_channel_id: "System channel",
+  rules_channel_id: "Rules channel",
+  public_updates_channel_id: "Updates channel",
   mfa_level: "MFA",
-  verification_level: "Verificación",
-  explicit_content_filter: "Filtro de contenido",
-  default_message_notifications: "Notificaciones",
-  owner_id: "Propietario",
-  $add: "Roles añadidos",
-  $remove: "Roles quitados",
+  verification_level: "Verification",
+  explicit_content_filter: "Content filter",
+  default_message_notifications: "Notifications",
+  owner_id: "Owner",
+  $add: "Roles added",
+  $remove: "Roles removed",
 };
 
 function resolveGuild(bot: Client, guildId?: string): Guild {
   if (!bot.isReady()) {
     throw new ModerationError(
-      "El bot de Discord no está conectado.",
+      "The Discord bot is not connected.",
       503,
       "BOT_NOT_READY",
     );
@@ -371,7 +371,7 @@ function resolveGuild(bot: Client, guildId?: string): Guild {
   const id = (guildId ?? "").trim();
   if (!id) {
     throw new ModerationError(
-      "Falta guildId.",
+      "Missing guildId.",
       400,
       "MISSING_GUILD_ID",
     );
@@ -380,7 +380,7 @@ function resolveGuild(bot: Client, guildId?: string): Guild {
   const guild = bot.guilds.cache.get(id);
   if (!guild) {
     throw new ModerationError(
-      "El bot no está en ese servidor.",
+      "The bot is not in that server.",
       404,
       "GUILD_NOT_FOUND",
     );
@@ -430,15 +430,15 @@ function flattenChanges(
 
     let summary: string;
     if (key === "$add") {
-      summary = `Añadió: ${newValue}`;
+      summary = `Added: ${newValue}`;
     } else if (key === "$remove") {
-      summary = `Quitó: ${oldValue !== "—" ? oldValue : newValue}`;
+      summary = `Removed: ${oldValue !== "—" ? oldValue : newValue}`;
     } else if (oldValue === "—" && newValue !== "—") {
       summary = `${label}: ${newValue}`;
     } else if (newValue === "—" && oldValue !== "—") {
-      summary = `${label} eliminado (era ${oldValue})`;
+      summary = `${label} removed (was ${oldValue})`;
     } else if (key === "name") {
-      summary = `Nombre cambiado a «${newValue}»`;
+      summary = `Name changed to «${newValue}»`;
     } else {
       summary = `${label}: ${oldValue} → ${newValue}`;
     }
@@ -575,7 +575,7 @@ function resolveAuditRoleRef(
     // Rol ya no está en el servidor (o caché fría).
     return {
       id,
-      name: fallbackName ?? "Rol Eliminado",
+      name: fallbackName ?? "Deleted Role",
       color: "#000000",
     };
   }
@@ -657,7 +657,7 @@ function mapEntry(
   const reason = entry.reason?.trim() || null;
   const changesSummaryParts = [
     ...changes.map((item) => item.summary),
-    reason ? `Razón: ${reason}` : null,
+    reason ? `Reason: ${reason}` : null,
   ].filter(Boolean) as string[];
 
   const executorUser = entry.executor as User | null;
@@ -693,15 +693,15 @@ function mapEntry(
     mapped.removedRoles = roles.removed;
     if (roles.added.length > 0 && roles.removed.length === 0) {
       mapped.roleKind = "ROLE_ADD";
-      mapped.actionLabel = "Roles añadidos";
+      mapped.actionLabel = "Roles added";
       mapped.tone = "create";
     } else if (roles.removed.length > 0 && roles.added.length === 0) {
       mapped.roleKind = "ROLE_REMOVE";
-      mapped.actionLabel = "Roles eliminados";
+      mapped.actionLabel = "Roles removed";
       mapped.tone = "delete";
     } else {
       mapped.roleKind = "ROLE_UPDATE";
-      mapped.actionLabel = "Actualización de roles";
+      mapped.actionLabel = "Roles updated";
       mapped.tone = "update";
     }
   }
@@ -733,7 +733,7 @@ export async function fetchDiscordAuditLog(
   if (options.userId?.trim()) {
     const userId = options.userId.trim();
     if (!/^\d{17,20}$/.test(userId)) {
-      throw new ModerationError("userId inválido.", 400, "INVALID_IDS");
+      throw new ModerationError("Invalid userId.", 400, "INVALID_IDS");
     }
     fetchOptions.user = userId;
   }
@@ -771,16 +771,16 @@ export async function fetchDiscordAuditLog(
     if (error instanceof DiscordAPIError) {
       if (error.code === 50013 || error.status === 403) {
         throw new ModerationError(
-          "Falta el permiso «Ver registro de auditoría». Concede View Audit Log al bot.",
+          "Missing the «View Audit Log» permission. Grant View Audit Log to the bot.",
           403,
           "MISSING_PERMISSIONS",
         );
       }
     }
     if (error instanceof ModerationError) throw error;
-    logger.error({ err: error }, "Error al obtener audit log:");
+    logger.error({ err: error }, "Failed to fetch audit log:");
     throw new ModerationError(
-      "No se pudo obtener el registro de auditoría de Discord.",
+      "Couldn't fetch the Discord audit log.",
       500,
       "AUDIT_FETCH_FAILED",
     );

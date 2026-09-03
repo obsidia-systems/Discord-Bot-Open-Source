@@ -175,7 +175,7 @@ export function defaultWelcomeTextLayers(): WelcomeTextLayer[] {
   return [
     {
       id: "default-primary",
-      text: "¡Bienvenido a {server}!",
+      text: "Welcome to {server}!",
       x: Math.round(WELCOME_CARD_WIDTH / 2),
       y: 560,
       fontSize: 64,

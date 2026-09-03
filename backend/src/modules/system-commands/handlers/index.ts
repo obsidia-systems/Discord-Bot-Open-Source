@@ -136,7 +136,7 @@ export async function dispatchDefaultCommand(
     const economy = await getEconomyConfig(interaction.guildId);
     if (!economy.isActive) {
       await interaction.reply({
-        content: "⛔ La economía está desactivada en este servidor.",
+        content: "⛔ The economy is disabled in this server.",
         ephemeral: true,
       });
       return true;

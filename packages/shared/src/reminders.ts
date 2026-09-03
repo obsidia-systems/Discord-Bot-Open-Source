@@ -229,46 +229,46 @@ export function remindersSlashCommandBody(): {
 } {
   return {
     name: "remind",
-    description: "Recordatorio personal (Reminders).",
+    description: "Personal reminder (Reminders).",
     options: [
-      sub("in", "Te aviso dentro de un rato.", [
+      sub("in", "I'll ping you after a while.", [
         {
           type: STRING,
           name: "cuando",
-          description: "Ej. 20m, 2h, 1d12h, 1w.",
+          description: "E.g. 20m, 2h, 1d12h, 1w.",
           required: true,
           max_length: 32,
         },
         {
           type: STRING,
           name: "texto",
-          description: "Qué te tengo que recordar.",
+          description: "What I should remind you about.",
           required: true,
           max_length: REMIND_TEXT_MAX,
         },
       ]),
-      sub("at", "Te aviso a una hora (zona del servidor).", [
+      sub("at", "I'll ping you at a time (server timezone).", [
         {
           type: STRING,
           name: "cuando",
-          description: "15:00, 2026-09-03 18:30 o <t:…>.",
+          description: "15:00, 2026-09-03 18:30 or <t:…>.",
           required: true,
           max_length: 64,
         },
         {
           type: STRING,
           name: "texto",
-          description: "Qué te tengo que recordar.",
+          description: "What I should remind you about.",
           required: true,
           max_length: REMIND_TEXT_MAX,
         },
       ]),
-      sub("list", "Lista tus recordatorios pendientes."),
-      sub("cancel", "Cancela un recordatorio tuyo.", [
+      sub("list", "List your pending reminders."),
+      sub("cancel", "Cancel one of your reminders.", [
         {
           type: INTEGER,
           name: "id",
-          description: "El número que sale en /remind list.",
+          description: "The number shown in /remind list.",
           required: true,
           min_value: 1,
         },

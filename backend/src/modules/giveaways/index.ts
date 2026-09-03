@@ -31,13 +31,13 @@ export const giveawaysModule: AdobosModule = {
     ctx.once("ready", () => {
       if (!isWorkerLeader()) return;
       void processDueGiveaways().catch((error: unknown) => {
-        logger.warn({ err: error }, "giveaways: tick inicial falló");
+        logger.warn({ err: error }, "giveaways: initial tick failed");
       });
     });
     const timer = setInterval(() => {
       if (!isWorkerLeader()) return;
       void processDueGiveaways().catch((error: unknown) => {
-        logger.warn({ err: error }, "giveaways: tick falló");
+        logger.warn({ err: error }, "giveaways: tick failed");
       });
     }, DUE_TICK_MS);
     timer.unref?.();

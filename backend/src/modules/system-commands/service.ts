@@ -43,7 +43,7 @@ function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
     throw new SystemCommandsError(
-      "Falta guildId.",
+      "Missing guildId.",
       400,
       "MISSING_GUILD_ID",
     );
@@ -159,7 +159,7 @@ export async function updateSystemCommandPermissions(
 
   if (!Array.isArray(input.commands)) {
     throw new SystemCommandsError(
-      "Payload inválido: falta commands[].",
+      "Invalid payload: missing commands[].",
       400,
       "INVALID_BODY",
     );
@@ -172,7 +172,7 @@ export async function updateSystemCommandPermissions(
     const name = (item.commandName ?? "").trim().toLowerCase();
     if (!known.has(name)) {
       throw new SystemCommandsError(
-        `Comando desconocido: ${item.commandName}`,
+        `Unknown command: ${item.commandName}`,
         400,
         "UNKNOWN_COMMAND",
       );

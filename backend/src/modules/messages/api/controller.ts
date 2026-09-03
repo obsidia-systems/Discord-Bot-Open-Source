@@ -63,7 +63,7 @@ function isSendableChannel(channel: unknown): channel is SendableChannels {
 function assertBotReady(bot: Client): void {
   if (!bot.isReady()) {
     throw new MessageSendError(
-      "El bot de Discord no está conectado.",
+      "The Discord bot is not connected.",
       503,
       "BOT_NOT_READY",
     );
@@ -74,7 +74,7 @@ function assertChannelId(channelId: string): string {
   const trimmed = channelId.trim();
   if (!/^\d{17,20}$/.test(trimmed)) {
     throw new MessageSendError(
-      "channelId inválido. Debe ser un snowflake numérico de Discord.",
+      "Invalid channelId. It must be a numeric Discord snowflake.",
       400,
       "INVALID_CHANNEL_ID",
     );
@@ -92,14 +92,14 @@ async function resolveSendableChannel(
     channel = await bot.channels.fetch(channelId);
   } catch {
     throw new MessageSendError(
-      "No se pudo obtener el canal. Verifica el ID y los permisos del bot.",
+      "Couldn't fetch the channel. Check the ID and the bot's permissions.",
       404,
       "CHANNEL_FETCH_FAILED",
     );
   }
 
   if (!channel) {
-    throw new MessageSendError("Canal no encontrado.", 404, "CHANNEL_NOT_FOUND");
+    throw new MessageSendError("Channel not found.", 404, "CHANNEL_NOT_FOUND");
   }
 
   const channelGuildId =
@@ -108,7 +108,7 @@ async function resolveSendableChannel(
       : null;
   if (!channelGuildId || channelGuildId !== expectedGuildId) {
     throw new MessageSendError(
-      "El canal no pertenece a este servidor.",
+      "The channel does not belong to this server.",
       403,
       "CHANNEL_GUILD_MISMATCH",
     );
@@ -122,7 +122,7 @@ async function resolveSendableChannel(
     !isSendableChannel(channel)
   ) {
     throw new MessageSendError(
-      "El canal no admite mensajes de texto.",
+      "The channel does not support text messages.",
       400,
       "CHANNEL_NOT_TEXT",
     );
@@ -216,7 +216,7 @@ function buildLinkRows(
         if (input.emoji?.trim()) button.setEmoji(input.emoji.trim());
         if (!input.url) {
           throw new MessageSendError(
-            `Botón Link #${index + 1}: se requiere una URL.`,
+            `Link button #${index + 1}: a URL is required.`,
             400,
             "MISSING_BUTTON_URL",
           );
@@ -317,7 +317,7 @@ function prepareEmbed(
   const color = parseEmbedHexColor(input.color);
   if (input.color?.trim() && color === undefined) {
     throw new MessageSendError(
-      "Color inválido. Usa formato hex (#RRGGBB).",
+      "Invalid color. Use hex format (#RRGGBB).",
       400,
       "INVALID_COLOR",
     );
@@ -328,32 +328,32 @@ function prepareEmbed(
   const components = buildLinkRows(linkRows);
 
   if (title && title.length > EMBED_TITLE_MAX) {
-    throw new MessageSendError("El título supera 256 caracteres.", 400, "TITLE_TOO_LONG");
+    throw new MessageSendError("The title exceeds 256 characters.", 400, "TITLE_TOO_LONG");
   }
   if (description && description.length > EMBED_DESCRIPTION_MAX) {
     throw new MessageSendError(
-      "La descripción supera 4096 caracteres.",
+      "The description exceeds 4096 characters.",
       400,
       "DESCRIPTION_TOO_LONG",
     );
   }
   if (authorName && authorName.length > EMBED_AUTHOR_MAX) {
     throw new MessageSendError(
-      "El autor supera 256 caracteres.",
+      "The author exceeds 256 characters.",
       400,
       "AUTHOR_TOO_LONG",
     );
   }
   if (footerText && footerText.length > EMBED_FOOTER_MAX) {
     throw new MessageSendError(
-      "El footer supera 2048 caracteres.",
+      "The footer exceeds 2048 characters.",
       400,
       "FOOTER_TOO_LONG",
     );
   }
   if (content && content.length > MESSAGE_CONTENT_MAX) {
     throw new MessageSendError(
-      "El content supera 2000 caracteres.",
+      "The content exceeds 2000 characters.",
       400,
       "CONTENT_TOO_LONG",
     );
@@ -368,7 +368,7 @@ function prepareEmbed(
     }) > EMBED_TOTAL_MAX
   ) {
     throw new MessageSendError(
-      "El embed supera 6000 caracteres en total.",
+      "The embed exceeds 6000 characters in total.",
       400,
       "EMBED_TOO_LONG",
     );
@@ -387,7 +387,7 @@ function prepareEmbed(
 
   if (!hasEmbedBody && !content && !components?.length) {
     throw new MessageSendError(
-      "Debes indicar al menos un campo del embed, content o componentes.",
+      "You must provide at least an embed field, content or components.",
       400,
       "EMPTY_EMBED",
     );
@@ -468,7 +468,7 @@ export async function sendTextMessage(
 
   if (!content) {
     throw new MessageSendError(
-      "El contenido del mensaje no puede estar vacío.",
+      "The message content can't be empty.",
       400,
       "EMPTY_CONTENT",
     );
@@ -476,7 +476,7 @@ export async function sendTextMessage(
 
   if (content.length > MESSAGE_CONTENT_MAX) {
     throw new MessageSendError(
-      "El mensaje supera el límite de 2000 caracteres de Discord.",
+      "The message exceeds Discord's 2000-character limit.",
       400,
       "CONTENT_TOO_LONG",
     );
@@ -567,7 +567,7 @@ export async function editEmbedMessage(
   assertBotReady(bot);
   const channelId = assertChannelId(channelIdRaw);
   if (!/^\d{17,20}$/.test(messageIdRaw.trim())) {
-    throw new MessageSendError("messageId inválido.", 400, "INVALID_MESSAGE_ID");
+    throw new MessageSendError("Invalid messageId.", 400, "INVALID_MESSAGE_ID");
   }
   const messageId = messageIdRaw.trim();
   const prepared = prepareEmbed(input, uploaded);
@@ -590,7 +590,7 @@ export async function editEmbedMessage(
       return { orphaned: true };
     }
     throw new MessageSendError(
-      error instanceof Error ? error.message : "No se pudo editar el mensaje.",
+      error instanceof Error ? error.message : "Couldn't edit the message.",
       502,
       "EDIT_FAILED",
     );
@@ -617,7 +617,7 @@ export async function deleteDiscordMessage(
       return { orphaned: true };
     }
     throw new MessageSendError(
-      error instanceof Error ? error.message : "No se pudo borrar el mensaje.",
+      error instanceof Error ? error.message : "Couldn't delete the message.",
       502,
       "DELETE_FAILED",
     );

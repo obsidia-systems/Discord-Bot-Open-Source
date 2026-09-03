@@ -58,7 +58,7 @@ function checkCooldown(
   const now = Date.now();
   if (until > now) {
     const left = Math.ceil((until - now) / 1000);
-    return `Espera **${left}s** antes de usar \`/${command.name}\` de nuevo.`;
+    return `Wait **${left}s** before using \`/${command.name}\` again.`;
   }
   cooldownUntil.set(key, now + seconds * 1000);
   return null;
@@ -178,7 +178,7 @@ export async function handleCustomChatCommand(
       } catch (error) {
         logger.warn(
           { err: error },
-          `custom-commands: media inválida (/${command.name})`,
+          `custom-commands: invalid media (/${command.name})`,
         );
       }
     }
@@ -187,7 +187,7 @@ export async function handleCustomChatCommand(
 
   if (!content && !embeds) {
     await interaction.reply({
-      content: "Este comando no tiene respuesta configurada.",
+      content: "This command has no configured response.",
       ...EPHEMERAL,
     });
     return true;
@@ -217,13 +217,13 @@ export async function handleCustomChatCommand(
     try {
       await interaction.user.send(payload);
       await interaction.reply({
-        content: "Te envié la respuesta por mensaje directo.",
+        content: "I sent you the response as a direct message.",
         ...EPHEMERAL,
       });
     } catch {
       await interaction.reply({
         content:
-          "No pude enviarte un DM. Revisa tu configuración de privacidad.",
+          "I couldn't send you a DM. Check your privacy settings.",
         ...EPHEMERAL,
       });
     }

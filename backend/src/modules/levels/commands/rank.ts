@@ -13,7 +13,7 @@ export async function handleRankCommand(
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -22,7 +22,7 @@ export async function handleRankCommand(
   const config = await getLevelsConfigCached(interaction.guildId);
   if (!config.enabled) {
     await interaction.reply({
-      content: "El módulo Levels está desactivado en este servidor.",
+      content: "The Levels module is disabled in this server.",
       ...EPHEMERAL,
     });
     return;
@@ -40,8 +40,8 @@ export async function handleRankCommand(
     await interaction.editReply({
       content:
         target.id === interaction.user.id
-          ? "Aún no tienes XP. ¡Envía mensajes o entra a voz para empezar!"
-          : `<@${target.id}> todavía no tiene XP registrada.`,
+          ? "You don't have any XP yet. Send messages or join voice to get started!"
+          : `<@${target.id}> has no XP recorded yet.`,
     });
     return;
   }
@@ -54,20 +54,20 @@ export async function handleRankCommand(
     })
     .setTitle("📊 Tu rango")
     .addFields(
-      { name: "Nivel", value: `**${stats.level}**`, inline: true },
+      { name: "Level", value: `**${stats.level}**`, inline: true },
       {
         name: "XP total",
         value: `\`${stats.xp.toLocaleString("es-MX")}\``,
         inline: true,
       },
       {
-        name: "Posición",
+        name: "Rank",
         value: `**#${stats.rank}** / ${stats.totalUsers}`,
         inline: true,
       },
       {
-        name: "Siguiente nivel",
-        value: `Faltan **${stats.xpRemaining.toLocaleString("es-MX")}** XP (meta \`${stats.xpForNextLevel.toLocaleString("es-MX")}\`)`,
+        name: "Next level",
+        value: `**${stats.xpRemaining.toLocaleString("es-MX")}** XP left (goal \`${stats.xpForNextLevel.toLocaleString("es-MX")}\`)`,
         inline: false,
       },
     )

@@ -3,7 +3,7 @@ import { REMIND_BUTTON_CANCEL_PREFIX } from "@adobos/shared";
 import { remindersModule } from "./index.js";
 
 describe("reminders module", () => {
-  it("se llama Reminders y registra slash + botón + tick", () => {
+  it("is named Reminders and registers slash + button + tick", () => {
     expect(remindersModule.id).toBe("reminders");
     expect(remindersModule.name).toBe("Reminders");
     const commands: string[] = [];

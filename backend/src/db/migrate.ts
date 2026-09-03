@@ -9,6 +9,6 @@ async function run(): Promise<void> {
 }
 
 run().catch((error: unknown) => {
-  logger.error({ err: error }, "Migración falló:");
+  logger.error({ err: error }, "Migration failed:");
   process.exit(1);
 });

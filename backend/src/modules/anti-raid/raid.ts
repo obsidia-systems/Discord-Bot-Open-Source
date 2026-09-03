@@ -93,8 +93,8 @@ export async function onAntiRaidMemberAdd(
     verdict === "lockdown" || (settings.joinFloodEnabled && recorded.count >= settings.joinCount)
       ? `Anti-Raid: flood de joins (${recorded.count}/${settings.joinCount})`
       : settings.lockdownActive
-        ? "Anti-Raid: lockdown activo"
-        : `Anti-Raid: cuenta más nueva de ${settings.accountAgeDays}d`;
+        ? "Anti-Raid: lockdown active"
+        : `Anti-Raid: account newer than ${settings.accountAgeDays}d`;
 
   await applyVerdict(member, verdict, settings, reason);
 
@@ -102,7 +102,7 @@ export async function onAntiRaidMemberAdd(
   await sendAntiRaidAlert(
     alert,
     "Anti-Raid",
-    `Acción **${verdict}** sobre <@${member.id}> (\`${member.id}\`). ${reason}.`,
+    `Action **${verdict}** on <@${member.id}> (\`${member.id}\`). ${reason}.`,
   );
   return verdict;
 }

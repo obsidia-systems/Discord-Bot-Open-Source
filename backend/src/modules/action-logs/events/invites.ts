@@ -29,7 +29,7 @@ export async function onInviteCreate(invite: Invite): Promise<void> {
     targetId: invite.code,
     targetTag: invite.code,
     channelId: invite.channelId,
-    summary: `Invitación creada: discord.gg/${invite.code}`,
+    summary: `Invite created: discord.gg/${invite.code}`,
     details: {
       code: invite.code,
       maxUses: invite.maxUses,
@@ -64,7 +64,7 @@ export async function onInviteDelete(invite: Invite): Promise<void> {
     targetId: invite.code,
     targetTag: invite.code,
     channelId: invite.channelId,
-    summary: `Invitación eliminada: discord.gg/${invite.code}`,
+    summary: `Invite deleted: discord.gg/${invite.code}`,
     details: { code: invite.code },
     actorIsBot: executor?.bot ?? false,
     actorRoleIds: executor?.roleIds,

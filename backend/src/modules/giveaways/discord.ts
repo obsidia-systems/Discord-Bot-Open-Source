@@ -35,7 +35,7 @@ export async function requireGuild(bot: Client, guildId: string): Promise<Guild>
     return await bot.guilds.fetch(guildId);
   } catch {
     throw new GiveawaysError(
-      "El bot no está en este servidor.",
+      "The bot is not in this server.",
       400,
       "GUILD_NOT_FOUND",
     );
@@ -50,7 +50,7 @@ export async function fetchGiveawayChannel(
   const text = asTextChannel(channel);
   if (!text || !channelBelongsToGuild(text, giveaway.guildId)) {
     throw new GiveawaysError(
-      "El canal del sorteo no es válido.",
+      "The giveaway channel is not valid.",
       400,
       "INVALID_CHANNEL",
     );
@@ -63,21 +63,21 @@ export function giveawayEmbed(giveaway: Giveaway): EmbedBuilder {
   const starts = Math.floor(new Date(giveaway.startsAt).getTime() / 1000);
   const lines = [
     giveaway.description.trim() || null,
-    `Estado: **${GIVEAWAY_STATUS_LABEL[giveaway.status]}**`,
+    `Status: **${GIVEAWAY_STATUS_LABEL[giveaway.status]}**`,
     giveaway.status === "scheduled"
-      ? `Empieza <t:${starts}:R>`
-      : `Termina <t:${ends}:R>`,
-    `Ganadores: **${giveaway.winnerCount}**`,
-    `Participantes: **${giveaway.entryCount}**`,
+      ? `Starts <t:${starts}:R>`
+      : `Ends <t:${ends}:R>`,
+    `Winners: **${giveaway.winnerCount}**`,
+    `Entrants: **${giveaway.entryCount}**`,
   ].filter((line): line is string => Boolean(line));
   if (giveaway.requiredRoleIds.length > 0) {
     lines.push(
-      `Rol necesario: ${giveaway.requiredRoleIds.map((id) => `<@&${id}>`).join(" ")}`,
+      `Required role: ${giveaway.requiredRoleIds.map((id) => `<@&${id}>`).join(" ")}`,
     );
   }
   if (giveaway.winnerIds.length > 0) {
     lines.push(
-      `Ganadores: ${giveaway.winnerIds.map((id) => `<@${id}>`).join(" ")}`,
+      `Winners: ${giveaway.winnerIds.map((id) => `<@${id}>`).join(" ")}`,
     );
   }
   const color =
@@ -98,7 +98,7 @@ export function giveawayComponents(giveaway: Giveaway): ActionRowBuilder<ButtonB
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`${GIVEAWAY_JOIN_PREFIX}${giveaway.id}`.slice(0, 100))
-      .setLabel("Participar")
+      .setLabel("Enter")
       .setStyle(ButtonStyle.Success),
   );
   return [row];
@@ -139,14 +139,14 @@ export async function announceGiveawayWinners(input: {
   const mentions =
     input.newWinnerIds.length > 0
       ? input.newWinnerIds.map((id) => `<@${id}>`).join(" ")
-      : "Nadie participó.";
+      : "Nobody entered.";
   const ping =
     input.settings.pingRoleId && !input.isReroll
       ? `<@&${input.settings.pingRoleId}> `
       : "";
   const text = input.isReroll
-    ? `${ping}Reroll de **${input.giveaway.prize}**: ${mentions}`
-    : `${ping}Sorteo **${input.giveaway.prize}** — ganador(es): ${mentions}`;
+    ? `${ping}Reroll of **${input.giveaway.prize}**: ${mentions}`
+    : `${ping}Giveaway **${input.giveaway.prize}** — winner(s): ${mentions}`;
   if (channel) {
     await channel
       .send({
@@ -157,7 +157,7 @@ export async function announceGiveawayWinners(input: {
         },
       })
       .catch((error: unknown) => {
-        logger.warn({ err: error }, "giveaways: anuncio falló");
+        logger.warn({ err: error }, "giveaways: announcement failed");
       });
   }
   if (input.settings.dmWinners) {
@@ -165,7 +165,7 @@ export async function announceGiveawayWinners(input: {
       try {
         const user = await input.bot.users.fetch(userId);
         await user.send(
-          `Has ganado el sorteo **${input.giveaway.prize}** en un servidor.`,
+          `You won the giveaway **${input.giveaway.prize}** in a server.`,
         );
       } catch {
         // DMs cerrados

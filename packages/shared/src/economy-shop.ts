@@ -179,23 +179,23 @@ export function summarizeShopRewards(rewards: EconomyShopRewards): string[] {
   const lines: string[] = [];
   if (rewards.hasRole) {
     lines.push(
-      rewards.roleConfig.temporary ? "Rol temporal" : "Asignación de rol",
+      rewards.roleConfig.temporary ? "Temporary role" : "Role assignment",
     );
   }
   if (rewards.hasChannel) {
     lines.push(
       rewards.channelConfig.temporary
-        ? "Canal privado temporal"
-        : "Canal privado",
+        ? "Temporary private channel"
+        : "Private channel",
     );
   }
   if (rewards.hasBoost) {
-    const mod = rewards.boostConfig.module === "xp" ? "XP" : "Economía";
-    const label = `Multiplicador x${rewards.boostConfig.multiplier} (${mod})`;
-    lines.push(rewards.boostConfig.temporary ? `${label} · temporal` : label);
+    const mod = rewards.boostConfig.module === "xp" ? "XP" : "Economy";
+    const label = `Multiplier x${rewards.boostConfig.multiplier} (${mod})`;
+    lines.push(rewards.boostConfig.temporary ? `${label} · temporary` : label);
   }
   if (rewards.hasManual) {
-    lines.push("Entrega manual (staff)");
+    lines.push("Manual delivery (staff)");
   }
   return lines;
 }

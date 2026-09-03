@@ -68,20 +68,20 @@ function classifyRoles(
   if (added.length > 0 && removed.length === 0) {
     return {
       roleKind: "ROLE_ADD",
-      actionLabel: "Roles añadidos",
+      actionLabel: "Roles added",
       tone: "create",
     };
   }
   if (removed.length > 0 && added.length === 0) {
     return {
       roleKind: "ROLE_REMOVE",
-      actionLabel: "Roles eliminados",
+      actionLabel: "Roles removed",
       tone: "delete",
     };
   }
   return {
     roleKind: "ROLE_UPDATE",
-    actionLabel: "Actualización de roles",
+    actionLabel: "Roles updated",
     tone: "update",
   };
 }
@@ -95,7 +95,7 @@ function buildRoleChanges(
     const names = added.map((role) => role.name);
     changes.push({
       key: "$add",
-      summary: `Añadió: ${names.join(", ")}`,
+      summary: `Added: ${names.join(", ")}`,
       newValue: names.join(", "),
     });
   }
@@ -103,7 +103,7 @@ function buildRoleChanges(
     const names = removed.map((role) => role.name);
     changes.push({
       key: "$remove",
-      summary: `Quitó: ${names.join(", ")}`,
+      summary: `Removed: ${names.join(", ")}`,
       oldValue: names.join(", "),
     });
   }
@@ -148,7 +148,7 @@ function mergeRoleGroup(group: DiscordAuditEntry[]): DiscordAuditEntry {
   const changes = buildRoleChanges(added, removed);
   const summaryParts = [
     ...changes.map((change) => change.summary),
-    reasons[0] ? `Razón: ${reasons[0]}` : null,
+    reasons[0] ? `Reason: ${reasons[0]}` : null,
   ].filter(Boolean) as string[];
 
   return {

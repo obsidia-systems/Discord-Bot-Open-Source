@@ -237,7 +237,7 @@ export function exclusiveSelectRoleIds(
 export function normalizeAutoroleEmojiKey(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed) {
-    throw new Error("emojiKey vacío.");
+    throw new Error("emojiKey is empty.");
   }
   const mention = trimmed.match(/^<(a?):([\w]+):(\d{17,20})>$/);
   if (mention?.[3]) return `custom:${mention[3]}`;

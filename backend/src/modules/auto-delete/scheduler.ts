@@ -78,7 +78,7 @@ async function sweepTextChannel(
       await channel.bulkDelete(young, true).catch((error: unknown) => {
         logger.warn(
           { err: error },
-          `auto-delete: bulkDelete falló (${channel.id}):`,
+          `auto-delete: bulkDelete failed (${channel.id}):`,
         );
       });
       await sleep(PAUSE_MS);
@@ -147,7 +147,7 @@ async function runScheduledCleanup(
 
     await sweepChannelAndThreads(channel, rule.filterType);
   } catch (error) {
-    logger.warn({ err: error }, `auto-delete: limpieza programada falló (${guildId}/${rule.channelId}):`);
+    logger.warn({ err: error }, `auto-delete: scheduled cleanup failed (${guildId}/${rule.channelId}):`);
   }
 }
 
@@ -222,6 +222,6 @@ export async function rehydrateAllAutoDeleteJobs(): Promise<void> {
       await syncAutoDeleteJobsForConfig(config);
     }
   } catch (error) {
-    logger.warn({ err: error }, "auto-delete: rehydrate cron falló:");
+    logger.warn({ err: error }, "auto-delete: rehydrate cron failed:");
   }
 }

@@ -5,7 +5,7 @@ import { snowflake } from "../../../core/http/schemas.js";
 const permissionKeySchema = z
   .string()
   .refine((key) => ROLE_PERMISSION_KEY_SET.has(key), {
-    message: "permiso no permitido",
+    message: "permission not allowed",
   });
 
 export const createGuildRoleSchema = z.object({

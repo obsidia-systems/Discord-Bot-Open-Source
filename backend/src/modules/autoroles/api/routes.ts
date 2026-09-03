@@ -64,7 +64,7 @@ export function autoroleRoutes(bot: Client): Router {
         !isAutoroleSendChannelType(channel.type)
       ) {
         throw new AutoRoleError(
-          "El canal no admite mensajes de texto.",
+          "The channel does not support text messages.",
           400,
           "CHANNEL_NOT_TEXT",
         );
@@ -74,7 +74,7 @@ export function autoroleRoutes(bot: Client): Router {
         .catch(() => null);
       if (!message) {
         throw new AutoRoleError(
-          "No se encontró ese mensaje en el canal.",
+          "That message was not found in the channel.",
           404,
           "MESSAGE_NOT_FOUND",
         );
@@ -90,7 +90,7 @@ export function autoroleRoutes(bot: Client): Router {
           await message.react(emoji).catch(() => undefined);
         }
       } catch (error: unknown) {
-        logger.warn({ err: error }, "Mappings guardados, pero no se pudieron añadir reacciones:");
+        logger.warn({ err: error }, "Mappings saved, but reactions couldn't be added:");
       }
 
       res.status(201).json(result);

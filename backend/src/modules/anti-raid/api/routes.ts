@@ -24,7 +24,7 @@ async function assertAlertChannel(
     channel.type !== ChannelType.GuildAnnouncement
   ) {
     throw new AntiRaidError(
-      "Usa un canal de texto o anuncios para las alertas.",
+      "Use a text or announcement channel for the alerts.",
       400,
       "INVALID_CHANNEL_TYPE",
     );
@@ -62,7 +62,7 @@ export function antiRaidRoutes(bot: Client): Router {
       const body = parse(lockdownBodySchema, req.body ?? {});
       const guild = await bot.guilds.fetch(guildId).catch(() => null);
       if (!guild) {
-        throw new AntiRaidError("Servidor no encontrado.", 404, "GUILD_NOT_FOUND");
+        throw new AntiRaidError("Server not found.", 404, "GUILD_NOT_FOUND");
       }
       const settings = await getAntiRaidSettings(guildId);
       const actorId = req.guild?.userId ?? null;
@@ -72,7 +72,7 @@ export function antiRaidRoutes(bot: Client): Router {
         await sendAntiRaidAlert(
           alert,
           "Lockdown",
-          `Lockdown activado desde el panel. Canales: ${result.channels}.`,
+          `Lockdown activated from the panel. Channels: ${result.channels}.`,
         );
       } else {
         const result = await liftGuildLockdown(guild);
@@ -80,7 +80,7 @@ export function antiRaidRoutes(bot: Client): Router {
         await sendAntiRaidAlert(
           alert,
           "Lockdown",
-          `Lockdown quitado desde el panel. Canales: ${result.channels}.`,
+          `Lockdown removed from the panel. Channels: ${result.channels}.`,
         );
       }
       res.json(await getAntiRaidConfig(guildId));

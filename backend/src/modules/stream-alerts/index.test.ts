@@ -9,7 +9,7 @@ import {
 } from "./providers.js";
 
 describe("stream-alerts module", () => {
-  it("se llama Stream Alerts, sin slash, y registra poller + API", () => {
+  it("is named Stream Alerts, no slash, and registers poller + API", () => {
     expect(streamAlertsModule.id).toBe("stream-alerts");
     expect(streamAlertsModule.name).toBe("Stream Alerts");
     expect(STREAM_ALERT_POLL_MS).toBe(60_000);
@@ -41,8 +41,8 @@ describe("stream-alerts module", () => {
   });
 });
 
-describe("proveedores", () => {
-  it("parsea Helix streams por login", () => {
+describe("providers", () => {
+  it("parses Helix streams by login", () => {
     const map = parseTwitchStreamsPayload({
       data: [
         {
@@ -65,7 +65,7 @@ describe("proveedores", () => {
     expect(parseTwitchStreamsPayload({ data: [] }).size).toBe(0);
   });
 
-  it("Kick livestream null = offline; objeto = live", () => {
+  it("Kick livestream null = offline; object = live", () => {
     expect(
       parseKickChannelPayload("ada", {
         user: { username: "Ada" },
@@ -90,7 +90,7 @@ describe("proveedores", () => {
     });
   });
 
-  it("YouTube search vacío = offline; videoId = live", () => {
+  it("YouTube empty search = offline; videoId = live", () => {
     expect(parseYouTubeSearchPayload({ items: [] }, "@ada")).toMatchObject({
       isLive: false,
     });

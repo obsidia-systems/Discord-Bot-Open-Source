@@ -12,7 +12,7 @@ import {
 describe("pickRecentAuditEntry", () => {
   const now = 1_700_000_000_000;
 
-  it("ignora entradas fuera de la ventana", () => {
+  it("ignores entries outside the window", () => {
     const picked = pickRecentAuditEntry(
       [
         {
@@ -25,7 +25,7 @@ describe("pickRecentAuditEntry", () => {
     expect(picked).toBeUndefined();
   });
 
-  it("elige la reciente del target, no una vieja del mismo usuario", () => {
+  it("picks the recent one for the target, not an old one from the same user", () => {
     const picked = pickRecentAuditEntry(
       [
         {
@@ -42,7 +42,7 @@ describe("pickRecentAuditEntry", () => {
     expect(picked?.createdTimestamp).toBe(now - 400);
   });
 
-  it("no atribuye el audit de otro target", () => {
+  it("does not attribute another target's audit", () => {
     const picked = pickRecentAuditEntry(
       [{ targetId: "user-2", createdTimestamp: now - 200 }],
       { targetId: "user-1", now },
@@ -50,7 +50,7 @@ describe("pickRecentAuditEntry", () => {
     expect(picked).toBeUndefined();
   });
 
-  it("acepta audit sin target si allowMissingTarget (kick de voz)", () => {
+  it("accepts audit without target if allowMissingTarget (voice kick)", () => {
     const picked = pickRecentAuditEntry(
       [{ targetId: null, createdTimestamp: now - 200 }],
       { targetId: "user-1", now, allowMissingTarget: true },
@@ -59,8 +59,8 @@ describe("pickRecentAuditEntry", () => {
   });
 });
 
-describe("caché guildAuditLogEntryCreate", () => {
-  it("recuerda por guild+acción+target", () => {
+describe("guildAuditLogEntryCreate cache", () => {
+  it("remembers by guild+action+target", () => {
     clearAuditCache();
     rememberAuditEntry({
       guildId: "g1",
@@ -75,8 +75,8 @@ describe("caché guildAuditLogEntryCreate", () => {
   });
 });
 
-describe("hint de borrado del bot", () => {
-  it("devuelve al bot como ejecutor y se consume", () => {
+describe("bot delete hint", () => {
+  it("returns the bot as executor and is consumed", () => {
     clearAuditCache();
     const client = {
       user: {

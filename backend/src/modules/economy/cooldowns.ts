@@ -28,7 +28,7 @@ export async function assertCooldownAvailable(
   const remaining = row.availableAt.getTime() - Date.now();
   if (remaining > 0) {
     throw new EconomyError(
-      `Vuelve en ${formatRemaining(remaining)}.`,
+      `Come back in ${formatRemaining(remaining)}.`,
       400,
       "COOLDOWN",
     );

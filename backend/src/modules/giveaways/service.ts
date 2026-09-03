@@ -52,7 +52,7 @@ const settingsCache = new BoundedTtlMap<string, GiveawaySettings>(2_000, 60_000)
 function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new GiveawaysError("Falta guildId.", 400, "MISSING_GUILD_ID");
+    throw new GiveawaysError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
   return id;
 }
@@ -141,7 +141,7 @@ async function loadSettingsRow(guildId: string): Promise<GiveawaySettingsRow> {
     .returning();
   if (!inserted) {
     throw new GiveawaysError(
-      "No se pudieron crear los ajustes de Giveaways.",
+      "Couldn't create the Giveaways settings.",
       500,
       "SETTINGS_INSERT_FAILED",
     );
@@ -231,10 +231,10 @@ export async function getGiveawayById(
     getDb().select().from(giveaways).where(eq(giveaways.id, giveawayId)).limit(1),
   );
   if (!row) {
-    throw new GiveawaysError("Sorteo no encontrado.", 404, "NOT_FOUND");
+    throw new GiveawaysError("Giveaway not found.", 404, "NOT_FOUND");
   }
   if (guildId && row.guildId !== guildId) {
-    throw new GiveawaysError("Sorteo no encontrado.", 404, "NOT_FOUND");
+    throw new GiveawaysError("Giveaway not found.", 404, "NOT_FOUND");
   }
   const counts = await entryCounts([row.id]);
   return mapGiveaway(row, counts.get(row.id) ?? 0);
@@ -270,10 +270,10 @@ export async function insertGiveaway(input: {
   const channelId = normalizeGiveawaySnowflake(input.body.channelId);
   const prize = normalizeGiveawayPrize(input.body.prize);
   if (!channelId) {
-    throw new GiveawaysError("Selecciona un canal.", 400, "MISSING_CHANNEL");
+    throw new GiveawaysError("Select a channel.", 400, "MISSING_CHANNEL");
   }
   if (!prize) {
-    throw new GiveawaysError("Indica el premio.", 400, "MISSING_PRIZE");
+    throw new GiveawaysError("Provide the prize.", 400, "MISSING_PRIZE");
   }
   const now = new Date();
   let startsAt = now;
@@ -290,7 +290,7 @@ export async function insertGiveaway(input: {
     const running = await countRunningGiveaways(guildId);
     if (giveawayRunningBlocked(running)) {
       throw new GiveawaysError(
-        "Este servidor ya tiene 25 sorteos en curso. Termina alguno antes.",
+        "This server already has 25 giveaways in progress. Finish one first.",
         400,
         "RUNNING_CAP",
       );
@@ -322,7 +322,7 @@ export async function insertGiveaway(input: {
     })
     .returning();
   if (!row) {
-    throw new GiveawaysError("No se pudo crear el sorteo.", 500, "INSERT_FAILED");
+    throw new GiveawaysError("Couldn't create the giveaway.", 500, "INSERT_FAILED");
   }
   return mapGiveaway(row, 0);
 }
@@ -362,7 +362,7 @@ export async function toggleGiveawayEntry(
   const current = await getGiveawayById(giveawayId);
   if (current.status !== "running") {
     throw new GiveawaysError(
-      "Este sorteo no admite entradas.",
+      "This giveaway is not accepting entries.",
       409,
       "NOT_RUNNING",
     );
@@ -409,7 +409,7 @@ export async function applyGiveawayAction(input: {
   const next = giveawayStatusAfter(current.status, input.action);
   if (!next || !canApplyGiveawayAction(current.status, input.action)) {
     throw new GiveawaysError(
-      "Esa acción no es válida en el estado actual.",
+      "That action is not valid in the current state.",
       409,
       "ILLEGAL_TRANSITION",
     );
@@ -431,7 +431,7 @@ export async function applyGiveawayAction(input: {
     );
     if (picked.length === 0) {
       throw new GiveawaysError(
-        "No quedan participantes para un reroll.",
+        "There are no entrants left for a reroll.",
         400,
         "NO_ENTRIES",
       );
@@ -446,7 +446,7 @@ export async function applyGiveawayAction(input: {
     const running = await countRunningGiveaways(input.guildId);
     if (giveawayRunningBlocked(running)) {
       throw new GiveawaysError(
-        "Este servidor ya tiene 25 sorteos en curso.",
+        "This server already has 25 giveaways in progress.",
         400,
         "RUNNING_CAP",
       );

@@ -35,7 +35,7 @@ async function requireGuild(
   if (interaction.guildId) return interaction.guildId;
   await replyOnce(
     interaction,
-    "Este comando solo funciona en un servidor.",
+    "This command only works in a server.",
     ephemeral,
   );
   return null;
@@ -67,7 +67,7 @@ async function runModAction(
     const message =
       error instanceof ModerationError
         ? error.message
-        : "No se pudo ejecutar la acción de moderación.";
+        : "Couldn't run the moderation action.";
     await replyOnce(interaction, message, ephemeral);
   }
 }
@@ -81,7 +81,7 @@ export async function handleBanCommand(
   const user = interaction.options.getUser("usuario", true);
   const reason =
     interaction.options.getString("razon")?.trim() ||
-    `Acción /ban por ${interaction.user.tag}`;
+    `/ban action by ${interaction.user.tag}`;
   await runModAction(
     interaction,
     {
@@ -105,7 +105,7 @@ export async function handleKickCommand(
   const user = interaction.options.getUser("usuario", true);
   const reason =
     interaction.options.getString("razon")?.trim() ||
-    `Acción /kick por ${interaction.user.tag}`;
+    `/kick action by ${interaction.user.tag}`;
   await runModAction(
     interaction,
     {
@@ -132,7 +132,7 @@ export async function handleTimeoutCommand(
   if (durationSeconds === null) {
     await replyOnce(
       interaction,
-      "Duración inválida. Usa formatos como `10m`, `1h` o `24h` (máx. 28 días).",
+      "Invalid duration. Use formats like `10m`, `1h` or `24h` (max 28 days).",
       ephemeral,
     );
     return;
@@ -140,7 +140,7 @@ export async function handleTimeoutCommand(
   const user = interaction.options.getUser("usuario", true);
   const reason =
     interaction.options.getString("razon")?.trim() ||
-    `Acción /timeout por ${interaction.user.tag}`;
+    `/timeout action by ${interaction.user.tag}`;
   await runModAction(
     interaction,
     {
@@ -164,7 +164,7 @@ export async function handleUntimeoutCommand(
   const user = interaction.options.getUser("usuario", true);
   const reason =
     interaction.options.getString("razon")?.trim() ||
-    `Acción /untimeout por ${interaction.user.tag}`;
+    `/untimeout action by ${interaction.user.tag}`;
   await runModAction(
     interaction,
     {
@@ -213,7 +213,7 @@ export async function handleWarnsCommand(
     const info = await getMemberInfo(interaction.client, user.id, guildId);
     if (info.warnings.length === 0) {
       await interaction.editReply({
-        content: `${info.displayName} no tiene advertencias.`,
+        content: `${info.displayName} has no warnings.`,
       });
       return;
     }
@@ -223,16 +223,16 @@ export async function handleWarnsCommand(
     });
     const extra =
       info.warnings.length > 20
-        ? `\n…y ${info.warnings.length - 20} más.`
+        ? `\n…and ${info.warnings.length - 20} more.`
         : "";
     await interaction.editReply({
-      content: `Advertencias de ${info.displayName} (${info.warnings.length}):\n${lines.join("\n")}${extra}`,
+      content: `Warnings for ${info.displayName} (${info.warnings.length}):\n${lines.join("\n")}${extra}`,
     });
   } catch (error) {
     const message =
       error instanceof ModerationError
         ? error.message
-        : "No se pudo cargar el expediente.";
+        : "Couldn't load the record.";
     await replyOnce(interaction, message, ephemeral);
   }
 }
@@ -250,7 +250,7 @@ export async function handleClearWarnsCommand(
       action: "clearwarns",
       guildId,
       userId: user.id,
-      reason: `Acción /clearwarns por ${interaction.user.tag}`,
+      reason: `/clearwarns action by ${interaction.user.tag}`,
     },
     ephemeral,
   );
@@ -264,7 +264,7 @@ export async function handlePurgeCommand(
   if (!guildId) return;
   const channelId = interaction.channelId;
   if (!channelId) {
-    await replyOnce(interaction, "No hay un canal de texto aquí.", ephemeral);
+    await replyOnce(interaction, "There's no text channel here.", ephemeral);
     return;
   }
   const user = interaction.options.getUser("usuario");
@@ -275,7 +275,7 @@ export async function handlePurgeCommand(
       guildId,
       channelId,
       userId: user?.id,
-      reason: `Acción /purge por ${interaction.user.tag}`,
+      reason: `/purge action by ${interaction.user.tag}`,
       purgeLimit: interaction.options.getInteger("cantidad", true),
     },
     ephemeral,
@@ -290,7 +290,7 @@ export async function handleSlowmodeCommand(
   if (!guildId) return;
   const channelId = resolveChannelId(interaction);
   if (!channelId) {
-    await replyOnce(interaction, "Indica un canal de texto.", ephemeral);
+    await replyOnce(interaction, "Specify a text channel.", ephemeral);
     return;
   }
   await runModAction(
@@ -299,7 +299,7 @@ export async function handleSlowmodeCommand(
       action: "slowmode",
       guildId,
       channelId,
-      reason: `Acción /slowmode por ${interaction.user.tag}`,
+      reason: `/slowmode action by ${interaction.user.tag}`,
       slowmodeSeconds: interaction.options.getInteger("segundos", true),
     },
     ephemeral,
@@ -314,7 +314,7 @@ export async function handleLockCommand(
   if (!guildId) return;
   const channelId = resolveChannelId(interaction);
   if (!channelId) {
-    await replyOnce(interaction, "Indica un canal de texto.", ephemeral);
+    await replyOnce(interaction, "Specify a text channel.", ephemeral);
     return;
   }
   await runModAction(
@@ -323,7 +323,7 @@ export async function handleLockCommand(
       action: "lock",
       guildId,
       channelId,
-      reason: `Acción /lock por ${interaction.user.tag}`,
+      reason: `/lock action by ${interaction.user.tag}`,
     },
     ephemeral,
   );
@@ -337,7 +337,7 @@ export async function handleUnlockCommand(
   if (!guildId) return;
   const channelId = resolveChannelId(interaction);
   if (!channelId) {
-    await replyOnce(interaction, "Indica un canal de texto.", ephemeral);
+    await replyOnce(interaction, "Specify a text channel.", ephemeral);
     return;
   }
   await runModAction(
@@ -346,7 +346,7 @@ export async function handleUnlockCommand(
       action: "unlock",
       guildId,
       channelId,
-      reason: `Acción /unlock por ${interaction.user.tag}`,
+      reason: `/unlock action by ${interaction.user.tag}`,
     },
     ephemeral,
   );

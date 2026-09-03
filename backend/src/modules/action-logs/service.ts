@@ -82,44 +82,44 @@ const EVENT_META: Record<
     emoji: string;
   }
 > = {
-  messageDelete: { eventType: "MESSAGE_DELETE", category: "MESSAGES", label: "Mensaje eliminado", tone: "red", emoji: "🗑️" },
-  messageUpdate: { eventType: "MESSAGE_UPDATE", category: "MESSAGES", label: "Mensaje editado", tone: "yellow", emoji: "✏️" },
-  messageAttachmentDelete: { eventType: "MESSAGE_ATTACHMENT_DELETE", category: "MESSAGES", label: "Adjunto eliminado", tone: "red", emoji: "🖼️" },
-  messageDeleteBulk: { eventType: "MESSAGE_DELETE_BULK", category: "MESSAGES", label: "Mensajes eliminados en masa", tone: "red", emoji: "🧹" },
-  memberJoin: { eventType: "MEMBER_JOIN", category: "MEMBERS", label: "Miembro se une", tone: "green", emoji: "📥" },
-  memberLeave: { eventType: "MEMBER_LEAVE", category: "MEMBERS", label: "Miembro sale", tone: "yellow", emoji: "🚪" },
-  memberKick: { eventType: "MEMBER_KICK", category: "MEMBERS", label: "Miembro expulsado", tone: "red", emoji: "👢" },
-  memberRoleUpdate: { eventType: "MEMBER_ROLE_UPDATE", category: "MEMBERS", label: "Roles actualizados", tone: "blue", emoji: "🎭" },
-  memberNicknameUpdate: { eventType: "MEMBER_NICKNAME_UPDATE", category: "MEMBERS", label: "Apodo cambiado", tone: "yellow", emoji: "🏷️" },
+  messageDelete: { eventType: "MESSAGE_DELETE", category: "MESSAGES", label: "Message deleted", tone: "red", emoji: "🗑️" },
+  messageUpdate: { eventType: "MESSAGE_UPDATE", category: "MESSAGES", label: "Message edited", tone: "yellow", emoji: "✏️" },
+  messageAttachmentDelete: { eventType: "MESSAGE_ATTACHMENT_DELETE", category: "MESSAGES", label: "Attachment deleted", tone: "red", emoji: "🖼️" },
+  messageDeleteBulk: { eventType: "MESSAGE_DELETE_BULK", category: "MESSAGES", label: "Bulk message delete", tone: "red", emoji: "🧹" },
+  memberJoin: { eventType: "MEMBER_JOIN", category: "MEMBERS", label: "Member joins", tone: "green", emoji: "📥" },
+  memberLeave: { eventType: "MEMBER_LEAVE", category: "MEMBERS", label: "Member leaves", tone: "yellow", emoji: "🚪" },
+  memberKick: { eventType: "MEMBER_KICK", category: "MEMBERS", label: "Member kicked", tone: "red", emoji: "👢" },
+  memberRoleUpdate: { eventType: "MEMBER_ROLE_UPDATE", category: "MEMBERS", label: "Roles updated", tone: "blue", emoji: "🎭" },
+  memberNicknameUpdate: { eventType: "MEMBER_NICKNAME_UPDATE", category: "MEMBERS", label: "Nickname changed", tone: "yellow", emoji: "🏷️" },
   memberTimeout: { eventType: "MEMBER_TIMEOUT", category: "MEMBERS", label: "Timeout", tone: "red", emoji: "⏱️" },
-  memberUntimeout: { eventType: "MEMBER_UNTIMEOUT", category: "MEMBERS", label: "Timeout levantado", tone: "green", emoji: "⏱️" },
-  memberBan: { eventType: "MEMBER_BAN", category: "MEMBERS", label: "Miembro baneado", tone: "red", emoji: "🔨" },
-  memberUnban: { eventType: "MEMBER_UNBAN", category: "MEMBERS", label: "Miembro desbaneado", tone: "green", emoji: "🔓" },
-  roleCreate: { eventType: "ROLE_CREATE", category: "ROLES", label: "Rol creado", tone: "green", emoji: "✨" },
-  roleDelete: { eventType: "ROLE_DELETE", category: "ROLES", label: "Rol eliminado", tone: "red", emoji: "🗑️" },
-  roleUpdate: { eventType: "ROLE_UPDATE", category: "ROLES", label: "Rol actualizado", tone: "yellow", emoji: "🔧" },
-  channelCreate: { eventType: "CHANNEL_CREATE", category: "CHANNELS", label: "Canal creado", tone: "green", emoji: "📁" },
-  channelDelete: { eventType: "CHANNEL_DELETE", category: "CHANNELS", label: "Canal eliminado", tone: "red", emoji: "📁" },
-  channelUpdate: { eventType: "CHANNEL_UPDATE", category: "CHANNELS", label: "Canal actualizado", tone: "yellow", emoji: "🔧" },
-  threadCreate: { eventType: "THREAD_CREATE", category: "CHANNELS", label: "Hilo creado", tone: "green", emoji: "🧵" },
-  threadDelete: { eventType: "THREAD_DELETE", category: "CHANNELS", label: "Hilo eliminado", tone: "red", emoji: "🧵" },
-  threadUpdate: { eventType: "THREAD_UPDATE", category: "CHANNELS", label: "Hilo actualizado", tone: "yellow", emoji: "🧵" },
-  guildUpdate: { eventType: "GUILD_UPDATE", category: "CHANNELS", label: "Servidor actualizado", tone: "yellow", emoji: "🏠" },
-  emojiCreate: { eventType: "EMOJI_CREATE", category: "ASSETS", label: "Emoji creado", tone: "green", emoji: "😀" },
-  emojiDelete: { eventType: "EMOJI_DELETE", category: "ASSETS", label: "Emoji eliminado", tone: "red", emoji: "😀" },
-  emojiUpdate: { eventType: "EMOJI_UPDATE", category: "ASSETS", label: "Emoji actualizado", tone: "yellow", emoji: "😀" },
-  stickerCreate: { eventType: "STICKER_CREATE", category: "ASSETS", label: "Sticker creado", tone: "green", emoji: "🏷️" },
-  stickerDelete: { eventType: "STICKER_DELETE", category: "ASSETS", label: "Sticker eliminado", tone: "red", emoji: "🏷️" },
-  stickerUpdate: { eventType: "STICKER_UPDATE", category: "ASSETS", label: "Sticker actualizado", tone: "yellow", emoji: "🏷️" },
-  soundboardCreate: { eventType: "SOUNDBOARD_CREATE", category: "ASSETS", label: "Sonido creado", tone: "green", emoji: "🔊" },
-  soundboardDelete: { eventType: "SOUNDBOARD_DELETE", category: "ASSETS", label: "Sonido eliminado", tone: "red", emoji: "🔊" },
-  soundboardUpdate: { eventType: "SOUNDBOARD_UPDATE", category: "ASSETS", label: "Sonido actualizado", tone: "yellow", emoji: "🔊" },
-  voiceJoin: { eventType: "VOICE_JOIN", category: "VOICE", label: "Entrada a voz", tone: "green", emoji: "🔊" },
-  voiceLeave: { eventType: "VOICE_LEAVE", category: "VOICE", label: "Salida de voz", tone: "blue", emoji: "🚪" },
-  voiceKick: { eventType: "VOICE_KICK", category: "VOICE", label: "Kick de voz", tone: "red", emoji: "👢" },
-  voiceMove: { eventType: "VOICE_MOVE", category: "VOICE", label: "Movimiento de voz", tone: "blue", emoji: "🔀" },
-  inviteCreate: { eventType: "INVITE_CREATE", category: "INVITES", label: "Invitación creada", tone: "green", emoji: "🔗" },
-  inviteDelete: { eventType: "INVITE_DELETE", category: "INVITES", label: "Invitación eliminada", tone: "red", emoji: "⛓️" },
+  memberUntimeout: { eventType: "MEMBER_UNTIMEOUT", category: "MEMBERS", label: "Timeout lifted", tone: "green", emoji: "⏱️" },
+  memberBan: { eventType: "MEMBER_BAN", category: "MEMBERS", label: "Member banned", tone: "red", emoji: "🔨" },
+  memberUnban: { eventType: "MEMBER_UNBAN", category: "MEMBERS", label: "Member unbanned", tone: "green", emoji: "🔓" },
+  roleCreate: { eventType: "ROLE_CREATE", category: "ROLES", label: "Role created", tone: "green", emoji: "✨" },
+  roleDelete: { eventType: "ROLE_DELETE", category: "ROLES", label: "Role deleted", tone: "red", emoji: "🗑️" },
+  roleUpdate: { eventType: "ROLE_UPDATE", category: "ROLES", label: "Role updated", tone: "yellow", emoji: "🔧" },
+  channelCreate: { eventType: "CHANNEL_CREATE", category: "CHANNELS", label: "Channel created", tone: "green", emoji: "📁" },
+  channelDelete: { eventType: "CHANNEL_DELETE", category: "CHANNELS", label: "Channel deleted", tone: "red", emoji: "📁" },
+  channelUpdate: { eventType: "CHANNEL_UPDATE", category: "CHANNELS", label: "Channel updated", tone: "yellow", emoji: "🔧" },
+  threadCreate: { eventType: "THREAD_CREATE", category: "CHANNELS", label: "Thread created", tone: "green", emoji: "🧵" },
+  threadDelete: { eventType: "THREAD_DELETE", category: "CHANNELS", label: "Thread deleted", tone: "red", emoji: "🧵" },
+  threadUpdate: { eventType: "THREAD_UPDATE", category: "CHANNELS", label: "Thread updated", tone: "yellow", emoji: "🧵" },
+  guildUpdate: { eventType: "GUILD_UPDATE", category: "CHANNELS", label: "Server updated", tone: "yellow", emoji: "🏠" },
+  emojiCreate: { eventType: "EMOJI_CREATE", category: "ASSETS", label: "Emoji created", tone: "green", emoji: "😀" },
+  emojiDelete: { eventType: "EMOJI_DELETE", category: "ASSETS", label: "Emoji deleted", tone: "red", emoji: "😀" },
+  emojiUpdate: { eventType: "EMOJI_UPDATE", category: "ASSETS", label: "Emoji updated", tone: "yellow", emoji: "😀" },
+  stickerCreate: { eventType: "STICKER_CREATE", category: "ASSETS", label: "Sticker created", tone: "green", emoji: "🏷️" },
+  stickerDelete: { eventType: "STICKER_DELETE", category: "ASSETS", label: "Sticker deleted", tone: "red", emoji: "🏷️" },
+  stickerUpdate: { eventType: "STICKER_UPDATE", category: "ASSETS", label: "Sticker updated", tone: "yellow", emoji: "🏷️" },
+  soundboardCreate: { eventType: "SOUNDBOARD_CREATE", category: "ASSETS", label: "Sound created", tone: "green", emoji: "🔊" },
+  soundboardDelete: { eventType: "SOUNDBOARD_DELETE", category: "ASSETS", label: "Sound deleted", tone: "red", emoji: "🔊" },
+  soundboardUpdate: { eventType: "SOUNDBOARD_UPDATE", category: "ASSETS", label: "Sound updated", tone: "yellow", emoji: "🔊" },
+  voiceJoin: { eventType: "VOICE_JOIN", category: "VOICE", label: "Voice join", tone: "green", emoji: "🔊" },
+  voiceLeave: { eventType: "VOICE_LEAVE", category: "VOICE", label: "Voice leave", tone: "blue", emoji: "🚪" },
+  voiceKick: { eventType: "VOICE_KICK", category: "VOICE", label: "Voice kick", tone: "red", emoji: "👢" },
+  voiceMove: { eventType: "VOICE_MOVE", category: "VOICE", label: "Voice move", tone: "blue", emoji: "🔀" },
+  inviteCreate: { eventType: "INVITE_CREATE", category: "INVITES", label: "Invite created", tone: "green", emoji: "🔗" },
+  inviteDelete: { eventType: "INVITE_DELETE", category: "INVITES", label: "Invite deleted", tone: "red", emoji: "⛓️" },
 };
 
 export function getEventMeta(eventKey: ActionLogEventKey) {
@@ -159,7 +159,7 @@ function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
     throw new ActionLogsError(
-      "Falta guildId.",
+      "Missing guildId.",
       400,
       "MISSING_GUILD_ID",
     );
@@ -170,7 +170,7 @@ function resolveGuildId(guildId?: string): string {
 function resolveGuild(bot: Client, guildId?: string): Guild {
   if (!bot.isReady()) {
     throw new ActionLogsError(
-      "El bot de Discord no está conectado.",
+      "The Discord bot is not connected.",
       503,
       "BOT_NOT_READY",
     );
@@ -179,7 +179,7 @@ function resolveGuild(bot: Client, guildId?: string): Guild {
   const guild = bot.guilds.cache.get(id);
   if (!guild) {
     throw new ActionLogsError(
-      "El bot no está en ese servidor.",
+      "The bot is not in that server.",
       404,
       "GUILD_NOT_FOUND",
     );
@@ -312,7 +312,7 @@ export async function updateActionLogsConfig(
 
   if (next.routingMode !== "SIMPLE" && next.routingMode !== "ADVANCED") {
     throw new ActionLogsError(
-      "routingMode inválido (SIMPLE | ADVANCED).",
+      "Invalid routingMode (SIMPLE | ADVANCED).",
       400,
       "INVALID_ROUTING_MODE",
     );
@@ -623,7 +623,7 @@ export async function recordActionLog(
         embeds: [embed],
       });
     } catch (error) {
-      logger.warn({ err: error }, `action-logs: no se pudo enviar webhook a ${destinationId}:`);
+      logger.warn({ err: error }, `action-logs: couldn't send webhook to ${destinationId}:`);
     }
   }
 
@@ -656,7 +656,7 @@ export async function purgeAllExpiredActionLogs(): Promise<number> {
     try {
       total += await purgeExpiredActionLogs(row.guildId);
     } catch (error) {
-      logger.warn({ err: error }, `action-logs: purge falló para ${row.guildId}:`);
+      logger.warn({ err: error }, `action-logs: purge failed for ${row.guildId}:`);
     }
   }
   return total;
@@ -765,7 +765,7 @@ export async function sendActionLogsTestEmbed(
 
   if (!channelId) {
     throw new ActionLogsError(
-      "Configura un canal de destino antes de enviar la prueba.",
+      "Configure a destination channel before sending the test.",
       400,
       "NO_LOG_CHANNEL",
     );
@@ -778,7 +778,7 @@ export async function sendActionLogsTestEmbed(
     !channel.isTextBased()
   ) {
     throw new ActionLogsError(
-      "El canal de logs no es un canal de texto válido.",
+      "The log channel is not a valid text channel.",
       400,
       "INVALID_LOG_CHANNEL",
     );
@@ -786,9 +786,9 @@ export async function sendActionLogsTestEmbed(
 
   const embed = new EmbedBuilder()
     .setColor(0xe91e8c)
-    .setTitle("Prueba de Action Logs")
+    .setTitle("Action Logs test")
     .setDescription(
-      "Si ves este embed, el bot tiene permisos para enviar registros en este canal.",
+      "If you can see this embed, the bot has permission to send logs in this channel.",
     )
     .addFields(
       {
@@ -797,7 +797,7 @@ export async function sendActionLogsTestEmbed(
         inline: true,
       },
       {
-        name: "Módulo",
+        name: "Module",
         value: config.enabled ? "Habilitado" : "Deshabilitado",
         inline: true,
       },
@@ -818,7 +818,7 @@ export async function sendActionLogsTestEmbed(
     };
   } catch {
     throw new ActionLogsError(
-      "No se pudo enviar el embed vía webhook. Revisa permisos (Gestionar webhooks).",
+      "Couldn't send the embed via webhook. Check permissions (Manage Webhooks).",
       403,
       "SEND_FAILED",
     );

@@ -7,18 +7,18 @@ import {
 } from "./economy-casino.js";
 
 describe("casino defaults", () => {
-  it("verde paga como pleno (36x) y ruleta tiene cooldown", () => {
+  it("green pays like a straight (36x) and roulette has a cooldown", () => {
     const roulette = defaultCasinoRoulette();
     expect(roulette.greenMultiplier).toBe(36);
     expect(roulette.numberMultiplier).toBe(36);
     expect(roulette.cooldownSeconds).toBe(5);
   });
 
-  it("el config por defecto incluye cooldown de ruleta", () => {
+  it("the default config includes a roulette cooldown", () => {
     expect(defaultEconomyCasinoConfig("g").roulette.cooldownSeconds).toBe(5);
   });
 
-  it("blackjack permite split y slots tiene cooldown", () => {
+  it("blackjack allows split and slots has a cooldown", () => {
     expect(defaultCasinoBlackjack().allowSplit).toBe(true);
     expect(defaultCasinoSlots().cooldownSeconds).toBe(5);
     expect(defaultEconomyCasinoConfig("g").slots.cooldownSeconds).toBe(5);

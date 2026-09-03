@@ -68,8 +68,8 @@ export async function handleAvatarCommand(
     .setImage(guildUrl ?? globalUrl)
     .setDescription(
       guildUrl
-        ? `[Global](${globalUrl}) · [Servidor](${guildUrl})`
-        : `[Abrir](${globalUrl})`,
+        ? `[Global](${globalUrl}) · [Server](${guildUrl})`
+        : `[Open](${globalUrl})`,
     );
 
   await interaction.reply({ embeds: [embed], ephemeral });
@@ -82,7 +82,7 @@ export async function handleHelpCommand(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ephemeral: true,
     });
     return;
@@ -110,16 +110,16 @@ export async function handleHelpCommand(
 
   const embed = new EmbedBuilder()
     .setColor(0xe11d48)
-    .setTitle("Comandos disponibles")
+    .setTitle("Available commands")
     .setDescription(
       lines.length > 0
         ? lines.slice(0, 40).join("\n")
-        : "No hay comandos habilitados.",
+        : "No commands are enabled.",
     )
     .setFooter({
       text:
         lines.length > 40
-          ? `Mostrando 40 de ${lines.length}`
+          ? `Showing 40 of ${lines.length}`
           : "Adobos Bot",
     });
 

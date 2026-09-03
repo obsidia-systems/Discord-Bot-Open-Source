@@ -27,12 +27,12 @@ export function displayNameFromMember(member: GuildMember): string {
     member.nickname ||
     member.user.globalName ||
     member.user.username ||
-    "Usuario Desconocido"
+    "Unknown User"
   );
 }
 
 export function displayNameFromUser(user: User): string {
-  return user.globalName || user.username || "Usuario Desconocido";
+  return user.globalName || user.username || "Unknown User";
 }
 
 /** Avatar de GuildMember: prioriza avatar de servidor (Nitro). */
@@ -115,7 +115,7 @@ export async function getResolvedMemberData(
   return {
     userId,
     username: "desconocido",
-    displayName: "Usuario Desconocido",
+    displayName: "Unknown User",
     avatarUrl: null,
   };
 }

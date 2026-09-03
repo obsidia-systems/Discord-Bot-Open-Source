@@ -8,7 +8,7 @@ import {
 } from "./action-logs.js";
 
 describe("normalizeRoutingMode", () => {
-  it("acepta SIMPLE y ADVANCED", () => {
+  it("accepts SIMPLE and ADVANCED", () => {
     expect(normalizeRoutingMode("SIMPLE")).toBe("SIMPLE");
     expect(normalizeRoutingMode("ADVANCED")).toBe("ADVANCED");
   });
@@ -18,24 +18,24 @@ describe("normalizeRoutingMode", () => {
     expect(normalizeRoutingMode("CATEGORY")).toBe("ADVANCED");
   });
 
-  it("cae a SIMPLE si el valor es basura", () => {
+  it("falls back to SIMPLE if the value is garbage", () => {
     expect(normalizeRoutingMode("nope")).toBe("SIMPLE");
     expect(normalizeRoutingMode(undefined)).toBe("SIMPLE");
   });
 });
 
 describe("normalizeChannelsMapping", () => {
-  it("incluye invites y no hereda channels", () => {
+  it("includes invites and does not inherit channels", () => {
     const mapped = normalizeChannelsMapping({ channels: "111" });
     expect(mapped.channels).toBe("111");
     expect(mapped.invites).toBeNull();
   });
 
-  it("respeta invites propios", () => {
+  it("respects its own invites", () => {
     expect(normalizeChannelsMapping({ invites: "222" }).invites).toBe("222");
   });
 
-  it("migra server legacy a roles/channels, no a invites", () => {
+  it("migrates legacy server to roles/channels, not to invites", () => {
     const mapped = normalizeChannelsMapping({ server: "333" });
     expect(mapped.roles).toBe("333");
     expect(mapped.channels).toBe("333");
@@ -43,8 +43,8 @@ describe("normalizeChannelsMapping", () => {
   });
 });
 
-describe("catálogo de eventos", () => {
-  it("defaults cubren todas las keys, incluidas kick/timeout/bulk", () => {
+describe("event catalog", () => {
+  it("defaults cover all keys, including kick/timeout/bulk", () => {
     const enabled = defaultActionLogEnabledEvents();
     const mapping = defaultActionLogChannelsMapping();
     expect(ACTION_LOG_EVENT_KEYS).toContain("memberKick");

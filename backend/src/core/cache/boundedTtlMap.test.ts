@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { BoundedTtlMap } from "./boundedTtlMap.js";
 
 describe("BoundedTtlMap", () => {
-  it("expulsa la entrada más vieja al superar maxSize", () => {
+  it("evicts the oldest entry when maxSize is exceeded", () => {
     const map = new BoundedTtlMap<string, number>(2, 60_000);
     map.set("a", 1);
     map.set("b", 2);
@@ -12,7 +12,7 @@ describe("BoundedTtlMap", () => {
     expect(map.get("c")).toBe(3);
   });
 
-  it("caduca por TTL", async () => {
+  it("expires by TTL", async () => {
     const map = new BoundedTtlMap<string, number>(8, 20);
     map.set("x", 1);
     expect(map.get("x")).toBe(1);

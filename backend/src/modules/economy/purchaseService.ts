@@ -25,7 +25,7 @@ import { debitShopPurchase, refundShopPurchase } from "./funds.js";
 import { getShopItem } from "./shopService.js";
 import { logger } from "../../core/log.js";
 
-const PRIVATE_CATEGORY_NAME = "Zonas Privadas";
+const PRIVATE_CATEGORY_NAME = "Private Zones";
 
 async function ensurePrivateCategory(guild: Guild): Promise<string> {
   const existing = guild.channels.cache.find(
@@ -37,7 +37,7 @@ async function ensurePrivateCategory(guild: Guild): Promise<string> {
   const created = await guild.channels.create({
     name: PRIVATE_CATEGORY_NAME,
     type: ChannelType.GuildCategory,
-    reason: "Categoría de zonas privadas (tienda)",
+    reason: "Private zones category (shop)",
   });
   return created.id;
 }
@@ -54,12 +54,12 @@ async function fulfillRole(
   const role = await guild.roles.fetch(cfg.roleId).catch(() => null);
   if (!role) {
     throw new EconomyError(
-      "El rol configurado ya no existe.",
+      "The configured role no longer exists.",
       400,
       "ROLE_MISSING",
     );
   }
-  await member.roles.add(role, `Tienda: ${item.name}`);
+  await member.roles.add(role, `Shop: ${item.name}`);
 
   let expiresAt: Date | null = null;
   if (cfg.temporary) {
@@ -131,7 +131,7 @@ async function fulfillChannel(
         ],
       },
     ],
-    reason: `Tienda: ${item.name}`,
+    reason: `Shop: ${item.name}`,
   });
 
   let expiresAt: Date | null = null;
@@ -178,7 +178,7 @@ async function fulfillBoost(
     const levels = await getLevelsConfig(guild.id);
     if (!levels.enabled) {
       throw new EconomyError(
-        "El módulo Levels está desactivado. No se puede aplicar este boost.",
+        "The Levels module is disabled. This boost can't be applied.",
         400,
         "XP_INACTIVE",
       );
@@ -230,7 +230,7 @@ async function fulfillManual(
     .catch(() => null)) as TextChannel | null;
   if (!channel || !channel.isTextBased()) {
     throw new EconomyError(
-      "El canal de logs del ticket no es válido.",
+      "The ticket log channel is not valid.",
       400,
       "LOG_CHANNEL_MISSING",
     );
@@ -240,7 +240,7 @@ async function fulfillManual(
     .setColor(0xf59e0b)
     .setTitle("🎫 Nueva Orden de Compra")
     .setDescription(
-      `**${member.displayName}** (<@${member.id}>) compró **${item.name}**.`,
+      `**${member.displayName}** (<@${member.id}>) bought **${item.name}**.`,
     )
     .addFields(
       {
@@ -280,7 +280,7 @@ async function fulfillManual(
       });
       threadId = thread.id;
       await thread.send({
-        content: `Seguimiento de entrega para <@${member.id}>. Marcad cuando esté listo.`,
+        content: `Delivery tracking for <@${member.id}>. Mark it when it's ready.`,
       });
     } catch (error) {
       logger.warn({ err: error }, "shop MANUAL_TICKET thread:");
@@ -304,7 +304,7 @@ async function preflightRewards(guildId: string, rewards: EconomyShopRewards): P
     const levels = await getLevelsConfig(guildId);
     if (!levels.enabled) {
       throw new EconomyError(
-        "El módulo Levels está desactivado. No se puede comprar este ítem.",
+        "The Levels module is disabled. This item can't be bought.",
         400,
         "XP_INACTIVE",
       );
@@ -332,7 +332,7 @@ export async function purchaseShopItem(
   const config = await getEconomyConfig(guild.id);
   if (!config.isActive) {
     throw new EconomyError(
-      "La economía está pausada en este servidor.",
+      "The economy is paused in this server.",
       400,
       "ECONOMY_PAUSED",
     );
@@ -340,7 +340,7 @@ export async function purchaseShopItem(
 
   const item = await getShopItem(itemId, guild.id);
   if (!item || !item.enabled) {
-    throw new EconomyError("Ítem no disponible.", 404, "ITEM_UNAVAILABLE");
+    throw new EconomyError("Item unavailable.", 404, "ITEM_UNAVAILABLE");
   }
   if (item.stock !== null && item.stock <= 0) {
     throw new EconomyError("Sin stock disponible.", 400, "OUT_OF_STOCK");

@@ -13,8 +13,8 @@ import {
   sanitizeRemindText,
 } from "./reminders.js";
 
-describe("duración /remind in", () => {
-  it("suma tokens y default minutos", () => {
+describe("/remind in duration", () => {
+  it("adds tokens and defaults to minutes", () => {
     expect(parseRemindDurationSeconds("20m")).toBe(20 * 60);
     expect(parseRemindDurationSeconds("2h30m")).toBe(2 * 3600 + 30 * 60);
     expect(parseRemindDurationSeconds("1d 12h")).toBe(36 * 3600);
@@ -25,7 +25,7 @@ describe("duración /remind in", () => {
     expect(parseRemindDurationSeconds("ya")).toBe(null);
   });
 
-  it("rechaza fuera de 1 min–365 d", () => {
+  it("rejects outside 1 min–365 d", () => {
     const now = new Date("2026-09-02T18:00:00.000Z");
     expect(dueFromDurationSeconds(30, now)).toBe(null);
     expect(dueFromDurationSeconds(REMIND_MIN_SECONDS, now)?.toISOString()).toBe(
@@ -36,7 +36,7 @@ describe("duración /remind in", () => {
 });
 
 describe("hora /remind at", () => {
-  it("HH:mm pasa al día siguiente si ya ocurrió", () => {
+  it("HH:mm rolls to the next day if it already passed", () => {
     const now = new Date("2026-09-02T18:30:00.000Z");
     const due = parseRemindWhen("18:00", "UTC", now);
     expect(due?.toISOString()).toBe("2026-09-03T18:00:00.000Z");
@@ -44,7 +44,7 @@ describe("hora /remind at", () => {
     expect(later?.toISOString()).toBe("2026-09-02T19:00:00.000Z");
   });
 
-  it("ISO civil y etiqueta Discord", () => {
+  it("civil ISO and Discord stamp", () => {
     const now = new Date("2026-09-02T12:00:00.000Z");
     expect(parseRemindWhen("2026-09-03 09:15", "UTC", now)?.toISOString()).toBe(
       "2026-09-03T09:15:00.000Z",
@@ -56,8 +56,8 @@ describe("hora /remind at", () => {
   });
 });
 
-describe("copy y slash", () => {
-  it("recorta texto y arma /remind", () => {
+describe("copy and slash", () => {
+  it("trims text and builds /remind", () => {
     expect(sanitizeRemindText("  hola\n\nmundo  ")).toBe("hola mundo");
     expect(REMIND_PER_USER_MAX).toBe(25);
     expect(REMIND_PER_GUILD_MAX).toBe(200);

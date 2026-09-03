@@ -16,7 +16,7 @@ export async function handleLeaderboardCommand(
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -25,7 +25,7 @@ export async function handleLeaderboardCommand(
   const config = await getLevelsConfigCached(interaction.guildId);
   if (!config.enabled) {
     await interaction.reply({
-      content: "El módulo Levels está desactivado en este servidor.",
+      content: "The Levels module is disabled in this server.",
       ...EPHEMERAL,
     });
     return;
@@ -39,7 +39,7 @@ export async function handleLeaderboardCommand(
   const rows = await listLeaderboardRows(interaction.guildId, 10);
   if (rows.length === 0) {
     await interaction.editReply({
-      content: "Aún no hay XP registrada en este servidor.",
+      content: "No XP recorded in this server yet.",
     });
     return;
   }

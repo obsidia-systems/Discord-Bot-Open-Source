@@ -13,8 +13,7 @@ export const STREAM_ALERT_PLATFORM_LABEL: Record<StreamAlertPlatform, string> =
 export const STREAM_ALERT_HANDLE_MAX = 128;
 export const STREAM_ALERT_TEMPLATE_MAX = 500;
 export const STREAM_ALERT_CONTENT_MAX = 2000;
-export const STREAM_ALERT_DEFAULT_TEMPLATE =
-  "{name} está en directo: {title}\n{url}";
+export const STREAM_ALERT_DEFAULT_TEMPLATE = "{name} is live: {title}\n{url}";
 
 /** Worker tick. Twitch y Kick se comprueban en cada tick. */
 export const STREAM_ALERT_POLL_MS = 60_000;

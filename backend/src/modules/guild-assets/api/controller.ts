@@ -25,7 +25,7 @@ export class GuildAssetsError extends Error {
 function resolveGuild(bot: Client, guildId?: string): Guild {
   if (!bot.isReady()) {
     throw new GuildAssetsError(
-      "El bot de Discord no está conectado.",
+      "The Discord bot is not connected.",
       503,
       "BOT_NOT_READY",
     );
@@ -34,7 +34,7 @@ function resolveGuild(bot: Client, guildId?: string): Guild {
   const id = (guildId ?? "").trim();
   if (!id) {
     throw new GuildAssetsError(
-      "Falta guildId.",
+      "Missing guildId.",
       400,
       "MISSING_GUILD_ID",
     );
@@ -43,7 +43,7 @@ function resolveGuild(bot: Client, guildId?: string): Guild {
   const guild = bot.guilds.cache.get(id);
   if (!guild) {
     throw new GuildAssetsError(
-      "El bot no está en ese servidor o el guild aún no está en caché.",
+      "The bot is not in that server or the guild is not cached yet.",
       404,
       "GUILD_NOT_FOUND",
     );

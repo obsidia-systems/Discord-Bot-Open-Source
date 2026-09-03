@@ -24,7 +24,7 @@ export async function processDueGiveaways(): Promise<number> {
     } catch (error: unknown) {
       logger.warn(
         { err: error, id: snapshot.id },
-        "giveaways: no se pudo iniciar el sorteo programado",
+        "giveaways: couldn't start the scheduled giveaway",
       );
     } finally {
       inFlight.delete(snapshot.id);
@@ -44,7 +44,7 @@ export async function processDueGiveaways(): Promise<number> {
     } catch (error: unknown) {
       logger.warn(
         { err: error, id: snapshot.id },
-        "giveaways: no se pudo cerrar el sorteo",
+        "giveaways: couldn't close the giveaway",
       );
     } finally {
       inFlight.delete(snapshot.id);

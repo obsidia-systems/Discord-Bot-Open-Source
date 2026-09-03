@@ -91,7 +91,7 @@ export function buildGlobalDefaultSlashBodies(): RESTPostAPIChatInputApplication
 export async function syncGlobalCommands(client: Client): Promise<number> {
   const rest = createDiscordRest();
   if (!rest) {
-    logger.warn("system-commands: sin DISCORD_TOKEN — no se sincronizan slash globales.");
+    logger.warn("system-commands: no DISCORD_TOKEN — global slash commands not synced.");
     return 0;
   }
 

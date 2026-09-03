@@ -18,13 +18,13 @@ export const streamAlertsModule: AdobosModule = {
     ctx.once("ready", () => {
       if (!isWorkerLeader()) return;
       void processStreamAlerts().catch((error: unknown) => {
-        logger.warn({ err: error }, "stream-alerts: tick inicial falló");
+        logger.warn({ err: error }, "stream-alerts: initial tick failed");
       });
     });
     const timer = setInterval(() => {
       if (!isWorkerLeader()) return;
       void processStreamAlerts().catch((error: unknown) => {
-        logger.warn({ err: error }, "stream-alerts: tick falló");
+        logger.warn({ err: error }, "stream-alerts: tick failed");
       });
     }, STREAM_ALERT_POLL_MS);
     timer.unref?.();

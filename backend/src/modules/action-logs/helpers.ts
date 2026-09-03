@@ -24,7 +24,7 @@ export function channelTypeName(type: number): string {
     case ChannelType.GuildVoice:
       return "Voz";
     case ChannelType.GuildCategory:
-      return "Categoría";
+      return "Category";
     case ChannelType.GuildAnnouncement:
       return "Anuncios";
     case ChannelType.GuildStageVoice:
@@ -34,11 +34,11 @@ export function channelTypeName(type: number): string {
     case ChannelType.GuildMedia:
       return "Media";
     default:
-      return "Categoría/Otro";
+      return "Category/Other";
   }
 }
 
 export function safeChannelName(channel: { name?: string | null }): string {
   const name = typeof channel.name === "string" ? channel.name.trim() : "";
-  return name || "canal-sin-nombre";
+  return name || "unnamed-channel";
 }

@@ -76,7 +76,7 @@ export async function lockUserEconomy(
   );
   if (!existing) {
     throw new EconomyError(
-      "No se pudo crear el saldo.",
+      "Couldn't create the balance.",
       500,
       "ECONOMY_UPSERT_FAILED",
     );
@@ -173,7 +173,7 @@ export async function debitWalletStrict(
   const qty = Math.floor(amount);
   if (!Number.isFinite(qty) || qty < 1) {
     throw new EconomyError(
-      "La cantidad debe ser un entero ≥ 1.",
+      "The amount must be an integer ≥ 1.",
       400,
       "INVALID_AMOUNT",
     );
@@ -183,7 +183,7 @@ export async function debitWalletStrict(
     const current = await lockUserEconomy(tx, guildId, userId, startBalance);
     if (current.wallet < qty) {
       throw new EconomyError(
-        `Saldo insuficiente en cartera (tienes ${current.wallet.toLocaleString("es-MX")}).`,
+        `Not enough in your wallet (you have ${current.wallet.toLocaleString("es-MX")}).`,
         400,
         "INSUFFICIENT_FUNDS",
       );
@@ -218,14 +218,14 @@ export async function depositToBank(
 
     if (moved < 1) {
       throw new EconomyError(
-        "No tienes dinero en la cartera para depositar.",
+        "You have no money in your wallet to deposit.",
         400,
         "EMPTY_WALLET",
       );
     }
     if (current.wallet < moved) {
       throw new EconomyError(
-        `Saldo insuficiente en cartera (tienes ${current.wallet}).`,
+        `Not enough in your wallet (you have ${current.wallet}).`,
         400,
         "INSUFFICIENT_FUNDS",
       );
@@ -259,14 +259,14 @@ export async function withdrawFromBank(
 
     if (moved < 1) {
       throw new EconomyError(
-        "No tienes dinero en el banco para retirar.",
+        "You have no money in the bank to withdraw.",
         400,
         "EMPTY_BANK",
       );
     }
     if (current.bank < moved) {
       throw new EconomyError(
-        `Saldo insuficiente en el banco (tienes ${current.bank}).`,
+        `Not enough in the bank (you have ${current.bank}).`,
         400,
         "INSUFFICIENT_FUNDS",
       );
@@ -302,7 +302,7 @@ export async function transferWalletPay(
   const qty = Math.floor(amount);
   if (!Number.isFinite(qty) || qty < 1) {
     throw new EconomyError(
-      "La cantidad debe ser un entero ≥ 1.",
+      "The amount must be an integer ≥ 1.",
       400,
       "INVALID_AMOUNT",
     );
@@ -330,7 +330,7 @@ export async function transferWalletPay(
 
     if (from.wallet < sent) {
       throw new EconomyError(
-        `Saldo insuficiente en cartera (tienes ${from.wallet}).`,
+        `Not enough in your wallet (you have ${from.wallet}).`,
         400,
         "INSUFFICIENT_FUNDS",
       );
@@ -405,7 +405,7 @@ export async function robWallet(input: {
       );
       if (stolen < 1) {
         throw new EconomyError(
-          "Esa cartera no tiene suficiente dinero.",
+          "That wallet doesn't have enough money.",
           400,
           "EMPTY_TARGET",
         );
@@ -448,18 +448,18 @@ export async function adjustEconomyFunds(
 ): Promise<AdjustEconomyFundsResponse> {
   const guildId = (input.guildId ?? "").trim();
   if (!guildId) {
-    throw new EconomyError("Falta guildId.", 400, "MISSING_GUILD_ID");
+    throw new EconomyError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
 
   const userId = (input.userId ?? "").trim();
   if (!/^\d{17,20}$/.test(userId)) {
-    throw new EconomyError("userId inválido.", 400, "INVALID_USER_ID");
+    throw new EconomyError("Invalid userId.", 400, "INVALID_USER_ID");
   }
 
   const amount = Number(input.amount);
   if (!Number.isFinite(amount) || amount < 0) {
     throw new EconomyError(
-      "La cantidad debe ser un número ≥ 0.",
+      "The amount must be a number ≥ 0.",
       400,
       "INVALID_AMOUNT",
     );
@@ -467,14 +467,14 @@ export async function adjustEconomyFunds(
   const qty = Math.floor(amount);
 
   if (input.target !== "wallet" && input.target !== "bank") {
-    throw new EconomyError("target inválido.", 400, "INVALID_TARGET");
+    throw new EconomyError("Invalid target.", 400, "INVALID_TARGET");
   }
   if (
     input.action !== "add" &&
     input.action !== "remove" &&
     input.action !== "set"
   ) {
-    throw new EconomyError("action inválida.", 400, "INVALID_ACTION");
+    throw new EconomyError("Invalid action.", 400, "INVALID_ACTION");
   }
 
   const startBalance = await startBalanceOf(guildId);
@@ -544,7 +544,7 @@ export async function debitShopPurchase(
         .for("update"),
     );
     if (!item) {
-      throw new EconomyError("Ítem no encontrado.", 404, "NOT_FOUND");
+      throw new EconomyError("Item not found.", 404, "NOT_FOUND");
     }
     if (item.stock !== null && item.stock <= 0) {
       throw new EconomyError("Sin stock disponible.", 400, "OUT_OF_STOCK");
@@ -554,7 +554,7 @@ export async function debitShopPurchase(
     const total = current.wallet + current.bank;
     if (total < qty) {
       throw new EconomyError(
-        `Saldo insuficiente. Necesitas ${qty} (tienes ${total}).`,
+        `Not enough balance. You need ${qty} (you have ${total}).`,
         400,
         "INSUFFICIENT_FUNDS",
       );
@@ -623,7 +623,7 @@ export async function openBlackjackStake(
   const qty = Math.floor(bet);
   if (!Number.isFinite(qty) || qty < 1) {
     throw new EconomyError(
-      "La cantidad debe ser un entero ≥ 1.",
+      "The amount must be an integer ≥ 1.",
       400,
       "INVALID_AMOUNT",
     );
@@ -645,14 +645,14 @@ export async function openBlackjackStake(
     );
     if (already) {
       throw new EconomyError(
-        "Ya tienes una mano de blackjack en curso.",
+        "You already have a blackjack hand in progress.",
         400,
         "BJ_IN_PROGRESS",
       );
     }
     if (current.wallet < qty) {
       throw new EconomyError(
-        `Saldo insuficiente en cartera (tienes ${current.wallet.toLocaleString("es-MX")}).`,
+        `Not enough in your wallet (you have ${current.wallet.toLocaleString("es-MX")}).`,
         400,
         "INSUFFICIENT_FUNDS",
       );
@@ -679,7 +679,7 @@ export async function raiseBlackjackStake(
   const qty = Math.floor(extra);
   if (!Number.isFinite(qty) || qty < 1) {
     throw new EconomyError(
-      "La cantidad debe ser un entero ≥ 1.",
+      "The amount must be an integer ≥ 1.",
       400,
       "INVALID_AMOUNT",
     );
@@ -702,14 +702,14 @@ export async function raiseBlackjackStake(
     );
     if (!open) {
       throw new EconomyError(
-        "Esta mano ya terminó o expiró.",
+        "This hand already ended or expired.",
         400,
         "BJ_NO_SESSION",
       );
     }
     if (current.wallet < qty) {
       throw new EconomyError(
-        `Saldo insuficiente en cartera (tienes ${current.wallet.toLocaleString("es-MX")}).`,
+        `Not enough in your wallet (you have ${current.wallet.toLocaleString("es-MX")}).`,
         400,
         "INSUFFICIENT_FUNDS",
       );
@@ -872,7 +872,7 @@ export async function claimFixedIncome(
 
     if (last !== null && now - last < cooldownMs) {
       throw new EconomyError(
-        `Vuelve en ${formatRemaining(cooldownMs - (now - last))}.`,
+        `Come back in ${formatRemaining(cooldownMs - (now - last))}.`,
         400,
         `${type.toUpperCase()}_COOLDOWN`,
       );

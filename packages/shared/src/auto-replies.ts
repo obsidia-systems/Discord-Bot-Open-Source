@@ -8,9 +8,9 @@ export const AUTO_REPLY_MATCH_MODES = [
 export type AutoReplyMatchMode = (typeof AUTO_REPLY_MATCH_MODES)[number];
 
 export const AUTO_REPLY_MATCH_LABEL: Record<AutoReplyMatchMode, string> = {
-  exact: "Mensaje exacto",
-  contains: "Contiene",
-  starts_with: "Empieza por",
+  exact: "Exact message",
+  contains: "Contains",
+  starts_with: "Starts with",
 };
 
 export const AUTO_REPLY_TRIGGER_MAX = 200;

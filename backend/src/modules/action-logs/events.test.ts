@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { registerActionLogListeners } from "./events.js";
 
 describe("registerActionLogListeners", () => {
-  it("escucha audit nativo, bulk delete y el resto del stream", () => {
+  it("listens for native audit, bulk delete and the rest of the stream", () => {
     const names: string[] = [];
     registerActionLogListeners({
       on: (event) => {

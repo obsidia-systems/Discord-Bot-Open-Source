@@ -191,13 +191,13 @@ export type UpdateEconomyIncomeRequest = Partial<
 export function defaultEconomyJob(partial?: Partial<EconomyJob>): EconomyJob {
   return {
     id: partial?.id ?? "",
-    name: partial?.name ?? "Minero",
+    name: partial?.name ?? "Miner",
     minPay: partial?.minPay ?? 50,
     maxPay: partial?.maxPay ?? 150,
     cooldownMinutes: partial?.cooldownMinutes ?? 60,
     successMessage:
       partial?.successMessage ??
-      "Trabajaste de {job} y ganaste {payout} {currency}.",
+      "You worked as a {job} and earned {payout} {currency}.",
   };
 }
 
@@ -206,7 +206,7 @@ export function defaultEconomyCrime(
 ): EconomyCrime {
   return {
     id: partial?.id ?? "",
-    name: partial?.name ?? "Robar un banco",
+    name: partial?.name ?? "Rob a bank",
     successChance: partial?.successChance ?? 40,
     minReward: partial?.minReward ?? 100,
     maxReward: partial?.maxReward ?? 400,
@@ -215,10 +215,10 @@ export function defaultEconomyCrime(
     cooldownMinutes: partial?.cooldownMinutes ?? 60,
     successMessage:
       partial?.successMessage ??
-      "¡Éxito! Completaste «{crime}» y escapaste con {payout} {currency}.",
+      "Success! You pulled off «{crime}» and got away with {payout} {currency}.",
     failMessage:
       partial?.failMessage ??
-      "Te atraparon en «{crime}». Multa de {fine} {currency}.",
+      "You got caught doing «{crime}». Fine of {fine} {currency}.",
   };
 }
 

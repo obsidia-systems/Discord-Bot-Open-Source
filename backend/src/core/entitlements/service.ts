@@ -185,7 +185,7 @@ export function requireFeature(feature: FeatureKey): RequestHandler {
     if (!guild) {
       next(
         new HttpError(
-          "requireGuildAccess no se aplicó en esta ruta.",
+          "requireGuildAccess was not applied on this route.",
           500,
           "MISSING_GUILD_CONTEXT",
         ),

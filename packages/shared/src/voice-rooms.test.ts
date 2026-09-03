@@ -15,8 +15,8 @@ import {
   voiceRoomsSlashCommandBody,
 } from "./voice-rooms.js";
 
-describe("plantilla de nombre", () => {
-  it("{user} usa displayName y recorta a 100", () => {
+describe("name template", () => {
+  it("{user} uses displayName and trims to 100", () => {
     expect(
       applyVoiceRoomNameTemplate("{user}'s room", {
         displayName: "Kevin",
@@ -33,14 +33,14 @@ describe("plantilla de nombre", () => {
   });
 });
 
-describe("hub y una sala por dueño", () => {
-  it("nunca trata el hub como sala borrable", () => {
+describe("hub and one room per owner", () => {
+  it("never treats the hub as a deletable room", () => {
     expect(isVoiceRoomHub("hub", ["hub", "other"])).toBe(true);
     expect(isVoiceRoomHub("room-1", ["hub"])).toBe(false);
     expect(VOICE_HUB_CHANNEL_TYPE).toBe(2);
   });
 
-  it("si el dueño ya tiene sala, se reusa", () => {
+  it("if the owner already has a room, it is reused", () => {
     expect(
       existingOwnerRoomId("u1", [
         { ownerId: "u1", channelId: "c1" },
@@ -53,8 +53,8 @@ describe("hub y una sala por dueño", () => {
   });
 });
 
-describe("claim y gracia", () => {
-  it("claim solo si el dueño no está", () => {
+describe("claim and grace", () => {
+  it("claim only if the owner is absent", () => {
     expect(
       canClaimVoiceRoom({
         ownerId: "o",
@@ -80,8 +80,8 @@ describe("claim y gracia", () => {
   });
 });
 
-describe("acciones y bitrate", () => {
-  it("acciones vacías = todas on; staff puede apagar una", () => {
+describe("actions and bitrate", () => {
+  it("empty actions = all on; staff can turn one off", () => {
     const allowed = normalizeVoiceRoomActions({ ghost: false });
     expect(isVoiceRoomActionAllowed(allowed, "name")).toBe(true);
     expect(isVoiceRoomActionAllowed(allowed, "ghost")).toBe(false);
@@ -91,7 +91,7 @@ describe("acciones y bitrate", () => {
     expect(clampVoiceBitrateKbps(8, 384_000)).toBe(8);
   });
 
-  it("/voice es un grupo con subcomandos", () => {
+  it("/voice is a group with subcommands", () => {
     const body = voiceRoomsSlashCommandBody();
     expect(body.name).toBe("voice");
     const names = body.options.map((o) => o.name);

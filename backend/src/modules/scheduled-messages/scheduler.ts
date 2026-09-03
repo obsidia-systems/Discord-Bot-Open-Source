@@ -70,7 +70,7 @@ function buildSendPayload(message: ScheduledMessage): {
     } catch (error) {
       logger.warn(
         { err: error },
-        `scheduled-messages: media inválida (id=${message.id})`,
+        `scheduled-messages: invalid media (id=${message.id})`,
       );
     }
   }
@@ -113,13 +113,13 @@ async function deliverScheduledMessage(
       });
     if (!channel) {
       logger.warn(
-        `scheduled-messages: canal ausente, se pausa (id=${message.id} channel=${message.channelId})`,
+        `scheduled-messages: missing channel, pausing (id=${message.id} channel=${message.channelId})`,
       );
       return "invalid_channel";
     }
     if (!isScheduledDestinationChannel(channel) || !channel.isTextBased()) {
       logger.warn(
-        `scheduled-messages: canal no es texto/anuncios, se pausa (id=${message.id} type=${channel.type})`,
+        `scheduled-messages: channel is not text/announcement, pausing (id=${message.id} type=${channel.type})`,
       );
       return "invalid_channel";
     }
@@ -131,13 +131,13 @@ async function deliverScheduledMessage(
     if (isUnknownChannel(error)) {
       logger.warn(
         { err: error },
-        `scheduled-messages: canal inválido, se pausa (id=${message.id})`,
+        `scheduled-messages: invalid channel, pausing (id=${message.id})`,
       );
       return "invalid_channel";
     }
     logger.warn(
       { err: error },
-      `scheduled-messages: envío falló (id=${message.id})`,
+      `scheduled-messages: send failed (id=${message.id})`,
     );
     return "failed";
   }
@@ -163,7 +163,7 @@ export async function sendScheduledMessageNow(
   const client = botClient;
   if (!client) {
     throw new ScheduledMessagesError(
-      "El bot no está listo.",
+      "The bot is not ready.",
       503,
       "BOT_NOT_READY",
     );
@@ -173,14 +173,14 @@ export async function sendScheduledMessageNow(
   if (result === "invalid_channel") {
     await deactivateInvalid(message);
     throw new ScheduledMessagesError(
-      "El canal de destino ya no es válido. Se pausó este mensaje.",
+      "The destination channel is no longer valid. This message was paused.",
       400,
       "INVALID_CHANNEL",
     );
   }
   if (result !== "sent") {
     throw new ScheduledMessagesError(
-      "No se pudo enviar el mensaje.",
+      "Couldn't send the message.",
       502,
       "SEND_FAILED",
     );
@@ -248,7 +248,7 @@ export async function processDueScheduledMessages(): Promise<number> {
     } catch (error) {
       logger.warn(
         { err: error },
-        `scheduled-messages: tick falló (id=${snapshot.id})`,
+        `scheduled-messages: tick failed (id=${snapshot.id})`,
       );
     } finally {
       inFlight.delete(snapshot.id);
@@ -262,6 +262,6 @@ export async function rehydrateScheduledMessages(): Promise<void> {
   try {
     await backfillScheduledNextRuns();
   } catch (error) {
-    logger.warn({ err: error }, "scheduled-messages: backfill next_run_at falló");
+    logger.warn({ err: error }, "scheduled-messages: backfill next_run_at failed");
   }
 }

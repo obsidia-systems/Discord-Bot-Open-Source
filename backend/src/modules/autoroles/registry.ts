@@ -66,7 +66,7 @@ function assertSnowflake(value: string, field: string): string {
   const trimmed = value.trim();
   if (!/^\d{17,20}$/.test(trimmed)) {
     throw new AutoRoleError(
-      `${field} debe ser un snowflake válido.`,
+      `${field} must be a valid snowflake.`,
       400,
       "INVALID_IDS",
     );
@@ -129,7 +129,7 @@ function parseMappings(raw: string): AutoroleMappingItem[] {
             ? item.id
             : `map_${index}_${roleId}`,
         roleId,
-        label: typeof item.label === "string" ? item.label : "Rol",
+        label: typeof item.label === "string" ? item.label : "Role",
         emojiKey:
           typeof item.emojiKey === "string"
             ? item.emojiKey
@@ -151,7 +151,7 @@ function normalizeMappings(
 ): AutoroleMappingItem[] {
   if (!Array.isArray(mappings) || mappings.length === 0) {
     throw new AutoRoleError(
-      "Añade al menos una asignación de rol.",
+      "Add at least one role assignment.",
       400,
       "EMPTY_MAPPINGS",
     );
@@ -160,8 +160,8 @@ function normalizeMappings(
   if (mappings.length > limit) {
     throw new AutoRoleError(
       type === "REACTIONS"
-        ? `Máximo ${limit} reacciones por mensaje.`
-        : `Máximo ${limit} ${type === "SELECT" ? "opciones en el menú" : "botones (5×5)"}.`,
+        ? `At most ${limit} reactions per message.`
+        : `At most ${limit} ${type === "SELECT" ? "menu options" : "buttons (5×5)"}.`,
       400,
       type === "REACTIONS" ? "TOO_MANY_REACTIONS" : type === "SELECT" ? "TOO_MANY_OPTIONS" : "TOO_MANY_BUTTONS",
     );
@@ -263,7 +263,7 @@ async function upsertRegistry(input: {
     .returning({ id: autorolesRegistry.id });
   if (!inserted) {
     throw new AutoRoleError(
-      "No se pudo registrar el menú de autoroles.",
+      "Couldn't register the autoroles menu.",
       500,
       "INSERT_FAILED",
     );
@@ -291,7 +291,7 @@ async function resolveChannel(
     !("send" in channel)
   ) {
     throw new AutoRoleError(
-      "El canal no admite mensajes de texto.",
+      "The channel does not support text messages.",
       400,
       "CHANNEL_NOT_TEXT",
     );
@@ -302,7 +302,7 @@ async function resolveChannel(
 function buildButtonComponents(mappings: AutoroleMappingItem[]) {
   if (mappings.length > AUTOROLE_BUTTONS_MAX) {
     throw new AutoRoleError(
-      `Máximo ${AUTOROLE_BUTTONS_MAX} botones (5×5).`,
+      `At most ${AUTOROLE_BUTTONS_MAX} buttons (5×5).`,
       400,
       "TOO_MANY_BUTTONS",
     );
@@ -336,14 +336,14 @@ function buildButtonComponents(mappings: AutoroleMappingItem[]) {
 function buildSelectComponents(mappings: AutoroleMappingItem[]) {
   if (mappings.length > AUTOROLE_BUTTONS_MAX) {
     throw new AutoRoleError(
-      `Máximo ${AUTOROLE_BUTTONS_MAX} opciones en el menú.`,
+      `At most ${AUTOROLE_BUTTONS_MAX} menu options.`,
       400,
       "TOO_MANY_OPTIONS",
     );
   }
   const menu = new StringSelectMenuBuilder()
     .setCustomId("autorole_select")
-    .setPlaceholder("Elige un rol…")
+    .setPlaceholder("Choose a role…")
     .addOptions(
       mappings.map((mapping) => {
         const base = {
@@ -380,7 +380,7 @@ async function applyComponentsOrReactions(
       }));
     if (reactionMappings.length === 0) {
       throw new AutoRoleError(
-        "Las reacciones requieren un emoji por rol.",
+        "Reactions require one emoji per role.",
         400,
         "EMPTY_EMOJI",
       );
@@ -465,7 +465,7 @@ export async function createAutoroleCompact(
   input: CreateAutoroleCompactRequest,
 ): Promise<CreateAutoRoleResponse> {
   if (!bot.isReady()) {
-    throw new AutoRoleError("El bot no está conectado.", 503, "BOT_NOT_READY");
+    throw new AutoRoleError("The bot is not connected.", 503, "BOT_NOT_READY");
   }
 
   const guildId = assertSnowflake(input.guildId, "guildId");
@@ -480,9 +480,9 @@ export async function createAutoroleCompact(
   const title =
     input.title?.trim() ||
     (input.source === "template"
-      ? "Autoroles (plantilla)"
+      ? "Autoroles (template)"
       : input.source === "existing"
-        ? "Autoroles (mensaje existente)"
+        ? "Autoroles (existing message)"
         : "Autoroles");
 
   const mode = type === "REACTIONS" ? "reactions" : "buttons";
@@ -506,7 +506,7 @@ export async function createAutoroleCompact(
       .limit(1));
     if (duplicate) {
       throw new AutoRoleError(
-        "Este mensaje ya cuenta con un autorol activo. Visita «Mensajes Activos» para gestionarlo.",
+        "This message already has an active autorole. Visit «Active Messages» to manage it.",
         409,
         "ALREADY_CONFIGURED",
       );
@@ -514,7 +514,7 @@ export async function createAutoroleCompact(
   } else if (input.source === "template") {
     if (typeof input.templateId !== "number" || !Number.isFinite(input.templateId)) {
       throw new AutoRoleError(
-        "Selecciona una plantilla de embed.",
+        "Select an embed template.",
         400,
         "MISSING_TEMPLATE",
       );
@@ -525,7 +525,7 @@ export async function createAutoroleCompact(
     const plain = input.plainContent?.trim();
     if (!plain) {
       throw new AutoRoleError(
-        "Escribe el texto del mensaje.",
+        "Type the message text.",
         400,
         "EMPTY_CONTENT",
       );
@@ -588,7 +588,7 @@ export async function updateAutoroleMapping(
   const guildId = resolveGuildId(guildIdRaw);
   const id = Number(idRaw);
   if (!Number.isFinite(id)) {
-    throw new AutoRoleError("ID inválido.", 400, "INVALID_ID");
+    throw new AutoRoleError("Invalid ID.", 400, "INVALID_ID");
   }
 
   const row = await one(getDb()
@@ -598,7 +598,7 @@ export async function updateAutoroleMapping(
     .limit(1));
 
   if (!row || row.guildId !== guildId) {
-    throw new AutoRoleError("Registro no encontrado.", 404, "NOT_FOUND");
+    throw new AutoRoleError("Record not found.", 404, "NOT_FOUND");
   }
 
   const type = row.type as AutoroleRegistryType;
@@ -627,7 +627,7 @@ export async function updateAutoroleMapping(
       throw new AutoRoleError(
         error instanceof Error
           ? error.message
-          : "No se pudo actualizar el mensaje en Discord.",
+          : "Couldn't update the message on Discord.",
         502,
         "DISCORD_EDIT_FAILED",
       );
@@ -650,7 +650,7 @@ export async function updateAutoroleMapping(
     .where(eq(autorolesRegistry.id, id))
     .limit(1));
   if (!updated) {
-    throw new AutoRoleError("Registro no encontrado.", 404, "NOT_FOUND");
+    throw new AutoRoleError("Record not found.", 404, "NOT_FOUND");
   }
 
   return {
@@ -679,7 +679,7 @@ export async function updateAutoroleContent(
     .limit(1));
 
   if (!row || row.guildId !== guildId) {
-    throw new AutoRoleError("Registro no encontrado.", 404, "NOT_FOUND");
+    throw new AutoRoleError("Record not found.", 404, "NOT_FOUND");
   }
 
   const channel = await resolveChannel(bot, row.channelId, guildId);
@@ -692,7 +692,7 @@ export async function updateAutoroleContent(
 
     if (!isBotAuthor) {
       throw new AutoRoleError(
-        "Discord no permite a los bots editar el texto o embed de mensajes enviados por usuarios humanos.",
+        "Discord does not allow bots to edit the text or embed of messages sent by human users.",
         403,
         "NOT_BOT_AUTHOR",
       );
@@ -766,7 +766,7 @@ export async function updateAutoroleContent(
       throw new AutoRoleError(
         error instanceof Error
           ? error.message
-          : "No se pudo editar el contenido.",
+          : "Couldn't edit the content.",
         502,
         "DISCORD_EDIT_FAILED",
       );
@@ -788,7 +788,7 @@ export async function updateAutoroleContent(
     .where(eq(autorolesRegistry.id, id))
     .limit(1));
   if (!updated) {
-    throw new AutoRoleError("Registro no encontrado.", 404, "NOT_FOUND");
+    throw new AutoRoleError("Record not found.", 404, "NOT_FOUND");
   }
 
   return {
@@ -817,7 +817,7 @@ export async function deleteAutorole(
     .limit(1));
 
   if (!row || row.guildId !== guildId) {
-    throw new AutoRoleError("Registro no encontrado.", 404, "NOT_FOUND");
+    throw new AutoRoleError("Record not found.", 404, "NOT_FOUND");
   }
 
   let orphaned = false;

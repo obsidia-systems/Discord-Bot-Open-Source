@@ -21,8 +21,8 @@ import {
   ticketStatusAfter,
 } from "./tickets.js";
 
-describe("máquina de estados", () => {
-  it("acepta el flujo open → claimed → waiting → closed y reopen", () => {
+describe("state machine", () => {
+  it("accepts the flow open → claimed → waiting → closed and reopen", () => {
     expect(ticketStatusAfter("open", "claim")).toBe("claimed");
     expect(ticketStatusAfter("claimed", "wait")).toBe("waiting");
     expect(ticketStatusAfter("waiting", "unwait")).toBe("claimed");
@@ -30,18 +30,18 @@ describe("máquina de estados", () => {
     expect(ticketStatusAfter("closed", "reopen")).toBe("open");
   });
 
-  it("cierra desde open, claimed o waiting", () => {
+  it("closes from open, claimed or waiting", () => {
     expect(ticketStatusAfter("open", "close")).toBe("closed");
     expect(ticketStatusAfter("waiting", "close")).toBe("closed");
   });
 
-  it("unclaim vuelve a open; transfer se queda claimed", () => {
+  it("unclaim returns to open; transfer stays claimed", () => {
     expect(ticketStatusAfter("claimed", "unclaim")).toBe("open");
     expect(ticketStatusAfter("waiting", "transfer")).toBe("claimed");
     expect(ticketStatusAfter("claimed", "transfer")).toBe("claimed");
   });
 
-  it("rechaza transiciones ilegales", () => {
+  it("rejects illegal transitions", () => {
     expect(ticketStatusAfter("closed", "claim")).toBeNull();
     expect(ticketStatusAfter("closed", "close")).toBeNull();
     expect(ticketStatusAfter("open", "wait")).toBeNull();
@@ -52,14 +52,14 @@ describe("máquina de estados", () => {
     expect(canApplyTicketAction("closed", "wait")).toBe(false);
   });
 
-  it("cubre todas las acciones y estados del catálogo", () => {
+  it("covers all catalog actions and states", () => {
     expect(TICKET_STATUSES).toEqual(["open", "claimed", "waiting", "closed"]);
     expect(TICKET_ACTIONS).toContain("transfer");
   });
 });
 
 describe("caps operativos", () => {
-  it("bloquea 50 abiertos del guild y 1 por usuario por defecto", () => {
+  it("blocks 50 open per guild and 1 per user by default", () => {
     expect(
       ticketOpenBlocked({
         guildOpenCount: TICKETS_MAX_OPEN_GUILD,
@@ -90,8 +90,8 @@ describe("caps operativos", () => {
   });
 });
 
-describe("staff y cierre", () => {
-  it("Manage Guild o rol de staff", () => {
+describe("staff and closing", () => {
+  it("Manage Guild or staff role", () => {
     expect(
       isTicketStaff({
         memberRoleIds: ["r1"],
@@ -115,7 +115,7 @@ describe("staff y cierre", () => {
     ).toBe(false);
   });
 
-  it("el opener cierra el suyo si el toggle está on", () => {
+  it("the opener closes their own if the toggle is on", () => {
     expect(
       canCloseTicket({
         status: "open",
@@ -146,7 +146,7 @@ describe("staff y cierre", () => {
   });
 });
 
-describe("plantilla y parseo", () => {
+describe("template and parsing", () => {
   it("ticket-{n}-{user} sobrevive caracteres raros", () => {
     expect(
       applyTicketNameTemplate("ticket-{n}-{user}", {
@@ -164,7 +164,7 @@ describe("plantilla y parseo", () => {
     ).toBe("report-1");
   });
 
-  it("parsea customId de abrir y de claim", () => {
+  it("parses the open and claim customIds", () => {
     const id = ticketOpenCustomId(4, "support");
     expect(id.startsWith(TICKET_OPEN_PREFIX)).toBe(true);
     expect(parseTicketOpenCustomId(id)).toEqual({
@@ -180,7 +180,7 @@ describe("plantilla y parseo", () => {
     ).toBeNull();
   });
 
-  it("parsea mención o snowflake", () => {
+  it("parses a mention or snowflake", () => {
     expect(parseTicketUserMention("<@123456789012345678>")).toBe(
       "123456789012345678",
     );
@@ -190,7 +190,7 @@ describe("plantilla y parseo", () => {
     expect(parseTicketUserMention("nope")).toBeNull();
   });
 
-  it("normaliza botones del panel y typeKey", () => {
+  it("normalizes panel buttons and typeKey", () => {
     expect(normalizeTicketTypeKey("Support")).toBe("support");
     expect(normalizeTicketTypeKey("A B")).toBeNull();
     expect(
@@ -205,7 +205,7 @@ describe("plantilla y parseo", () => {
     ]);
   });
 
-  it("exige motivo de cierre no vacío", () => {
+  it("requires a non-empty close reason", () => {
     expect(normalizeTicketCloseReason("  listo  ")).toBe("listo");
     expect(normalizeTicketCloseReason("   ")).toBeNull();
   });

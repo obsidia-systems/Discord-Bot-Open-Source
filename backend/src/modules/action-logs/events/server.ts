@@ -18,7 +18,7 @@ export async function onRoleCreate(role: Role): Promise<void> {
     AuditLogEvent.RoleCreate,
     role.id,
   );
-  const roleName = role.name?.trim() || "rol-sin-nombre";
+  const roleName = role.name?.trim() || "unnamed-role";
   await recordActionLog(role.client, {
     guildId: role.guild.id,
     eventKey: "roleCreate",
@@ -27,8 +27,8 @@ export async function onRoleCreate(role: Role): Promise<void> {
     targetId: role.id,
     targetTag: roleName,
     channelId: null,
-    summary: `Rol creado: ${roleName}`,
-    description: `✨ **Rol creado:** \`${roleName}\``,
+    summary: `Role created: ${roleName}`,
+    description: `✨ **Role created:** \`${roleName}\``,
     details: {
       name: roleName,
       roleName,
@@ -46,7 +46,7 @@ export async function onRoleDelete(role: Role): Promise<void> {
     AuditLogEvent.RoleDelete,
     role.id,
   );
-  const roleName = role.name?.trim() || "rol-sin-nombre";
+  const roleName = role.name?.trim() || "unnamed-role";
   await recordActionLog(role.client, {
     guildId: role.guild.id,
     eventKey: "roleDelete",
@@ -55,8 +55,8 @@ export async function onRoleDelete(role: Role): Promise<void> {
     targetId: role.id,
     targetTag: roleName,
     channelId: null,
-    summary: `Rol eliminado: ${roleName}`,
-    description: `🗑️ **Rol eliminado:** \`${roleName}\``,
+    summary: `Role deleted: ${roleName}`,
+    description: `🗑️ **Role deleted:** \`${roleName}\``,
     details: {
       name: roleName,
       roleName,
@@ -84,7 +84,7 @@ export async function onRoleUpdate(oldRole: Role, newRole: Role): Promise<void> 
     AuditLogEvent.RoleUpdate,
     newRole.id,
   );
-  const roleName = newRole.name?.trim() || "rol-sin-nombre";
+  const roleName = newRole.name?.trim() || "unnamed-role";
   await recordActionLog(newRole.client, {
     guildId: newRole.guild.id,
     eventKey: "roleUpdate",
@@ -93,8 +93,8 @@ export async function onRoleUpdate(oldRole: Role, newRole: Role): Promise<void> 
     targetId: newRole.id,
     targetTag: roleName,
     channelId: null,
-    summary: `Rol actualizado: ${roleName}`,
-    description: `🔧 **Rol actualizado:** \`${roleName}\``,
+    summary: `Role updated: ${roleName}`,
+    description: `🔧 **Role updated:** \`${roleName}\``,
     details: {
       oldContent: `${oldRole.name} (${oldRole.hexColor})`,
       newContent: `${newRole.name} (${newRole.hexColor})`,
@@ -126,7 +126,7 @@ export async function onChannelCreate(
   const parentName =
     "parent" in channel && channel.parent?.name
       ? channel.parent.name
-      : "Ninguna";
+      : "None";
   await recordActionLog(channel.client, {
     guildId: channel.guild.id,
     eventKey: "channelCreate",
@@ -135,8 +135,8 @@ export async function onChannelCreate(
     targetId: channel.id,
     targetTag: label,
     channelId: channel.id,
-    summary: `Canal creado: ${label}`,
-    description: `📁 **Canal creado:** \`${label}\` (Tipo: ${typeName})`,
+    summary: `Channel created: ${label}`,
+    description: `📁 **Channel created:** \`${label}\` (Type: ${typeName})`,
     details: {
       name,
       type: channel.type,
@@ -158,13 +158,13 @@ export async function onChannelDelete(
     AuditLogEvent.ChannelDelete,
     channel.id,
   );
-  const name = "name" in channel ? safeChannelName(channel) : "canal-sin-nombre";
+  const name = "name" in channel ? safeChannelName(channel) : "unnamed-channel";
   const label = `#${name}`;
   const typeName = channelTypeName(channel.type);
   const parentName =
     "parent" in channel && channel.parent?.name
       ? channel.parent.name
-      : "Ninguna";
+      : "None";
   await recordActionLog(channel.client, {
     guildId: channel.guild.id,
     eventKey: "channelDelete",
@@ -174,8 +174,8 @@ export async function onChannelDelete(
     targetTag: label,
     channelId: null,
     parentId: "parentId" in channel ? channel.parentId : null,
-    summary: `Canal eliminado: ${label}`,
-    description: `🗑️ **Canal eliminado:** \`${label}\` (Tipo: ${typeName})`,
+    summary: `Channel deleted: ${label}`,
+    description: `🗑️ **Channel deleted:** \`${label}\` (Type: ${typeName})`,
     details: {
       name,
       type: channel.type,
@@ -219,8 +219,8 @@ export async function onChannelUpdate(
     targetTag: label,
     channelId: null,
     parentId: newChannel.parentId ?? null,
-    summary: `Canal actualizado: ${label} (${diffFields.length} cambio${diffFields.length === 1 ? "" : "s"})`,
-    description: `✏️ **Canal actualizado:** \`${label}\``,
+    summary: `Channel updated: ${label} (${diffFields.length} change${diffFields.length === 1 ? "" : "s"})`,
+    description: `✏️ **Channel updated:** \`${label}\``,
     details: {
       name,
       channelLabel: label,
@@ -252,12 +252,12 @@ function formatOverwriteTarget(
 ): string {
   if (overwrite.type === OverwriteType.Role) {
     const role = channel.guild.roles.cache.get(overwrite.id);
-    return role ? `@${role.name}` : `Rol ${overwrite.id}`;
+    return role ? `@${role.name}` : `Role ${overwrite.id}`;
   }
   const member = channel.guild.members.cache.get(overwrite.id);
   if (member) return `@${member.user.username}`;
   const user = channel.client.users.cache.get(overwrite.id);
-  return user ? `@${user.username}` : `Usuario ${overwrite.id}`;
+  return user ? `@${user.username}` : `User ${overwrite.id}`;
 }
 
 function serializeOverwrite(ow: PermissionOverwrites): string {
@@ -284,15 +284,15 @@ function diffPermissionOverwrites(
     const oldOw = oldCache.get(id);
     const newOw = newCache.get(id);
     if (!oldOw && newOw) {
-      affected.push(`${formatOverwriteTarget(newChannel, newOw)} (añadido)`);
+      affected.push(`${formatOverwriteTarget(newChannel, newOw)} (added)`);
     } else if (oldOw && !newOw) {
-      affected.push(`${formatOverwriteTarget(oldChannel, oldOw)} (eliminado)`);
+      affected.push(`${formatOverwriteTarget(oldChannel, oldOw)} (removed)`);
     } else if (
       oldOw &&
       newOw &&
       serializeOverwrite(oldOw) !== serializeOverwrite(newOw)
     ) {
-      affected.push(`${formatOverwriteTarget(newChannel, newOw)} (modificado)`);
+      affected.push(`${formatOverwriteTarget(newChannel, newOw)} (modified)`);
     }
   }
 
@@ -300,9 +300,9 @@ function diffPermissionOverwrites(
 
   const preview = affected.slice(0, 8).join(", ");
   const extra =
-    affected.length > 8 ? ` (+${affected.length - 8} más)` : "";
+    affected.length > 8 ? ` (+${affected.length - 8} more)` : "";
   return {
-    name: "🔒 Permisos Actualizados",
+    name: "🔒 Permissions Updated",
     value: `${preview}${extra}`,
     inline: false,
   };
@@ -316,7 +316,7 @@ function buildChannelUpdateDiffFields(
 
   if (oldChannel.name !== newChannel.name) {
     diffs.push({
-      name: "Nombre",
+      name: "Name",
       value: `\`#${safeChannelName(oldChannel)}\` ➔ \`#${safeChannelName(newChannel)}\``,
       inline: false,
     });
@@ -336,8 +336,8 @@ function buildChannelUpdateDiffFields(
       : undefined;
   if (oldTopic !== undefined && newTopic !== undefined && oldTopic !== newTopic) {
     diffs.push({
-      name: "Tópico",
-      value: `Anterior: ${oldTopic || "Ninguno"} ➔ Nuevo: ${newTopic || "Ninguno"}`,
+      name: "Topic",
+      value: `Before: ${oldTopic || "None"} ➔ After: ${newTopic || "None"}`,
       inline: false,
     });
   }
@@ -356,8 +356,8 @@ function buildChannelUpdateDiffFields(
     );
     if (oldStatus !== newStatus) {
       diffs.push({
-        name: "Estado de Voz",
-        value: `Anterior: ${oldStatus || "Ninguno"} ➔ Nuevo: ${newStatus || "Ninguno"}`,
+        name: "Voice Status",
+        value: `Before: ${oldStatus || "None"} ➔ After: ${newStatus || "None"}`,
         inline: false,
       });
     }
@@ -373,7 +373,7 @@ function buildChannelUpdateDiffFields(
       (newChannel as { rateLimitPerUser?: number | null }).rateLimitPerUser ?? 0;
     if (oldSlow !== newSlow) {
       diffs.push({
-        name: "Modo Lento",
+        name: "Slowmode",
         value: `${oldSlow}s ➔ ${newSlow}s`,
         inline: true,
       });
@@ -381,12 +381,12 @@ function buildChannelUpdateDiffFields(
   }
 
   if ("userLimit" in oldChannel && "userLimit" in newChannel) {
-    const formatLimit = (n: number) => (n === 0 ? "Ilimitado" : String(n));
+    const formatLimit = (n: number) => (n === 0 ? "Unlimited" : String(n));
     const oldLimit = (oldChannel as { userLimit: number }).userLimit;
     const newLimit = (newChannel as { userLimit: number }).userLimit;
     if (oldLimit !== newLimit) {
       diffs.push({
-        name: "Límite de Usuarios",
+        name: "User Limit",
         value: `${formatLimit(oldLimit)} ➔ ${formatLimit(newLimit)}`,
         inline: true,
       });
@@ -397,8 +397,8 @@ function buildChannelUpdateDiffFields(
   const newParentId = newChannel.parentId ?? null;
   if (oldParentId !== newParentId) {
     diffs.push({
-      name: "Categoría",
-      value: `${oldChannel.parent?.name ?? "Ninguna"} ➔ ${newChannel.parent?.name ?? "Ninguna"}`,
+      name: "Category",
+      value: `${oldChannel.parent?.name ?? "None"} ➔ ${newChannel.parent?.name ?? "None"}`,
       inline: true,
     });
   }
@@ -429,8 +429,8 @@ export async function onGuildUpdate(oldGuild: Guild, newGuild: Guild): Promise<v
     targetId: newGuild.id,
     targetTag: newGuild.name,
     channelId: null,
-    summary: `Servidor actualizado: ${newGuild.name}`,
-    description: `🏠 **Servidor actualizado:** \`${newGuild.name}\``,
+    summary: `Server updated: ${newGuild.name}`,
+    description: `🏠 **Server updated:** \`${newGuild.name}\``,
     details: {
       name: newGuild.name,
       diffFields,

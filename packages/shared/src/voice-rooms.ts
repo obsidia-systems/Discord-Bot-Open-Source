@@ -34,18 +34,18 @@ export type VoiceRoomAction = (typeof VOICE_ROOM_ACTIONS)[number];
 export type VoiceRoomActionMap = Record<VoiceRoomAction, boolean>;
 
 export const VOICE_ROOM_ACTION_LABELS: Record<VoiceRoomAction, string> = {
-  name: "Nombre",
-  limit: "Límite",
+  name: "Name",
+  limit: "Limit",
   lock: "Lock / unlock",
   claim: "Claim",
-  permit: "Permitir",
-  reject: "Rechazar",
-  transfer: "Transferir dueño",
+  permit: "Permit",
+  reject: "Reject",
+  transfer: "Transfer owner",
   ghost: "Ghost / unghost",
   bitrate: "Bitrate",
-  text: "Canal de texto",
-  invite: "Invitar",
-  status: "Estado",
+  text: "Text channel",
+  invite: "Invite",
+  status: "Status",
 };
 
 export function defaultVoiceRoomActions(): VoiceRoomActionMap {
@@ -246,18 +246,18 @@ export function voiceRoomsSlashCommandBody(): {
 } {
   return {
     name: "voice",
-    description: "Administra tu sala de voz temporal (Voice Rooms).",
+    description: "Manage your temporary voice room (Voice Rooms).",
     options: [
-      sub("name", "Cambia el nombre de tu sala.", [
+      sub("name", "Change your room's name.", [
         {
           type: STRING,
           name: "nombre",
-          description: "Nuevo nombre.",
+          description: "New name.",
           required: true,
           max_length: VOICE_ROOM_NAME_MAX,
         },
       ]),
-      sub("limit", "Límite de usuarios (0 = sin límite).", [
+      sub("limit", "User limit (0 = no limit).", [
         {
           type: INTEGER,
           name: "limite",
@@ -267,78 +267,78 @@ export function voiceRoomsSlashCommandBody(): {
           max_value: VOICE_ROOM_USER_LIMIT_MAX,
         },
       ]),
-      sub("lock", "Cierra la sala a gente nueva."),
-      sub("unlock", "Abre la sala otra vez."),
-      sub("claim", "Toma el dueño si el anterior se fue."),
-      sub("permit", "Deja pasar a un usuario o rol.", [
+      sub("lock", "Close the room to new people."),
+      sub("unlock", "Open the room again."),
+      sub("claim", "Take ownership if the previous owner left."),
+      sub("permit", "Let a user or role in.", [
         {
           type: USER,
           name: "usuario",
-          description: "Miembro a permitir.",
+          description: "Member to permit.",
           required: false,
         },
         {
           type: ROLE,
           name: "rol",
-          description: "Rol a permitir.",
+          description: "Role to permit.",
           required: false,
         },
       ]),
-      sub("reject", "Bloquea y echa a un usuario o rol.", [
+      sub("reject", "Block and remove a user or role.", [
         {
           type: USER,
           name: "usuario",
-          description: "Miembro a rechazar.",
+          description: "Member to reject.",
           required: false,
         },
         {
           type: ROLE,
           name: "rol",
-          description: "Rol a rechazar.",
+          description: "Role to reject.",
           required: false,
         },
       ]),
-      sub("transfer", "Pasa el dueño a otro miembro.", [
+      sub("transfer", "Pass ownership to another member.", [
         {
           type: USER,
           name: "usuario",
-          description: "Nuevo dueño.",
+          description: "New owner.",
           required: true,
         },
       ]),
-      sub("ghost", "Oculta la sala de la lista."),
-      sub("unghost", "Vuelve a mostrar la sala."),
-      sub("bitrate", "Calidad de audio (kbps).", [
+      sub("ghost", "Hide the room from the list."),
+      sub("unghost", "Show the room again."),
+      sub("bitrate", "Audio quality (kbps).", [
         {
           type: INTEGER,
           name: "kbps",
-          description: "8–máximo del servidor.",
+          description: "8 to server maximum.",
           required: true,
           min_value: VOICE_ROOM_BITRATE_MIN_KBPS,
           max_value: 384,
         },
       ]),
-      sub("text", "Crea un canal de texto ligado a la sala."),
-      sub("invite", "Invita a alguien con un enlace.", [
+      sub("text", "Create a text channel linked to the room."),
+      sub("invite", "Invite someone with a link.", [
         {
           type: USER,
           name: "usuario",
-          description: "A quién invitar.",
+          description: "Who to invite.",
           required: true,
         },
         {
           type: STRING,
           name: "mensaje",
-          description: "Texto extra (opcional).",
+          description: "Extra text (optional).",
           required: false,
           max_length: 200,
         },
       ]),
-      sub("status", "Estado visible de la sala.", [
+      sub("status", "Visible room status.", [
         {
           type: STRING,
           name: "texto",
-          description: "Qué se está haciendo.",
+          description: "What is happening.",
           required: true,
           max_length: VOICE_ROOM_STATUS_MAX,
         },

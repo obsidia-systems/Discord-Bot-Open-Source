@@ -245,33 +245,33 @@ export function giveawayEntryGateReason(input: {
   const now = input.now ?? new Date();
   const blocked = new Set(input.blockedRoleIds);
   if (input.memberRoleIds.some((id) => blocked.has(id))) {
-    return "Tu rol no puede participar en este sorteo.";
+    return "Your role can't enter this giveaway.";
   }
   if (input.requiredRoleIds.length > 0) {
     const have = new Set(input.memberRoleIds);
     const missing = input.requiredRoleIds.some((id) => !have.has(id));
     if (missing) {
-      return "No tienes el rol necesario para participar.";
+      return "You don't have the required role to enter.";
     }
   }
   const accountDays = clampGiveawayAgeDays(input.minAccountAgeDays);
   if (accountDays > 0) {
     if (!input.accountCreatedAt) {
-      return "No pude comprobar la edad de tu cuenta.";
+      return "I couldn't check your account age.";
     }
     const ageMs = now.getTime() - input.accountCreatedAt.getTime();
     if (ageMs < accountDays * 86_400_000) {
-      return `Tu cuenta debe tener al menos ${accountDays} día(s).`;
+      return `Your account must be at least ${accountDays} day(s) old.`;
     }
   }
   const guildDays = clampGiveawayAgeDays(input.minGuildAgeDays);
   if (guildDays > 0) {
     if (!input.guildJoinedAt) {
-      return "No pude comprobar cuándo te uniste al servidor.";
+      return "I couldn't check when you joined the server.";
     }
     const ageMs = now.getTime() - input.guildJoinedAt.getTime();
     if (ageMs < guildDays * 86_400_000) {
-      return `Debes llevar al menos ${guildDays} día(s) en el servidor.`;
+      return `You must have been in the server for at least ${guildDays} day(s).`;
     }
   }
   return null;
@@ -285,7 +285,7 @@ function webCryptoRandomInt(maxExclusive: number): number {
     }
   ).crypto;
   if (!cryptoObj || typeof cryptoObj.getRandomValues !== "function") {
-    throw new Error("No hay CSPRNG disponible.");
+    throw new Error("No CSPRNG available.");
   }
   const limit = 0x1_0000_0000;
   const threshold = limit - (limit % maxExclusive);

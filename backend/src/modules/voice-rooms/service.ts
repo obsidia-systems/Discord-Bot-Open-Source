@@ -39,7 +39,7 @@ export class VoiceRoomsError extends Error {
 function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new VoiceRoomsError("Falta guildId.", 400, "MISSING_GUILD_ID");
+    throw new VoiceRoomsError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
   return id;
 }
@@ -169,7 +169,7 @@ export async function getGeneratorById(
       .limit(1),
   );
   if (!row) {
-    throw new VoiceRoomsError("Generador no encontrado.", 404, "NOT_FOUND");
+    throw new VoiceRoomsError("Generator not found.", 404, "NOT_FOUND");
   }
   return mapGenerator(row);
 }
@@ -239,18 +239,18 @@ export async function createGenerator(
     .where(eq(voiceRoomGenerators.guildId, id));
   if (existing.length >= VOICE_ROOM_GENERATORS_MAX) {
     throw new VoiceRoomsError(
-      `Máximo ${VOICE_ROOM_GENERATORS_MAX} generadores por servidor.`,
+      `At most ${VOICE_ROOM_GENERATORS_MAX} generators per server.`,
       400,
       "LIMIT_EXCEEDED",
     );
   }
   const hubChannelId = input.hubChannelId.trim();
   if (!/^\d{17,20}$/.test(hubChannelId)) {
-    throw new VoiceRoomsError("Canal hub inválido.", 400, "INVALID_HUB");
+    throw new VoiceRoomsError("Invalid hub channel.", 400, "INVALID_HUB");
   }
   const categoryId = input.categoryId?.trim() || null;
   if (categoryId && !/^\d{17,20}$/.test(categoryId)) {
-    throw new VoiceRoomsError("Categoría inválida.", 400, "INVALID_CATEGORY");
+    throw new VoiceRoomsError("Invalid category.", 400, "INVALID_CATEGORY");
   }
   const nameTemplate = sanitizeVoiceRoomName(
     (input.nameTemplate ?? VOICE_ROOM_DEFAULT_TEMPLATE).trim() ||
@@ -274,7 +274,7 @@ export async function createGenerator(
       })
       .returning();
     if (!row) {
-      throw new VoiceRoomsError("No se pudo crear el generador.", 500, "INSERT_FAILED");
+      throw new VoiceRoomsError("Couldn't create the generator.", 500, "INSERT_FAILED");
     }
     return mapGenerator(row);
   } catch (error: unknown) {
@@ -285,7 +285,7 @@ export async function createGenerator(
       (error as { code?: string }).code === "23505"
     ) {
       throw new VoiceRoomsError(
-        "Ese canal hub ya tiene un generador.",
+        "That hub channel already has a generator.",
         409,
         "HUB_TAKEN",
       );
@@ -303,13 +303,13 @@ export async function updateGenerator(
   const current = await getGeneratorById(generatorId, id);
   const hubChannelId = input.hubChannelId?.trim() ?? current.hubChannelId;
   if (!/^\d{17,20}$/.test(hubChannelId)) {
-    throw new VoiceRoomsError("Canal hub inválido.", 400, "INVALID_HUB");
+    throw new VoiceRoomsError("Invalid hub channel.", 400, "INVALID_HUB");
   }
   let categoryId = current.categoryId;
   if (input.categoryId !== undefined) {
     const raw = input.categoryId?.trim() || null;
     if (raw && !/^\d{17,20}$/.test(raw)) {
-      throw new VoiceRoomsError("Categoría inválida.", 400, "INVALID_CATEGORY");
+      throw new VoiceRoomsError("Invalid category.", 400, "INVALID_CATEGORY");
     }
     categoryId = raw;
   }
@@ -344,7 +344,7 @@ export async function updateGenerator(
     )
     .returning();
   if (!row) {
-    throw new VoiceRoomsError("Generador no encontrado.", 404, "NOT_FOUND");
+    throw new VoiceRoomsError("Generator not found.", 404, "NOT_FOUND");
   }
   return mapGenerator(row);
 }
@@ -370,7 +370,7 @@ export async function deleteGenerator(
     )
     .returning({ id: voiceRoomGenerators.id });
   if (deleted.length === 0) {
-    throw new VoiceRoomsError("Generador no encontrado.", 404, "NOT_FOUND");
+    throw new VoiceRoomsError("Generator not found.", 404, "NOT_FOUND");
   }
   return rooms.map(mapRoom);
 }
@@ -393,7 +393,7 @@ export async function insertRoom(input: {
     })
     .returning();
   if (!row) {
-    throw new VoiceRoomsError("No se pudo registrar la sala.", 500, "INSERT_FAILED");
+    throw new VoiceRoomsError("Couldn't register the room.", 500, "INSERT_FAILED");
   }
   return mapRoom(row);
 }

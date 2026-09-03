@@ -20,7 +20,7 @@ function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
     throw new EconomyError(
-      "Falta guildId.",
+      "Missing guildId.",
       400,
       "MISSING_GUILD_ID",
     );
@@ -183,7 +183,7 @@ export function sanitizeShopRewards(raw: unknown): EconomyShopRewards {
 function validateRewards(rewards: EconomyShopRewards): void {
   if (rewards.hasRole && !rewards.roleConfig.roleId) {
     throw new EconomyError(
-      "Activa Asignación de Rol: selecciona un rol.",
+      "Enable Role Assignment: select a role.",
       400,
       "INVALID_REWARDS",
     );
@@ -191,7 +191,7 @@ function validateRewards(rewards: EconomyShopRewards): void {
   if (rewards.hasManual) {
     if (!rewards.manualConfig.logChannelId || !rewards.manualConfig.pingRoleId) {
       throw new EconomyError(
-        "Entrega Manual: canal de logs y rol de staff son obligatorios.",
+        "Manual Delivery: log channel and staff role are required.",
         400,
         "INVALID_REWARDS",
       );
@@ -204,7 +204,7 @@ function validateRewards(rewards: EconomyShopRewards): void {
     rewards.hasManual;
   if (!any) {
     throw new EconomyError(
-      "Activa al menos una recompensa.",
+      "Enable at least one reward.",
       400,
       "NO_REWARDS",
     );
@@ -310,7 +310,7 @@ async function assertUniqueActiveName(
   );
   if (clash) {
     throw new EconomyError(
-      "Ya existe un ítem activo con este nombre. Por favor, elige otro.",
+      "An active item with this name already exists. Please choose another.",
       400,
       "DUPLICATE_NAME",
     );
@@ -325,7 +325,7 @@ export async function createShopItem(
 
   const name = (input.name ?? "").trim().slice(0, 100);
   if (!name) {
-    throw new EconomyError("El nombre del ítem es obligatorio.", 400, "NO_NAME");
+    throw new EconomyError("The item name is required.", 400, "NO_NAME");
   }
 
   const rewards = sanitizeShopRewards(input.rewards);
@@ -366,7 +366,7 @@ export async function createShopItem(
 
   const created = await getShopItem(id, guildId);
   if (!created) {
-    throw new EconomyError("No se pudo crear el ítem.", 500, "CREATE_FAILED");
+    throw new EconomyError("Couldn't create the item.", 500, "CREATE_FAILED");
   }
   return created;
 }
@@ -378,7 +378,7 @@ export async function updateShopItem(
   const guildId = resolveGuildId(input.guildId);
   const current = await getShopItem(itemId, guildId);
   if (!current) {
-    throw new EconomyError("Ítem no encontrado.", 404, "NOT_FOUND");
+    throw new EconomyError("Item not found.", 404, "NOT_FOUND");
   }
 
   const rewards =
@@ -392,7 +392,7 @@ export async function updateShopItem(
       ? input.name.trim().slice(0, 100)
       : current.name;
   if (!name) {
-    throw new EconomyError("El nombre del ítem es obligatorio.", 400, "NO_NAME");
+    throw new EconomyError("The item name is required.", 400, "NO_NAME");
   }
 
   const enabled =
@@ -446,7 +446,7 @@ export async function updateShopItem(
 
   const updated = await getShopItem(itemId, guildId);
   if (!updated) {
-    throw new EconomyError("No se pudo actualizar el ítem.", 500, "UPDATE_FAILED");
+    throw new EconomyError("Couldn't update the item.", 500, "UPDATE_FAILED");
   }
   return updated;
 }
@@ -455,7 +455,7 @@ export async function deleteShopItem(itemId: string, guildId?: string): Promise<
   const id = resolveGuildId(guildId);
   const current = await getShopItem(itemId, id);
   if (!current) {
-    throw new EconomyError("Ítem no encontrado.", 404, "NOT_FOUND");
+    throw new EconomyError("Item not found.", 404, "NOT_FOUND");
   }
   await getDb()
     .delete(economyShopItems)

@@ -12,8 +12,8 @@ import {
   recordAndCount,
 } from "./anti-raid.js";
 
-describe("edad de cuenta y flood", () => {
-  it("marca cuentas más nuevas que N días", () => {
+describe("account age and flood", () => {
+  it("flags accounts newer than N days", () => {
     const now = Date.parse("2026-09-02T00:00:00Z");
     const sixDays = now - 6 * 86_400_000;
     const eightDays = now - 8 * 86_400_000;
@@ -21,7 +21,7 @@ describe("edad de cuenta y flood", () => {
     expect(accountAgeTooNew(eightDays, 7, now)).toBe(false);
   });
 
-  it("dispara flood al llegar al umbral en la ventana", () => {
+  it("triggers flood when the threshold is reached within the window", () => {
     const now = 1_000_000;
     const stamps = [now - 2000, now - 1000, now];
     expect(joinFloodTriggered(stamps, 3, 10_000, now)).toBe(true);
@@ -30,7 +30,7 @@ describe("edad de cuenta y flood", () => {
     expect(ANTI_RAID_JOIN_COUNT_DEFAULT).toBe(10);
   });
 
-  it("recordAndCount recorta fuera de ventana", () => {
+  it("recordAndCount trims outside the window", () => {
     const now = 50_000;
     const { next, count } = recordAndCount(
       [now - 20_000, now - 1000],
@@ -42,8 +42,8 @@ describe("edad de cuenta y flood", () => {
   });
 });
 
-describe("inmunidad y veredicto", () => {
-  it("owner, bot y whitelist no se tocan", () => {
+describe("immunity and verdict", () => {
+  it("owner, bot and whitelist are left alone", () => {
     const base = {
       userId: "u",
       ownerId: "owner",
@@ -93,8 +93,8 @@ describe("inmunidad y veredicto", () => {
   });
 });
 
-describe("nuke y slash", () => {
-  it("umbral inclusivo y lista de ids", () => {
+describe("nuke and slash", () => {
+  it("inclusive threshold and id list", () => {
     expect(nukeThresholdExceeded(3, 3)).toBe(true);
     expect(nukeThresholdExceeded(2, 3)).toBe(false);
     expect(defaultNukeThresholds().botAdd).toBe(2);
@@ -104,7 +104,7 @@ describe("nuke y slash", () => {
     ]);
   });
 
-  it("registra /lockdown on|off|status con Manage Guild", () => {
+  it("registers /lockdown on|off|status with Manage Guild", () => {
     const body = antiRaidLockdownSlashCommandBody();
     expect(body.name).toBe("lockdown");
     expect(body.default_member_permissions).toBe("32");

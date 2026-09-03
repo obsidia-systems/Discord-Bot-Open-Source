@@ -19,7 +19,7 @@ const ctx = {
 };
 
 describe("applyWelcomeVariables", () => {
-  it("en el mensaje {user} es mención; en la capa es el nombre", () => {
+  it("in the message {user} is a mention; in the layer it's the name", () => {
     expect(applyWelcomeVariables("{user} en {server}", ctx, "message")).toBe(
       "<@9> en Adobos",
     );
@@ -30,14 +30,14 @@ describe("applyWelcomeVariables", () => {
 });
 
 describe("shouldDispatchLeave", () => {
-  it("no despacha leave si el user está baneado", () => {
+  it("does not dispatch leave if the user is banned", () => {
     expect(shouldDispatchLeave(true)).toBe(false);
     expect(shouldDispatchLeave(false)).toBe(true);
   });
 });
 
 describe("normalizeTextLayers", () => {
-  it("capas viejas quedan left; recorta a 12", () => {
+  it("old layers become left; trims to 12", () => {
     const layers = normalizeTextLayers([
       { id: "a", text: "  Hola  ", x: 10, y: 20, fontSize: 40, color: "#fff" },
       {
@@ -71,8 +71,8 @@ describe("normalizeTextLayers", () => {
   });
 });
 
-describe("fondos y canales", () => {
-  it("Unsplash legado no es fondo remoto", () => {
+describe("backgrounds and channels", () => {
+  it("legacy Unsplash is not a remote background", () => {
     expect(isWelcomeRemoteBackground(WELCOME_LEGACY_UNSPLASH_BACKGROUND)).toBe(
       false,
     );
@@ -82,7 +82,7 @@ describe("fondos y canales", () => {
     );
   });
 
-  it("solo texto y anuncios", () => {
+  it("text and announcements only", () => {
     expect(isWelcomeSendChannelType(0)).toBe(true);
     expect(isWelcomeSendChannelType(5)).toBe(true);
     expect(isWelcomeSendChannelType(2)).toBe(false);

@@ -39,7 +39,7 @@ export function requireStripe(): Stripe {
   const stripe = getStripe();
   if (!stripe) {
     throw new HttpError(
-      "Stripe no está configurado. Falta STRIPE_SECRET_KEY.",
+      "Stripe is not configured. STRIPE_SECRET_KEY is missing.",
       503,
       "STRIPE_NOT_CONFIGURED",
     );
@@ -51,7 +51,7 @@ export function requireWebhookSecret(): string {
   const secret = stripeWebhookSecret();
   if (!secret) {
     throw new HttpError(
-      "Falta STRIPE_WEBHOOK_SECRET.",
+      "STRIPE_WEBHOOK_SECRET is missing.",
       503,
       "STRIPE_WEBHOOK_NOT_CONFIGURED",
     );
@@ -64,21 +64,21 @@ export function priceIdForTier(tier: "pro" | "business"): string {
   const priceId = tier === "business" ? prices.business : prices.pro;
   if (!priceId) {
     throw new HttpError(
-      `Falta el price id de Stripe para el plan ${tier}.`,
+      `The Stripe price id for the ${tier} plan is missing.`,
       503,
       "STRIPE_PRICE_MISSING",
     );
   }
   if (priceId.startsWith("prod_")) {
     throw new HttpError(
-      "STRIPE_PRICE_* es un product id (prod_…). En el dashboard abre el precio mensual y copia el id que empieza por price_.",
+      "STRIPE_PRICE_* is a product id (prod_…). In the dashboard open the monthly price and copy the id starting with price_.",
       400,
       "STRIPE_PRICE_INVALID",
     );
   }
   if (!priceId.startsWith("price_")) {
     throw new HttpError(
-      "STRIPE_PRICE_* debe ser un price id de Stripe (price_…).",
+      "STRIPE_PRICE_* must be a Stripe price id (price_…).",
       400,
       "STRIPE_PRICE_INVALID",
     );
@@ -90,7 +90,7 @@ export function publicAppUrl(): string {
   const url = process.env.PUBLIC_APP_URL?.trim();
   if (!url) {
     throw new HttpError(
-      "PUBLIC_APP_URL es obligatorio para Checkout y el portal.",
+      "PUBLIC_APP_URL is required for Checkout and the portal.",
       500,
       "MISSING_PUBLIC_APP_URL",
     );

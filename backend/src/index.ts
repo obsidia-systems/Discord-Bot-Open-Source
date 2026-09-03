@@ -80,7 +80,7 @@ async function main(): Promise<void> {
       await bot.login(cfg.DISCORD_TOKEN);
     } else {
       logger.warn(
-        "DISCORD_TOKEN no definido — el proceso arranca sin gateway Discord.",
+        "DISCORD_TOKEN not defined — the process starts without the Discord gateway.",
       );
     }
   } else {

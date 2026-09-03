@@ -15,7 +15,7 @@ function resolveDatabaseUrl(): string {
   const raw = process.env.DATABASE_URL?.trim();
   if (!raw || raw.startsWith("file:")) {
     throw new Error(
-      "DATABASE_URL debe ser postgresql://… (Fase 2.11). SQLite ya no es compatible.",
+      "DATABASE_URL must be postgresql://… (Phase 2.11). SQLite is no longer supported.",
     );
   }
   return raw;
@@ -64,7 +64,7 @@ export async function initDatabase(): Promise<AppDatabase> {
     }
   }
 
-  throw new Error("No se pudo conectar a Postgres.");
+  throw new Error("Could not connect to Postgres.");
 }
 
 function errorCode(error: unknown): string {
@@ -76,7 +76,7 @@ function errorCode(error: unknown): string {
 
 export function getDb(): AppDatabase {
   if (!db) {
-    throw new Error("Base de datos no inicializada. Llama a initDatabase() primero.");
+    throw new Error("Database not initialized. Call initDatabase() first.");
   }
   return db;
 }

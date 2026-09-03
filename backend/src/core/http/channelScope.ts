@@ -33,15 +33,11 @@ export async function fetchChannelInGuild(
 ): Promise<Channel> {
   const channel = await bot.channels.fetch(channelId).catch(() => null);
   if (!channel) {
-    throw new ChannelScopeError(
-      "Canal no encontrado.",
-      404,
-      "CHANNEL_NOT_FOUND",
-    );
+    throw new ChannelScopeError("Channel not found.", 404, "CHANNEL_NOT_FOUND");
   }
   if (!channelBelongsToGuild(channel, expectedGuildId)) {
     throw new ChannelScopeError(
-      "El canal no pertenece a este servidor.",
+      "The channel does not belong to this server.",
       403,
       "CHANNEL_GUILD_MISMATCH",
     );

@@ -49,7 +49,7 @@ function embedColorInt(hex: string): number {
 
 function formatCooldown(ms: number): string {
   if (!Number.isFinite(ms) || ms === Number.POSITIVE_INFINITY) {
-    return "ya enviaste este formulario";
+    return "you already submitted this form";
   }
   const totalSec = Math.ceil(ms / 1000);
   const minutes = Math.floor(totalSec / 60);
@@ -170,7 +170,7 @@ async function assertCanSubmit(
   form: InteractiveForm,
 ): Promise<boolean> {
   if (!form.enabled) {
-    await reject(interaction, "Este formulario está cerrado.");
+    await reject(interaction, "This form is closed.");
     return false;
   }
   const gate = formMemberGateReason({
@@ -192,8 +192,8 @@ async function assertCanSubmit(
     await reject(
       interaction,
       form.submitMode === "once"
-        ? "Ya enviaste este formulario."
-        : `Debes esperar **${formatCooldown(remaining)}** antes de volver a enviar este formulario.`,
+        ? "You already submitted this form."
+        : `You must wait **${formatCooldown(remaining)}** before submitting this form again.`,
     );
     return false;
   }
@@ -211,21 +211,21 @@ export async function onFormsOpenButton(
   if (formId == null) {
     await reject(
       interaction,
-      "Este formulario ya no está activo. Un administrador debe volver a publicarlo desde el panel.",
+      "This form is no longer active. An administrator must publish it again from the panel.",
     );
     return;
   }
 
   const form = await getFormById(formId);
   if (!form || form.guildId !== interaction.guildId) {
-    await reject(interaction, "Este formulario está inactivo o fue eliminado.");
+    await reject(interaction, "This form is inactive or was deleted.");
     return;
   }
 
   if (form.questions.length === 0) {
     await reject(
       interaction,
-      "Este formulario aún no tiene preguntas configuradas.",
+      "This form has no questions configured yet.",
     );
     return;
   }
@@ -236,7 +236,7 @@ export async function onFormsOpenButton(
   if (selectMissingOptions) {
     await reject(
       interaction,
-      "Este formulario tiene un desplegable sin opciones. Avisa a un administrador.",
+      "This form has a dropdown with no options. Let an administrator know.",
     );
     return;
   }
@@ -285,13 +285,13 @@ export async function onFormsModalSubmit(
 
   const formId = parseFormNumericId(interaction.customId, FORM_SUBMIT_PREFIX);
   if (formId == null) {
-    await reject(interaction, "Formulario inválido.");
+    await reject(interaction, "Invalid form.");
     return;
   }
 
   const form = await getFormById(formId);
   if (!form || form.guildId !== interaction.guildId) {
-    await reject(interaction, "Este formulario está inactivo o fue eliminado.");
+    await reject(interaction, "This form is inactive or was deleted.");
     return;
   }
 
@@ -300,7 +300,7 @@ export async function onFormsModalSubmit(
   if (!form.receptionChannelId) {
     await reject(
       interaction,
-      "El formulario no tiene canal de recepción configurado. Avisa a un administrador.",
+      "The form has no reception channel configured. Let an administrator know.",
     );
     return;
   }
@@ -311,7 +311,7 @@ export async function onFormsModalSubmit(
     if (question.required && !value) {
       await reject(
         interaction,
-        `Falta la respuesta de «${question.label}».`,
+        `The answer for «${question.label}» is missing.`,
       );
       return;
     }
@@ -351,8 +351,8 @@ export async function onFormsModalSubmit(
       await reject(
         interaction,
         form.submitMode === "once"
-          ? "Ya enviaste este formulario."
-          : "Debes esperar antes de volver a enviar este formulario.",
+          ? "You already submitted this form."
+          : "You must wait before submitting this form again.",
       );
       return;
     }
@@ -366,16 +366,16 @@ export async function onFormsModalSubmit(
   if (!isSendableTextChannel(channel)) {
     await reject(
       interaction,
-      "Tu respuesta se guardó en el panel, pero el canal de recepción no es válido. Avisa a un administrador.",
+      "Your response was saved in the panel, but the reception channel is not valid. Let an administrator know.",
     );
     return;
   }
 
   const embed = new EmbedBuilder()
     .setColor(embedColorInt(form.embedColor))
-    .setTitle("Nueva respuesta de Forms")
+    .setTitle("New Forms response")
     .setDescription(
-      `**Usuario:** ${displayName} (@${interaction.user.username})\n**ID:** \`${interaction.user.id}\``,
+      `**User:** ${displayName} (@${interaction.user.username})\n**ID:** \`${interaction.user.id}\``,
     )
     .setThumbnail(avatarUrl)
     .setTimestamp(new Date())
@@ -391,11 +391,11 @@ export async function onFormsModalSubmit(
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`${FORM_ACCEPT_PREFIX}${saved.id}`.slice(0, 100))
-      .setLabel("Aceptar")
+      .setLabel("Accept")
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
       .setCustomId(`${FORM_DENY_PREFIX}${saved.id}`.slice(0, 100))
-      .setLabel("Rechazar")
+      .setLabel("Reject")
       .setStyle(ButtonStyle.Danger),
   );
 
@@ -414,7 +414,7 @@ export async function onFormsModalSubmit(
   if (!sent) {
     await reject(
       interaction,
-      "Tu respuesta se guardó en el panel, pero no se pudo avisar al canal de recepción.",
+      "Your response was saved in the panel, but the reception channel couldn't be notified.",
     );
     return;
   }
@@ -444,7 +444,7 @@ export async function onFormsReviewButton(
   }
   const responseId = parseFormNumericId(interaction.customId, prefix);
   if (responseId == null) {
-    await reject(interaction, "Respuesta inválida.");
+    await reject(interaction, "Invalid response.");
     return;
   }
 
@@ -452,20 +452,20 @@ export async function onFormsReviewButton(
   if (!canReview(member)) {
     await reject(
       interaction,
-      "Necesitas permiso de gestionar el servidor o roles para revisar.",
+      "You need the Manage Server or Manage Roles permission to review.",
     );
     return;
   }
 
   const response = await getFormResponseById(responseId);
   if (!response || response.guildId !== interaction.guildId) {
-    await reject(interaction, "Esta respuesta ya no existe.");
+    await reject(interaction, "This response no longer exists.");
     return;
   }
 
   const form = await getFormById(response.formId);
   if (!form || form.guildId !== interaction.guildId) {
-    await reject(interaction, "El formulario ya no existe.");
+    await reject(interaction, "The form no longer exists.");
     return;
   }
 
@@ -497,22 +497,22 @@ export async function onFormsReviewButton(
   }
 
   const color = accept ? 0x57f287 : 0xed4245;
-  const statusLabel = accept ? "Aceptada" : "Rechazada";
+  const statusLabel = accept ? "Accepted" : "Rejected";
   const original = EmbedBuilder.from(interaction.message.embeds[0] ?? {});
   original.setColor(color);
   original.setFooter({
-    text: `${form.modalTitle.slice(0, 60)} · ${statusLabel} por ${interaction.user.username}`,
+    text: `${form.modalTitle.slice(0, 60)} · ${statusLabel} by ${interaction.user.username}`,
   });
 
   const disabled = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`${FORM_ACCEPT_PREFIX}${reviewed.id}`)
-      .setLabel("Aceptar")
+      .setLabel("Accept")
       .setStyle(ButtonStyle.Success)
       .setDisabled(true),
     new ButtonBuilder()
       .setCustomId(`${FORM_DENY_PREFIX}${reviewed.id}`)
-      .setLabel("Rechazar")
+      .setLabel("Reject")
       .setStyle(ButtonStyle.Danger)
       .setDisabled(true),
   );

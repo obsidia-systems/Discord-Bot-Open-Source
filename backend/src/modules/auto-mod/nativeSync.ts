@@ -27,7 +27,7 @@ export interface NativeSyncResult {
 
 const AUDIT = "Adobos Auto-Mod";
 const BLOCK_MESSAGE =
-  "Tu mensaje lo bloqueó Auto-Mod (Adobos).";
+  "Your message was blocked by Auto-Mod (Adobos).";
 
 /**
  * Espeja palabras / invitaciones / menciones en AutoMod nativo de Discord.
@@ -43,7 +43,7 @@ export async function syncNativeAutoMod(
   if (!guild) {
     return {
       ok: false,
-      message: "El bot no está en ese servidor; no pude sincronizar AutoMod nativo.",
+      message: "The bot is not in that server; native AutoMod couldn't be synced.",
     };
   }
 
@@ -52,7 +52,7 @@ export async function syncNativeAutoMod(
     return {
       ok: false,
       message:
-        "Falta el permiso Administrar servidor para sincronizar AutoMod nativo. El filtro del bot sigue activo.",
+        "Missing the Manage Server permission to sync native AutoMod. The bot filter is still active.",
     };
   }
 
@@ -97,20 +97,20 @@ export async function syncNativeAutoMod(
       exemptChannels,
     });
 
-    return { ok: true, message: "AutoMod nativo de Discord sincronizado." };
+    return { ok: true, message: "Discord native AutoMod synced." };
   } catch (error) {
     if (error instanceof DiscordAPIError && (error.code === 50013 || error.status === 403)) {
       return {
         ok: false,
         message:
-          "Discord rechazó las reglas nativas (permisos o tope de reglas del servidor). El filtro del bot sigue activo.",
+          "Discord rejected the native rules (permissions or the server's rule cap). The bot filter is still active.",
       };
     }
-    logger.warn({ err: error, guildId }, "auto-mod: sync nativo falló:");
+    logger.warn({ err: error, guildId }, "auto-mod: native sync failed:");
     return {
       ok: false,
       message:
-        "No se pudo sincronizar AutoMod nativo. El filtro del bot sigue activo.",
+        "Couldn't sync native AutoMod. The bot filter is still active.",
     };
   }
 }

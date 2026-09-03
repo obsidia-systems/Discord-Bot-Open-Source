@@ -32,7 +32,7 @@ export async function onMessageDelete(
 
   const content =
     message.content ??
-    (message.partial ? "(contenido no disponible — mensaje fuera de caché)" : "");
+    (message.partial ? "(content unavailable — message not in cache)" : "");
   const attachments = message.attachments
     ? [...message.attachments.values()].map((a) => a.url)
     : [];
@@ -51,7 +51,7 @@ export async function onMessageDelete(
   const channelName =
     message.channel && "name" in message.channel && message.channel.name
       ? String(message.channel.name)
-      : "canal-sin-nombre";
+      : "unnamed-channel";
   const channelPlain = `#${channelName}`;
 
   await recordActionLog(message.client, {
@@ -66,10 +66,10 @@ export async function onMessageDelete(
     targetTag: author ? userTag(author) : null,
     channelId,
     parentId,
-    summary: `Mensaje eliminado en ${channelPlain}`,
+    summary: `Message deleted in ${channelPlain}`,
     description: byAutoDelete
-      ? `🗑️ **Mensaje eliminado** en \`${channelPlain}\` por Auto-Delete`
-      : `🗑️ **Mensaje eliminado** en \`${channelPlain}\``,
+      ? `🗑️ **Message deleted** in \`${channelPlain}\` by Auto-Delete`
+      : `🗑️ **Message deleted** in \`${channelPlain}\``,
     details: {
       oldContent: content,
       newContent: null,
@@ -96,8 +96,8 @@ export async function onMessageDelete(
       targetTag: author ? userTag(author) : null,
       channelId,
       parentId,
-      summary: `${attachments.length} adjunto(s) eliminado(s)`,
-      description: `🗑️ **Imágenes / adjuntos eliminados** en \`${channelPlain}\``,
+      summary: `${attachments.length} attachment(s) deleted`,
+      description: `🗑️ **Images / attachments deleted** in \`${channelPlain}\``,
       details: {
         attachments,
         oldContent: content,
@@ -154,8 +154,8 @@ export async function onMessageUpdate(
       targetTag: author ? userTag(author) : null,
       channelId: newMessage.channelId,
       parentId,
-      summary: `${removed.length} adjunto(s) eliminado(s) de un mensaje`,
-      description: `**Imágenes / adjuntos eliminados** en <#${newMessage.channelId}>`,
+      summary: `${removed.length} attachment(s) deleted from a message`,
+      description: `**Images / attachments deleted** in <#${newMessage.channelId}>`,
       details: {
         removedAttachmentIds: removed,
         oldContent: oldMessage.content ?? null,
@@ -179,7 +179,7 @@ export async function onMessageUpdate(
   const oldContent =
     oldMessage.content ??
     (oldMessage.partial
-      ? "(contenido anterior no disponible — mensaje fuera de caché)"
+      ? "(previous content unavailable — message not in cache)"
       : "");
   const newContent = newMessage.content ?? "";
 
@@ -193,8 +193,8 @@ export async function onMessageUpdate(
     targetTag: author ? userTag(author) : null,
     channelId: newMessage.channelId,
     parentId,
-    summary: `Mensaje editado en <#${newMessage.channelId}>`,
-    description: `**Mensaje editado** en <#${newMessage.channelId}>`,
+    summary: `Message edited in <#${newMessage.channelId}>`,
+    description: `**Message edited** in <#${newMessage.channelId}>`,
     details: {
       oldContent,
       newContent,
@@ -250,7 +250,7 @@ export async function onMessageDeleteBulk(
   const channelName =
     first.channel && "name" in first.channel && first.channel.name
       ? String(first.channel.name)
-      : "canal-sin-nombre";
+      : "unnamed-channel";
   const channelPlain = `#${channelName}`;
   const count = messages.size;
 
@@ -264,10 +264,10 @@ export async function onMessageDeleteBulk(
     targetTag: channelPlain,
     channelId,
     parentId,
-    summary: `${count} mensajes eliminados en ${channelPlain}`,
+    summary: `${count} messages deleted in ${channelPlain}`,
     description: hinted
-      ? `🧹 **${count} mensajes eliminados** en \`${channelPlain}\` por Auto-Delete`
-      : `🧹 **${count} mensajes eliminados** en \`${channelPlain}\``,
+      ? `🧹 **${count} messages deleted** in \`${channelPlain}\` by Auto-Delete`
+      : `🧹 **${count} messages deleted** in \`${channelPlain}\``,
     details: {
       count,
       channelLabel: channelPlain,

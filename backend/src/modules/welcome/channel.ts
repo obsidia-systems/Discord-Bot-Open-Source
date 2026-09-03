@@ -20,7 +20,7 @@ export async function assertGuildWelcomeChannel(
 ): Promise<void> {
   if (!bot.isReady()) {
     throw new HttpError(
-      "El bot de Discord no está conectado.",
+      "The Discord bot is not connected.",
       503,
       "BOT_NOT_READY",
     );
@@ -31,14 +31,14 @@ export async function assertGuildWelcomeChannel(
     channel = await bot.channels.fetch(channelId);
   } catch {
     throw new HttpError(
-      "No se pudo obtener el canal. Verifica el ID y los permisos del bot.",
+      "Couldn't fetch the channel. Check the ID and the bot's permissions.",
       404,
       "CHANNEL_FETCH_FAILED",
     );
   }
 
   if (!channel) {
-    throw new HttpError("Canal no encontrado.", 404, "CHANNEL_NOT_FOUND");
+    throw new HttpError("Channel not found.", 404, "CHANNEL_NOT_FOUND");
   }
 
   const channelGuildId =
@@ -47,7 +47,7 @@ export async function assertGuildWelcomeChannel(
       : null;
   if (!channelGuildId || channelGuildId !== guildId) {
     throw new HttpError(
-      "El canal no pertenece a este servidor.",
+      "The channel does not belong to this server.",
       403,
       "CHANNEL_GUILD_MISMATCH",
     );
@@ -55,7 +55,7 @@ export async function assertGuildWelcomeChannel(
 
   if (!isWelcomeSendChannel(channel)) {
     throw new HttpError(
-      "El canal no admite mensajes de texto.",
+      "The channel does not support text messages.",
       400,
       "CHANNEL_NOT_TEXT",
     );

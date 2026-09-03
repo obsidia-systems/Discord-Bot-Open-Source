@@ -40,8 +40,8 @@ function stubRole(
   };
 }
 
-describe("catálogo Roles Builder", () => {
-  it("no incluye Administrator y no duplica keys", () => {
+describe("Roles Builder catalog", () => {
+  it("does not include Administrator and does not duplicate keys", () => {
     const keys = listRolePermissionKeys();
     expect(keys).not.toContain("Administrator");
     expect(ROLE_PERMISSION_KEY_SET.has("Administrator")).toBe(false);
@@ -49,19 +49,19 @@ describe("catálogo Roles Builder", () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
-  it("incluye los flags separados en Feb 2026", () => {
+  it("includes the flags split in Feb 2026", () => {
     for (const key of REQUIRED_2026_KEYS) {
       expect(isRolesBuilderPermissionKey(key)).toBe(true);
     }
   });
 
-  it("el tope es el de Discord", () => {
+  it("the cap is Discord's", () => {
     expect(DISCORD_GUILD_ROLE_LIMIT).toBe(250);
   });
 });
 
 describe("parseRoleColor", () => {
-  it("vacío y default son 0; hex inválido es null", () => {
+  it("empty and default are 0; invalid hex is null", () => {
     expect(parseRoleColor(undefined)).toBe(0);
     expect(parseRoleColor(null)).toBe(0);
     expect(parseRoleColor("")).toBe(0);
@@ -75,8 +75,8 @@ describe("parseRoleColor", () => {
   });
 });
 
-describe("jerarquía con locks", () => {
-  it("no mueve el slot bloqueado y reasigna posiciones bajo el bot", () => {
+describe("hierarchy with locks", () => {
+  it("does not move the locked slot and reassigns positions below the bot", () => {
     const bot = stubRole("bot", { position: 5 });
     const a = stubRole("a", { position: 4 });
     const managed = stubRole("m", { position: 3, managed: true });

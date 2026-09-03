@@ -22,7 +22,7 @@ async function resolveReactionAndUser(
     try {
       fullReaction = await reaction.fetch();
     } catch (error: unknown) {
-      logger.warn({ err: error }, "No se pudo fetch de la reacción parcial:");
+      logger.warn({ err: error }, "Couldn't fetch the partial reaction:");
       return null;
     }
   }
@@ -32,7 +32,7 @@ async function resolveReactionAndUser(
     try {
       fullUser = await user.fetch();
     } catch (error: unknown) {
-      logger.warn({ err: error }, "No se pudo fetch del usuario parcial:");
+      logger.warn({ err: error }, "Couldn't fetch the partial user:");
       return null;
     }
   }
@@ -87,7 +87,7 @@ export async function applyReactionRoleChange(
   }
   if (!isRoleAssignableInGuild(message.guild, mapping.roleId)) {
     logger.warn(
-      `Reaction role ${mapping.roleId} no es asignable en ${message.guild.id}.`,
+      `Reaction role ${mapping.roleId} is not assignable in ${message.guild.id}.`,
     );
     return;
   }
@@ -101,6 +101,6 @@ export async function applyReactionRoleChange(
       await member.roles.remove(mapping.roleId, "Adobos reaction role");
     }
   } catch (error: unknown) {
-    logger.error({ err: error }, `Error al ${action === "add" ? "asignar" : "quitar"} rol ${mapping.roleId}:`);
+    logger.error({ err: error }, `Error ${action === "add" ? "assigning" : "removing"} role ${mapping.roleId}:`);
   }
 }

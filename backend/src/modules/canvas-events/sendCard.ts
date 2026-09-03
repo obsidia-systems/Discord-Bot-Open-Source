@@ -61,12 +61,12 @@ export async function dispatchCanvasEventCard(options: {
     const channel = await guild.channels.fetch(row.channelId).catch(() => null);
     if (!channel) {
       await disableCanvasEventSettings(eventType, guild.id);
-      logger.warn(`${logLabel} desactivado en ${guild.id}: canal borrado.`);
+      logger.warn(`${logLabel} disabled in ${guild.id}: channel deleted.`);
       return;
     }
     if (!isWelcomeSendChannel(channel)) {
       logger.warn(
-        `${logLabel}: canal ${row.channelId} no admite texto en ${guild.id}.`,
+        `${logLabel}: channel ${row.channelId} does not support text in ${guild.id}.`,
       );
       return;
     }

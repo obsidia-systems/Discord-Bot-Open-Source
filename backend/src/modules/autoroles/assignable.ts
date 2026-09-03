@@ -32,30 +32,30 @@ function messageForReason(
   reason: AutoroleAssignDenyReason,
   roleName?: string,
 ): { message: string; status: number; code: string } {
-  const label = roleName ? `«${roleName}»` : "ese rol";
+  const label = roleName ? `«${roleName}»` : "that role";
   if (reason === "missing") {
     return {
-      message: "Ese rol no existe en este servidor.",
+      message: "That role does not exist in this server.",
       status: 400,
       code: "ROLE_NOT_FOUND",
     };
   }
   if (reason === "everyone") {
     return {
-      message: "No se puede asignar @everyone.",
+      message: "@everyone can't be assigned.",
       status: 400,
       code: "ROLE_EVERYONE",
     };
   }
   if (reason === "managed") {
     return {
-      message: `El rol ${label} es managed y Discord no permite asignarlo.`,
+      message: `The role ${label} is managed and Discord does not allow assigning it.`,
       status: 400,
       code: "ROLE_MANAGED",
     };
   }
   return {
-    message: `El rol ${label} está al nivel o por encima del bot.`,
+    message: `The role ${label} is at or above the bot.`,
     status: 403,
     code: "ROLE_ABOVE_BOT",
   };
@@ -87,12 +87,12 @@ export async function assertAssignableRoleIds(
   roleIds: string[],
 ): Promise<void> {
   if (!bot.isReady()) {
-    throw new AutoRoleError("El bot no está conectado.", 503, "BOT_NOT_READY");
+    throw new AutoRoleError("The bot is not connected.", 503, "BOT_NOT_READY");
   }
   const guild = await bot.guilds.fetch(guildId).catch(() => null);
   if (!guild) {
     throw new AutoRoleError(
-      "El bot no está en ese servidor.",
+      "The bot is not in that server.",
       404,
       "GUILD_NOT_FOUND",
     );
@@ -113,6 +113,6 @@ export function assignableSkipMessage(roleId: string, guild: Guild): string {
     guild.id,
     botHighestPosition(guild),
   );
-  if (!reason) return "Ese rol ya no se puede asignar.";
+  if (!reason) return "That role can no longer be assigned.";
   return messageForReason(reason, role?.name).message;
 }

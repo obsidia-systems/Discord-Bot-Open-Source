@@ -13,15 +13,15 @@ import {
   normalizeScheduledTime,
 } from "./auto-delete.js";
 
-describe("delayToMs y clamp", () => {
-  it("convierte unidades y recorta a 24 h", () => {
+describe("delayToMs and clamp", () => {
+  it("converts units and trims to 24h", () => {
     expect(delayToMs(10, "seconds")).toBe(10_000);
     expect(delayToMs(2, "minutes")).toBe(120_000);
     expect(delayToMs(1, "hours")).toBe(3_600_000);
     expect(delayToMs(24, "hours")).toBe(AUTO_DELETE_MAX_COUNTDOWN_MS);
   });
 
-  it("clamp respeta el tope por unidad", () => {
+  it("clamp respects the per-unit cap", () => {
     expect(clampCountdownDelay(0, "seconds")).toBe(1);
     expect(clampCountdownDelay(99_999, "hours")).toBe(24);
     expect(clampCountdownDelay(3, "minutes")).toBe(3);
@@ -52,7 +52,7 @@ describe("messageMatchesAutoDeleteFilter", () => {
     ).toBe(true);
   });
 
-  it("no_attachments salta los que tienen adjunto", () => {
+  it("no_attachments skips those with an attachment", () => {
     expect(
       messageMatchesAutoDeleteFilter(
         { ...base, hasAttachments: true },
@@ -64,7 +64,7 @@ describe("messageMatchesAutoDeleteFilter", () => {
 });
 
 describe("isOlderThanBulkWindow", () => {
-  it("marca mensajes de más de 14 días", () => {
+  it("flags messages older than 14 days", () => {
     const now = 1_700_000_000_000;
     expect(
       isOlderThanBulkWindow(now - AUTO_DELETE_BULK_MAX_AGE_MS - 1, now),
@@ -86,7 +86,7 @@ describe("findAutoDeleteRule", () => {
     },
   ];
 
-  it("mata el canal directo o el padre del hilo", () => {
+  it("kills the direct channel or the thread's parent", () => {
     expect(findAutoDeleteRule(rules, "parent")?.channelId).toBe("parent");
     expect(findAutoDeleteRule(rules, "thread", "parent")?.channelId).toBe(
       "parent",
@@ -96,7 +96,7 @@ describe("findAutoDeleteRule", () => {
 });
 
 describe("normalizers", () => {
-  it("hora, días y modo", () => {
+  it("time, days and mode", () => {
     expect(normalizeScheduledTime("9:05")).toBe("09:05");
     expect(normalizeScheduledTime("nope")).toBe("18:00");
     expect(normalizeScheduledDays([1, 1, 8, 0])).toEqual([0, 1]);

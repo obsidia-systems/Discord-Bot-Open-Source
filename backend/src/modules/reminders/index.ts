@@ -37,13 +37,13 @@ export const remindersModule: AdobosModule = {
     ctx.once("ready", () => {
       if (!isWorkerLeader()) return;
       void processDueReminders().catch((error: unknown) => {
-        logger.warn({ err: error }, "reminders: tick inicial falló");
+        logger.warn({ err: error }, "reminders: initial tick failed");
       });
     });
     const timer = setInterval(() => {
       if (!isWorkerLeader()) return;
       void processDueReminders().catch((error: unknown) => {
-        logger.warn({ err: error }, "reminders: tick falló");
+        logger.warn({ err: error }, "reminders: tick failed");
       });
     }, DUE_TICK_MS);
     timer.unref?.();

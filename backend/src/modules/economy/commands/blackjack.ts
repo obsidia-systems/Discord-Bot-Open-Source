@@ -139,17 +139,17 @@ function blackjackButtons(
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`${BJ_HIT}:${userId}`)
-      .setLabel("Pedir")
+      .setLabel("Hit")
       .setEmoji("🃏")
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
       .setCustomId(`${BJ_STAND}:${userId}`)
-      .setLabel("Plantarse")
+      .setLabel("Stand")
       .setEmoji("🛑")
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(`${BJ_DOUBLE}:${userId}`)
-      .setLabel("Doblar")
+      .setLabel("Double")
       .setEmoji("💰")
       .setStyle(ButtonStyle.Success)
       .setDisabled(!canDouble(session, wallet)),
@@ -158,7 +158,7 @@ function blackjackButtons(
     row.addComponents(
       new ButtonBuilder()
         .setCustomId(`${BJ_SPLIT}:${userId}`)
-        .setLabel("Dividir")
+        .setLabel("Split")
         .setEmoji("✂️")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(!canSplit(session, wallet)),
@@ -168,7 +168,7 @@ function blackjackButtons(
 }
 
 function idleComponents(userId: string): ActionRowBuilder<ButtonBuilder>[] {
-  return [playAgainRow(`${BJ_AGAIN}:${userId}`, "Otra mano")];
+  return [playAgainRow(`${BJ_AGAIN}:${userId}`, "New hand")];
 }
 
 type BjOutcome = "win" | "lose" | "push" | "blackjack";
@@ -178,14 +178,14 @@ function blackjackTitle(
   playerBust: boolean,
   dealerBust: boolean,
 ): string {
-  if (outcome === "blackjack") return "🃏 Blackjack — ¡Natural!";
-  if (outcome === "push") return "🃏 Blackjack — Empate (Push)";
+  if (outcome === "blackjack") return "🃏 Blackjack — Natural!";
+  if (outcome === "push") return "🃏 Blackjack — Push";
   if (outcome === "lose") {
-    return playerBust ? "🃏 Blackjack — Bust" : "🃏 Blackjack — Perdiste";
+    return playerBust ? "🃏 Blackjack — Bust" : "🃏 Blackjack — You lost";
   }
   return dealerBust
-    ? "🃏 Blackjack — El crupier se pasó"
-    : "🃏 Blackjack — ¡Ganaste!";
+    ? "🃏 Blackjack — The dealer busted"
+    : "🃏 Blackjack — You won!";
 }
 
 function buildBlackjackEmbed(input: {
@@ -213,11 +213,11 @@ function buildBlackjackEmbed(input: {
         : "";
     const label =
       input.hands.length > 1
-        ? `Mano ${index + 1} · ${ev.total}${marker}`
-        : `Tú · ${ev.total}`;
+        ? `Hand ${index + 1} · ${ev.total}${marker}`
+        : `You · ${ev.total}`;
     return {
       name: label,
-      value: `${formatHand(hand.cards)}\nApuesta: **${hand.bet.toLocaleString("es-MX")}** ${input.currency}`,
+      value: `${formatHand(hand.cards)}\nBet: **${hand.bet.toLocaleString("es-MX")}** ${input.currency}`,
       inline: false,
     };
   });
@@ -229,13 +229,13 @@ function buildBlackjackEmbed(input: {
       ...fields,
       {
         name: input.hideDealerHole
-          ? `Crupier · ${dealerTotal}+`
-          : `Crupier · ${dealerEval.total}`,
+          ? `Dealer · ${dealerTotal}+`
+          : `Dealer · ${dealerEval.total}`,
         value: formatHand(input.dealer, input.hideDealerHole),
         inline: false,
       },
       {
-        name: "Cartera",
+        name: "Wallet",
         value: `**${input.wallet.toLocaleString("es-MX")}** ${input.currency}`,
         inline: true,
       },
@@ -243,7 +243,7 @@ function buildBlackjackEmbed(input: {
     .setFooter(
       input.footer
         ? { text: input.footer }
-        : { text: "Tienes 60s para esta mano" },
+        : { text: "You have 60s for this hand" },
     );
 }
 
@@ -327,7 +327,7 @@ async function settleSession(session: BlackjackSession): Promise<{
   const net =
     credit >= session.hands.reduce((s, h) => s + h.bet, 0) ? WIN : LOSE;
   return {
-    title: "🃏 Blackjack — Manos divididas",
+    title: "🃏 Blackjack — Split hands",
     color: credit === 0 ? LOSE : net,
     wallet,
     footer: labels.join(" · "),
@@ -436,17 +436,17 @@ async function dealInto(
     let footer = "";
     if (playerEval.isBlackjack && dealerEval.isBlackjack) {
       credit = session.bet;
-      title = "🃏 Blackjack — Empate (Push)";
+      title = "🃏 Blackjack — Push";
       color = PUSH;
-      footer = `Reembolso ${session.bet.toLocaleString("es-MX")} ${session.currency}`;
+      footer = `Refund ${session.bet.toLocaleString("es-MX")} ${session.currency}`;
     } else if (playerEval.isBlackjack) {
       credit = Math.floor(session.bet * session.naturalMultiplier);
-      title = "🃏 Blackjack — ¡Natural!";
+      title = "🃏 Blackjack — Natural!";
       color = WIN;
       footer = `+${credit.toLocaleString("es-MX")} ${session.currency}`;
     } else {
       credit = 0;
-      title = "🃏 Blackjack — El crupier tiene natural";
+      title = "🃏 Blackjack — The dealer has a natural";
       color = LOSE;
       footer = `−${session.bet.toLocaleString("es-MX")} ${session.currency}`;
     }
@@ -535,7 +535,7 @@ async function advanceOrReveal(
     await via.update({
       embeds: [
         buildBlackjackEmbed({
-          title: "🃏 Blackjack — Mano 2",
+          title: "🃏 Blackjack — Hand 2",
           color: INFO,
           hands: session.hands,
           current: session.current,
@@ -562,7 +562,7 @@ export async function handleBlackjackCommand(
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -577,7 +577,7 @@ export async function handleBlackjackCommand(
   const existing = sessions.get(key);
   if (existing && existing.phase === "play") {
     await interaction.reply({
-      content: "❌ Ya tienes una mano de blackjack en curso.",
+      content: "❌ You already have a blackjack hand in progress.",
       ...EPHEMERAL,
     });
     return;
@@ -650,7 +650,7 @@ export async function handleBlackjackButton(
 ): Promise<void> {
   if (!interaction.guildId) {
     await interaction.reply({
-      content: "Este botón solo funciona en un servidor.",
+      content: "This button only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -659,7 +659,7 @@ export async function handleBlackjackButton(
   const { action, ownerId } = parseOwnerCustomId(interaction.customId);
   if (!ownerId || interaction.user.id !== ownerId) {
     await interaction.reply({
-      content: "❌ Esta mano no es tuya.",
+      content: "❌ This hand isn't yours.",
       ...EPHEMERAL,
     });
     return;
@@ -669,14 +669,14 @@ export async function handleBlackjackButton(
   const session = sessions.get(key);
   if (!session) {
     await interaction.reply({
-      content: "❌ Esta mesa ya terminó o expiró.",
+      content: "❌ This table already ended or expired.",
       ...EPHEMERAL,
     });
     return;
   }
   if (session.busy) {
     await interaction.reply({
-      content: "❌ Espera, la mano se está resolviendo.",
+      content: "❌ Hold on, the hand is being resolved.",
       ...EPHEMERAL,
     });
     return;
@@ -685,7 +685,7 @@ export async function handleBlackjackButton(
   if (action === BJ_AGAIN) {
     if (session.phase !== "idle") {
       await interaction.reply({
-        content: "❌ Termina la mano actual primero.",
+        content: "❌ Finish the current hand first.",
         ...EPHEMERAL,
       });
       return;
@@ -698,7 +698,7 @@ export async function handleBlackjackButton(
       const msg =
         error instanceof EconomyError
           ? error.message
-          : "No se pudo iniciar otra mano.";
+          : "Couldn't start another hand.";
       await interaction.reply({ content: `❌ ${msg}`, ...EPHEMERAL });
     } finally {
       session.busy = false;
@@ -708,7 +708,7 @@ export async function handleBlackjackButton(
 
   if (session.phase !== "play") {
     await interaction.reply({
-      content: "❌ Esta mano ya terminó. Pulsa «Otra mano».",
+      content: "❌ This hand already ended. Press «New hand».",
       ...EPHEMERAL,
     });
     return;
@@ -845,7 +845,7 @@ export async function handleBlackjackButton(
     }
 
     await interaction.reply({
-      content: "❌ Acción de blackjack desconocida.",
+      content: "❌ Unknown blackjack action.",
       ...EPHEMERAL,
     });
   } catch (error) {
@@ -853,7 +853,7 @@ export async function handleBlackjackButton(
     if (!interaction.replied && !interaction.deferred) {
       await interaction
         .reply({
-          content: "Ocurrió un error en la mano.",
+          content: "An error occurred during the hand.",
           ...EPHEMERAL,
         })
         .catch(() => undefined);

@@ -30,7 +30,7 @@ function cancelRow(id: number): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`${REMIND_BUTTON_CANCEL_PREFIX}${id}`)
-      .setLabel("Cancelar")
+      .setLabel("Cancel")
       .setStyle(ButtonStyle.Secondary),
   );
 }
@@ -42,7 +42,7 @@ async function replyError(
   const message =
     error instanceof RemindersError
       ? error.message
-      : "No se pudo guardar el recordatorio.";
+      : "Couldn't save the reminder.";
   const payload = { content: message, ...EPHEMERAL };
   if (interaction.deferred || interaction.replied) {
     await interaction.followUp(payload).catch(() => null);
@@ -72,20 +72,20 @@ async function createFromDue(
   const range = assertRemindDueInRange(due, now);
   if (range === "too_soon") {
     throw new RemindersError(
-      "Mínimo 1 minuto.",
+      "Minimum 1 minute.",
       400,
       "TOO_SOON",
     );
   }
   if (range === "too_far") {
     throw new RemindersError(
-      "Máximo 365 días.",
+      "Maximum 365 days.",
       400,
       "TOO_FAR",
     );
   }
   if (!interaction.guildId || !interaction.channelId) {
-    throw new RemindersError("Usa este comando en un canal del servidor.", 400, "NO_CHANNEL");
+    throw new RemindersError("Use this command in a server channel.", 400, "NO_CHANNEL");
   }
   const row = await createReminder({
     guildId: interaction.guildId,
@@ -95,7 +95,7 @@ async function createFromDue(
     dueAt: due,
   });
   await interaction.reply({
-    content: `Te aviso ${formatRemindDiscordStamp(due)}.\n#${row.id}: ${row.message}`,
+    content: `I'll ping you ${formatRemindDiscordStamp(due)}.\n#${row.id}: ${row.message}`,
     components: [cancelRow(row.id)],
     ...EPHEMERAL,
   });
@@ -106,7 +106,7 @@ export async function handleRemindCommand(
 ): Promise<void> {
   if (!interaction.inGuild() || !interaction.guildId) {
     await interaction.reply({
-      content: "Usa este comando en un servidor.",
+      content: "Use this command in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -120,7 +120,7 @@ export async function handleRemindCommand(
       );
       if (rows.length === 0) {
         await interaction.reply({
-          content: "No tienes recordatorios pendientes.",
+          content: "You have no pending reminders.",
           ...EPHEMERAL,
         });
         return;
@@ -130,7 +130,7 @@ export async function handleRemindCommand(
         .map(formatLine)
         .join("\n");
       const extra =
-        rows.length > 10 ? `\n…y ${rows.length - 10} más.` : "";
+        rows.length > 10 ? `\n…and ${rows.length - 10} more.` : "";
       await interaction.reply({
         content: body + extra,
         ...EPHEMERAL,
@@ -146,7 +146,7 @@ export async function handleRemindCommand(
         isStaff(interaction),
       );
       await interaction.reply({
-        content: `Cancelado #${id}.`,
+        content: `Cancelled #${id}.`,
         ...EPHEMERAL,
       });
       return;
@@ -155,7 +155,7 @@ export async function handleRemindCommand(
     const settings = await getReminderSettings(interaction.guildId);
     if (!settings.enabled) {
       throw new RemindersError(
-        "Reminders está apagado en este servidor.",
+        "Reminders is turned off in this server.",
         403,
         "DISABLED",
       );
@@ -167,7 +167,7 @@ export async function handleRemindCommand(
       const due = seconds ? dueFromDurationSeconds(seconds, new Date()) : null;
       if (!due) {
         throw new RemindersError(
-          "No entendí la duración. Prueba `20m`, `2h` o `1d12h`.",
+          "I didn't understand the duration. Try `20m`, `2h` or `1d12h`.",
           400,
           "BAD_DURATION",
         );
@@ -179,7 +179,7 @@ export async function handleRemindCommand(
       const due = parseRemindWhen(when, settings.timezone, new Date());
       if (!due) {
         throw new RemindersError(
-          "No entendí la hora. Prueba `15:00` o `2026-09-03 18:30`.",
+          "I didn't understand the time. Try `15:00` or `2026-09-03 18:30`.",
           400,
           "BAD_WHEN",
         );
@@ -187,7 +187,7 @@ export async function handleRemindCommand(
       await createFromDue(interaction, due, text);
       return;
     }
-    throw new RemindersError("Subcomando desconocido.", 400, "UNKNOWN");
+    throw new RemindersError("Unknown subcommand.", 400, "UNKNOWN");
   } catch (error: unknown) {
     await replyError(interaction, error);
   }
@@ -198,7 +198,7 @@ export async function handleRemindCancelButton(
 ): Promise<void> {
   if (!interaction.inGuild() || !interaction.guildId) {
     await interaction.reply({
-      content: "Usa esto en un servidor.",
+      content: "Use this in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -207,7 +207,7 @@ export async function handleRemindCancelButton(
   const id = Number.parseInt(raw, 10);
   if (!Number.isFinite(id) || id < 1) {
     await interaction.reply({
-      content: "Id inválido.",
+      content: "Invalid id.",
       ...EPHEMERAL,
     });
     return;
@@ -221,13 +221,13 @@ export async function handleRemindCancelButton(
     );
     if (interaction.message) {
       await interaction.update({
-        content: `Cancelado #${id}.`,
+        content: `Cancelled #${id}.`,
         components: [],
       });
       return;
     }
     await interaction.reply({
-      content: `Cancelado #${id}.`,
+      content: `Cancelled #${id}.`,
       ...EPHEMERAL,
     });
   } catch (error: unknown) {

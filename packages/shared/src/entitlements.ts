@@ -202,7 +202,7 @@ export function featureLockedMessage(
 ): string {
   const needed = PLAN_TIER_LABEL[minTierForFeature(feature)];
   const current = PLAN_TIER_LABEL[tier];
-  return `Esta función requiere el plan ${needed}. Este servidor está en ${current}.`;
+  return `This feature requires the ${needed} plan. This server is on ${current}.`;
 }
 
 export function limitExceededMessage(
@@ -212,22 +212,22 @@ export function limitExceededMessage(
 ): string {
   const current = PLAN_TIER_LABEL[tier];
   if (key === "scheduledMessages") {
-    return `Has alcanzado el límite de ${max} mensajes programados del plan ${current}.`;
+    return `You've reached the ${current} plan limit of ${max} scheduled messages.`;
   }
   if (key === "customCommands") {
-    return `Has alcanzado el límite de ${max} Custom Commands del plan ${current}.`;
+    return `You've reached the ${current} plan limit of ${max} Custom Commands.`;
   }
   if (key === "logRetentionDays") {
-    return `El plan ${current} conserva logs hasta ${max} días.`;
+    return `The ${current} plan keeps logs for up to ${max} days.`;
   }
   if (key === "coveredGuilds") {
-    return `El plan ${current} cubre como máximo ${max} servidores.`;
+    return `The ${current} plan covers at most ${max} servers.`;
   }
   if (key === "streamAlerts") {
-    return `Has alcanzado el límite de ${max} Stream Alerts del plan ${current}.`;
+    return `You've reached the ${current} plan limit of ${max} Stream Alerts.`;
   }
   if (key === "autoReplies") {
-    return `Has alcanzado el límite de ${max} Auto-Replies del plan ${current}.`;
+    return `You've reached the ${current} plan limit of ${max} Auto-Replies.`;
   }
-  return `Has alcanzado un límite del plan ${current}.`;
+  return `You've reached a limit of the ${current} plan.`;
 }

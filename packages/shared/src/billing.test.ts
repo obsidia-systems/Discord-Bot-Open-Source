@@ -18,7 +18,7 @@ describe("precios Billing", () => {
 });
 
 describe("paused sigue pagado", () => {
-  it("paused es un status de pago", () => {
+  it("paused is a paid status", () => {
     expect(isSubscriptionStatus("paused")).toBe(true);
     expect(isPaidSubscriptionStatus("paused")).toBe(true);
     expect(isPaidSubscriptionStatus("canceled")).toBe(false);
@@ -26,7 +26,7 @@ describe("paused sigue pagado", () => {
 });
 
 describe("plazas", () => {
-  it("capacidad y exceso post-downgrade", () => {
+  it("capacity and overage after downgrade", () => {
     expect(seatsAtCapacity(3, 3, false)).toBe(true);
     expect(seatsAtCapacity(2, 3, false)).toBe(false);
     expect(seatsOverLimit(5, 3)).toBe(true);
@@ -34,7 +34,7 @@ describe("plazas", () => {
     expect(seatsOverLimit(10, -1)).toBe(false);
   });
 
-  it("409 si otro pagador cubre el guild", () => {
+  it("409 if another payer covers the guild", () => {
     expect(
       guildCoveredByOtherPayer("u1", { userId: "u2", status: "paused" }),
     ).toBe(true);

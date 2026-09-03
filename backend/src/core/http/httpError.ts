@@ -41,8 +41,7 @@ function isMulterLimit(error: unknown): boolean {
 
 function isInvalidUpload(error: unknown): error is Error {
   return (
-    error instanceof Error &&
-    /solo PNG|máx\.|Avatar:|WEBP|GIF|JPG/i.test(error.message)
+    error instanceof Error && /PNG|JPG|WEBP|GIF|Avatar:/i.test(error.message)
   );
 }
 
@@ -105,7 +104,7 @@ export function mapHttpError(error: unknown): MappedHttpError {
     return {
       status: 400,
       body: {
-        error: "El archivo supera el límite de tamaño.",
+        error: "The file exceeds the size limit.",
         code: "FILE_TOO_LARGE",
       },
       log: false,
@@ -125,16 +124,16 @@ export function mapHttpError(error: unknown): MappedHttpError {
     const missingPrice = /No such price/i.test(error.message);
     const missingCustomer = /No such customer/i.test(error.message);
     let message =
-      "Stripe rechazó la petición. Revisa precios, Customer Portal o las claves de test.";
+      "Stripe rejected the request. Check prices, Customer Portal or the test keys.";
     if (mentionsProd) {
       message =
-        "Ese id es un producto de Stripe (prod_…), no un precio (price_…). Copia el Price ID en STRIPE_PRICE_PRO / STRIPE_PRICE_BUSINESS.";
+        "That id is a Stripe product (prod_…), not a price (price_…). Copy the Price ID into STRIPE_PRICE_PRO / STRIPE_PRICE_BUSINESS.";
     } else if (missingPrice) {
       message =
-        "Stripe no reconoce ese price id. Tiene que ser del mismo modo (Test) y de la misma cuenta que STRIPE_SECRET_KEY.";
+        "Stripe doesn't recognize that price id. It must be the same mode (Test) and the same account as STRIPE_SECRET_KEY.";
     } else if (missingCustomer) {
       message =
-        "El customer de Stripe es de otra cuenta. Vuelve a intentar el checkout.";
+        "The Stripe customer belongs to another account. Try the checkout again.";
     }
     return {
       status: 400,
@@ -153,7 +152,7 @@ export function mapHttpError(error: unknown): MappedHttpError {
   ) {
     return {
       status: 400,
-      body: { error: "JSON inválido.", code: "INVALID_JSON" },
+      body: { error: "Invalid JSON.", code: "INVALID_JSON" },
       log: false,
     };
   }
@@ -169,7 +168,7 @@ export function mapHttpError(error: unknown): MappedHttpError {
 
   return {
     status: 500,
-    body: { error: "Error interno.", code: "INTERNAL_ERROR" },
+    body: { error: "Internal error.", code: "INTERNAL_ERROR" },
     log: true,
   };
 }

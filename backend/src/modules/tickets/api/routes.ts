@@ -42,7 +42,7 @@ import {
 function actorIdOf(req: Parameters<typeof guildIdOf>[0]): string {
   const id = req.guild?.userId;
   if (!id) {
-    throw new TicketsError("Falta el usuario del panel.", 401, "UNAUTHENTICATED");
+    throw new TicketsError("Missing panel user.", 401, "UNAUTHENTICATED");
   }
   return id;
 }
@@ -52,7 +52,7 @@ async function actorMember(bot: Client, guildId: string, userId: string) {
   const member = await guild.members.fetch(userId).catch(() => null);
   if (!member) {
     throw new TicketsError(
-      "No estás en este servidor o el bot no puede verte.",
+      "You are not in this server or the bot can't see you.",
       400,
       "MEMBER_NOT_FOUND",
     );
@@ -236,7 +236,7 @@ export function ticketsRoutes(bot: Client): Router {
       );
       if (!reason) {
         throw new TicketsError(
-          "El motivo de cierre es obligatorio.",
+          "The close reason is required.",
           400,
           "MISSING_CLOSE_REASON",
         );
@@ -275,7 +275,7 @@ export function ticketsRoutes(bot: Client): Router {
         parse(ticketUserSchema, req.body ?? {}).userId,
       );
       if (!userId) {
-        throw new TicketsError("Usuario inválido.", 400, "INVALID_USER");
+        throw new TicketsError("Invalid user.", 400, "INVALID_USER");
       }
       const guild = await requireGuild(bot, guildIdOf(req));
       const ticket = await addUserToTicket({
@@ -294,7 +294,7 @@ export function ticketsRoutes(bot: Client): Router {
     try {
       const userId = parseTicketUserMention(req.params.userId);
       if (!userId) {
-        throw new TicketsError("Usuario inválido.", 400, "INVALID_USER");
+        throw new TicketsError("Invalid user.", 400, "INVALID_USER");
       }
       const guild = await requireGuild(bot, guildIdOf(req));
       const ticket = await removeUserFromTicket({

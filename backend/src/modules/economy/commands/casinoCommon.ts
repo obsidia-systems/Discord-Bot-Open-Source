@@ -36,7 +36,7 @@ export function parseOwnerCustomId(customId: string): {
 
 export function playAgainRow(
   customId: string,
-  label = "Otra vez",
+  label = "Again",
 ): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
@@ -50,7 +50,7 @@ export function playAgainRow(
 export function currencyOf(
   economy: Awaited<ReturnType<typeof getEconomyConfig>>,
 ): string {
-  return economy.currencyName || "monedas";
+  return economy.currencyName || "coins";
 }
 
 export async function assertEconomyAndCasino(
@@ -63,7 +63,7 @@ export async function assertEconomyAndCasino(
   const economy = await getEconomyConfig(guildId);
   if (!economy.isActive) {
     throw new EconomyError(
-      "⛔ La economía está desactivada en este servidor.",
+      "⛔ The economy is disabled in this server.",
       400,
       "ECONOMY_INACTIVE",
     );
@@ -81,7 +81,7 @@ export async function replyCasinoError(
       ? error.message
       : error instanceof Error
         ? error.message
-        : "No se pudo completar la jugada.";
+        : "Couldn't complete the play.";
   const content = `❌ ${message}`;
   if (interaction.deferred || interaction.replied) {
     await interaction.followUp({ content, ...EPHEMERAL });

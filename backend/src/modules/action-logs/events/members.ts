@@ -18,8 +18,8 @@ export async function onGuildMemberAdd(member: GuildMember): Promise<void> {
     targetId: member.id,
     targetTag: userTag(member.user),
     channelId: null,
-    summary: `${userTag(member.user)} se unió al servidor`,
-    description: `**Miembro se une** al servidor`,
+    summary: `${userTag(member.user)} joined the server`,
+    description: `**Member joins** the server`,
     details: { accountCreatedAt: member.user.createdAt.toISOString() },
     actorIsBot: member.user.bot,
     actorRoleIds: [...member.roles.cache.keys()],
@@ -61,8 +61,8 @@ export async function onGuildMemberRemove(
       targetId: user.id,
       targetTag: userTag(user),
       channelId: null,
-      summary: `${userTag(user)} fue expulsado por ${kicker.tag}`,
-      description: `**Miembro expulsado** del servidor`,
+      summary: `${userTag(user)} was kicked by ${kicker.tag}`,
+      description: `**Member kicked** from the server`,
       details: { targetKind: "user" },
       actorIsBot: kicker.bot,
       actorRoleIds: kicker.roleIds,
@@ -80,8 +80,8 @@ export async function onGuildMemberRemove(
     targetId: member.id,
     targetTag: userTag(user),
     channelId: null,
-    summary: `${userTag(user)} salió del servidor`,
-    description: `**Usuario abandonó** el servidor`,
+    summary: `${userTag(user)} left the server`,
+    description: `**User left** the server`,
     details: {},
     actorIsBot: user.bot,
     actorRoleIds: roleIds,
@@ -112,7 +112,7 @@ export async function onGuildMemberUpdate(
       targetId: newMember.id,
       targetTag: userTag(newMember.user),
       channelId: null,
-      summary: `Apodo: ${oldNick ?? "(ninguno)"} → ${newNick ?? "(ninguno)"}`,
+      summary: `Nickname: ${oldNick ?? "(none)"} → ${newNick ?? "(none)"}`,
       details: { oldContent: oldNick ?? "", newContent: newNick ?? "" },
       actorIsBot: newMember.user.bot,
       actorRoleIds: [...newMember.roles.cache.keys()],
@@ -138,7 +138,7 @@ export async function onGuildMemberUpdate(
         );
         const untilLabel = newUntil
           ? `<t:${Math.floor(newUntil / 1000)}:R>`
-          : "levantado";
+          : "lifted";
         await recordActionLog(newMember.client, {
           guildId: newMember.guild.id,
           eventKey,
@@ -149,11 +149,11 @@ export async function onGuildMemberUpdate(
           targetTag: userTag(newMember.user),
           channelId: null,
           summary: timedOut && newUntil
-            ? `${userTag(newMember.user)} en timeout hasta ${new Date(newUntil).toISOString()}`
-            : `${userTag(newMember.user)} ya no está en timeout`,
+            ? `${userTag(newMember.user)} timed out until ${new Date(newUntil).toISOString()}`
+            : `${userTag(newMember.user)} is no longer timed out`,
           description: timedOut
             ? `**Timeout** ${untilLabel}`
-            : `**Timeout levantado**`,
+            : `**Timeout lifted**`,
           details: {
             targetKind: "user",
             timedOutUntil: newUntil ? new Date(newUntil).toISOString() : null,

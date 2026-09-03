@@ -96,7 +96,7 @@ async function resolveBotServerIdentity(
       avatarURL: me.displayAvatarURL({ extension: "png", size: 128 }),
     };
   } catch (err) {
-    logger.warn({ err: err }, "No se pudo resolver identidad del bot en el servidor:");
+    logger.warn({ err: err }, "Couldn't resolve the bot identity in the server:");
     const fallback = bot.user?.username?.trim() || "Adobos";
     return {
       username: `${fallback} Audit`,
@@ -138,7 +138,7 @@ async function resolveOrCreateWebhook(
   const created = await channel.createWebhook({
     name: ACTION_LOG_WEBHOOK_NAME,
     avatar: botAvatarURL ?? undefined,
-    reason: "Adobos Action Logs — envío vía webhook",
+    reason: "Adobos Action Logs — send via webhook",
   });
   await rememberWebhook(guildId, channel.id, created.id);
   return created;
@@ -161,13 +161,13 @@ export async function sendActionLogWebhook(
 ): Promise<{ messageId: string }> {
   const channel = await bot.channels.fetch(input.channelId);
   if (!channel || !channel.isTextBased() || channel.isDMBased()) {
-    throw new Error("Canal de logs no válido para webhooks.");
+    throw new Error("Invalid log channel for webhooks.");
   }
   if (
     !("fetchWebhooks" in channel) ||
     typeof channel.fetchWebhooks !== "function"
   ) {
-    throw new Error("Este canal no soporta webhooks.");
+    throw new Error("This channel does not support webhooks.");
   }
 
   const textChannel = channel as GuildTextBasedChannel & {

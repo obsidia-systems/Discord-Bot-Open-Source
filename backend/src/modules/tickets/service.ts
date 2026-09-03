@@ -63,7 +63,7 @@ const panelsCache = new BoundedTtlMap<string, TicketPanel[]>(2_000, 60_000);
 function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new TicketsError("Falta guildId.", 400, "MISSING_GUILD_ID");
+    throw new TicketsError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
   return id;
 }
@@ -192,7 +192,7 @@ async function loadSettingsRow(guildId: string): Promise<TicketSettingsRow> {
     .returning();
   if (!inserted) {
     throw new TicketsError(
-      "No se pudieron crear los ajustes de Tickets.",
+      "Couldn't create the Tickets settings.",
       500,
       "SETTINGS_INSERT_FAILED",
     );
@@ -275,10 +275,10 @@ export async function getTicketPanel(
     getDb().select().from(ticketPanels).where(eq(ticketPanels.id, panelId)).limit(1),
   );
   if (!row) {
-    throw new TicketsError("Panel no encontrado.", 404, "PANEL_NOT_FOUND");
+    throw new TicketsError("Panel not found.", 404, "PANEL_NOT_FOUND");
   }
   if (guildId && row.guildId !== guildId) {
-    throw new TicketsError("Panel no encontrado.", 404, "PANEL_NOT_FOUND");
+    throw new TicketsError("Panel not found.", 404, "PANEL_NOT_FOUND");
   }
   return mapPanel(row);
 }
@@ -295,7 +295,7 @@ export async function createTicketPanel(
     .where(eq(ticketPanels.guildId, id));
   if (existing.length >= TICKETS_MAX_PANELS) {
     throw new TicketsError(
-      `Máximo ${TICKETS_MAX_PANELS} paneles por servidor.`,
+      `At most ${TICKETS_MAX_PANELS} panels per server.`,
       400,
       "PANEL_LIMIT",
     );
@@ -310,9 +310,9 @@ export async function createTicketPanel(
         : null,
       embedTitle: (input.embedTitle ?? "Tickets").trim().slice(0, 256) || "Tickets",
       embedDescription:
-        (input.embedDescription ?? "Pulsa un botón para abrir un ticket.")
+        (input.embedDescription ?? "Press a button to open a ticket.")
           .trim()
-          .slice(0, 4096) || "Pulsa un botón para abrir un ticket.",
+          .slice(0, 4096) || "Press a button to open a ticket.",
       embedColor: normalizeTicketEmbedColor(input.embedColor),
       buttons: JSON.stringify(normalizeTicketPanelButtons(input.buttons)),
       createdAt: now,
@@ -320,7 +320,7 @@ export async function createTicketPanel(
     })
     .returning();
   if (!row) {
-    throw new TicketsError("No se pudo crear el panel.", 500, "PANEL_INSERT_FAILED");
+    throw new TicketsError("Couldn't create the panel.", 500, "PANEL_INSERT_FAILED");
   }
   invalidate(id);
   return mapPanel(row);
@@ -345,7 +345,7 @@ export async function updateTicketPanel(
   if (input.embedDescription !== undefined) {
     patch.embedDescription =
       input.embedDescription.trim().slice(0, 4096) ||
-      "Pulsa un botón para abrir un ticket.";
+      "Press a button to open a ticket.";
   }
   if (input.embedColor !== undefined) {
     patch.embedColor = normalizeTicketEmbedColor(input.embedColor);
@@ -417,28 +417,28 @@ export async function assertCanOpenTicket(
   });
   if (blocked === "guild") {
     throw new TicketsError(
-      "Este servidor ya tiene 50 tickets abiertos. Cierra alguno antes de abrir otro.",
+      "This server already has 50 open tickets. Close one before opening another.",
       400,
       "GUILD_OPEN_CAP",
     );
   }
   if (blocked === "user") {
     throw new TicketsError(
-      "Ya tienes un ticket abierto. Ciérralo antes de abrir otro.",
+      "You already have an open ticket. Close it before opening another.",
       400,
       "USER_OPEN_CAP",
     );
   }
   if (!settings.categoryId) {
     throw new TicketsError(
-      "Configura una categoría de tickets en el panel.",
+      "Configure a ticket category in the panel.",
       400,
       "MISSING_CATEGORY",
     );
   }
   if (settings.staffRoleIds.length === 0) {
     throw new TicketsError(
-      "Configura al menos un rol de staff en Ajustes.",
+      "Configure at least one staff role in Settings.",
       400,
       "MISSING_STAFF_ROLES",
     );
@@ -464,7 +464,7 @@ export async function insertOpenedTicket(input: {
     );
     if (!settings) {
       throw new TicketsError(
-        "Faltan los ajustes de Tickets.",
+        "The Tickets settings are missing.",
         400,
         "MISSING_SETTINGS",
       );
@@ -488,7 +488,7 @@ export async function insertOpenedTicket(input: {
       })
       .returning();
     if (!row) {
-      throw new TicketsError("No se pudo crear el ticket.", 500, "INSERT_FAILED");
+      throw new TicketsError("Couldn't create the ticket.", 500, "INSERT_FAILED");
     }
     await tx.insert(ticketEvents).values({
       ticketId: row.id,
@@ -531,10 +531,10 @@ export async function getTicketById(
     getDb().select().from(tickets).where(eq(tickets.id, ticketId)).limit(1),
   );
   if (!row) {
-    throw new TicketsError("Ticket no encontrado.", 404, "TICKET_NOT_FOUND");
+    throw new TicketsError("Ticket not found.", 404, "TICKET_NOT_FOUND");
   }
   if (guildId && row.guildId !== guildId) {
-    throw new TicketsError("Ticket no encontrado.", 404, "TICKET_NOT_FOUND");
+    throw new TicketsError("Ticket not found.", 404, "TICKET_NOT_FOUND");
   }
   return mapTicket(row);
 }
@@ -648,7 +648,7 @@ export async function applyTicketAction(input: {
   const nextStatus = ticketStatusAfter(current.status, input.action);
   if (!nextStatus || !canApplyTicketAction(current.status, input.action)) {
     throw new TicketsError(
-      "Esa acción no es válida en el estado actual del ticket.",
+      "That action is not valid in the ticket's current state.",
       409,
       "ILLEGAL_TRANSITION",
     );
@@ -760,7 +760,7 @@ export async function addTicketParticipant(
   const ticket = await getTicketById(ticketId, guildId);
   if (!isTicketStatus(ticket.status) || ticket.status === "closed") {
     throw new TicketsError(
-      "No se puede añadir usuarios a un ticket cerrado.",
+      "You can't add users to a closed ticket.",
       409,
       "TICKET_CLOSED",
     );
@@ -790,7 +790,7 @@ export async function removeTicketParticipant(
   const ticket = await getTicketById(ticketId, guildId);
   if (userId === ticket.openerId) {
     throw new TicketsError(
-      "No puedes quitar a quien abrió el ticket.",
+      "You can't remove the person who opened the ticket.",
       400,
       "CANNOT_REMOVE_OPENER",
     );
@@ -822,7 +822,7 @@ export async function appendChannelDeletedEvent(
     guildId: ticket.guildId,
     action: "close",
     actorId: "system",
-    closeReason: "Canal eliminado en Discord",
+    closeReason: "Channel deleted in Discord",
     channelId: null,
     eventType: "channel_deleted",
     payload: { channelId: ticket.channelId },

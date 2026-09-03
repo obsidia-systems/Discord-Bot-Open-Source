@@ -17,7 +17,7 @@ function sessionSecret(): string {
   const secret = process.env.SESSION_SECRET?.trim();
   if (!secret || secret.length < 16) {
     throw new Error(
-      "SESSION_SECRET debe definirse (mínimo 16 caracteres) para cifrar tokens OAuth.",
+      "SESSION_SECRET must be set (at least 16 characters) to encrypt OAuth tokens.",
     );
   }
   return secret;

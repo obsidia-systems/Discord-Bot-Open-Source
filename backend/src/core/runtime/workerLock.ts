@@ -24,16 +24,16 @@ export async function acquireWorkerLock(databaseUrl: string): Promise<boolean> {
     if (!ok) {
       await client.end({ timeout: 2 });
       logger.warn(
-        "Otro proceso ya tiene el lock de worker; este no arrancará crons",
+        "Another process already holds the worker lock; this one won't start crons",
       );
       return false;
     }
     lockSql = client;
-    logger.info("Lock de worker adquirido");
+    logger.info("Worker lock acquired");
     return true;
   } catch (error: unknown) {
     await client.end({ timeout: 2 }).catch(() => undefined);
-    logger.error({ err: error }, "No se pudo adquirir el lock de worker");
+    logger.error({ err: error }, "Couldn't acquire the worker lock");
     return false;
   }
 }

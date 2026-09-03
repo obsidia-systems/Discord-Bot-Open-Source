@@ -36,7 +36,7 @@ export class StreamAlertsError extends Error {
 function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new StreamAlertsError("Falta guildId.", 400, "MISSING_GUILD_ID");
+    throw new StreamAlertsError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
   return id;
 }
@@ -104,14 +104,14 @@ function mapAlert(row: StreamAlertRow): StreamAlert {
 function requireSnowflake(raw: string, label: string): string {
   const id = raw.trim();
   if (!SNOWFLAKE_RE.test(id)) {
-    throw new StreamAlertsError(`${label} inválido.`, 400, "INVALID_SNOWFLAKE");
+    throw new StreamAlertsError(`Invalid ${label}.`, 400, "INVALID_SNOWFLAKE");
   }
   return id;
 }
 
 function optionalSnowflake(raw: string | null | undefined): string | null {
   if (raw === undefined || raw === null || raw.trim() === "") return null;
-  return requireSnowflake(raw, "Rol");
+  return requireSnowflake(raw, "Role");
 }
 
 function parseHandle(
@@ -121,7 +121,7 @@ function parseHandle(
   const parsed = normalizeStreamHandle(platform, raw);
   if (!parsed) {
     throw new StreamAlertsError(
-      "No reconocí ese canal. Pega la URL, el login o el @handle.",
+      "I didn't recognize that channel. Paste the URL, login or @handle.",
       400,
       "INVALID_HANDLE",
     );
@@ -164,7 +164,7 @@ export async function getStreamAlert(
       .limit(1),
   );
   if (!row) {
-    throw new StreamAlertsError("Alerta no encontrada.", 404, "NOT_FOUND");
+    throw new StreamAlertsError("Alert not found.", 404, "NOT_FOUND");
   }
   return mapAlert(row);
 }
@@ -187,7 +187,7 @@ export async function createStreamAlert(
   await assertWithinLimit(id, "streamAlerts", usage?.n ?? 0);
 
   const parsed = parseHandle(input.platform, input.handle);
-  const discordChannelId = requireSnowflake(input.discordChannelId, "Canal");
+  const discordChannelId = requireSnowflake(input.discordChannelId, "Channel");
   const mentionRoleId = optionalSnowflake(input.mentionRoleId);
   const template = clampStreamAlertTemplate(input.template);
   const now = new Date();
@@ -210,7 +210,7 @@ export async function createStreamAlert(
       .returning();
     if (!inserted) {
       throw new StreamAlertsError(
-        "No se pudo crear la alerta.",
+        "Couldn't create the alert.",
         500,
         "INSERT_FAILED",
       );
@@ -219,7 +219,7 @@ export async function createStreamAlert(
   } catch (error: unknown) {
     if (isUniqueViolation(error)) {
       throw new StreamAlertsError(
-        "Ya hay una alerta para ese canal.",
+        "There is already an alert for that channel.",
         409,
         "DUPLICATE_HANDLE",
       );
@@ -248,7 +248,7 @@ export async function updateStreamAlert(
 
   const discordChannelId =
     input.discordChannelId !== undefined
-      ? requireSnowflake(input.discordChannelId, "Canal")
+      ? requireSnowflake(input.discordChannelId, "Channel")
       : current.discordChannelId;
   const mentionRoleId =
     input.mentionRoleId !== undefined
@@ -283,13 +283,13 @@ export async function updateStreamAlert(
       .where(and(eq(streamAlerts.id, alertId), eq(streamAlerts.guildId, id)))
       .returning();
     if (!updated) {
-      throw new StreamAlertsError("Alerta no encontrada.", 404, "NOT_FOUND");
+      throw new StreamAlertsError("Alert not found.", 404, "NOT_FOUND");
     }
     return mapAlert(updated);
   } catch (error: unknown) {
     if (isUniqueViolation(error)) {
       throw new StreamAlertsError(
-        "Ya hay una alerta para ese canal.",
+        "There is already an alert for that channel.",
         409,
         "DUPLICATE_HANDLE",
       );
@@ -308,7 +308,7 @@ export async function deleteStreamAlert(
     .where(and(eq(streamAlerts.id, alertId), eq(streamAlerts.guildId, id)))
     .returning({ id: streamAlerts.id });
   if (deleted.length === 0) {
-    throw new StreamAlertsError("Alerta no encontrada.", 404, "NOT_FOUND");
+    throw new StreamAlertsError("Alert not found.", 404, "NOT_FOUND");
   }
 }
 

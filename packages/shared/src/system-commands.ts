@@ -103,27 +103,27 @@ export const SYSTEM_COMMAND_CATEGORY_LABELS: Record<
   SystemCommandCategory,
   string
 > = {
-  moderation: "Moderación",
+  moderation: "Moderation",
   levels: "Levels",
-  economy: "Economía",
-  utilities: "Utilidades",
-  forms: "Formularios",
+  economy: "Economy",
+  utilities: "Utilities",
+  forms: "Forms",
 };
 
 export const SYSTEM_COMMAND_PARAM_TYPE_LABELS: Record<
   SystemCommandParamType,
   string
 > = {
-  USER: "Usuario",
-  STRING: "Texto",
-  INTEGER: "Número",
-  NUMBER: "Número",
-  BOOLEAN: "Booleano",
-  CHANNEL: "Canal",
-  ROLE: "Rol",
+  USER: "User",
+  STRING: "Text",
+  INTEGER: "Number",
+  NUMBER: "Number",
+  BOOLEAN: "Boolean",
+  CHANNEL: "Channel",
+  ROLE: "Role",
 };
 
-/** Sintaxis tipo Discord: `/ban <usuario> [razon]`. */
+/** Discord-style syntax: `/ban <usuario> [razon]`. */
 export function formatSystemCommandSyntax(
   def: Pick<SystemCommandDefinition, "name" | "options">,
 ): string {
@@ -151,21 +151,20 @@ function opt(
  * Nombres en minúsculas sin espacios (API Discord).
  */
 export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
-  // ── Moderación ──────────────────────────────────────────────
+  // ── Moderation ──────────────────────────────────────────────
   {
     name: "ban",
-    description:
-      "Banea al usuario y opcionalmente borra sus mensajes recientes.",
+    description: "Bans the user and optionally deletes their recent messages.",
     category: "moderation",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Miembro a banear."),
-      opt("razon", "STRING", false, "Motivo del baneo."),
+      opt("usuario", "USER", true, "Member to ban."),
+      opt("razon", "STRING", false, "Reason for the ban."),
       opt(
         "borrar_dias",
         "INTEGER",
         false,
-        "Borrar mensajes de los últimos N días (0–7).",
+        "Delete messages from the last N days (0–7).",
         {
           minValue: 0,
           maxValue: 7,
@@ -178,12 +177,12 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "kick",
-    description: "Expulsa al usuario del servidor.",
+    description: "Kicks the user from the server.",
     category: "moderation",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Miembro a expulsar."),
-      opt("razon", "STRING", false, "Motivo de la expulsión."),
+      opt("usuario", "USER", true, "Member to kick."),
+      opt("razon", "STRING", false, "Reason for the kick."),
     ],
     supportsEphemeral: false,
     defaultEphemeral: false,
@@ -191,13 +190,14 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "timeout",
-    description: "Aísla al usuario (mute nativo). Duración: 10m, 1h, 24h, etc.",
+    description:
+      "Times out the user (native mute). Duration: 10m, 1h, 24h, etc.",
     category: "moderation",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Miembro a silenciar."),
-      opt("duracion", "STRING", true, "Duración (ej. 10m, 1h, 24h)."),
-      opt("razon", "STRING", false, "Motivo del timeout."),
+      opt("usuario", "USER", true, "Member to time out."),
+      opt("duracion", "STRING", true, "Duration (e.g. 10m, 1h, 24h)."),
+      opt("razon", "STRING", false, "Reason for the timeout."),
     ],
     supportsEphemeral: false,
     defaultEphemeral: false,
@@ -205,12 +205,12 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "untimeout",
-    description: "Remueve el aislamiento (timeout) de un usuario.",
+    description: "Removes the timeout from a user.",
     category: "moderation",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Miembro a liberar."),
-      opt("razon", "STRING", false, "Motivo."),
+      opt("usuario", "USER", true, "Member to release."),
+      opt("razon", "STRING", false, "Reason."),
     ],
     supportsEphemeral: false,
     defaultEphemeral: false,
@@ -218,12 +218,12 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "warn",
-    description: "Añade una advertencia al expediente del usuario.",
+    description: "Adds a warning to the user's record.",
     category: "moderation",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Miembro a advertir."),
-      opt("razon", "STRING", true, "Motivo de la advertencia."),
+      opt("usuario", "USER", true, "Member to warn."),
+      opt("razon", "STRING", true, "Reason for the warning."),
     ],
     supportsEphemeral: false,
     defaultEphemeral: false,
@@ -231,20 +231,20 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "warns",
-    description: "Muestra el historial de infracciones de un usuario.",
+    description: "Shows a user's infraction history.",
     category: "moderation",
     defaultEnabled: true,
-    options: [opt("usuario", "USER", true, "Miembro a consultar.")],
+    options: [opt("usuario", "USER", true, "Member to look up.")],
     supportsEphemeral: true,
     defaultEphemeral: true,
     requiresAdminByDefault: true,
   },
   {
     name: "clearwarns",
-    description: "Limpia el expediente de advertencias de un usuario.",
+    description: "Clears a user's warning record.",
     category: "moderation",
     defaultEnabled: true,
-    options: [opt("usuario", "USER", true, "Miembro a limpiar.")],
+    options: [opt("usuario", "USER", true, "Member to clear.")],
     supportsEphemeral: false,
     defaultEphemeral: false,
     requiresAdminByDefault: true,
@@ -252,15 +252,15 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   {
     name: "purge",
     description:
-      "Borra hasta 100 mensajes. Si defines un usuario, solo borra los suyos.",
+      "Deletes up to 100 messages. If you set a user, only theirs are deleted.",
     category: "moderation",
     defaultEnabled: true,
     options: [
-      opt("cantidad", "INTEGER", true, "Cantidad de mensajes (1–100).", {
+      opt("cantidad", "INTEGER", true, "Number of messages (1–100).", {
         minValue: 1,
         maxValue: 100,
       }),
-      opt("usuario", "USER", false, "Solo mensajes de este usuario."),
+      opt("usuario", "USER", false, "Only messages from this user."),
     ],
     supportsEphemeral: true,
     defaultEphemeral: true,
@@ -268,15 +268,20 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "slowmode",
-    description: "Activa el modo lento en un canal.",
+    description: "Enables slowmode in a channel.",
     category: "moderation",
     defaultEnabled: true,
     options: [
-      opt("segundos", "INTEGER", true, "Segundos de slowmode (0–21600).", {
+      opt("segundos", "INTEGER", true, "Slowmode seconds (0–21600).", {
         minValue: 0,
         maxValue: 21600,
       }),
-      opt("canal", "CHANNEL", false, "Canal objetivo (por defecto el actual)."),
+      opt(
+        "canal",
+        "CHANNEL",
+        false,
+        "Target channel (defaults to the current one).",
+      ),
     ],
     supportsEphemeral: true,
     defaultEphemeral: true,
@@ -284,7 +289,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "lock",
-    description: "Bloquea un canal para que @everyone no pueda escribir.",
+    description: "Locks a channel so @everyone can't send messages.",
     category: "moderation",
     defaultEnabled: true,
     options: [
@@ -292,7 +297,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
         "canal",
         "CHANNEL",
         false,
-        "Canal a bloquear (por defecto el actual).",
+        "Channel to lock (defaults to the current one).",
       ),
     ],
     supportsEphemeral: false,
@@ -301,7 +306,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "unlock",
-    description: "Desbloquea un canal previamente bloqueado.",
+    description: "Unlocks a previously locked channel.",
     category: "moderation",
     defaultEnabled: true,
     options: [
@@ -309,7 +314,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
         "canal",
         "CHANNEL",
         false,
-        "Canal a desbloquear (por defecto el actual).",
+        "Channel to unlock (defaults to the current one).",
       ),
     ],
     supportsEphemeral: false,
@@ -320,17 +325,17 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   // ── Levels ──────────────────────────────────────────────────
   {
     name: "rank",
-    description: "Muestra el nivel, XP y ranking del usuario.",
+    description: "Shows the user's level, XP and rank.",
     category: "levels",
     defaultEnabled: true,
-    options: [opt("usuario", "USER", false, "Miembro a consultar (opcional).")],
+    options: [opt("usuario", "USER", false, "Member to look up (optional).")],
     supportsEphemeral: true,
     defaultEphemeral: true,
     requiresAdminByDefault: false,
   },
   {
     name: "leaderboard",
-    description: "Muestra el top de experiencia del servidor.",
+    description: "Shows the server's XP leaderboard.",
     category: "levels",
     defaultEnabled: true,
     options: [],
@@ -340,12 +345,12 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "givexp",
-    description: "Regala XP a un miembro (solo admin).",
+    description: "Grants XP to a member (admin only).",
     category: "levels",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Miembro que recibe XP."),
-      opt("cantidad", "INTEGER", true, "Cantidad de XP a otorgar.", {
+      opt("usuario", "USER", true, "Member who receives XP."),
+      opt("cantidad", "INTEGER", true, "Amount of XP to grant.", {
         minValue: 1,
       }),
     ],
@@ -355,12 +360,12 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "removexp",
-    description: "Quita XP a un miembro (solo admin).",
+    description: "Removes XP from a member (admin only).",
     category: "levels",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Miembro al que quitar XP."),
-      opt("cantidad", "INTEGER", true, "Cantidad de XP a quitar.", {
+      opt("usuario", "USER", true, "Member to remove XP from."),
+      opt("cantidad", "INTEGER", true, "Amount of XP to remove.", {
         minValue: 1,
       }),
     ],
@@ -370,32 +375,32 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "setlevel",
-    description: "Fuerza el nivel de un usuario (solo admin).",
+    description: "Forces a user's level (admin only).",
     category: "levels",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Miembro objetivo."),
-      opt("nivel", "INTEGER", true, "Nivel a asignar.", { minValue: 0 }),
+      opt("usuario", "USER", true, "Target member."),
+      opt("nivel", "INTEGER", true, "Level to set.", { minValue: 0 }),
     ],
     supportsEphemeral: true,
     defaultEphemeral: true,
     requiresAdminByDefault: true,
   },
 
-  // ── Economía ────────────────────────────────────────────────
+  // ── Economy ────────────────────────────────────────────────
   {
     name: "balance",
-    description: "Muestra el dinero en cartera y banco.",
+    description: "Shows wallet and bank balance.",
     category: "economy",
     defaultEnabled: true,
-    options: [opt("usuario", "USER", false, "Miembro a consultar (opcional).")],
+    options: [opt("usuario", "USER", false, "Member to look up (optional).")],
     supportsEphemeral: true,
     defaultEphemeral: true,
     requiresAdminByDefault: false,
   },
   {
     name: "deposit",
-    description: "Guarda dinero de tu cartera en el banco (zona segura).",
+    description: "Moves money from your wallet into the bank (safe zone).",
     category: "economy",
     defaultEnabled: true,
     options: [
@@ -403,7 +408,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
         "cantidad",
         "STRING",
         true,
-        "Cantidad a depositar, o `all`/`todo` para vaciar la cartera.",
+        "Amount to deposit, or `all`/`todo` to empty the wallet.",
       ),
     ],
     supportsEphemeral: true,
@@ -412,7 +417,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "withdraw",
-    description: "Saca dinero del banco hacia tu cartera.",
+    description: "Withdraws money from the bank to your wallet.",
     category: "economy",
     defaultEnabled: true,
     options: [
@@ -420,7 +425,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
         "cantidad",
         "STRING",
         true,
-        "Cantidad a retirar, o `all`/`todo` para vaciar el banco.",
+        "Amount to withdraw, or `all`/`todo` to empty the bank.",
       ),
     ],
     supportsEphemeral: true,
@@ -429,7 +434,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "work",
-    description: "Trabaja para ganar dinero aleatorio (con cooldown).",
+    description: "Work to earn random money (with cooldown).",
     category: "economy",
     defaultEnabled: true,
     options: [],
@@ -439,7 +444,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "crime",
-    description: "Intenta un crimen: riesgo de multa o recompensa.",
+    description: "Attempt a crime: risk of a fine or a reward.",
     category: "economy",
     defaultEnabled: true,
     options: [],
@@ -449,7 +454,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "daily",
-    description: "Recompensa diaria de dinero.",
+    description: "Daily money reward.",
     category: "economy",
     defaultEnabled: true,
     options: [],
@@ -459,7 +464,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "weekly",
-    description: "Recompensa semanal de dinero.",
+    description: "Weekly money reward.",
     category: "economy",
     defaultEnabled: true,
     options: [],
@@ -469,7 +474,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "monthly",
-    description: "Recompensa mensual de dinero.",
+    description: "Monthly money reward.",
     category: "economy",
     defaultEnabled: true,
     options: [],
@@ -479,12 +484,12 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "pay",
-    description: "Transfiere dinero a otro miembro.",
+    description: "Transfers money to another member.",
     category: "economy",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Destinatario."),
-      opt("cantidad", "INTEGER", true, "Cantidad a transferir.", {
+      opt("usuario", "USER", true, "Recipient."),
+      opt("cantidad", "INTEGER", true, "Amount to transfer.", {
         minValue: 1,
       }),
     ],
@@ -494,7 +499,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "baltop",
-    description: "Muestra el top de riqueza del servidor.",
+    description: "Shows the server's wealth leaderboard.",
     category: "economy",
     defaultEnabled: true,
     options: [],
@@ -504,12 +509,12 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "addmoney",
-    description: "Añade fondos a un miembro (admin).",
+    description: "Adds funds to a member (admin).",
     category: "economy",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Miembro objetivo."),
-      opt("cantidad", "INTEGER", true, "Cantidad a añadir.", { minValue: 1 }),
+      opt("usuario", "USER", true, "Target member."),
+      opt("cantidad", "INTEGER", true, "Amount to add.", { minValue: 1 }),
     ],
     supportsEphemeral: true,
     defaultEphemeral: true,
@@ -517,12 +522,12 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "removemoney",
-    description: "Quita fondos a un miembro (admin).",
+    description: "Removes funds from a member (admin).",
     category: "economy",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Miembro objetivo."),
-      opt("cantidad", "INTEGER", true, "Cantidad a quitar.", { minValue: 1 }),
+      opt("usuario", "USER", true, "Target member."),
+      opt("cantidad", "INTEGER", true, "Amount to remove.", { minValue: 1 }),
     ],
     supportsEphemeral: true,
     defaultEphemeral: true,
@@ -530,7 +535,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "shop",
-    description: "Muestra la tienda del servidor.",
+    description: "Shows the server shop.",
     category: "economy",
     defaultEnabled: true,
     options: [],
@@ -540,11 +545,11 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "buy",
-    description: "Compra un ítem de la tienda del servidor.",
+    description: "Buy an item from the server shop.",
     category: "economy",
     defaultEnabled: true,
     options: [
-      opt("item", "STRING", true, "Nombre del ítem (escribe para buscar).", {
+      opt("item", "STRING", true, "Item name (type to search).", {
         autocomplete: true,
       }),
     ],
@@ -554,7 +559,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "coinflip",
-    description: "Apuesta a cara o cruz.",
+    description: "Bet on heads or tails.",
     category: "economy",
     defaultEnabled: true,
     options: [
@@ -563,11 +568,11 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
         "lado",
         "STRING",
         false,
-        "Atajo: cara o cruz. Si omites, eliges con botones.",
+        "Shortcut: heads or tails. If omitted, you pick with buttons.",
         {
           choices: [
-            { name: "Cara", value: "cara" },
-            { name: "Cruz", value: "cruz" },
+            { name: "Heads", value: "cara" },
+            { name: "Tails", value: "cruz" },
           ],
         },
       ),
@@ -578,7 +583,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "roulette",
-    description: "Apuesta en la ruleta del casino.",
+    description: "Bet on the casino roulette.",
     category: "economy",
     defaultEnabled: true,
     options: [
@@ -587,17 +592,17 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
         "tipo",
         "STRING",
         false,
-        "Atajo de color o número. Si omites, eliges en la mesa.",
+        "Color or number shortcut. If omitted, you pick at the table.",
         {
           choices: [
-            { name: "Rojo", value: "rojo" },
-            { name: "Negro", value: "negro" },
-            { name: "Verde", value: "verde" },
-            { name: "Número exacto", value: "numero" },
+            { name: "Red", value: "rojo" },
+            { name: "Black", value: "negro" },
+            { name: "Green", value: "verde" },
+            { name: "Exact number", value: "numero" },
           ],
         },
       ),
-      opt("valor_numero", "INTEGER", false, "Número (0–36) si tipo = numero.", {
+      opt("valor_numero", "INTEGER", false, "Number (0–36) if tipo = numero.", {
         minValue: 0,
         maxValue: 36,
       }),
@@ -608,7 +613,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "blackjack",
-    description: "Juega una mano de blackjack.",
+    description: "Play a hand of blackjack.",
     category: "economy",
     defaultEnabled: true,
     options: [
@@ -620,7 +625,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "slots",
-    description: "Gira una máquina de 3 rodillos.",
+    description: "Spin a 3-reel machine.",
     category: "economy",
     defaultEnabled: true,
     options: [
@@ -632,7 +637,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "collect-income",
-    description: "Cobra los salarios de tus roles (diario o semanal).",
+    description: "Collect your role salaries (daily or weekly).",
     category: "economy",
     defaultEnabled: true,
     options: [],
@@ -642,17 +647,17 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "rob",
-    description: "Intenta robar la cartera de otro miembro (no el banco).",
+    description: "Try to steal another member's wallet (not the bank).",
     category: "economy",
     defaultEnabled: true,
-    options: [opt("usuario", "USER", true, "Miembro a quien robar.")],
+    options: [opt("usuario", "USER", true, "Member to rob.")],
     supportsEphemeral: false,
     defaultEphemeral: false,
     requiresAdminByDefault: false,
   },
   {
     name: "inventory",
-    description: "Muestra roles, canales y boosts que compraste.",
+    description: "Shows roles, channels and boosts you bought.",
     category: "economy",
     defaultEnabled: true,
     options: [],
@@ -662,11 +667,11 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "use",
-    description: "Equipa o quita un rol de tu inventario.",
+    description: "Equip or remove a role from your inventory.",
     category: "economy",
     defaultEnabled: true,
     options: [
-      opt("item", "STRING", true, "Rol comprado (escribe para buscar).", {
+      opt("item", "STRING", true, "Purchased role (type to search).", {
         autocomplete: true,
       }),
     ],
@@ -676,12 +681,12 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "setmoney",
-    description: "Fija el saldo de cartera de un miembro (admin).",
+    description: "Sets a member's wallet balance (admin).",
     category: "economy",
     defaultEnabled: true,
     options: [
-      opt("usuario", "USER", true, "Miembro objetivo."),
-      opt("cantidad", "INTEGER", true, "Nuevo saldo de cartera.", {
+      opt("usuario", "USER", true, "Target member."),
+      opt("cantidad", "INTEGER", true, "New wallet balance.", {
         minValue: 0,
       }),
     ],
@@ -690,21 +695,22 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
     requiresAdminByDefault: true,
   },
 
-  // ── Utilidades ──────────────────────────────────────────────
+  // ── Utilities ──────────────────────────────────────────────
   {
     name: "userinfo",
     description:
-      "Muestra fecha de creación, ingreso, roles y permisos de un usuario.",
+      "Shows a user's creation date, join date, roles and permissions.",
     category: "utilities",
     defaultEnabled: true,
-    options: [opt("usuario", "USER", false, "Miembro a consultar (opcional).")],
+    options: [opt("usuario", "USER", false, "Member to look up (optional).")],
     supportsEphemeral: true,
     defaultEphemeral: false,
     requiresAdminByDefault: false,
   },
   {
     name: "serverinfo",
-    description: "Muestra boost, canales, roles, emojis y dueño del servidor.",
+    description:
+      "Shows the server's boosts, channels, roles, emojis and owner.",
     category: "utilities",
     defaultEnabled: true,
     options: [],
@@ -714,17 +720,17 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   },
   {
     name: "avatar",
-    description: "Muestra el avatar global y de servidor en alta resolución.",
+    description: "Shows the global and server avatar in high resolution.",
     category: "utilities",
     defaultEnabled: true,
-    options: [opt("usuario", "USER", false, "Miembro a consultar (opcional).")],
+    options: [opt("usuario", "USER", false, "Member to look up (optional).")],
     supportsEphemeral: true,
     defaultEphemeral: false,
     requiresAdminByDefault: false,
   },
   {
     name: "ping",
-    description: "Muestra la latencia del WebSocket (ms).",
+    description: "Shows the WebSocket latency (ms).",
     category: "utilities",
     defaultEnabled: true,
     options: [],
@@ -735,7 +741,7 @@ export const SYSTEM_COMMAND_CATALOG: readonly SystemCommandDefinition[] = [
   {
     name: "help",
     description:
-      "Menú interactivo con los comandos disponibles según tus permisos.",
+      "Interactive menu of the commands available to you based on your permissions.",
     category: "utilities",
     defaultEnabled: true,
     options: [],

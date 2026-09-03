@@ -16,7 +16,7 @@ function utc(iso: string): Date {
 }
 
 describe("normalizeScheduledFrequency", () => {
-  it("acepta interval y aliases de one-shot", () => {
+  it("accepts interval and one-shot aliases", () => {
     expect(normalizeScheduledFrequencyType("intervalo")).toBe("interval");
     expect(normalizeScheduledFrequencyType("one_shot")).toBe("specific_date");
     const freq = normalizeScheduledFrequency({
@@ -28,17 +28,17 @@ describe("normalizeScheduledFrequency", () => {
     expect(freq.lastDayOfMonth).toBe(false);
   });
 
-  it("clamp del intervalo", () => {
+  it("clamps the interval", () => {
     expect(clampScheduledIntervalMinutes(14)).toBe(15);
     expect(clampScheduledIntervalMinutes(20_000)).toBe(10_080);
   });
 });
 
 describe("formatScheduledFrequencySummary", () => {
-  it("resume diario, mensual último día e intervalo", () => {
+  it("summarizes daily, monthly last day and interval", () => {
     const daily = defaultScheduledFrequency();
     expect(formatScheduledFrequencySummary(daily, "UTC")).toBe(
-      "Todos los días a las 12:00 (UTC)",
+      "Every day at 12:00 (UTC)",
     );
     expect(
       formatScheduledFrequencySummary({
@@ -47,14 +47,14 @@ describe("formatScheduledFrequencySummary", () => {
         lastDayOfMonth: true,
         time: "09:00",
       }),
-    ).toBe("El último día de cada mes a las 09:00");
+    ).toBe("The last day of every month at 09:00");
     expect(
       formatScheduledFrequencySummary({
         ...daily,
         type: "interval",
         everyMinutes: 120,
       }),
-    ).toBe("Cada 2 horas");
+    ).toBe("Every 2 hours");
     expect(
       formatScheduledFrequencySummary({
         ...daily,
@@ -63,18 +63,18 @@ describe("formatScheduledFrequencySummary", () => {
         time: "18:00",
         repeatYearly: false,
       }),
-    ).toBe("El 2026-09-01 a las 18:00 (una vez)");
+    ).toBe("On 2026-09-01 at 18:00 (once)");
   });
 });
 
 describe("zonedCivilToUtc", () => {
-  it("UTC es identidad", () => {
+  it("UTC is identity", () => {
     expect(zonedCivilToUtc("UTC", 2026, 9, 1, 18, 0).toISOString()).toBe(
       "2026-09-01T18:00:00.000Z",
     );
   });
 
-  it("America/Mexico_City es UTC-6", () => {
+  it("America/Mexico_City is UTC-6", () => {
     expect(
       zonedCivilToUtc("America/Mexico_City", 2026, 9, 1, 18, 0).toISOString(),
     ).toBe("2026-09-02T00:00:00.000Z");
@@ -82,7 +82,7 @@ describe("zonedCivilToUtc", () => {
 });
 
 describe("computeNextRunAt", () => {
-  it("diario: catch-up si el tick de hoy ya pasó y no se envió", () => {
+  it("daily: catch-up if today's tick already passed and was not sent", () => {
     const freq = normalizeScheduledFrequency({ type: "daily", time: "18:00" });
     const due = computeNextRunAt(
       freq,
@@ -93,7 +93,7 @@ describe("computeNextRunAt", () => {
     expect(due?.toISOString()).toBe("2026-09-01T18:00:00.000Z");
   });
 
-  it("diario: siguiente día si ya se envió hoy", () => {
+  it("daily: next day if already sent today", () => {
     const freq = normalizeScheduledFrequency({ type: "daily", time: "18:00" });
     const next = computeNextRunAt(
       freq,
@@ -104,7 +104,7 @@ describe("computeNextRunAt", () => {
     expect(next?.toISOString()).toBe("2026-09-02T18:00:00.000Z");
   });
 
-  it("diario: aún no llega la hora de hoy", () => {
+  it("daily: today's time has not arrived yet", () => {
     const freq = normalizeScheduledFrequency({ type: "daily", time: "18:00" });
     const next = computeNextRunAt(
       freq,
@@ -115,7 +115,7 @@ describe("computeNextRunAt", () => {
     expect(next?.toISOString()).toBe("2026-09-01T18:00:00.000Z");
   });
 
-  it("one-shot: catch-up si el instante ya pasó", () => {
+  it("one-shot: catch-up if the instant already passed", () => {
     const freq = normalizeScheduledFrequency({
       type: "specific_date",
       date: "2026-09-01",
@@ -132,7 +132,7 @@ describe("computeNextRunAt", () => {
     expect(due?.toISOString()).toBe("2026-09-01T18:00:00.000Z");
   });
 
-  it("one-shot: null si ya se envió (no zombie anual)", () => {
+  it("one-shot: null if already sent (no yearly zombie)", () => {
     const freq = normalizeScheduledFrequency({
       type: "specific_date",
       date: "2026-09-01",
@@ -148,7 +148,7 @@ describe("computeNextRunAt", () => {
     expect(next).toBeNull();
   });
 
-  it("yearly: el año siguiente si este ya pasó", () => {
+  it("yearly: next year if this one already passed", () => {
     const freq = normalizeScheduledFrequency({
       type: "specific_date",
       date: "2026-01-01",
@@ -164,7 +164,7 @@ describe("computeNextRunAt", () => {
     expect(next?.toISOString()).toBe("2027-01-01T00:00:00.000Z");
   });
 
-  it("mensual 31 se clamp en abril", () => {
+  it("monthly 31 is clamped in April", () => {
     const freq = normalizeScheduledFrequency({
       type: "monthly",
       dayOfMonth: 31,
@@ -179,7 +179,7 @@ describe("computeNextRunAt", () => {
     expect(next?.toISOString()).toBe("2026-04-30T12:00:00.000Z");
   });
 
-  it("último día de febrero no bisiesto", () => {
+  it("last day of February in a non-leap year", () => {
     expect(daysInMonth(2026, 2)).toBe(28);
     const freq = normalizeScheduledFrequency({
       type: "monthly",
@@ -195,7 +195,7 @@ describe("computeNextRunAt", () => {
     expect(next?.toISOString()).toBe("2026-02-28T12:00:00.000Z");
   });
 
-  it("intervalo: primer fire al activar, luego lastSent + N", () => {
+  it("interval: first fire on enable, then lastSent + N", () => {
     const freq = normalizeScheduledFrequency({
       type: "interval",
       everyMinutes: 120,
@@ -214,7 +214,7 @@ describe("computeNextRunAt", () => {
     ).toBe("2026-09-01T12:00:00.000Z");
   });
 
-  it("semanal Lun/Mié después del lunes", () => {
+  it("weekly Mon/Wed after Monday", () => {
     const freq = normalizeScheduledFrequency({
       type: "weekly",
       time: "09:00",

@@ -53,10 +53,10 @@ export function buildActionLogEmbed(
   if (input.description?.trim()) {
     lines.push(input.description.trim());
   } else {
-    lines.push(`**Acción:** ${actionLabel}`);
+    lines.push(`**Action:** ${actionLabel}`);
   }
   if (input.executorUnknown) {
-    lines.push("**Ejecutor:** Desconocido");
+    lines.push("**Executor:** Unknown");
   }
 
   const embed = new EmbedBuilder()
@@ -104,7 +104,7 @@ export function buildActionLogEmbed(
     details.roleName.trim()
   ) {
     fields.push({
-      name: "Rol",
+      name: "Role",
       value: `\`${details.roleName.trim()}\``,
       inline: true,
     });
@@ -112,15 +112,15 @@ export function buildActionLogEmbed(
 
   if (typeof details.parentName === "string") {
     fields.push({
-      name: "Categoría Padre",
-      value: details.parentName.trim() || "Ninguna",
+      name: "Parent Category",
+      value: details.parentName.trim() || "None",
       inline: true,
     });
   }
 
   if (typeof details.roleColor === "string" && details.roleColor.trim()) {
     fields.push({
-      name: "Color Hex",
+      name: "Hex Color",
       value: `\`${details.roleColor.trim()}\``,
       inline: true,
     });
@@ -128,7 +128,7 @@ export function buildActionLogEmbed(
 
   if (typeof details.channelTypeName === "string" && details.channelTypeName.trim()) {
     fields.push({
-      name: "Tipo",
+      name: "Type",
       value: details.channelTypeName.trim(),
       inline: true,
     });
@@ -160,22 +160,22 @@ export function buildActionLogEmbed(
   if (!hasDiffFields) {
     if (oldContent !== null && newContent === null) {
       fields.push({
-        name: "Contenido original",
-        value: formatContentField(oldContent || "(vacío)"),
+        name: "Original content",
+        value: formatContentField(oldContent || "(empty)"),
         inline: false,
       });
     } else if (oldContent !== null || newContent !== null) {
       if (oldContent !== null) {
         fields.push({
-          name: "Antes",
-          value: formatContentField(oldContent || "(vacío)"),
+          name: "Before",
+          value: formatContentField(oldContent || "(empty)"),
           inline: false,
         });
       }
       if (newContent !== null) {
         fields.push({
-          name: "Después",
-          value: formatContentField(newContent || "(vacío)"),
+          name: "After",
+          value: formatContentField(newContent || "(empty)"),
           inline: false,
         });
       }
@@ -247,10 +247,10 @@ function resolveChannelField(
       plainLabel ||
       (typeof details.name === "string" && details.name.trim()
         ? `#${details.name.trim()}`
-        : "#canal-sin-nombre");
+        : "#unnamed-channel");
     const normalized = name.startsWith("#") ? name : `#${name}`;
     return {
-      name: "Canal",
+      name: "Channel",
       value: `\`${normalized}\``,
       inline: true,
     };
@@ -258,7 +258,7 @@ function resolveChannelField(
 
   if (entry.channelId) {
     return {
-      name: "Canal",
+      name: "Channel",
       value: `<#${entry.channelId}>`,
       inline: true,
     };
@@ -277,7 +277,7 @@ function buildAuthorName(
 ): string | null {
   if (!tag) {
     if (isSnowflake(executorId)) {
-      return `Desconocido (ID: ${executorId})`.slice(0, 256);
+      return `Unknown (ID: ${executorId})`.slice(0, 256);
     }
     return null;
   }
@@ -290,9 +290,9 @@ function buildAuthorName(
 function resourceFooterLabel(kind: ActionLogTargetKind): string {
   switch (kind) {
     case "channel":
-      return "Canal ID";
+      return "Channel ID";
     case "role":
-      return "Rol ID";
+      return "Role ID";
     case "emoji":
       return "Emoji ID";
     case "sticker":
@@ -300,7 +300,7 @@ function resourceFooterLabel(kind: ActionLogTargetKind): string {
     case "invite":
       return "Invite";
     default:
-      return "Recurso ID";
+      return "Resource ID";
   }
 }
 
@@ -320,7 +320,7 @@ function buildFooter(
       : null);
 
   if (targetKind === "user" && isSnowflake(targetId)) {
-    const parts = [`Afectado ID: ${targetId}`];
+    const parts = [`Affected ID: ${targetId}`];
     if (messageId) parts.push(`Msg ID: ${messageId}`);
     return {
       text: truncate(parts.join(" • "), 2048),
@@ -339,9 +339,9 @@ function buildFooter(
 
   const parts: string[] = [];
   if (isSnowflake(executorId)) {
-    parts.push(`Ejecutado por ID: ${executorId}`);
+    parts.push(`Executed by ID: ${executorId}`);
   } else if (input.executorUnknown) {
-    parts.push("Ejecutor: desconocido");
+    parts.push("Executor: unknown");
   } else {
     parts.push("Adobos Bot");
   }
@@ -354,7 +354,7 @@ function buildFooter(
 }
 
 function formatContentField(raw: string): string {
-  const text = raw.trim() || "(vacío)";
+  const text = raw.trim() || "(empty)";
   const lineCount = text.split("\n").length;
   if (lineCount > 8) {
     return codeBlock(text);

@@ -13,7 +13,7 @@ import {
 const guildId = "111";
 
 describe("canAssignAutorole", () => {
-  it("rechaza missing, everyone, managed y encima del bot", () => {
+  it("rejects missing, everyone, managed and above the bot", () => {
     expect(autoroleAssignDenyReason(null, guildId, 5)).toBe("missing");
     expect(
       autoroleAssignDenyReason(
@@ -43,7 +43,7 @@ describe("canAssignAutorole", () => {
 });
 
 describe("exclusiveSelectRoleIds", () => {
-  it("deja el elegido y quita el resto del menú", () => {
+  it("keeps the chosen one and removes the rest of the menu", () => {
     expect(exclusiveSelectRoleIds(["a", "b", "c"], "b")).toEqual({
       add: "b",
       remove: ["a", "c"],
@@ -56,18 +56,18 @@ describe("exclusiveSelectRoleIds", () => {
 });
 
 describe("normalizeAutoroleEmojiKey", () => {
-  it("normaliza mención, custom y unicode", () => {
+  it("normalizes mention, custom and unicode", () => {
     expect(normalizeAutoroleEmojiKey("<:pepe:123456789012345678>")).toBe(
       "custom:123456789012345678",
     );
     expect(normalizeAutoroleEmojiKey("custom:99")).toBe("custom:99");
     expect(normalizeAutoroleEmojiKey("🔥")).toBe("unicode:🔥");
-    expect(() => normalizeAutoroleEmojiKey("  ")).toThrow(/vacío/);
+    expect(() => normalizeAutoroleEmojiKey("  ")).toThrow(/empty/);
   });
 });
 
-describe("canales, tope y picker", () => {
-  it("solo texto y anuncios; reacciones 20; managed fuera", () => {
+describe("channels, cap and picker", () => {
+  it("text and announcements only; reactions 20; managed excluded", () => {
     expect(isAutoroleSendChannelType(0)).toBe(true);
     expect(isAutoroleSendChannelType(5)).toBe(true);
     expect(isAutoroleSendChannelType(2)).toBe(false);

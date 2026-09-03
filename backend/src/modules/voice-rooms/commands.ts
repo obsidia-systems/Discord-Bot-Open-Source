@@ -14,7 +14,7 @@ async function replyError(
   const message =
     error instanceof VoiceRoomsError
       ? error.message
-      : "No se pudo aplicar esa acción.";
+      : "Couldn't apply that action.";
   const payload = { content: message, ...EPHEMERAL };
   if (interaction.deferred || interaction.replied) {
     await interaction.followUp(payload).catch(() => null);
@@ -28,7 +28,7 @@ export async function handleVoiceCommand(
 ): Promise<void> {
   if (!interaction.inGuild() || !interaction.member) {
     await interaction.reply({
-      content: "Usa este comando en un servidor.",
+      content: "Use this command in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -37,7 +37,7 @@ export async function handleVoiceCommand(
   const member = await interaction.guild?.members.fetch(interaction.user.id);
   if (!member) {
     await interaction.reply({
-      content: "No pude cargar tu miembro.",
+      content: "I couldn't load your member.",
       ...EPHEMERAL,
     });
     return;
@@ -69,7 +69,7 @@ export async function handleVoiceRoomSelect(
 ): Promise<void> {
   if (!interaction.inGuild()) {
     await interaction.reply({
-      content: "Usa esto en un servidor.",
+      content: "Use this in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -82,7 +82,7 @@ export async function handleVoiceRoomSelect(
     | undefined;
   if (!action || !channelId) {
     await interaction.reply({
-      content: "Acción inválida.",
+      content: "Invalid action.",
       ...EPHEMERAL,
     });
     return;
@@ -90,7 +90,7 @@ export async function handleVoiceRoomSelect(
   const member = await interaction.guild?.members.fetch(interaction.user.id);
   if (!member) {
     await interaction.reply({
-      content: "No pude cargar tu miembro.",
+      content: "I couldn't load your member.",
       ...EPHEMERAL,
     });
     return;
@@ -98,7 +98,7 @@ export async function handleVoiceRoomSelect(
   try {
     if (member.voice.channelId !== channelId) {
       await interaction.reply({
-        content: "Entra a esa sala para administrarla.",
+        content: "Join that room to manage it.",
         ...EPHEMERAL,
       });
       return;

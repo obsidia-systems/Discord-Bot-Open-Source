@@ -35,9 +35,9 @@ function formatItemBlock(item: EconomyShopItem, currency: string): string {
   const namePrefix = icon && !isImageIcon(icon) ? `${icon} ` : "🛒 ";
   const benefits = summarizeShopRewards(item.rewards);
   const benefitsLabel =
-    benefits.length > 0 ? benefits.join(", ") : "Ninguno";
+    benefits.length > 0 ? benefits.join(", ") : "None";
 
-  let desc = (item.description || "Sin descripción.")
+  let desc = (item.description || "No description.")
     .replace(/\s+/g, " ")
     .trim();
   if (desc.length > 150) {
@@ -46,14 +46,14 @@ function formatItemBlock(item: EconomyShopItem, currency: string): string {
 
   return [
     `**${namePrefix}${item.name}** ━ ${item.price.toLocaleString("es-MX")} ${currency}`,
-    `**Stock:** ${stockLabel} | **Beneficios:** ${benefitsLabel}`,
+    `**Stock:** ${stockLabel} | **Benefits:** ${benefitsLabel}`,
     `*${desc}*`,
     "━━━━━━━━━━━━━━━━━",
   ].join("\n");
 }
 
 function buyButtonLabel(name: string): string {
-  const prefix = "🛒 Comprar ";
+  const prefix = "🛒 Buy ";
   const maxName = 80 - prefix.length;
   const truncated =
     name.length > maxName
@@ -89,14 +89,14 @@ export function buildShopCatalogPage(
 
   const description =
     pageItems.map((item) => formatItemBlock(item, currency)).join("\n\n") ||
-    "_No hay ítems en esta página._";
+    "_No items on this page._";
 
   const embed = new EmbedBuilder()
     .setColor(0xe11d48)
-    .setTitle("🛒 Tienda del Servidor")
+    .setTitle("🛒 Server Shop")
     .setDescription(description)
     .setFooter({
-      text: `Página ${safePage + 1} de ${totalPages} · Botón de compra o /buy`,
+      text: `Page ${safePage + 1} of ${totalPages} · Buy button or /buy`,
     });
 
   const components: ActionRowBuilder<ButtonBuilder>[] = [];
@@ -120,12 +120,12 @@ export function buildShopCatalogPage(
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`${SHOP_PAGE_PREFIX}${prevPage}_prev`)
-        .setLabel("◀ Anterior")
+        .setLabel("◀ Previous")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(safePage <= 0),
       new ButtonBuilder()
         .setCustomId(`${SHOP_PAGE_PREFIX}${nextPage}_next`)
-        .setLabel("Siguiente ▶")
+        .setLabel("Next ▶")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(safePage >= totalPages - 1),
     ),
@@ -142,7 +142,7 @@ export async function handleShopCommand(
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -151,7 +151,7 @@ export async function handleShopCommand(
   const economy = await getEconomyConfig(interaction.guildId);
   if (!economy.isActive) {
     await interaction.reply({
-      content: "⛔ La economía está desactivada en este servidor.",
+      content: "⛔ The economy is disabled in this server.",
       ...EPHEMERAL,
     });
     return;
@@ -164,12 +164,12 @@ export async function handleShopCommand(
   if (items.length === 0) {
     await interaction.editReply({
       content:
-        "La tienda está vacía por ahora. Un administrador puede añadir ítems en el panel.",
+        "The shop is empty for now. An administrator can add items in the panel.",
     });
     return;
   }
 
-  const currency = economy.currencyName || "monedas";
+  const currency = economy.currencyName || "coins";
   const payload = buildShopCatalogPage(items, currency, 0);
   await interaction.editReply(payload);
 }
@@ -182,7 +182,7 @@ export async function handleShopPageButton(
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este control solo funciona en un servidor.",
+      content: "This control only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -191,7 +191,7 @@ export async function handleShopPageButton(
   const economy = await getEconomyConfig(interaction.guildId);
   if (!economy.isActive) {
     await interaction.update({
-      content: "⛔ La economía está desactivada en este servidor.",
+      content: "⛔ The economy is disabled in this server.",
       embeds: [],
       components: [],
     });
@@ -202,7 +202,7 @@ export async function handleShopPageButton(
   const page = Number(rawPage);
   if (!Number.isFinite(page) || page < 0) {
     await interaction.reply({
-      content: "Página inválida.",
+      content: "Invalid page.",
       ...EPHEMERAL,
     });
     return;
@@ -212,14 +212,14 @@ export async function handleShopPageButton(
   if (items.length === 0) {
     await interaction.update({
       content:
-        "La tienda está vacía por ahora. Un administrador puede añadir ítems en el panel.",
+        "The shop is empty for now. An administrator can add items in the panel.",
       embeds: [],
       components: [],
     });
     return;
   }
 
-  const currency = economy.currencyName || "monedas";
+  const currency = economy.currencyName || "coins";
   const payload = buildShopCatalogPage(items, currency, page);
   await interaction.update(payload);
 }

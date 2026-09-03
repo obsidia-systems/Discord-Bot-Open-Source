@@ -14,8 +14,8 @@ import {
   starboardHeaderEmoji,
 } from "./starboard.js";
 
-describe("emoji y umbral", () => {
-  it("normaliza unicode, custom y mención; tope 10; vacío → ⭐", () => {
+describe("emoji and threshold", () => {
+  it("normalizes unicode, custom and mention; cap 10; empty → ⭐", () => {
     expect(normalizeStarboardEmojis(["⭐", "unicode:⭐"])).toEqual([
       STARBOARD_DEFAULT_EMOJI,
     ]);
@@ -27,28 +27,28 @@ describe("emoji y umbral", () => {
     expect(normalizeStarboardEmojis(many)).toHaveLength(STARBOARD_EMOJIS_MAX);
   });
 
-  it("clampa el umbral 1–100", () => {
+  it("clamps the threshold 1–100", () => {
     expect(clampStarboardThreshold(3)).toBe(STARBOARD_DEFAULT_THRESHOLD);
     expect(clampStarboardThreshold(0)).toBe(1);
     expect(clampStarboardThreshold(999)).toBe(STARBOARD_THRESHOLD_MAX);
     expect(clampStarboardThreshold("no")).toBe(STARBOARD_DEFAULT_THRESHOLD);
   });
 
-  it("solo texto y anuncios como destino", () => {
+  it("text and announcements only as destination", () => {
     expect(isStarboardDestinationChannelType(0)).toBe(true);
     expect(isStarboardDestinationChannelType(5)).toBe(true);
     expect(isStarboardDestinationChannelType(15)).toBe(false);
     expect(isStarboardDestinationChannelType(2)).toBe(false);
   });
 
-  it("header usa el primer unicode", () => {
+  it("header uses the first unicode", () => {
     expect(starboardHeaderEmoji(["custom:1", "unicode:✨"])).toBe("✨");
     expect(starboardHeaderEmoji(["custom:1"])).toBe("⭐");
   });
 });
 
-describe("conteo y decisión", () => {
-  it("no cuenta self-star ni bots si están apagados", () => {
+describe("counting and decision", () => {
+  it("does not count self-star or bots if disabled", () => {
     expect(
       countUniqueStarUsers(
         [
@@ -71,7 +71,7 @@ describe("conteo y decisión", () => {
     ).toBe(2);
   });
 
-  it("post / update / remove / noop según umbral", () => {
+  it("post / update / remove / noop depending on threshold", () => {
     expect(
       decideStarboardAction({ count: 3, threshold: 3, alreadyPosted: false }),
     ).toBe("post");
@@ -98,7 +98,7 @@ describe("conteo y decisión", () => {
 });
 
 describe("origen", () => {
-  it("salta el canal del tablón, ignorados, bots y posts propios", () => {
+  it("skips the board channel, ignored ones, bots and own posts", () => {
     const base = {
       enabled: true,
       destinationChannelId: "board",

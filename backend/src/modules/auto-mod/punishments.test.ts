@@ -12,7 +12,7 @@ describe("findPunishmentForWarnCount", () => {
     { warnThreshold: 5, actionType: "KICK" as const, actionParam: null },
   ];
 
-  it("coincide exactamente, no por ≥", () => {
+  it("matches exactly, not by ≥", () => {
     expect(findPunishmentForWarnCount(rules, 3)?.actionType).toBe("TIMEOUT");
     expect(findPunishmentForWarnCount(rules, 4)).toBeUndefined();
     expect(findPunishmentForWarnCount(rules, 5)?.actionType).toBe("KICK");
@@ -20,7 +20,7 @@ describe("findPunishmentForWarnCount", () => {
 });
 
 describe("timeoutMsToSeconds", () => {
-  it("convierte presets de Auto Mod al rango 1 s–28 d", () => {
+  it("converts Auto Mod presets to the 1s–28d range", () => {
     expect(timeoutMsToSeconds(10 * 60 * 1000)).toBe(600);
     expect(timeoutMsToSeconds(AUTO_MOD_DURATION_OPTIONS[0]!.value)).toBe(600);
     expect(timeoutMsToSeconds(0)).toBeNull();

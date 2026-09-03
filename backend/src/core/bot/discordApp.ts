@@ -6,7 +6,7 @@ export function discordApplicationId(client: Client): string {
   const id = client.user?.id;
   if (!id) {
     throw new Error(
-      "DISCORD_CLIENT_ID no definido y el bot aún no está listo.",
+      "DISCORD_CLIENT_ID not defined and the bot is not ready yet.",
     );
   }
   return id;

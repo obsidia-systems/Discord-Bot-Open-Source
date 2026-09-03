@@ -76,7 +76,7 @@ async function staffOrReject(
 ): Promise<GuildMember | null> {
   const member = asGuildMember(interaction.member);
   if (!member) {
-    await reject(interaction, "No pude leer tus roles.");
+    await reject(interaction, "I couldn't read your roles.");
     return null;
   }
   const settings = await getTicketSettings(guildId);
@@ -86,7 +86,7 @@ async function staffOrReject(
     manageGuild: member.permissions.has(PermissionFlagsBits.ManageGuild),
   });
   if (!ok) {
-    await reject(interaction, "Solo el staff de tickets puede hacer eso.");
+    await reject(interaction, "Only ticket staff can do that.");
     return null;
   }
   return member;
@@ -94,7 +94,7 @@ async function staffOrReject(
 
 function mapError(error: unknown): string {
   if (error instanceof TicketsError) return error.message;
-  return "Ocurrió un error al procesar el ticket.";
+  return "An error occurred while processing the ticket.";
 }
 
 function reasonModal(ticketId: number): ModalBuilder {
@@ -103,12 +103,12 @@ function reasonModal(ticketId: number): ModalBuilder {
     .setStyle(TextInputStyle.Paragraph)
     .setRequired(true)
     .setMaxLength(500)
-    .setPlaceholder("Motivo de cierre");
+    .setPlaceholder("Close reason");
   return new ModalBuilder()
     .setCustomId(`${TICKET_REASON_PREFIX}${ticketId}`.slice(0, 100))
-    .setTitle("Cerrar ticket")
+    .setTitle("Close ticket")
     .addLabelComponents(
-      new LabelBuilder().setLabel("Motivo").setTextInputComponent(input),
+      new LabelBuilder().setLabel("Reason").setTextInputComponent(input),
     );
 }
 
@@ -120,13 +120,13 @@ function userModal(ticketId: number, kind: "add" | "remove"): ModalBuilder {
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
     .setMaxLength(40)
-    .setPlaceholder("ID o @mención");
+    .setPlaceholder("ID or @mention");
   return new ModalBuilder()
     .setCustomId(`${prefix}${ticketId}`.slice(0, 100))
-    .setTitle(kind === "add" ? "Añadir usuario" : "Quitar usuario")
+    .setTitle(kind === "add" ? "Add user" : "Remove user")
     .addLabelComponents(
       new LabelBuilder()
-        .setLabel("Usuario")
+        .setLabel("User")
         .setTextInputComponent(input),
     );
 }
@@ -139,22 +139,22 @@ export async function onTicketOpenButton(
   }
   const parsed = parseTicketOpenCustomId(interaction.customId);
   if (!parsed) {
-    await reject(interaction, "Este panel ya no es válido. Vuelve a publicarlo.");
+    await reject(interaction, "This panel is no longer valid. Publish it again.");
     return;
   }
   const panel = await getTicketPanel(parsed.panelId).catch(() => null);
   if (!panel || panel.guildId !== interaction.guildId) {
-    await reject(interaction, "Este panel ya no existe.");
+    await reject(interaction, "This panel no longer exists.");
     return;
   }
   const typeOk = panel.buttons.some((btn) => btn.typeKey === parsed.typeKey);
   if (!typeOk) {
-    await reject(interaction, "Este tipo de ticket ya no está en el panel.");
+    await reject(interaction, "This ticket type is no longer in the panel.");
     return;
   }
   const member = asGuildMember(interaction.member);
   if (!member) {
-    await reject(interaction, "No pude leerte como miembro del servidor.");
+    await reject(interaction, "I couldn't read you as a server member.");
     return;
   }
   await interaction.deferReply(EPHEMERAL);
@@ -166,8 +166,8 @@ export async function onTicketOpenButton(
     });
     await interaction.editReply({
       content: ticket.channelId
-        ? `Ticket #${ticket.number} creado: <#${ticket.channelId}>`
-        : `Ticket #${ticket.number} creado.`,
+        ? `Ticket #${ticket.number} created: <#${ticket.channelId}>`
+        : `Ticket #${ticket.number} created.`,
     });
   } catch (error: unknown) {
     await interaction.editReply({ content: mapError(error) });
@@ -190,7 +190,7 @@ export async function onTicketClaimButton(
       actor: member,
     });
     await interaction.editReply({
-      content: `Ticket #${ticket.number} reclamado.`,
+      content: `Ticket #${ticket.number} claimed.`,
     });
   } catch (error: unknown) {
     await interaction.editReply({ content: mapError(error) });
@@ -216,7 +216,7 @@ export async function onTicketUnclaimButton(
       actorId: member.id,
     });
     await interaction.editReply({
-      content: `Ticket #${ticket.number} liberado.`,
+      content: `Ticket #${ticket.number} unclaimed.`,
     });
   } catch (error: unknown) {
     await interaction.editReply({ content: mapError(error) });
@@ -238,7 +238,7 @@ export async function onTicketWaitButton(
       ticketId,
       actorId: member.id,
     });
-    await interaction.editReply({ content: "Esperando respuesta del usuario." });
+    await interaction.editReply({ content: "Waiting for the user's reply." });
   } catch (error: unknown) {
     await interaction.editReply({ content: mapError(error) });
   }
@@ -259,7 +259,7 @@ export async function onTicketUnwaitButton(
       ticketId,
       actorId: member.id,
     });
-    await interaction.editReply({ content: "El ticket vuelve a reclamado." });
+    await interaction.editReply({ content: "The ticket is back to claimed." });
   } catch (error: unknown) {
     await interaction.editReply({ content: mapError(error) });
   }
@@ -273,7 +273,7 @@ export async function onTicketCloseButton(
   if (ticketId == null) return;
   const member = asGuildMember(interaction.member);
   if (!member) {
-    await reject(interaction, "No pude leerte como miembro.");
+    await reject(interaction, "I couldn't read you as a member.");
     return;
   }
   const [ticket, settings] = await Promise.all([
@@ -294,7 +294,7 @@ export async function onTicketCloseButton(
       isStaff: staff,
     })
   ) {
-    await reject(interaction, "No puedes cerrar este ticket.");
+    await reject(interaction, "You can't close this ticket.");
     return;
   }
   await interaction.showModal(reasonModal(ticketId));
@@ -336,12 +336,12 @@ export async function onTicketReasonModal(
     interaction.fields.getTextInputValue("reason"),
   );
   if (!reason) {
-    await reject(interaction, "El motivo de cierre es obligatorio.");
+    await reject(interaction, "The close reason is required.");
     return;
   }
   const member = asGuildMember(interaction.member);
   if (!member) {
-    await reject(interaction, "No pude leerte como miembro.");
+    await reject(interaction, "I couldn't read you as a member.");
     return;
   }
   await interaction.deferReply(EPHEMERAL);
@@ -353,7 +353,7 @@ export async function onTicketReasonModal(
       reason,
     });
     await interaction.editReply({
-      content: `Ticket #${ticket.number} cerrado.`,
+      content: `Ticket #${ticket.number} closed.`,
     });
   } catch (error: unknown) {
     await interaction.editReply({ content: mapError(error) });
@@ -375,7 +375,7 @@ export async function onTicketAddModal(
     interaction.fields.getTextInputValue("user"),
   );
   if (!userId) {
-    await reject(interaction, "Indica un ID o una mención válida.");
+    await reject(interaction, "Provide a valid ID or mention.");
     return;
   }
   await interaction.deferReply(EPHEMERAL);
@@ -386,7 +386,7 @@ export async function onTicketAddModal(
       actorId: member.id,
       userId,
     });
-    await interaction.editReply({ content: `<@${userId}> añadido al ticket.` });
+    await interaction.editReply({ content: `<@${userId}> added to the ticket.` });
   } catch (error: unknown) {
     await interaction.editReply({ content: mapError(error) });
   }
@@ -407,7 +407,7 @@ export async function onTicketRemoveModal(
     interaction.fields.getTextInputValue("user"),
   );
   if (!userId) {
-    await reject(interaction, "Indica un ID o una mención válida.");
+    await reject(interaction, "Provide a valid ID or mention.");
     return;
   }
   await interaction.deferReply(EPHEMERAL);

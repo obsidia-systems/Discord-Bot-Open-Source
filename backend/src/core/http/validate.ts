@@ -6,7 +6,7 @@ export class ValidationError extends Error {
   readonly issues: Array<{ path: Array<string | number>; message: string }>;
 
   constructor(error: ZodError) {
-    super("Datos inválidos.");
+    super("Invalid data.");
     this.name = "ValidationError";
     this.issues = error.issues.map((issue) => ({
       path: issue.path.map((part) =>

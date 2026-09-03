@@ -25,7 +25,7 @@ const avatarUpload = multer({
   limits: { fileSize: MAX_AVATAR_BYTES, files: 1 },
   fileFilter: (_req, file, cb) => {
     if (!ALLOWED_MIME.has(file.mimetype)) {
-      cb(new Error("Avatar: solo PNG, JPG, GIF o WEBP (máx. 8MB)."));
+      cb(new Error("Avatar: only PNG, JPG, GIF or WEBP (max 8MB)."));
       return;
     }
     cb(null, true);

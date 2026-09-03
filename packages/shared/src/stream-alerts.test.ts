@@ -15,15 +15,15 @@ import {
   streamAlertWatchUrl,
 } from "./stream-alerts.js";
 
-describe("plataforma y canal", () => {
-  it("acepta twitch, youtube y kick", () => {
+describe("platform and channel", () => {
+  it("accepts twitch, youtube and kick", () => {
     expect(isStreamAlertPlatform("twitch")).toBe(true);
     expect(isStreamAlertPlatform("youtube")).toBe(true);
     expect(isStreamAlertPlatform("kick")).toBe(true);
     expect(isStreamAlertPlatform("tiktok")).toBe(false);
   });
 
-  it("solo texto y anuncios como destino Discord", () => {
+  it("text and announcements only as the Discord destination", () => {
     expect(isStreamAlertDestinationChannelType(0)).toBe(true);
     expect(isStreamAlertDestinationChannelType(5)).toBe(true);
     expect(isStreamAlertDestinationChannelType(2)).toBe(false);
@@ -32,7 +32,7 @@ describe("plataforma y canal", () => {
 });
 
 describe("normalizeStreamHandle", () => {
-  it("twitch: login, URL y mayúsculas", () => {
+  it("twitch: login, URL and uppercase", () => {
     expect(normalizeStreamHandle("twitch", "xQc")).toEqual({
       handle: "xqc",
       displayName: "xqc",
@@ -48,7 +48,7 @@ describe("normalizeStreamHandle", () => {
     expect(normalizeStreamHandle("twitch", "https://kick.com/xqc")).toBeNull();
   });
 
-  it("kick: slug y URL", () => {
+  it("kick: slug and URL", () => {
     expect(normalizeStreamHandle("kick", "https://kick.com/xqc")).toEqual({
       handle: "xqc",
       displayName: "xqc",
@@ -60,7 +60,7 @@ describe("normalizeStreamHandle", () => {
     expect(normalizeStreamHandle("kick", "ab")).toBeNull();
   });
 
-  it("youtube: UC, @handle y URL de canal", () => {
+  it("youtube: UC, @handle and channel URL", () => {
     const uc = "UCsXVk37bltHxD1rDPwtNM8Q";
     expect(normalizeStreamHandle("youtube", uc)).toEqual({
       handle: uc,
@@ -86,8 +86,8 @@ describe("normalizeStreamHandle", () => {
   });
 });
 
-describe("transición live", () => {
-  it("offline → live anuncia una vez; live → live no; nuevo liveId sí", () => {
+describe("live transition", () => {
+  it("offline → live announces once; live → live does not; a new liveId does", () => {
     expect(
       shouldAnnounceLive({
         isLive: true,
@@ -127,7 +127,7 @@ describe("transición live", () => {
 });
 
 describe("poll throttle", () => {
-  it("YouTube espera ~5 min; Twitch/Kick el tick de 60 s", () => {
+  it("YouTube waits ~5 min; Twitch/Kick the 60s tick", () => {
     const now = 1_000_000;
     expect(
       shouldPollStreamAlert({
@@ -170,7 +170,7 @@ describe("poll throttle", () => {
 });
 
 describe("plantilla", () => {
-  it("vacío → default; recorta; sustituye placeholders", () => {
+  it("empty → default; trims; substitutes placeholders", () => {
     expect(clampStreamAlertTemplate("")).toBe(STREAM_ALERT_DEFAULT_TEMPLATE);
     expect(clampStreamAlertTemplate("  hola  ")).toBe("hola");
     expect(clampStreamAlertTemplate("x".repeat(600)).length).toBe(
@@ -188,7 +188,7 @@ describe("plantilla", () => {
     ).toBe("Ada | Speedrun https://twitch.tv/ada Celeste");
   });
 
-  it("arma URL y mención de rol", () => {
+  it("builds URL and role mention", () => {
     expect(streamAlertWatchUrl("twitch", "ada")).toBe(
       "https://www.twitch.tv/ada",
     );

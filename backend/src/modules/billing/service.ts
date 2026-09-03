@@ -143,7 +143,7 @@ export async function getOrCreateStripeCustomer(
   if (existing) {
     logger.warn(
       { userId },
-      "Customer de Stripe obsoleto (otra cuenta o borrado); se crea uno nuevo",
+      "Stale Stripe customer (other account or deleted); creating a new one",
     );
   }
   const customer = await stripe.customers.create({
@@ -237,7 +237,7 @@ async function upsertSubscriptionRow(input: {
     .returning();
   if (!created) {
     throw new HttpError(
-      "No se pudo guardar la suscripción.",
+      "Couldn't save the subscription.",
       500,
       "SUBSCRIPTION_INSERT_FAILED",
     );
@@ -259,7 +259,7 @@ export async function assignGuildToSubscription(input: {
     const other = await getSubscriptionById(existing.subscriptionId);
     if (other && isPaidSubscriptionStatus(other.status)) {
       throw new HttpError(
-        "Este servidor ya está cubierto por otra suscripción.",
+        "This server is already covered by another subscription.",
         409,
         "GUILD_ALREADY_COVERED",
       );
@@ -286,7 +286,7 @@ export async function unassignGuildFromUser(
   const sub = await getSubscriptionById(existing.subscriptionId);
   if (!sub || sub.userId !== userId) {
     throw new HttpError(
-      "Este servidor no está cubierto por tu suscripción.",
+      "This server is not covered by your subscription.",
       403,
       "GUILD_NOT_OWNED",
     );
@@ -320,7 +320,7 @@ export async function applyStripeSubscription(
   if (!userId || !customerId) {
     logger.warn(
       { stripeSubscriptionId: sub.id },
-      "Suscripción Stripe sin userId o customer; se ignora",
+      "Stripe subscription without userId or customer; ignoring",
     );
     return null;
   }
@@ -366,7 +366,7 @@ export async function applyStripeSubscription(
       if (error instanceof EntitlementError && error.code === "SEATS_EXCEEDED") {
         logger.warn(
           { guildId, subscriptionId: row.id },
-          "Sin plazas para asignar el servidor del checkout",
+          "No seats to assign the checkout server",
         );
         return row;
       }
@@ -376,7 +376,7 @@ export async function applyStripeSubscription(
       ) {
         logger.warn(
           { guildId, subscriptionId: row.id },
-          "Servidor ya cubierto por otra suscripción",
+          "Server already covered by another subscription",
         );
         return row;
       }
@@ -490,7 +490,7 @@ async function assertGuildFreeForCheckout(
       })
     ) {
       throw new HttpError(
-        "Este servidor ya está cubierto por otra suscripción.",
+        "This server is already covered by another subscription.",
         409,
         "GUILD_ALREADY_COVERED",
       );
@@ -498,7 +498,7 @@ async function assertGuildFreeForCheckout(
   }
   if (seatsAtCapacity(0, seatsMaxForTier(tier), false)) {
     throw new HttpError(
-      "Este plan no tiene plazas para cubrir un servidor.",
+      "This plan has no seats to cover a server.",
       409,
       "SEATS_EXCEEDED",
     );
@@ -515,7 +515,7 @@ export async function createCheckoutSession(input: {
   const existing = await getLatestSubscriptionForUser(input.userId);
   if (existing && isPaidSubscriptionStatus(existing.status)) {
     throw new HttpError(
-      "Ya tienes una suscripción activa. Usa el portal para cambiar de plan.",
+      "You already have an active subscription. Use the portal to change plans.",
       409,
       "ALREADY_SUBSCRIBED",
     );
@@ -550,7 +550,7 @@ export async function createCheckoutSession(input: {
 
   if (!session.url) {
     throw new HttpError(
-      "Stripe no devolvió URL de checkout.",
+      "Stripe did not return a checkout URL.",
       502,
       "STRIPE_CHECKOUT_FAILED",
     );
@@ -565,7 +565,7 @@ export async function createPortalSession(input: {
   const customerId = await getBillingCustomer(input.userId);
   if (!customerId) {
     throw new HttpError(
-      "No hay un cliente de Stripe para esta cuenta.",
+      "There is no Stripe customer for this account.",
       404,
       "STRIPE_CUSTOMER_MISSING",
     );
@@ -584,7 +584,7 @@ export async function assignCurrentGuild(input: {
   const sub = await getLatestSubscriptionForUser(input.userId);
   if (!sub || !isPaidSubscriptionStatus(sub.status) || !isPlanTier(sub.tier)) {
     throw new HttpError(
-      "No tienes una suscripción activa.",
+      "You don't have an active subscription.",
       400,
       "NO_ACTIVE_SUBSCRIPTION",
     );

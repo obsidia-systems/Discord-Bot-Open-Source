@@ -74,7 +74,7 @@ export function shuffleDeck(deck: PlayingCard[]): PlayingCard[] {
 export function drawCard(deck: PlayingCard[]): PlayingCard {
   const card = deck.pop();
   if (!card) {
-    throw new Error("El mazo se quedó sin cartas.");
+    throw new Error("The deck ran out of cards.");
   }
   return card;
 }

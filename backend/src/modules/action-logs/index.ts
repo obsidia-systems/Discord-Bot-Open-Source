@@ -30,10 +30,10 @@ export const actionLogsModule: AdobosModule = {
       try {
         const n = await purgeAllExpiredActionLogs();
         if (n > 0) {
-          logger.info(`action-logs: purge inicial eliminó ${n} filas`);
+          logger.info(`action-logs: initial purge removed ${n} rows`);
         }
       } catch (error) {
-        logger.warn({ err: error }, "action-logs: purge inicial falló:");
+        logger.warn({ err: error }, "action-logs: initial purge failed:");
       }
     });
 
@@ -42,10 +42,10 @@ export const actionLogsModule: AdobosModule = {
       try {
         const n = await purgeAllExpiredActionLogs();
         if (n > 0) {
-          logger.info(`action-logs: purge periódico eliminó ${n} filas`);
+          logger.info(`action-logs: periodic purge removed ${n} rows`);
         }
       } catch (error) {
-        logger.warn({ err: error }, "action-logs: purge periódico falló:");
+        logger.warn({ err: error }, "action-logs: periodic purge failed:");
       }
     }, RETENTION_PURGE_MS);
     timer.unref?.();

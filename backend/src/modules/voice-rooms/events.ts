@@ -70,7 +70,7 @@ async function onJoinHub(member: GuildMember, hubId: string): Promise<void> {
       try {
         textId = await ensureTextChannel(member.guild, created, member);
       } catch (error: unknown) {
-        logger.warn({ err: error }, "Voice Rooms: auto-texto falló");
+        logger.warn({ err: error }, "Voice Rooms: auto-text failed");
       }
     }
     await insertRoom({
@@ -158,7 +158,7 @@ export function registerVoiceRoomListeners(ctx: ModuleContext): void {
   });
   ctx.once("ready", () => {
     void reconcileVoiceRooms(ctx.client).catch((error: unknown) => {
-      logger.warn({ err: error }, "Voice Rooms: reconcile falló");
+      logger.warn({ err: error }, "Voice Rooms: reconcile failed");
     });
   });
 }

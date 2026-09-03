@@ -39,7 +39,7 @@ export async function sweepExpiredShopGrants(bot: Client): Promise<void> {
       if (guild) {
         if (row.deleteRoleOnExpire) {
           const role = await guild.roles.fetch(row.roleId).catch(() => null);
-          if (role) await role.delete("Tienda: rol temporal expirado");
+          if (role) await role.delete("Shop: temporary role expired");
         } else {
           const member = await guild.members
             .fetch(row.userId)
@@ -47,7 +47,7 @@ export async function sweepExpiredShopGrants(bot: Client): Promise<void> {
           if (member?.roles.cache.has(row.roleId)) {
             await member.roles.remove(
               row.roleId,
-              "Tienda: rol temporal expirado",
+              "Shop: temporary role expired",
             );
           }
         }
@@ -82,7 +82,7 @@ export async function sweepExpiredShopGrants(bot: Client): Promise<void> {
           .fetch(row.channelId)
           .catch(() => null);
         if (channel) {
-          await channel.delete("Tienda: canal temporal expirado");
+          await channel.delete("Shop: temporary channel expired");
         }
       }
     } catch (error) {

@@ -27,7 +27,7 @@ export async function dispatchAutoModAlert(
 
   const author = input.user;
   const raw =
-    input.content.trim().slice(0, 1000) || "(sin texto / solo adjuntos)";
+    input.content.trim().slice(0, 1000) || "(no text / attachments only)";
   const quoted =
     raw
       .split("\n")
@@ -36,8 +36,8 @@ export async function dispatchAutoModAlert(
       .slice(0, 1024) || "> —";
 
   const headline = input.nativeBlock
-    ? "**Mensaje bloqueado** por AutoMod nativo de Discord (Adobos)."
-    : "**Mensaje eliminado automáticamente** por Auto-Mod.";
+    ? "**Message blocked** by Discord native AutoMod (Adobos)."
+    : "**Message deleted automatically** by Auto-Mod.";
 
   const embed = new EmbedBuilder()
     .setColor(0xed4245)
@@ -48,23 +48,23 @@ export async function dispatchAutoModAlert(
     .setDescription(headline)
     .addFields(
       {
-        name: "Canal",
+        name: "Channel",
         value: input.channelId ? `<#${input.channelId}>` : "—",
         inline: true,
       },
       {
-        name: "Filtro detonado",
+        name: "Triggered filter",
         value: input.filterLabel,
         inline: true,
       },
       {
-        name: "Contenido original",
+        name: "Original content",
         value: quoted,
         inline: false,
       },
     )
     .setFooter({
-      text: `Afectado ID: ${author.id}${input.messageId ? ` • Msg ID: ${input.messageId}` : ""}`,
+      text: `Affected ID: ${author.id}${input.messageId ? ` • Msg ID: ${input.messageId}` : ""}`,
       iconURL: author.displayAvatarURL({ size: 64 }),
     })
     .setTimestamp(new Date());
@@ -76,6 +76,6 @@ export async function dispatchAutoModAlert(
       embeds: [embed],
     });
   } catch (error) {
-    logger.warn({ err: error }, "auto-mod: no se pudo enviar alerta:");
+    logger.warn({ err: error }, "auto-mod: couldn't send alert:");
   }
 }

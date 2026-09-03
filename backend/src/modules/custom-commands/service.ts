@@ -56,7 +56,7 @@ function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
     throw new CustomCommandsError(
-      "Falta guildId.",
+      "Missing guildId.",
       400,
       "MISSING_GUILD_ID",
     );
@@ -90,7 +90,7 @@ function rowToCommand(
     id: row.id,
     guildId: row.guildId,
     name: row.name,
-    description: (row.description ?? "").trim().slice(0, 100) || "Comando personalizado",
+    description: (row.description ?? "").trim().slice(0, 100) || "Custom command",
     responseData: normalizeCustomCommandResponseData(
       parseJson<Partial<CustomCommandResponseData>>(row.responseData, {}),
     ),
@@ -109,14 +109,14 @@ function rowToCommand(
 function assertValidName(name: string): void {
   if (!isValidCustomCommandName(name)) {
     throw new CustomCommandsError(
-      "El nombre debe ser 1–32 caracteres: minúsculas, números, _ o -.",
+      "The name must be 1–32 characters: lowercase, numbers, _ or -.",
       400,
       "INVALID_NAME",
     );
   }
   if (reservedNames.has(name)) {
     throw new CustomCommandsError(
-      `El nombre \`/${name}\` está reservado por el bot.`,
+      `The name \`/${name}\` is reserved by the bot.`,
       400,
       "RESERVED_NAME",
     );
@@ -195,7 +195,7 @@ export async function getCustomCommand(
     .limit(1));
   if (!row) {
     throw new CustomCommandsError(
-      "Comando no encontrado.",
+      "Command not found.",
       404,
       "NOT_FOUND",
     );
@@ -233,7 +233,7 @@ export async function createCustomCommand(
   const existing = await getCustomCommandByName(id, name);
   if (existing) {
     throw new CustomCommandsError(
-      `Ya existe un comando \`/${name}\`.`,
+      `A command \`/${name}\` already exists.`,
       409,
       "NAME_TAKEN",
     );
@@ -242,11 +242,11 @@ export async function createCustomCommand(
   const description =
     String(input.description ?? "")
       .trim()
-      .slice(0, 100) || "Comando personalizado";
+      .slice(0, 100) || "Custom command";
   const responseData = normalizeCustomCommandResponseData(input.responseData);
   if (!responseData.content.trim() && !responseData.embed) {
     throw new CustomCommandsError(
-      "Añade texto de respuesta o un embed.",
+      "Add response text or an embed.",
       400,
       "EMPTY_RESPONSE",
     );
@@ -259,7 +259,7 @@ export async function createCustomCommand(
     const active = await countActiveCommands(id);
     if (active >= CUSTOM_COMMANDS_DISCORD_MAX) {
       throw new CustomCommandsError(
-        `Discord admite como máximo ${CUSTOM_COMMANDS_DISCORD_MAX} slash por servidor.`,
+        `Discord allows at most ${CUSTOM_COMMANDS_DISCORD_MAX} slash commands per server.`,
         400,
         "DISCORD_CAP",
       );
@@ -287,7 +287,7 @@ export async function createCustomCommand(
   } catch (error) {
     if (isUniqueViolation(error)) {
       throw new CustomCommandsError(
-        `Ya existe un comando \`/${name}\`.`,
+        `A command \`/${name}\` already exists.`,
         409,
         "NAME_TAKEN",
       );
@@ -296,7 +296,7 @@ export async function createCustomCommand(
   }
   if (!inserted) {
     throw new CustomCommandsError(
-      "No se pudo crear el comando.",
+      "Couldn't create the command.",
       500,
       "INSERT_FAILED",
     );
@@ -321,7 +321,7 @@ export async function updateCustomCommand(
       const clash = await getCustomCommandByName(id, nextName);
       if (clash && clash.id !== commandId) {
         throw new CustomCommandsError(
-          `Ya existe un comando \`/${nextName}\`.`,
+          `A command \`/${nextName}\` already exists.`,
           409,
           "NAME_TAKEN",
         );
@@ -332,7 +332,7 @@ export async function updateCustomCommand(
   const nextDescription =
     input.description !== undefined
       ? String(input.description).trim().slice(0, 100) ||
-        "Comando personalizado"
+        "Custom command"
       : current.description;
 
   const nextResponse =
@@ -341,7 +341,7 @@ export async function updateCustomCommand(
       : current.responseData;
   if (!nextResponse.content.trim() && !nextResponse.embed) {
     throw new CustomCommandsError(
-      "Añade texto de respuesta o un embed.",
+      "Add response text or an embed.",
       400,
       "EMPTY_RESPONSE",
     );
@@ -369,7 +369,7 @@ export async function updateCustomCommand(
     const active = await countActiveCommands(id);
     if (active >= CUSTOM_COMMANDS_DISCORD_MAX) {
       throw new CustomCommandsError(
-        `Discord admite como máximo ${CUSTOM_COMMANDS_DISCORD_MAX} slash por servidor.`,
+        `Discord allows at most ${CUSTOM_COMMANDS_DISCORD_MAX} slash commands per server.`,
         400,
         "DISCORD_CAP",
       );
@@ -394,7 +394,7 @@ export async function updateCustomCommand(
   } catch (error) {
     if (isUniqueViolation(error)) {
       throw new CustomCommandsError(
-        `Ya existe un comando \`/${nextName}\`.`,
+        `A command \`/${nextName}\` already exists.`,
         409,
         "NAME_TAKEN",
       );

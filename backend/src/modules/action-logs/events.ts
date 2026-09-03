@@ -158,7 +158,7 @@ export function registerActionLogListeners(ctx: {
       eventKey: "soundboardCreate",
       targetId: s.id,
       targetTag: s.name ?? s.id,
-      summary: `Sonido creado: ${s.name ?? s.id}`,
+      summary: `Sound created: ${s.name ?? s.id}`,
       details: { name: s.name ?? null },
       actorIsBot: false,
     });

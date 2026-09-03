@@ -11,17 +11,17 @@ describe("diffGuildIdentity", () => {
     vanityURLCode: null,
   };
 
-  it("no emite si no cambió nada visible", () => {
+  it("does not emit if nothing visible changed", () => {
     expect(diffGuildIdentity(base, { ...base })).toEqual([]);
   });
 
-  it("detecta nombre, vanity e icono", () => {
+  it("detects name, vanity and icon", () => {
     const diffs = diffGuildIdentity(base, {
       ...base,
       name: "Tobot",
       vanityURLCode: "tobot",
       icon: "bbb",
     });
-    expect(diffs.map((d) => d.name)).toEqual(["Nombre", "Icono", "Vanity"]);
+    expect(diffs.map((d) => d.name)).toEqual(["Name", "Icon", "Vanity"]);
   });
 });

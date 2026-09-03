@@ -24,7 +24,7 @@ export function randomInclusive(min: number, max: number): number {
 /** Índice ponderado (pesos > 0). */
 export function pickWeighted(weights: readonly number[]): number {
   const total = weights.reduce((sum, w) => sum + Math.max(0, Math.floor(w)), 0);
-  if (total < 1) throw new Error("pickWeighted: suma de pesos debe ser ≥ 1");
+  if (total < 1) throw new Error("pickWeighted: sum of weights must be ≥ 1");
   let roll = randomBelow(total);
   for (let i = 0; i < weights.length; i++) {
     roll -= Math.max(0, Math.floor(weights[i]!));
@@ -35,7 +35,7 @@ export function pickWeighted(weights: readonly number[]): number {
 
 export function pickRandom<T>(items: readonly T[]): T {
   if (items.length === 0) {
-    throw new Error("pickRandom: lista vacía");
+    throw new Error("pickRandom: empty list");
   }
   return items[randomBelow(items.length)]!;
 }

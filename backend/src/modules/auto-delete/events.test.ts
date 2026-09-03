@@ -4,7 +4,7 @@ import { normalizeAutoDeleteRules } from "./service.js";
 import { AUTO_DELETE_MAX_RULES } from "@adobos/shared";
 
 describe("registerAutoDeleteListeners", () => {
-  it("escucha messageCreate", () => {
+  it("listens for messageCreate", () => {
     const names: string[] = [];
     registerAutoDeleteListeners({
       on: (event) => {
@@ -16,7 +16,7 @@ describe("registerAutoDeleteListeners", () => {
 });
 
 describe("normalizeAutoDeleteRules", () => {
-  it("deduplica canal y recorta al tope", () => {
+  it("deduplicates channel and trims to the cap", () => {
     const many = Array.from({ length: AUTO_DELETE_MAX_RULES + 5 }, (_, i) => ({
       channelId: String(100000000000000000n + BigInt(i)),
       mode: "COUNTDOWN" as const,

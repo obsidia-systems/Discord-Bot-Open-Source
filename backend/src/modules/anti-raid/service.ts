@@ -45,7 +45,7 @@ export class AntiRaidError extends Error {
 function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new AntiRaidError("Falta guildId.", 400, "MISSING_GUILD_ID");
+    throw new AntiRaidError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
   return id;
 }

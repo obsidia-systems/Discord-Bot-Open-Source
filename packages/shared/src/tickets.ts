@@ -46,24 +46,24 @@ export const TICKET_BUTTON_STYLES = [
 export type TicketButtonStyle = (typeof TICKET_BUTTON_STYLES)[number];
 
 export const TICKET_STATUS_LABEL: Record<TicketStatus, string> = {
-  open: "Abierto",
-  claimed: "Reclamado",
-  waiting: "En espera",
-  closed: "Cerrado",
+  open: "Open",
+  claimed: "Claimed",
+  waiting: "Waiting",
+  closed: "Closed",
 };
 
 export const TICKET_EVENT_LABEL: Record<TicketEventType, string> = {
-  opened: "Abierto",
-  claimed: "Reclamado",
-  unclaimed: "Liberado",
-  transferred: "Transferido",
-  waiting: "En espera",
-  unwaiting: "Ya no espera",
-  user_added: "Usuario añadido",
-  user_removed: "Usuario quitado",
-  closed: "Cerrado",
-  reopened: "Reabierto",
-  channel_deleted: "Canal eliminado",
+  opened: "Opened",
+  claimed: "Claimed",
+  unclaimed: "Unclaimed",
+  transferred: "Transferred",
+  waiting: "Waiting",
+  unwaiting: "No longer waiting",
+  user_added: "User added",
+  user_removed: "User removed",
+  closed: "Closed",
+  reopened: "Reopened",
+  channel_deleted: "Channel deleted",
 };
 
 export const TICKETS_MAX_OPEN_GUILD = 50;

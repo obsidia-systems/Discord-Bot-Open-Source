@@ -4,7 +4,7 @@ import type { AdobosModule } from "./types.js";
 
 export function loadModules(modules: readonly AdobosModule[]): ModuleRegistry {
   logger.info(
-    `Cargando ${modules.length} módulo(s): ${modules
+    `Loading ${modules.length} module(s): ${modules
       .map((m) => m.id)
       .join(", ")}`,
   );

@@ -33,7 +33,7 @@ export async function onAutoReplyMessageCreate(message: Message): Promise<void> 
   try {
     await handleAutoReply(message);
   } catch (error: unknown) {
-    logger.warn({ err: error }, "auto-replies messageCreate falló:");
+    logger.warn({ err: error }, "auto-replies messageCreate failed:");
   }
 }
 

@@ -36,7 +36,7 @@ export class RemindersError extends Error {
 function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new RemindersError("Falta guildId.", 400, "MISSING_GUILD_ID");
+    throw new RemindersError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
   return id;
 }
@@ -162,7 +162,7 @@ export async function getReminder(
       .limit(1),
   );
   if (!row) {
-    throw new RemindersError("Recordatorio no encontrado.", 404, "NOT_FOUND");
+    throw new RemindersError("Reminder not found.", 404, "NOT_FOUND");
   }
   return mapReminder(row);
 }
@@ -179,14 +179,14 @@ export async function createReminder(input: {
   const settings = await getReminderSettings(id);
   if (!settings.enabled) {
     throw new RemindersError(
-      "Reminders está apagado en este servidor.",
+      "Reminders is turned off in this server.",
       403,
       "DISABLED",
     );
   }
   const message = sanitizeRemindText(input.message);
   if (!message) {
-    throw new RemindersError("Escribe qué te recuerdo.", 400, "EMPTY_TEXT");
+    throw new RemindersError("Write what to remind you about.", 400, "EMPTY_TEXT");
   }
   if (message.length > REMIND_TEXT_MAX) {
     throw new RemindersError("El texto es demasiado largo.", 400, "TEXT_TOO_LONG");
@@ -197,7 +197,7 @@ export async function createReminder(input: {
     .where(and(eq(reminders.guildId, id), eq(reminders.userId, input.userId)));
   if ((userCount?.n ?? 0) >= REMIND_PER_USER_MAX) {
     throw new RemindersError(
-      `Máximo ${REMIND_PER_USER_MAX} recordatorios pendientes.`,
+      `At most ${REMIND_PER_USER_MAX} pending reminders.`,
       400,
       "USER_LIMIT",
     );
@@ -208,7 +208,7 @@ export async function createReminder(input: {
     .where(eq(reminders.guildId, id));
   if ((guildCount?.n ?? 0) >= REMIND_PER_GUILD_MAX) {
     throw new RemindersError(
-      `Máximo ${REMIND_PER_GUILD_MAX} recordatorios en el servidor.`,
+      `At most ${REMIND_PER_GUILD_MAX} reminders in the server.`,
       400,
       "GUILD_LIMIT",
     );
@@ -224,7 +224,7 @@ export async function createReminder(input: {
     })
     .returning();
   if (!row) {
-    throw new RemindersError("No se pudo crear el recordatorio.", 500, "INSERT_FAILED");
+    throw new RemindersError("Couldn't create the reminder.", 500, "INSERT_FAILED");
   }
   return mapReminder(row);
 }
@@ -238,7 +238,7 @@ export async function deleteReminder(
   const current = await getReminder(reminderId, guildId);
   if (actorId && current.userId !== actorId && !staff) {
     throw new RemindersError(
-      "Solo puedes cancelar los tuyos.",
+      "You can only cancel your own.",
       403,
       "NOT_OWNER",
     );

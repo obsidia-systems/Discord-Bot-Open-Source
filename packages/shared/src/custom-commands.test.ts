@@ -9,8 +9,8 @@ import {
   normalizeCustomCommandOptions,
 } from "./custom-commands.js";
 
-describe("nombre de Custom Command", () => {
-  it("normaliza y valida el regex de Discord", () => {
+describe("Custom Command name", () => {
+  it("normalizes and validates the Discord regex", () => {
     expect(normalizeCustomCommandName("  Hola Mundo  ")).toBe("hola-mundo");
     expect(isValidCustomCommandName("hola-mundo")).toBe(true);
     expect(isValidCustomCommandName("Hola")).toBe(false);
@@ -20,7 +20,7 @@ describe("nombre de Custom Command", () => {
 });
 
 describe("applyCustomCommandTokens", () => {
-  it("reemplaza {user} sin comerse {username}", () => {
+  it("replaces {user} without eating {username}", () => {
     const out = applyCustomCommandTokens("Hola {user} ({username})", {
       "{username}": "ada",
       "{user}": "<@1>",
@@ -61,7 +61,7 @@ describe("menciones", () => {
   });
 });
 
-describe("permisos", () => {
+describe("permissions", () => {
   const base = {
     allowedRoleIds: [] as string[],
     ignoredRoleIds: [] as string[],
@@ -69,7 +69,7 @@ describe("permisos", () => {
     ignoredChannelIds: [] as string[],
   };
 
-  it("ignored gana; allowed vacío = todos", () => {
+  it("ignored wins; empty allowed = everyone", () => {
     expect(customCommandPermissionDenial(base, ["1"], "c1")).toBeNull();
     expect(
       customCommandPermissionDenial(
@@ -77,19 +77,19 @@ describe("permisos", () => {
         ["9"],
         "c1",
       ),
-    ).toMatch(/ignorado/);
+    ).toMatch(/ignored role/);
     expect(
       customCommandPermissionDenial(
         { ...base, allowedRoleIds: ["2"] },
         ["1"],
         "c1",
       ),
-    ).toMatch(/rol permitido/);
+    ).toMatch(/allowed role/);
   });
 });
 
 describe("normalizeCustomCommandOptions", () => {
-  it("rellena allowEveryone y args en false", () => {
+  it("fills allowEveryone and args as false", () => {
     const opts = normalizeCustomCommandOptions({});
     expect(opts.allowEveryone).toBe(false);
     expect(opts.acceptText).toBe(false);

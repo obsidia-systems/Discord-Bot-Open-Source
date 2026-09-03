@@ -61,15 +61,15 @@ function colorButtons(userId: string): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`${RL_ROJO}:${userId}`)
-      .setLabel("Rojo")
+      .setLabel("Red")
       .setStyle(ButtonStyle.Danger),
     new ButtonBuilder()
       .setCustomId(`${RL_NEGRO}:${userId}`)
-      .setLabel("Negro")
+      .setLabel("Black")
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(`${RL_VERDE}:${userId}`)
-      .setLabel("Verde")
+      .setLabel("Green")
       .setStyle(ButtonStyle.Success),
   );
 }
@@ -77,7 +77,7 @@ function colorButtons(userId: string): ActionRowBuilder<ButtonBuilder> {
 function numberSelects(userId: string): ActionRowBuilder<StringSelectMenuBuilder>[] {
   const lo = new StringSelectMenuBuilder()
     .setCustomId(`${RL_LO}:${userId}`)
-    .setPlaceholder("Número 0–17")
+    .setPlaceholder("Number 0–17")
     .addOptions(
       Array.from({ length: 18 }, (_, n) => ({
         label: String(n),
@@ -86,7 +86,7 @@ function numberSelects(userId: string): ActionRowBuilder<StringSelectMenuBuilder
     );
   const hi = new StringSelectMenuBuilder()
     .setCustomId(`${RL_HI}:${userId}`)
-    .setPlaceholder("Número 18–36")
+    .setPlaceholder("Number 18–36")
     .addOptions(
       Array.from({ length: 19 }, (_, i) => {
         const n = i + 18;
@@ -126,9 +126,9 @@ function armIdle(row: RoulettePending): void {
 function promptEmbed(bet: number, currency: string): EmbedBuilder {
   return new EmbedBuilder()
     .setColor(INFO)
-    .setTitle("🎡 Ruleta")
+    .setTitle("🎡 Roulette")
     .setDescription(
-      `Apuesta: **${bet.toLocaleString("es-MX")}** ${currency}.\nElige color o un número. El dinero se cobra al elegir.`,
+      `Bet: **${bet.toLocaleString("es-MX")}** ${currency}.\nChoose a color or a number. Money is charged on selection.`,
     );
 }
 
@@ -175,24 +175,24 @@ async function resolveSpin(input: {
 
   const betLabel =
     input.tipo === "numero"
-      ? `Número **${input.valorNumero}**`
+      ? `Number **${input.valorNumero}**`
       : input.tipo.charAt(0).toUpperCase() + input.tipo.slice(1);
 
   const embed = new EmbedBuilder()
     .setColor(won ? WIN : LOSE)
-    .setTitle(won ? "🎡 Ruleta — ¡Ganaste!" : "🎡 Ruleta — Perdiste")
+    .setTitle(won ? "🎡 Roulette — You won!" : "🎡 Roulette — You lost")
     .setDescription(
       [
-        `La bola cayó en **${spun}** ${rouletteColorEmoji(color)} (**${color}**).`,
+        `The ball landed on **${spun}** ${rouletteColorEmoji(color)} (**${color}**).`,
         won
-          ? `Ganaste **${payout.toLocaleString("es-MX")}** ${currency} (x${multiplier}).`
-          : `Perdiste **${input.bet.toLocaleString("es-MX")}** ${currency}.`,
+          ? `You won **${payout.toLocaleString("es-MX")}** ${currency} (x${multiplier}).`
+          : `You lost **${input.bet.toLocaleString("es-MX")}** ${currency}.`,
       ].join("\n"),
     )
     .addFields(
-      { name: "Tu apuesta", value: betLabel, inline: true },
+      { name: "Your bet", value: betLabel, inline: true },
       {
-        name: "Cartera",
+        name: "Wallet",
         value: `**${wallet.toLocaleString("es-MX")}** ${currency}`,
         inline: true,
       },
@@ -202,7 +202,7 @@ async function resolveSpin(input: {
     const chips = history
       .map((n) => `${rouletteColorEmoji(rouletteColor(n))}${n}`)
       .join(" · ");
-    embed.addFields({ name: "Últimos números", value: chips });
+    embed.addFields({ name: "Recent numbers", value: chips });
   }
 
   return embed;
@@ -216,7 +216,7 @@ export async function handleRouletteCommand(
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -243,7 +243,7 @@ export async function handleRouletteCommand(
     ) {
       await interaction.reply({
         content:
-          "❌ Indica `valor_numero` entre 0 y 36, o elige el número en la mesa.",
+          "❌ Provide `valor_numero` between 0 and 36, or pick the number at the table.",
         ...EPHEMERAL,
       });
       return;
@@ -313,7 +313,7 @@ export async function handleRouletteButton(
 ): Promise<void> {
   if (!interaction.guildId) {
     await interaction.reply({
-      content: "Este botón solo funciona en un servidor.",
+      content: "This button only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -322,7 +322,7 @@ export async function handleRouletteButton(
   const { action, ownerId } = parseOwnerCustomId(interaction.customId);
   if (!ownerId || interaction.user.id !== ownerId) {
     await interaction.reply({
-      content: "❌ Esta mesa no es tuya.",
+      content: "❌ This table isn't yours.",
       ...EPHEMERAL,
     });
     return;
@@ -332,7 +332,7 @@ export async function handleRouletteButton(
   const row = pending.get(key);
   if (!row) {
     await interaction.reply({
-      content: "❌ Esta mesa expiró.",
+      content: "❌ This table expired.",
       ...EPHEMERAL,
     });
     return;
@@ -359,7 +359,7 @@ export async function handleRouletteButton(
             : null;
     if (!tipo) {
       await interaction.reply({
-        content: "❌ Acción desconocida.",
+        content: "❌ Unknown action.",
         ...EPHEMERAL,
       });
       return;
@@ -381,7 +381,7 @@ export async function handleRouletteButton(
     const msg =
       error instanceof EconomyError
         ? error.message
-        : "No se pudo completar la ruleta.";
+        : "Couldn't finish the roulette.";
     if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({ content: `❌ ${msg}`, ...EPHEMERAL });
     }
@@ -393,7 +393,7 @@ export async function handleRouletteSelect(
 ): Promise<void> {
   if (!interaction.guildId) {
     await interaction.reply({
-      content: "Este menú solo funciona en un servidor.",
+      content: "This menu only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -402,7 +402,7 @@ export async function handleRouletteSelect(
   const { ownerId } = parseOwnerCustomId(interaction.customId);
   if (!ownerId || interaction.user.id !== ownerId) {
     await interaction.reply({
-      content: "❌ Esta mesa no es tuya.",
+      content: "❌ This table isn't yours.",
       ...EPHEMERAL,
     });
     return;
@@ -412,7 +412,7 @@ export async function handleRouletteSelect(
   const row = pending.get(key);
   if (!row) {
     await interaction.reply({
-      content: "❌ Esta mesa expiró.",
+      content: "❌ This table expired.",
       ...EPHEMERAL,
     });
     return;
@@ -422,7 +422,7 @@ export async function handleRouletteSelect(
   const valorNumero = Number(raw);
   if (!Number.isInteger(valorNumero) || valorNumero < 0 || valorNumero > 36) {
     await interaction.reply({
-      content: "❌ Número inválido.",
+      content: "❌ Invalid number.",
       ...EPHEMERAL,
     });
     return;
@@ -445,7 +445,7 @@ export async function handleRouletteSelect(
     const msg =
       error instanceof EconomyError
         ? error.message
-        : "No se pudo completar la ruleta.";
+        : "Couldn't finish the roulette.";
     if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({ content: `❌ ${msg}`, ...EPHEMERAL });
     }

@@ -68,7 +68,7 @@ export function assertCanControl(
 ): void {
   if (!allowed[action] && !isStaff(member)) {
     throw new VoiceRoomsError(
-      "El staff desactivó esa acción.",
+      "Staff disabled that action.",
       403,
       "ACTION_DISABLED",
     );
@@ -76,7 +76,7 @@ export function assertCanControl(
   if (action === "claim") return;
   if (member.id !== room.ownerId && !isStaff(member)) {
     throw new VoiceRoomsError(
-      "Solo el dueño de la sala puede hacer eso.",
+      "Only the room owner can do that.",
       403,
       "NOT_OWNER",
     );
@@ -139,12 +139,12 @@ export async function destroyVoicePair(
   if (room.textChannelId) {
     const text = guild.channels.cache.get(room.textChannelId);
     if (text) {
-      await text.delete("Voice Rooms: sala vacía").catch(() => null);
+      await text.delete("Voice Rooms: empty room").catch(() => null);
     }
   }
   const voice = await fetchVoiceChannel(guild, room.channelId);
   if (voice) {
-    await voice.delete("Voice Rooms: sala vacía").catch(() => null);
+    await voice.delete("Voice Rooms: empty room").catch(() => null);
   }
 }
 
@@ -333,13 +333,13 @@ export function buildControlSelect(voiceChannelId: string): ActionRowBuilder<Str
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId(`${VOICE_ROOM_SELECT_PREFIX}${voiceChannelId}`)
-      .setPlaceholder("Administrar la sala")
+      .setPlaceholder("Manage the room")
       .addOptions(
-        { label: "Lock", value: "lock", description: "Cerrar a gente nueva" },
-        { label: "Unlock", value: "unlock", description: "Abrir la sala" },
-        { label: "Ghost", value: "ghost", description: "Ocultar de la lista" },
-        { label: "Unghost", value: "unghost", description: "Mostrar de nuevo" },
-        { label: "Claim", value: "claim", description: "Tomar el dueño" },
+        { label: "Lock", value: "lock", description: "Close to new people" },
+        { label: "Unlock", value: "unlock", description: "Open the room" },
+        { label: "Ghost", value: "ghost", description: "Hide from the list" },
+        { label: "Unghost", value: "unghost", description: "Show again" },
+        { label: "Claim", value: "claim", description: "Take ownership" },
       ),
   );
 }
@@ -355,11 +355,11 @@ async function postControlMessage(
     if (!("send" in channel)) return;
     await channel.send({
       content:
-        "Eres el dueño de esta sala. Usa `/voice` o el menú para administrarla.",
+        "You own this room. Use `/voice` or the menu to manage it.",
       components: [buildControlSelect(voiceChannelId)],
     });
   } catch (error: unknown) {
-    logger.warn({ err: error }, "Voice Rooms: no se pudo publicar el menú");
+    logger.warn({ err: error }, "Voice Rooms: couldn't publish the menu");
   }
 }
 

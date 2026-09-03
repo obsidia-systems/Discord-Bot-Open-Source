@@ -17,7 +17,7 @@ function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
     throw new CustomCommandsError(
-      "Falta guildId para sincronizar slash commands.",
+      "Missing guildId to sync slash commands.",
       400,
       "MISSING_GUILD_ID",
     );
@@ -35,7 +35,7 @@ function toSlashBody(
   if (acceptText) {
     options.push({
       name: "texto",
-      description: "Texto extra para {text}.",
+      description: "Extra text for {text}.",
       type: ApplicationCommandOptionType.String,
       required: false,
     });
@@ -43,7 +43,7 @@ function toSlashBody(
   if (acceptUser) {
     options.push({
       name: "usuario",
-      description: "Usuario para {target}.",
+      description: "User for {target}.",
       type: ApplicationCommandOptionType.User,
       required: false,
     });
@@ -66,7 +66,7 @@ export async function syncGuildSlashCommands(
   const rest = createDiscordRest();
   if (!rest) {
     throw new CustomCommandsError(
-      "El bot no tiene token para sincronizar slash.",
+      "The bot has no token to sync slash commands.",
       503,
       "BOT_NOT_READY",
     );
@@ -93,10 +93,10 @@ export async function syncGuildSlashCommands(
   } catch (error) {
     logger.warn(
       { err: error },
-      `custom-commands: PUT slash falló guild=${gid}`,
+      `custom-commands: PUT slash failed guild=${gid}`,
     );
     throw new CustomCommandsError(
-      "Discord no actualizó los slash. Intenta Re-sync en unos segundos.",
+      "Discord did not update the slash commands. Try Re-sync in a few seconds.",
       502,
       "SYNC_FAILED",
     );

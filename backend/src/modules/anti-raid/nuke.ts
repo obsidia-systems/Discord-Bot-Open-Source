@@ -55,7 +55,7 @@ async function stripDangerousRoles(member: GuildMember): Promise<number> {
       await member.roles.remove(role, "Anti-Nuke strip");
       removed += 1;
     } catch (error: unknown) {
-      logger.warn({ err: error, roleId: role.id }, "anti-nuke: no se quitó el rol");
+      logger.warn({ err: error, roleId: role.id }, "anti-nuke: role not removed");
     }
   }
   if (member.moderatable) {
@@ -137,6 +137,6 @@ export async function onAntiNukeAudit(
   await sendAntiRaidAlert(
     alert,
     "Anti-Nuke",
-    `Sanción **${settings.nukePunishment}** a <@${member.id}> por **${mapped}** (${recorded.count}/${threshold} en ${settings.nukeWindowSeconds}s).`,
+    `Sanction **${settings.nukePunishment}** on <@${member.id}> for **${mapped}** (${recorded.count}/${threshold} in ${settings.nukeWindowSeconds}s).`,
   );
 }

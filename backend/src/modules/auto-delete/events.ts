@@ -57,7 +57,7 @@ export async function onAutoDeleteMessageCreate(
       deleteAt: new Date(Date.now() + delayMs),
     });
   } catch (error) {
-    logger.warn({ err: error }, "auto-delete messageCreate falló:");
+    logger.warn({ err: error }, "auto-delete messageCreate failed:");
   }
 }
 

@@ -30,12 +30,12 @@ export const PAID_SUBSCRIPTION_STATUSES: readonly SubscriptionStatus[] = [
 ];
 
 export const SUBSCRIPTION_STATUS_LABEL: Record<SubscriptionStatus, string> = {
-  active: "Activa",
-  trialing: "Periodo de prueba",
-  past_due: "Pago pendiente",
-  paused: "En pausa",
-  canceled: "Cancelada",
-  unpaid: "Impagada",
+  active: "Active",
+  trialing: "Trial period",
+  past_due: "Past due",
+  paused: "Paused",
+  canceled: "Canceled",
+  unpaid: "Unpaid",
 };
 
 export interface BillingPlanPrice {

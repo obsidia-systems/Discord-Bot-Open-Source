@@ -113,7 +113,7 @@ export async function processDueCountdownDeletes(
       }
       logger.warn(
         { err: error },
-        `auto-delete: tick falló (${row.guildId}/${row.messageId}):`,
+        `auto-delete: tick failed (${row.guildId}/${row.messageId}):`,
       );
     }
   }

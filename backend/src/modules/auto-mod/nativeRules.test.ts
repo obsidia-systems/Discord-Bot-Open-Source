@@ -8,7 +8,7 @@ import {
 } from "./nativeRules.js";
 
 describe("toDiscordKeywordFilter", () => {
-  it("recorta a 60 chars, ignora cortas y duplicados", () => {
+  it("trims to 60 chars, ignores short ones and duplicates", () => {
     const long = "x".repeat(80);
     expect(toDiscordKeywordFilter(["ab", "a", long, "AB", "hola"])).toEqual([
       "ab",
@@ -19,7 +19,7 @@ describe("toDiscordKeywordFilter", () => {
 });
 
 describe("nativeRuleKeyFromName", () => {
-  it("solo reconoce reglas Adobos", () => {
+  it("only recognizes Adobos rules", () => {
     expect(nativeRuleKeyFromName(ADOBOS_NATIVE_RULE_NAMES.antiInvites)).toBe(
       "antiInvites",
     );
@@ -28,7 +28,7 @@ describe("nativeRuleKeyFromName", () => {
 });
 
 describe("discordInviteRegexPatterns", () => {
-  it("cabe en los topes de Discord (10 patrones, 260 chars)", () => {
+  it("fits within Discord's caps (10 patterns, 260 chars)", () => {
     const patterns = discordInviteRegexPatterns();
     expect(patterns.length).toBeLessThanOrEqual(10);
     for (const pattern of patterns) {
@@ -38,7 +38,7 @@ describe("discordInviteRegexPatterns", () => {
 });
 
 describe("sliceExemptIds", () => {
-  it("respeta el tope de 20 roles", () => {
+  it("respects the 20-role cap", () => {
     const ids = Array.from({ length: 25 }, (_, i) => String(i + 1));
     expect(sliceExemptIds(ids, 20)).toHaveLength(20);
   });

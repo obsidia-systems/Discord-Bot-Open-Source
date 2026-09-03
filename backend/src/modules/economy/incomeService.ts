@@ -22,7 +22,7 @@ function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
     throw new EconomyError(
-      "Falta guildId.",
+      "Missing guildId.",
       400,
       "MISSING_GUILD_ID",
     );
@@ -149,7 +149,7 @@ function sanitizeCrimes(raw: unknown): EconomyCrime[] {
       const successMessage =
         typeof row.successMessage === "string" && row.successMessage.trim()
           ? row.successMessage.trim().slice(0, 500)
-          : "¡Éxito! Completaste «{crime}» y escapaste con {payout} {currency}.";
+          : "Success! You pulled off «{crime}» and got away with {payout} {currency}.";
       const failMessage =
         typeof row.failMessage === "string" && row.failMessage.trim()
           ? row.failMessage.trim().slice(0, 500)

@@ -49,7 +49,7 @@ function parseJson<T>(raw: string | null | undefined, fallback: T): T {
 function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new FormsError("Falta guildId.", 400, "MISSING_GUILD_ID");
+    throw new FormsError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
   return id;
 }
@@ -103,11 +103,11 @@ function rowToForm(
     id: row.id,
     guildId: row.guildId,
     enabled: row.enabled !== false,
-    modalTitle: (row.modalTitle ?? "").trim().slice(0, 45) || "Formulario",
+    modalTitle: (row.modalTitle ?? "").trim().slice(0, 45) || "Form",
     buttonLabel:
-      (row.buttonLabel ?? "").trim().slice(0, 80) || "Abrir formulario",
+      (row.buttonLabel ?? "").trim().slice(0, 80) || "Open form",
     embedTitle:
-      (row.embedTitle ?? "").trim().slice(0, 256) || "Formulario del servidor",
+      (row.embedTitle ?? "").trim().slice(0, 256) || "Server form",
     embedDescription: (row.embedDescription ?? "").trim().slice(0, 4000),
     embedColor: normalizeColor(row.embedColor),
     embedImageUrl: normalizeMediaRef(row.embedImageUrl),
@@ -213,7 +213,7 @@ export async function getForm(
       .limit(1),
   );
   if (!row) {
-    throw new FormsError("Formulario no encontrado.", 404, "NOT_FOUND");
+    throw new FormsError("Form not found.", 404, "NOT_FOUND");
   }
   const countRow = await one(
     getDb()
@@ -280,7 +280,7 @@ function applyInput(
     embedTitle:
       input.embedTitle !== undefined
         ? String(input.embedTitle).trim().slice(0, 256) ||
-          "Formulario del servidor"
+          "Server form"
         : base.embedTitle,
     embedDescription:
       input.embedDescription !== undefined
@@ -374,7 +374,7 @@ export async function createForm(
   await ensureGuildRow(id);
   if ((await countForms(id)) >= FORMS_MAX_PER_GUILD) {
     throw new FormsError(
-      `Máximo ${FORMS_MAX_PER_GUILD} formularios por servidor.`,
+      `At most ${FORMS_MAX_PER_GUILD} forms per server.`,
       400,
       "FORM_CAP",
     );
@@ -396,7 +396,7 @@ export async function createForm(
     .returning({ id: guildForms.id });
   if (!inserted) {
     throw new FormsError(
-      "No se pudo crear el formulario.",
+      "Couldn't create the form.",
       500,
       "INSERT_FAILED",
     );
@@ -545,8 +545,8 @@ export async function insertFormResponse(input: {
     if (remaining > 0) {
       throw new FormsError(
         input.submitMode === "once"
-          ? "Ya enviaste este formulario."
-          : "Aún estás en cooldown.",
+          ? "You already submitted this form."
+          : "You are still on cooldown.",
         429,
         "COOLDOWN",
       );
@@ -571,7 +571,7 @@ export async function insertFormResponse(input: {
 
   if (!inserted) {
     throw new FormsError(
-      "No se pudo guardar la respuesta.",
+      "Couldn't save the response.",
       500,
       "INSERT_FAILED",
     );
@@ -602,10 +602,10 @@ export async function reviewFormResponse(input: {
 }): Promise<FormResponse> {
   const current = await getFormResponseById(input.responseId);
   if (!current || current.guildId !== input.guildId) {
-    throw new FormsError("Respuesta no encontrada.", 404, "NOT_FOUND");
+    throw new FormsError("Response not found.", 404, "NOT_FOUND");
   }
   if (current.status !== "pending") {
-    throw new FormsError("Esta respuesta ya fue revisada.", 409, "ALREADY_REVIEWED");
+    throw new FormsError("This response was already reviewed.", 409, "ALREADY_REVIEWED");
   }
   const now = new Date();
   await getDb()

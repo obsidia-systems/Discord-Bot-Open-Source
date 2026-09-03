@@ -29,7 +29,7 @@ function cfg(overrides: Partial<ActionLogsConfig> = {}): ActionLogsConfig {
 }
 
 describe("resolveLogChannelId", () => {
-  it("SIMPLE siempre usa el canal global", () => {
+  it("SIMPLE always uses the global channel", () => {
     const config = cfg({
       routingMode: "SIMPLE",
       channelsMapping: {
@@ -42,7 +42,7 @@ describe("resolveLogChannelId", () => {
     expect(resolveLogChannelId(config, "INVITES")).toBe("global");
   });
 
-  it("ADVANCED enruta invites al canal propio", () => {
+  it("ADVANCED routes invites to their own channel", () => {
     const config = cfg({
       routingMode: "ADVANCED",
       channelsMapping: {
@@ -55,7 +55,7 @@ describe("resolveLogChannelId", () => {
     expect(resolveLogChannelId(config, "CHANNELS")).toBe("ch");
   });
 
-  it("ADVANCED sin invites cae a channels (compat)", () => {
+  it("ADVANCED without invites falls back to channels (compat)", () => {
     const config = cfg({
       routingMode: "ADVANCED",
       globalChannelId: "global",
@@ -67,7 +67,7 @@ describe("resolveLogChannelId", () => {
     expect(resolveLogChannelId(config, "INVITES")).toBe("ch");
   });
 
-  it("ADVANCED sin mapping cae al global", () => {
+  it("ADVANCED without mapping falls back to global", () => {
     const config = cfg({ routingMode: "ADVANCED" });
     expect(resolveLogChannelId(config, "VOICE")).toBe("global");
     expect(resolveLogChannelId(config, "INVITES")).toBe("global");
@@ -75,7 +75,7 @@ describe("resolveLogChannelId", () => {
 });
 
 describe("configPassesFilters", () => {
-  it("ignora bots cuando ignoreBots está activo", () => {
+  it("ignores bots when ignoreBots is enabled", () => {
     expect(
       configPassesFilters(cfg(), "messageDelete", { actorIsBot: true }),
     ).toBe(false);
@@ -86,7 +86,7 @@ describe("configPassesFilters", () => {
     ).toBe(true);
   });
 
-  it("ignora canal y categoría padre", () => {
+  it("ignores channel and parent category", () => {
     const config = cfg({ ignoredChannels: ["chan", "cat"] });
     expect(
       configPassesFilters(config, "messageDelete", { channelId: "chan" }),
@@ -102,7 +102,7 @@ describe("configPassesFilters", () => {
     ).toBe(true);
   });
 
-  it("respeta el switch del evento", () => {
+  it("respects the event switch", () => {
     const config = cfg({
       enabledEvents: {
         ...defaultActionLogEnabledEvents(),
@@ -113,7 +113,7 @@ describe("configPassesFilters", () => {
     expect(configPassesFilters(config, "memberLeave")).toBe(true);
   });
 
-  it("módulo deshabilitado aborta todo", () => {
+  it("disabled module aborts everything", () => {
     expect(configPassesFilters(cfg({ enabled: false }), "memberJoin")).toBe(
       false,
     );
@@ -121,7 +121,7 @@ describe("configPassesFilters", () => {
 });
 
 describe("getEventMeta", () => {
-  it("cubre todas las keys del catálogo", () => {
+  it("covers all catalog keys", () => {
     for (const key of ACTION_LOG_EVENT_KEYS) {
       expect(getEventMeta(key).eventType).toBeTruthy();
       expect(getEventMeta(key).category).toBeTruthy();

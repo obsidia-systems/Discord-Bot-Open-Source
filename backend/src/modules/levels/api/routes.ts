@@ -40,7 +40,7 @@ async function resolveLeaderboardEntries(
       rank: row.rank,
       userId: row.userId,
       username: member?.username ?? row.userId,
-      displayName: member?.displayName ?? "Usuario Desconocido",
+      displayName: member?.displayName ?? "Unknown User",
       avatarUrl: member?.avatarUrl ?? null,
       level: row.level,
       xp: row.xp,

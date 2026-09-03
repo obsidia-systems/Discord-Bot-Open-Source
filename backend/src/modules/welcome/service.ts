@@ -55,7 +55,7 @@ function assertSnowflake(value: string, field: string): string {
   const trimmed = value.trim();
   if (!/^\d{17,20}$/.test(trimmed)) {
     throw new WelcomeSettingsError(
-      `${field} debe ser un snowflake válido.`,
+      `${field} must be a valid snowflake.`,
       400,
       "INVALID_IDS",
     );
@@ -77,7 +77,7 @@ function normalizeHexColor(raw: string | undefined): string {
   if (/^#[0-9a-fA-F]{6}$/.test(value)) return value;
   if (/^[0-9a-fA-F]{6}$/.test(value)) return `#${value}`;
   throw new WelcomeSettingsError(
-    "Color debe ser un hex #RRGGBB.",
+    "Color must be a #RRGGBB hex.",
     400,
     "INVALID_COLOR",
   );
@@ -114,7 +114,7 @@ function layersFromLegacy(row: {
   return [
     {
       id: "migrated-primary",
-      text: row.primaryText?.trim() || "¡Bienvenido a {server}!",
+      text: row.primaryText?.trim() || "Welcome to {server}!",
       x: textX,
       y: textY,
       fontSize,
@@ -253,7 +253,7 @@ export async function saveWelcomeSettings(
 
   if (isEnabled && !channelId) {
     throw new WelcomeSettingsError(
-      "Selecciona un canal de destino para activar el módulo.",
+      "Select a destination channel to enable the module.",
       400,
       "MISSING_CHANNEL",
     );
@@ -283,7 +283,7 @@ export async function saveWelcomeSettings(
   const bgFilepath = input.bgFilepath?.trim() || null;
   if (bgFilepath && !resolvePublicUploadPath(bgFilepath)) {
     throw new WelcomeSettingsError(
-      "bgFilepath inválido. Debe ser /uploads/backgrounds/...",
+      "Invalid bgFilepath. It must be /uploads/backgrounds/...",
       400,
       "INVALID_BG_FILEPATH",
     );
@@ -312,7 +312,7 @@ export async function saveWelcomeSettings(
     avatarBorderWidth,
     avatarBorderColor,
     textLayers: JSON.stringify(resolvedLayers),
-    primaryText: first?.text ?? "¡Bienvenido!",
+    primaryText: first?.text ?? "Welcome!",
     secondaryText: second?.text ?? "{username}",
     textX: first?.x ?? DEFAULTS.avatarX,
     textY: first?.y ?? 560,

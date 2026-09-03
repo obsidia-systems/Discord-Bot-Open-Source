@@ -76,7 +76,7 @@ export async function applyGuildLockdown(
     } catch (error: unknown) {
       logger.warn(
         { err: error, channelId: channel.id },
-        "anti-raid: no se pudo bloquear canal",
+        "anti-raid: couldn't lock channel",
       );
     }
   }
@@ -125,7 +125,7 @@ export async function liftGuildLockdown(
     } catch (error: unknown) {
       logger.warn(
         { err: error, channelId: item.channelId },
-        "anti-raid: no se pudo restaurar canal",
+        "anti-raid: couldn't restore channel",
       );
     }
   }

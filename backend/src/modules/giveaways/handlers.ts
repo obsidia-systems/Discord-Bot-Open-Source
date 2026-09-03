@@ -14,7 +14,7 @@ function asGuildMember(member: ButtonInteraction["member"]): GuildMember | null 
 
 function mapError(error: unknown): string {
   if (error instanceof GiveawaysError) return error.message;
-  return "Ocurrió un error al participar.";
+  return "An error occurred while entering.";
 }
 
 export async function onGiveawayJoinButton(
@@ -29,7 +29,7 @@ export async function onGiveawayJoinButton(
   const member = asGuildMember(interaction.member);
   if (!member) {
     await interaction.reply({
-      content: "No pude leerte como miembro del servidor.",
+      content: "I couldn't read you as a server member.",
       ...EPHEMERAL,
     });
     return;
@@ -43,7 +43,7 @@ export async function onGiveawayJoinButton(
     });
     await interaction.editReply({
       content: result.joined
-        ? `Has entrado. Hay **${result.giveaway.entryCount}** participante(s). Vuelve a pulsar para salir.`
+        ? `You're in. There are **${result.giveaway.entryCount}** entrant(s). Click again to leave.`
         : `Has salido. Quedan **${result.giveaway.entryCount}** participante(s).`,
     });
   } catch (error: unknown) {

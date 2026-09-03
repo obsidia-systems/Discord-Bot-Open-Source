@@ -50,7 +50,7 @@ export function requireGuildAccess(): RequestHandler {
       const raw = extractGuildId(req);
       if (!isSnowflake(raw)) {
         next(
-          new HttpError("guildId inválido o ausente.", 400, "INVALID_GUILD_ID"),
+          new HttpError("Invalid or missing guildId.", 400, "INVALID_GUILD_ID"),
         );
         return;
       }
@@ -59,7 +59,7 @@ export function requireGuildAccess(): RequestHandler {
       if (!allowed) {
         next(
           new HttpError(
-            "No tienes permiso de gestionar este servidor.",
+            "You don't have permission to manage this server.",
             403,
             "GUILD_FORBIDDEN",
           ),
@@ -91,7 +91,7 @@ export function requireGuildAccess(): RequestHandler {
       if (error instanceof DiscordHttpError && error.status === 429) {
         next(
           new HttpError(
-            "Discord está limitando peticiones. Espera un momento.",
+            "Discord is rate limiting requests. Try again in a moment.",
             429,
             "DISCORD_RATE_LIMITED",
           ),
@@ -99,13 +99,13 @@ export function requireGuildAccess(): RequestHandler {
         return;
       }
       if (error instanceof DiscordHttpError && error.status === 401) {
-        next(new HttpError("Sesión expirada.", 401, "UNAUTHENTICATED"));
+        next(new HttpError("Session expired.", 401, "UNAUTHENTICATED"));
         return;
       }
-      logger.error({ err: error }, "requireGuildAccess falló");
+      logger.error({ err: error }, "requireGuildAccess failed");
       next(
         new HttpError(
-          "No se pudo verificar el acceso al servidor.",
+          "Couldn't verify access to the server.",
           502,
           "GUILD_ACCESS_CHECK_FAILED",
         ),
@@ -119,7 +119,7 @@ export function guildIdOf(req: Request): string {
   const id = req.guild?.guildId;
   if (!id) {
     throw new HttpError(
-      "requireGuildAccess no se aplicó en esta ruta.",
+      "requireGuildAccess was not applied on this route.",
       500,
       "MISSING_GUILD_CONTEXT",
     );

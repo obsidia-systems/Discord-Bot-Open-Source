@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { SNOWFLAKE_RE } from "./snowflake.js";
 
-export const snowflake = z.string().regex(SNOWFLAKE_RE, "snowflake inválido");
+export const snowflake = z.string().regex(SNOWFLAKE_RE, "invalid snowflake");
 export const snowflakeOpt = snowflake.optional();
 export const snowflakeNull = z.union([snowflake, z.null()]).optional();
 export const snowflakeList = z.array(snowflake);

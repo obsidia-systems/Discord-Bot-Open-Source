@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { autoRepliesModule } from "./index.js";
 
 describe("auto-replies module", () => {
-  it("se llama Auto-Replies, sin slash, y escucha messageCreate", () => {
+  it("is named Auto-Replies, no slash, and listens for messageCreate", () => {
     expect(autoRepliesModule.id).toBe("auto-replies");
     expect(autoRepliesModule.name).toBe("Auto-Replies");
     const commands: string[] = [];

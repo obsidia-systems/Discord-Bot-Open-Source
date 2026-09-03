@@ -153,7 +153,7 @@ export const welcomeSettings = pgTable("welcome_settings", {
   /**
    * @deprecated Migrado a `textLayers`. Se mantiene para lectura legacy.
    */
-  primaryText: text("primary_text").notNull().default("¡Bienvenido!"),
+  primaryText: text("primary_text").notNull().default("Welcome!"),
   /**
    * @deprecated Migrado a `textLayers`.
    */
@@ -198,7 +198,7 @@ export const canvasEventSettings = pgTable(
     backgroundUrl: text("background_url"),
     bgFilepath: text("bg_filepath"),
     blurAmount: integer("blur_amount").notNull().default(4),
-    primaryText: text("primary_text").notNull().default("¡Hasta pronto!"),
+    primaryText: text("primary_text").notNull().default("See you soon!"),
     secondaryText: text("secondary_text").notNull().default("{username}"),
     messageContent: text("message_content").notNull().default("{user}"),
     avatarX: integer("avatar_x").notNull().default(960),
@@ -526,10 +526,10 @@ export const xpConfig = pgTable("xp_config", {
   levelUpFormat: text("level_up_format").notNull().default("TEXT"),
   levelUpMessage: text("level_up_message")
     .notNull()
-    .default("🎉 {user} subió al **nivel {level}**!"),
+    .default("🎉 {user} reached **level {level}**!"),
   levelUpEmbedTitle: text("level_up_embed_title")
     .notNull()
-    .default("¡Subida de Nivel!"),
+    .default("Level Up!"),
   levelUpEmbedColor: text("level_up_embed_color")
     .notNull()
     .default("#34E21D"),
@@ -541,7 +541,7 @@ export const xpConfig = pgTable("xp_config", {
   liveLeaderboardMessageId: text("live_leaderboard_message_id"),
   leaderboardEmbedTitle: text("leaderboard_embed_title")
     .notNull()
-    .default("🏆 Tabla de Clasificación"),
+    .default("🏆 Leaderboard"),
   leaderboardEmbedDescription: text("leaderboard_embed_description")
     .notNull()
     .default(""),
@@ -605,12 +605,12 @@ export const guildForms = pgTable("guild_forms", {
   guildId: text("guild_id")
     .notNull()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  modalTitle: text("modal_title").notNull().default("Formulario"),
-  buttonLabel: text("button_label").notNull().default("Abrir formulario"),
-  embedTitle: text("embed_title").notNull().default("Formulario del servidor"),
+  modalTitle: text("modal_title").notNull().default("Form"),
+  buttonLabel: text("button_label").notNull().default("Open form"),
+  embedTitle: text("embed_title").notNull().default("Server form"),
   embedDescription: text("embed_description")
     .notNull()
-    .default("Haz clic en el botón para completar el formulario."),
+    .default("Click the button to fill out the form."),
   embedColor: text("embed_color").notNull().default("#5865F2"),
   embedImageUrl: text("embed_image_url"),
   embedThumbnailUrl: text("embed_thumbnail_url"),
@@ -689,12 +689,12 @@ export const interactiveForms = pgTable("interactive_forms", {
   guildId: text("guild_id")
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  modalTitle: text("modal_title").notNull().default("Formulario"),
-  buttonLabel: text("button_label").notNull().default("Abrir formulario"),
-  embedTitle: text("embed_title").notNull().default("Formulario del servidor"),
+  modalTitle: text("modal_title").notNull().default("Form"),
+  buttonLabel: text("button_label").notNull().default("Open form"),
+  embedTitle: text("embed_title").notNull().default("Server form"),
   embedDescription: text("embed_description")
     .notNull()
-    .default("Haz clic en el botón para completar el formulario."),
+    .default("Click the button to fill out the form."),
   embedColor: text("embed_color").notNull().default("#5865F2"),
   publishChannelId: text("publish_channel_id"),
   receptionChannelId: text("reception_channel_id"),
@@ -757,7 +757,7 @@ export const customCommands = pgTable(
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
     name: text("name").notNull(),
-    description: text("description").notNull().default("Comando personalizado"),
+    description: text("description").notNull().default("Custom command"),
     /** JSON: CustomCommandResponseData */
     responseData: text("response_data").notNull().default("{}"),
     /** JSON: CustomCommandOptions */
@@ -1487,7 +1487,7 @@ export const streamAlerts = pgTable(
     mentionRoleId: text("mention_role_id"),
     template: text("template")
       .notNull()
-      .default("{name} está en directo: {title}\n{url}"),
+      .default("{name} is live: {title}\n{url}"),
     enabled: boolean("enabled").notNull().default(true),
     isLive: boolean("is_live").notNull().default(false),
     liveId: text("live_id"),
@@ -1586,7 +1586,7 @@ export const ticketPanels = pgTable(
     embedTitle: text("embed_title").notNull().default("Tickets"),
     embedDescription: text("embed_description")
       .notNull()
-      .default("Pulsa un botón para abrir un ticket."),
+      .default("Press a button to open a ticket."),
     embedColor: text("embed_color").notNull().default("#5865F2"),
     buttons: text("buttons").notNull().default("[]"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })

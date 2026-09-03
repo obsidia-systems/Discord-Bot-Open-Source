@@ -58,7 +58,7 @@ function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
     throw new LevelsError(
-      "Falta guildId.",
+      "Missing guildId.",
       400,
       "MISSING_GUILD_ID",
     );
@@ -536,7 +536,7 @@ export async function addUserXp(
     );
     if (!existing) {
       throw new LevelsError(
-        "No se pudo crear el progreso de XP.",
+        "Couldn't create the XP progress.",
         500,
         "XP_UPSERT_FAILED",
       );
@@ -588,7 +588,7 @@ export async function deductUserXp(
     );
     if (!existing) {
       throw new LevelsError(
-        "No se pudo crear el progreso de XP.",
+        "Couldn't create the XP progress.",
         500,
         "XP_UPSERT_FAILED",
       );

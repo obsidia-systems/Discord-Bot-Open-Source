@@ -14,7 +14,7 @@ import {
 } from "./forms.js";
 
 describe("normalizeFormQuestions", () => {
-  it("recorta a 5, exige label y deduplica ids", () => {
+  it("trims to 5, requires a label and deduplicates ids", () => {
     const questions = normalizeFormQuestions([
       {
         id: "q1",
@@ -56,7 +56,7 @@ describe("normalizeFormQuestions", () => {
     expect(questions[1]?.style).toBe("PARAGRAPH");
   });
 
-  it("normaliza select y file", () => {
+  it("normalizes select and file", () => {
     const [select, file] = normalizeFormQuestions([
       {
         id: "plat",
@@ -83,7 +83,7 @@ describe("normalizeFormQuestions", () => {
 });
 
 describe("normalizeFormSelectOptions", () => {
-  it("recorta al tope Discord y slugifica values", () => {
+  it("trims to the Discord cap and slugifies values", () => {
     const many = Array.from(
       { length: FORMS_MAX_SELECT_OPTIONS + 3 },
       (_, i) => `Option ${i}`,
@@ -94,8 +94,8 @@ describe("normalizeFormSelectOptions", () => {
   });
 });
 
-describe("gates y cooldown", () => {
-  it("bloquea rol prohibido y exige uno requerido", () => {
+describe("gates and cooldown", () => {
+  it("blocks a forbidden role and requires a required one", () => {
     expect(
       formMemberGateReason({
         memberRoleIds: ["1"],
@@ -119,7 +119,7 @@ describe("gates y cooldown", () => {
     ).toBeNull();
   });
 
-  it("clamp de cooldown y modo once", () => {
+  it("cooldown clamp and once mode", () => {
     expect(clampFormCooldownMinutes(-3)).toBe(0);
     expect(clampFormCooldownMinutes(99_999)).toBe(60 * 24 * 30);
     expect(normalizeFormSubmitMode("ONCE")).toBe("once");
@@ -127,8 +127,8 @@ describe("gates y cooldown", () => {
   });
 });
 
-describe("csv y customId", () => {
-  it("escapa comillas y arma columnas por pregunta", () => {
+describe("csv and customId", () => {
+  it("escapes quotes and builds columns per question", () => {
     expect(escapeCsvCell('a "b"')).toBe('"a ""b"""');
     const csv = buildFormResponsesCsv(
       {
@@ -166,7 +166,7 @@ describe("csv y customId", () => {
     expect(csv.startsWith("\uFEFF")).toBe(true);
   });
 
-  it("parsea ids de botón y rechaza snowflakes legacy", () => {
+  it("parses button ids and rejects legacy snowflakes", () => {
     expect(parseFormNumericId("form_open_12", "form_open_")).toBe(12);
     expect(parseFormNumericId("form_open_abc", "form_open_")).toBeNull();
     expect(

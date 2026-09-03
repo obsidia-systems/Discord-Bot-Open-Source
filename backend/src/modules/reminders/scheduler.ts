@@ -18,7 +18,7 @@ export function bindRemindersScheduler(client: Client): void {
 async function tryDm(client: Client, reminder: Reminder): Promise<boolean> {
   try {
     const user = await client.users.fetch(reminder.userId);
-    await user.send(`⏰ Recordatorio: ${reminder.message}`);
+    await user.send(`⏰ Reminder: ${reminder.message}`);
     return true;
   } catch {
     return false;
@@ -55,12 +55,12 @@ async function tryChannel(client: Client, reminder: Reminder): Promise<boolean> 
     const text = asSendable(channel);
     if (!text || !("send" in text)) return false;
     await text.send({
-      content: `<@${reminder.userId}> recordatorio: ${reminder.message}`,
+      content: `<@${reminder.userId}> reminder: ${reminder.message}`,
       allowedMentions: { users: [reminder.userId] },
     });
     return true;
   } catch (error: unknown) {
-    logger.warn({ err: error }, `reminders: canal falló (id=${reminder.id})`);
+    logger.warn({ err: error }, `reminders: channel failed (id=${reminder.id})`);
     return false;
   }
 }
@@ -99,7 +99,7 @@ export async function processDueReminders(): Promise<number> {
       processed += 1;
       await deliverReminder(client, fresh);
     } catch (error: unknown) {
-      logger.warn({ err: error }, `reminders: tick falló (id=${snapshot.id})`);
+      logger.warn({ err: error }, `reminders: tick failed (id=${snapshot.id})`);
     } finally {
       inFlight.delete(snapshot.id);
     }

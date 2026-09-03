@@ -16,17 +16,17 @@ const MODERATION_COMMANDS = [
   "unlock",
 ] as const;
 
-describe("catálogo de slash nativos", () => {
-  it("todo el catálogo tiene handler", () => {
+describe("native slash catalog", () => {
+  it("the whole catalog has a handler", () => {
     for (const def of SYSTEM_COMMAND_CATALOG) {
       expect(
         DEFAULT_COMMAND_HANDLERS[def.name],
-        `falta handler para /${def.name}`,
+        `missing handler for /${def.name}`,
       ).toBeTypeOf("function");
     }
   });
 
-  it("los 11 de moderación no son stubs", () => {
+  it("the 11 moderation ones are not stubs", () => {
     for (const name of MODERATION_COMMANDS) {
       const handler = DEFAULT_COMMAND_HANDLERS[name];
       expect(handler, `/${name}`).toBeTypeOf("function");

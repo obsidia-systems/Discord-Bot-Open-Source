@@ -67,7 +67,7 @@ const ACTIVITY_TYPE_MAP: Record<BotActivityTypeName, number> = {
 function assertBotReady(bot: Client): void {
   if (!bot.isReady() || !bot.user) {
     throw new BotProfileError(
-      "El bot de Discord no está conectado.",
+      "The Discord bot is not connected.",
       503,
       "BOT_NOT_READY",
     );
@@ -79,7 +79,7 @@ function resolveGuild(bot: Client, guildId?: string): Guild {
   const id = (guildId ?? "").trim();
   if (!id) {
     throw new BotProfileError(
-      "Falta guildId.",
+      "Missing guildId.",
       400,
       "MISSING_GUILD_ID",
     );
@@ -87,7 +87,7 @@ function resolveGuild(bot: Client, guildId?: string): Guild {
   const guild = bot.guilds.cache.get(id);
   if (!guild) {
     throw new BotProfileError(
-      "El bot no está en ese servidor.",
+      "The bot is not in that server.",
       404,
       "GUILD_NOT_FOUND",
     );
@@ -159,7 +159,7 @@ export async function restorePersistedPresence(bot: Client): Promise<void> {
     if (!bot.isReady() || !bot.user) return;
     const saved = await readPersistedPresence();
     if (!saved) {
-      logger.info("Sin presencia persistida; se omite restore.");
+      logger.info("No persisted presence; skipping restore.");
       return;
     }
     bot.user.setPresence({
@@ -167,10 +167,10 @@ export async function restorePersistedPresence(bot: Client): Promise<void> {
       activities: buildActivities(saved),
     });
     logger.info(
-      `Presencia restaurada: ${saved.status} / ${saved.activityType} "${saved.activityName}"`,
+      `Presence restored: ${saved.status} / ${saved.activityType} "${saved.activityName}"`,
     );
   } catch (error: unknown) {
-    logger.error({ err: error }, "No se pudo restaurar la presencia:");
+    logger.error({ err: error }, "Couldn't restore the presence:");
   }
 }
 
@@ -227,7 +227,7 @@ function mapDiscordError(error: unknown): never {
       /missing.?access|missing.?permissions|privilege/i.test(msg)
     ) {
       throw new BotProfileError(
-        "El bot no tiene permisos suficientes en este servidor para cambiar su apodo o avatar.",
+        "The bot lacks sufficient permissions in this server to change its nickname or avatar.",
         403,
         "MISSING_PERMISSIONS",
       );
@@ -235,14 +235,14 @@ function mapDiscordError(error: unknown): never {
 
     if (error.status === 400 || error.code === 50035) {
       throw new BotProfileError(
-        msg || "Discord rechazó los datos del perfil del servidor.",
+        msg || "Discord rejected the server profile data.",
         400,
         "DISCORD_INVALID",
       );
     }
 
     throw new BotProfileError(
-      msg || "Discord rechazó la actualización del perfil del servidor.",
+      msg || "Discord rejected the server profile update.",
       typeof error.status === "number" && error.status >= 400
         ? error.status
         : 502,
@@ -273,7 +273,7 @@ async function resolveServerAvatarInput(options: {
     const absolute = resolvePublicUploadPath(raw);
     if (!absolute || !fs.existsSync(absolute)) {
       throw new BotProfileError(
-        "No se encontró la imagen subida del avatar.",
+        "The uploaded avatar image was not found.",
         400,
         "AVATAR_FILE_MISSING",
       );
@@ -286,7 +286,7 @@ async function resolveServerAvatarInput(options: {
   }
 
   throw new BotProfileError(
-    "serverAvatarUrl debe ser http(s) o una ruta /uploads/…",
+    "serverAvatarUrl must be http(s) or a /uploads/… path",
     400,
     "INVALID_AVATAR_URL",
   );
@@ -326,7 +326,7 @@ export async function updateGuildBotProfile(
 
       if (nextNick && isBotGuildNicknameTooLong(nextNick)) {
         throw new BotProfileError(
-          `El apodo debe tener como máximo ${BOT_GUILD_NICKNAME_MAX} caracteres.`,
+          `The nickname must be at most ${BOT_GUILD_NICKNAME_MAX} characters.`,
           400,
           "INVALID_NICKNAME",
         );
@@ -358,7 +358,7 @@ export async function updateGuildBotProfile(
 
   return {
     ok: true,
-    message: "Perfil del bot actualizado para este servidor",
+    message: "Bot profile updated for this server",
     profile,
     changed: changedFlags,
   };

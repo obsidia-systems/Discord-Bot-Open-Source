@@ -32,7 +32,7 @@ export async function publishFormMessage(
 ): Promise<PublishFormResponse> {
   if (!bot.isReady()) {
     throw new FormsError(
-      "El bot de Discord no está conectado.",
+      "The Discord bot is not connected.",
       503,
       "BOT_NOT_READY",
     );
@@ -44,21 +44,21 @@ export async function publishFormMessage(
 
   if (!form.publishChannelId) {
     throw new FormsError(
-      "Selecciona un canal de publicación en «Mensaje Base».",
+      "Select a publish channel in «Base Message».",
       400,
       "MISSING_PUBLISH_CHANNEL",
     );
   }
   if (!form.receptionChannelId) {
     throw new FormsError(
-      "Selecciona un canal de recepción en la pestaña «Recepción».",
+      "Select a reception channel in the «Reception» tab.",
       400,
       "MISSING_RECEPTION_CHANNEL",
     );
   }
   if (form.questions.length === 0) {
     throw new FormsError(
-      "Añade al menos una pregunta al formulario.",
+      "Add at least one question to the form.",
       400,
       "NO_QUESTIONS",
     );
@@ -73,14 +73,14 @@ export async function publishFormMessage(
       channel.type !== ChannelType.GuildAnnouncement)
   ) {
     throw new FormsError(
-      "El canal de publicación no es válido o no es de texto.",
+      "The publish channel is invalid or not a text channel.",
       400,
       "INVALID_PUBLISH_CHANNEL",
     );
   }
   if (!channelBelongsToGuild(channel, form.guildId)) {
     throw new FormsError(
-      "El canal de publicación no pertenece a este servidor.",
+      "The publish channel does not belong to this server.",
       403,
       "CHANNEL_GUILD_MISMATCH",
     );
@@ -91,7 +91,7 @@ export async function publishFormMessage(
     .catch(() => null);
   if (!reception || !channelBelongsToGuild(reception, form.guildId)) {
     throw new FormsError(
-      "El canal de recepción no pertenece a este servidor.",
+      "The reception channel does not belong to this server.",
       403,
       "CHANNEL_GUILD_MISMATCH",
     );
@@ -117,7 +117,7 @@ export async function publishFormMessage(
       throw new FormsError(
         error instanceof Error
           ? error.message
-          : "Imagen principal inválida.",
+          : "Invalid main image.",
         400,
         "INVALID_IMAGE",
       );
@@ -135,7 +135,7 @@ export async function publishFormMessage(
       thumbnailUrl = resolved.url;
     } catch (error) {
       throw new FormsError(
-        error instanceof Error ? error.message : "Thumbnail inválido.",
+        error instanceof Error ? error.message : "Invalid thumbnail.",
         400,
         "INVALID_THUMBNAIL",
       );
@@ -207,7 +207,7 @@ export async function publishFormsMessage(
   _input?: UpdateFormRequest,
 ): Promise<PublishFormResponse> {
   throw new FormsError(
-    "Usa publishFormMessage(formId). El API de formularios ahora es multi-formulario.",
+    "Use publishFormMessage(formId). The forms API is now multi-form.",
     400,
     "DEPRECATED",
   );

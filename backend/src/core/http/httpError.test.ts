@@ -7,14 +7,14 @@ import { parse, ValidationError } from "./validate.js";
 describe("parse", () => {
   const schema = z.object({ name: z.string().min(1) });
 
-  it("devuelve el valor si es válido", () => {
+  it("returns the value if valid", () => {
     expect(parse(schema, { name: "ok" })).toEqual({ name: "ok" });
   });
 
-  it("lanza ValidationError con issues", () => {
+  it("throws ValidationError with issues", () => {
     try {
       parse(schema, {});
-      throw new Error("debía fallar");
+      throw new Error("should have failed");
     } catch (error) {
       expect(error).toBeInstanceOf(ValidationError);
       const mapped = mapHttpError(error);
@@ -26,28 +26,26 @@ describe("parse", () => {
 });
 
 describe("mapHttpError", () => {
-  it("mapea HttpError de dominio", () => {
-    const mapped = mapHttpError(
-      new HttpError("No encontrado.", 404, "NOT_FOUND"),
-    );
+  it("maps a domain HttpError", () => {
+    const mapped = mapHttpError(new HttpError("Not found.", 404, "NOT_FOUND"));
     expect(mapped).toEqual({
       status: 404,
-      body: { error: "No encontrado.", code: "NOT_FOUND" },
+      body: { error: "Not found.", code: "NOT_FOUND" },
       log: false,
     });
   });
 
-  it("oculta errores internos", () => {
-    const mapped = mapHttpError(new Error("stack secreto"));
+  it("hides internal errors", () => {
+    const mapped = mapHttpError(new Error("secret stack"));
     expect(mapped.status).toBe(500);
     expect(mapped.body).toEqual({
-      error: "Error interno.",
+      error: "Internal error.",
       code: "INTERNAL_ERROR",
     });
     expect(mapped.log).toBe(true);
   });
 
-  it("explica un price id inválido de Stripe", () => {
+  it("explains an invalid Stripe price id", () => {
     const error = Object.assign(new Error("No such price: 'prod_abc'"), {
       name: "StripeInvalidRequestError",
       type: "StripeInvalidRequestError",
@@ -59,17 +57,17 @@ describe("mapHttpError", () => {
     expect(mapped.log).toBe(false);
   });
 
-  it("explica un price id de otra cuenta Stripe", () => {
+  it("explains a price id from another Stripe account", () => {
     const error = Object.assign(new Error("No such price: 'price_abc'"), {
       name: "StripeInvalidRequestError",
       type: "StripeInvalidRequestError",
     });
     const mapped = mapHttpError(error);
     expect(mapped.status).toBe(400);
-    expect(mapped.body.error).toMatch(/misma cuenta/);
+    expect(mapped.body.error).toMatch(/same account/);
   });
 
-  it("explica un customer de otra cuenta Stripe", () => {
+  it("explains a customer from another Stripe account", () => {
     const error = Object.assign(new Error("No such customer: 'cus_abc'"), {
       name: "StripeInvalidRequestError",
       type: "StripeInvalidRequestError",
@@ -79,7 +77,7 @@ describe("mapHttpError", () => {
     expect(mapped.body.error).toMatch(/customer/i);
   });
 
-  it("detecta límite de multer", () => {
+  it("detects the multer limit", () => {
     const error = Object.assign(new Error("too large"), {
       code: "LIMIT_FILE_SIZE",
     });
@@ -90,11 +88,11 @@ describe("mapHttpError", () => {
 });
 
 describe("isSnowflake", () => {
-  it("acepta snowflakes de Discord", () => {
+  it("accepts Discord snowflakes", () => {
     expect(isSnowflake("123456789012345678")).toBe(true);
   });
 
-  it("rechaza basura", () => {
+  it("rejects garbage", () => {
     expect(isSnowflake("abc")).toBe(false);
     expect(isSnowflake(123)).toBe(false);
     expect(isSnowflake("")).toBe(false);

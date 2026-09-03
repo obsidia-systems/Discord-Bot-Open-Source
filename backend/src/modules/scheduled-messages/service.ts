@@ -43,7 +43,7 @@ function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
     throw new ScheduledMessagesError(
-      "Falta guildId.",
+      "Missing guildId.",
       400,
       "MISSING_GUILD_ID",
     );
@@ -73,7 +73,7 @@ function normalizeSnowflake(value: unknown): string {
   const id = String(value ?? "").trim();
   if (!/^\d{17,20}$/.test(id)) {
     throw new ScheduledMessagesError(
-      "Canal de destino inválido.",
+      "Invalid destination channel.",
       400,
       "INVALID_CHANNEL",
     );
@@ -203,7 +203,7 @@ export async function getScheduledMessage(
   );
   if (!row) {
     throw new ScheduledMessagesError(
-      "Mensaje programado no encontrado.",
+      "Scheduled message not found.",
       404,
       "NOT_FOUND",
     );
@@ -257,7 +257,7 @@ export async function createScheduledMessage(
     .returning({ id: scheduledMessages.id });
   if (!inserted) {
     throw new ScheduledMessagesError(
-      "No se pudo crear el mensaje programado.",
+      "Couldn't create the scheduled message.",
       500,
       "INSERT_FAILED",
     );

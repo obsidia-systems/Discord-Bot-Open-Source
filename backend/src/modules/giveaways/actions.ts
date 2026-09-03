@@ -37,7 +37,7 @@ export async function createAndPublishGiveaway(input: {
     await setGiveawayMessageId(giveaway.id, messageId);
     return { ...giveaway, messageId };
   } catch (error: unknown) {
-    logger.warn({ err: error }, "giveaways: no se pudo publicar");
+    logger.warn({ err: error }, "giveaways: couldn't publish");
     await applyGiveawayAction({
       giveawayId: giveaway.id,
       guildId: giveaway.guildId,
@@ -46,7 +46,7 @@ export async function createAndPublishGiveaway(input: {
     throw error instanceof GiveawaysError
       ? error
       : new GiveawaysError(
-          "No pude publicar el sorteo en ese canal. Revisa permisos.",
+          "I couldn't publish the giveaway in that channel. Check permissions.",
           400,
           "PUBLISH_FAILED",
         );
@@ -89,11 +89,11 @@ export async function joinGiveawayFromMember(input: {
 }): Promise<{ joined: boolean; giveaway: Giveaway }> {
   const giveaway = await getGiveawayById(input.giveawayId);
   if (giveaway.guildId !== input.member.guild.id) {
-    throw new GiveawaysError("Sorteo no encontrado.", 404, "NOT_FOUND");
+    throw new GiveawaysError("Giveaway not found.", 404, "NOT_FOUND");
   }
   if (!canEnterGiveaway(giveaway.status)) {
     throw new GiveawaysError(
-      "Este sorteo no admite entradas.",
+      "This giveaway is not accepting entries.",
       409,
       "NOT_RUNNING",
     );
@@ -114,7 +114,7 @@ export async function joinGiveawayFromMember(input: {
   const fresh = await getGiveawayById(giveaway.id);
   const live = { ...fresh, entryCount: result.entryCount };
   await upsertGiveawayMessage(input.bot, live).catch((error: unknown) => {
-    logger.warn({ err: error }, "giveaways: no se pudo actualizar el mensaje");
+    logger.warn({ err: error }, "giveaways: couldn't update the message");
   });
   return { joined: result.joined, giveaway: live };
 }

@@ -41,14 +41,14 @@ export const autoDeleteModule: AdobosModule = {
       try {
         await processDueCountdownDeletes(ctx.client);
       } catch (error) {
-        logger.warn({ err: error }, "auto-delete: tick inicial falló:");
+        logger.warn({ err: error }, "auto-delete: initial tick failed:");
       }
     });
 
     const timer = setInterval(() => {
       if (!isWorkerLeader()) return;
       void processDueCountdownDeletes(ctx.client).catch((error: unknown) => {
-        logger.warn({ err: error }, "auto-delete: tick falló:");
+        logger.warn({ err: error }, "auto-delete: tick failed:");
       });
     }, COUNTDOWN_TICK_MS);
     timer.unref?.();

@@ -139,7 +139,7 @@ export const FORMS_RESPONSES_LIST_MAX = 200;
 export const FORMS_MAX_COOLDOWN_MINUTES = 60 * 24 * 30;
 
 export const DEFAULT_FORMS_EMBED_COLOR = "#5865F2";
-export const DEFAULT_FORMS_THANK_YOU = "¡Formulario enviado con éxito!";
+export const DEFAULT_FORMS_THANK_YOU = "Form submitted successfully!";
 
 export const FORM_QUESTION_STYLES: FormQuestionStyle[] = [
   "SHORT",
@@ -155,7 +155,7 @@ const SNOWFLAKE_RE = /^\d{17,20}$/;
 export function defaultFormQuestion(): FormQuestion {
   return {
     id: `q${Date.now().toString(36)}`,
-    label: "Nueva pregunta",
+    label: "New question",
     style: "SHORT",
     required: true,
     placeholder: "",
@@ -168,10 +168,10 @@ export function defaultInteractiveForm(guildId = ""): InteractiveForm {
     id: 0,
     guildId,
     enabled: true,
-    modalTitle: "Formulario",
-    buttonLabel: "Abrir formulario",
-    embedTitle: "Formulario del servidor",
-    embedDescription: "Haz clic en el botón para completar el formulario.",
+    modalTitle: "Form",
+    buttonLabel: "Open form",
+    embedTitle: "Server form",
+    embedDescription: "Click the button to fill out the form.",
     embedColor: DEFAULT_FORMS_EMBED_COLOR,
     embedImageUrl: null,
     embedThumbnailUrl: null,
@@ -346,13 +346,13 @@ export function formMemberGateReason(input: {
 }): string | null {
   const have = new Set(input.memberRoleIds);
   if (input.blockedRoleIds.some((id) => have.has(id))) {
-    return "No puedes enviar este formulario.";
+    return "You can't submit this form.";
   }
   if (
     input.requiredRoleIds.length > 0 &&
     !input.requiredRoleIds.some((id) => have.has(id))
   ) {
-    return "No tienes el rol necesario para enviar este formulario.";
+    return "You don't have the required role to submit this form.";
   }
   return null;
 }

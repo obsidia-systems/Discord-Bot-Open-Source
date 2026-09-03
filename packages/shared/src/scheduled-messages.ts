@@ -123,8 +123,8 @@ export function defaultScheduledFrequency(): ScheduledFrequency {
 
 export function defaultScheduledEmbedData(): ScheduledEmbedData {
   return {
-    title: "Anuncio programado",
-    description: "Escribe aquí el contenido del mensaje.",
+    title: "Scheduled announcement",
+    description: "Write the message content here.",
     color: DEFAULT_SCHEDULED_EMBED_COLOR,
     imageUrl: null,
   };
@@ -328,15 +328,15 @@ export function embedPayloadToScheduledEmbedData(
   });
 }
 
-const WEEKDAY_SHORT = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function formatIntervalSummary(everyMinutes: number): string {
   const n = clampScheduledIntervalMinutes(everyMinutes);
   if (n % 60 === 0) {
     const hours = n / 60;
-    return hours === 1 ? "Cada hora" : `Cada ${hours} horas`;
+    return hours === 1 ? "Every hour" : `Every ${hours} hours`;
   }
-  return `Cada ${n} minutos`;
+  return `Every ${n} minutes`;
 }
 
 /** Resumen legible del horario para la lista del dashboard. */
@@ -349,20 +349,20 @@ export function formatScheduledFrequencySummary(
   if (frequency.type === "interval") {
     base = formatIntervalSummary(frequency.everyMinutes);
   } else if (frequency.type === "daily") {
-    base = `Todos los días a las ${time}`;
+    base = `Every day at ${time}`;
   } else if (frequency.type === "monthly") {
     base = frequency.lastDayOfMonth
-      ? `El último día de cada mes a las ${time}`
-      : `El día ${frequency.dayOfMonth} de cada mes a las ${time}`;
+      ? `The last day of every month at ${time}`
+      : `Day ${frequency.dayOfMonth} of every month at ${time}`;
   } else if (frequency.type === "specific_date") {
     const date = frequency.date || "—";
     base = frequency.repeatYearly
-      ? `Cada año el ${date.slice(5)} a las ${time}`
-      : `El ${date} a las ${time} (una vez)`;
+      ? `Every year on ${date.slice(5)} at ${time}`
+      : `On ${date} at ${time} (once)`;
   } else {
     const days = frequency.days ?? [];
     if (days.length === 0) {
-      base = `Todos los días a las ${time}`;
+      base = `Every day at ${time}`;
     } else {
       const labels = days.map((d) => WEEKDAY_SHORT[d] ?? String(d)).join(", ");
       base = `${labels} a las ${time}`;

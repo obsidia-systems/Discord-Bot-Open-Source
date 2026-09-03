@@ -86,23 +86,23 @@ async function resolveSpin(input: {
   const won = payout > 0;
   const kind =
     spun.multiplier >= 3
-      ? "Tres iguales"
+      ? "Three of a kind"
       : spun.multiplier === SLOT_PAIR_MULTIPLIER
-        ? "Par (2 de 3)"
-        : "Sin premio";
+        ? "Pair (2 of 3)"
+        : "No win";
 
   return new EmbedBuilder()
     .setColor(won ? WIN : LOSE)
-    .setTitle(won ? "🎰 Slots — ¡Ganaste!" : "🎰 Slots — Sin premio")
+    .setTitle(won ? "🎰 Slots — You won!" : "🎰 Slots — No win")
     .setDescription(`**${line}**\n${kind}`)
     .addFields(
       {
-        name: "Apuesta",
+        name: "Bet",
         value: `**${input.bet.toLocaleString("es-MX")}** ${currency}`,
         inline: true,
       },
       {
-        name: "Cartera",
+        name: "Wallet",
         value: `**${wallet.toLocaleString("es-MX")}** ${currency}`,
         inline: true,
       },
@@ -122,7 +122,7 @@ export async function handleSlotsCommand(
 ): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este comando solo funciona en un servidor.",
+      content: "This command only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -164,7 +164,7 @@ export async function handleSlotsButton(
 ): Promise<void> {
   if (!interaction.guildId) {
     await interaction.reply({
-      content: "Este botón solo funciona en un servidor.",
+      content: "This button only works in a server.",
       ...EPHEMERAL,
     });
     return;
@@ -173,14 +173,14 @@ export async function handleSlotsButton(
   const { action, ownerId } = parseOwnerCustomId(interaction.customId);
   if (!ownerId || interaction.user.id !== ownerId) {
     await interaction.reply({
-      content: "❌ Esta máquina no es tuya.",
+      content: "❌ This machine isn't yours.",
       ...EPHEMERAL,
     });
     return;
   }
   if (action !== SL_AGAIN) {
     await interaction.reply({
-      content: "❌ Acción desconocida.",
+      content: "❌ Unknown action.",
       ...EPHEMERAL,
     });
     return;
@@ -190,7 +190,7 @@ export async function handleSlotsButton(
   const row = pending.get(key);
   if (!row) {
     await interaction.reply({
-      content: "❌ Esta mesa expiró.",
+      content: "❌ This table expired.",
       ...EPHEMERAL,
     });
     return;
@@ -211,7 +211,7 @@ export async function handleSlotsButton(
     const msg =
       error instanceof EconomyError
         ? error.message
-        : "No se pudo girar.";
+        : "Couldn't spin.";
     if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({ content: `❌ ${msg}`, ...EPHEMERAL });
     }

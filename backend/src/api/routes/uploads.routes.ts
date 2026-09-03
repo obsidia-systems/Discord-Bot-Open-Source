@@ -47,7 +47,7 @@ function createUploader(destination: () => string) {
       if (!ALLOWED_MIME.has(file.mimetype)) {
         cb(
           new Error(
-            "Solo se permiten imágenes PNG, JPG o WEBP (máx. 5MB).",
+            "Only PNG, JPG or WEBP images are allowed (max 5MB).",
           ),
         );
         return;
@@ -67,7 +67,7 @@ function handleUpload(
 ): void {
   if (!req.file) {
     throw new HttpError(
-      "No se recibió ningún archivo (campo `file`).",
+      "No file received (field `file`).",
       400,
       "NO_FILE",
     );
@@ -77,7 +77,7 @@ function handleUpload(
   if (!sniffed) {
     fs.unlink(req.file.path, () => undefined);
     throw new HttpError(
-      "El archivo no es una imagen PNG, JPG o WEBP válida.",
+      "The file is not a valid PNG, JPG or WEBP image.",
       400,
       "INVALID_IMAGE_CONTENT",
     );

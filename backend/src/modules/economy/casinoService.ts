@@ -26,7 +26,7 @@ function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
     throw new EconomyError(
-      "Falta guildId.",
+      "Missing guildId.",
       400,
       "MISSING_GUILD_ID",
     );
@@ -265,7 +265,7 @@ export async function assertCasinoBetAllowed(
   const config = await getEconomyCasinoConfig(guildId);
   if (!config.isActive) {
     throw new EconomyError(
-      "⛔ El casino está desactivado en este servidor.",
+      "⛔ The casino is disabled in this server.",
       400,
       "CASINO_INACTIVE",
     );
@@ -273,14 +273,14 @@ export async function assertCasinoBetAllowed(
   const bet = Math.floor(amount);
   if (!Number.isFinite(bet) || bet < 1) {
     throw new EconomyError(
-      "La apuesta debe ser un entero ≥ 1.",
+      "The bet must be an integer ≥ 1.",
       400,
       "INVALID_BET",
     );
   }
   if (bet < config.minBet || bet > config.maxBet) {
     throw new EconomyError(
-      `La apuesta debe estar entre ${config.minBet.toLocaleString("es-MX")} y ${config.maxBet.toLocaleString("es-MX")}.`,
+      `The bet must be between ${config.minBet.toLocaleString("es-MX")} and ${config.maxBet.toLocaleString("es-MX")}.`,
       400,
       "BET_OUT_OF_RANGE",
     );

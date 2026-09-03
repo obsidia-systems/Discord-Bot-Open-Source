@@ -240,11 +240,11 @@ export const ACTION_LOG_RETENTION_OPTIONS: readonly {
   value: ActionLogRetentionDays;
   label: string;
 }[] = [
-  { value: 7, label: "7 días" },
-  { value: 14, label: "14 días" },
-  { value: 30, label: "30 días" },
-  { value: 90, label: "90 días" },
-  { value: 365, label: "1 año" },
+  { value: 7, label: "7 days" },
+  { value: 14, label: "14 days" },
+  { value: 30, label: "30 days" },
+  { value: 90, label: "90 days" },
+  { value: 365, label: "1 year" },
 ] as const;
 
 export const ACTION_LOG_EMBED_COLORS: Record<ActionLogEmbedTone, number> = {

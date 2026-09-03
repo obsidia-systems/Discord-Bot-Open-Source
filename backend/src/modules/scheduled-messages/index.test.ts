@@ -29,14 +29,14 @@ function sample(over: Partial<ScheduledMessage> = {}): ScheduledMessage {
 }
 
 describe("scheduled-messages module", () => {
-  it("se llama Scheduled Messages", () => {
+  it("is named Scheduled Messages", () => {
     expect(scheduledMessagesModule.id).toBe("scheduled-messages");
     expect(scheduledMessagesModule.name).toBe("Scheduled Messages");
   });
 });
 
 describe("nextRunAfterSend", () => {
-  it("pausa one-shot y agenda el siguiente diario", () => {
+  it("pauses one-shot and schedules the next daily", () => {
     const sentAt = new Date("2026-09-01T18:00:00.000Z");
     const oneShot = nextRunAfterSend(
       sample({

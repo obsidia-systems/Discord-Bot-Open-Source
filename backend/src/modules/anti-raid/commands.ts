@@ -23,14 +23,14 @@ export async function handleLockdownCommand(
 ): Promise<void> {
   if (!interaction.inGuild() || !interaction.guild) {
     await interaction.reply({
-      content: "Usa este comando en un servidor.",
+      content: "Use this command in a server.",
       ...EPHEMERAL,
     });
     return;
   }
   if (!canLockdown(interaction)) {
     await interaction.reply({
-      content: "Necesitas Administrar servidor para el lockdown.",
+      content: "You need Manage Server for the lockdown.",
       ...EPHEMERAL,
     });
     return;
@@ -42,8 +42,8 @@ export async function handleLockdownCommand(
   if (sub === "status") {
     await interaction.reply({
       content: settings.lockdownActive
-        ? "Lockdown **activo**. `/lockdown off` para restaurar."
-        : "Lockdown **apagado**.",
+        ? "Lockdown **active**. `/lockdown off` to restore."
+        : "Lockdown **off**.",
       ...EPHEMERAL,
     });
     return;
@@ -53,11 +53,11 @@ export async function handleLockdownCommand(
 
   if (sub === "on") {
     if (settings.lockdownActive) {
-      await interaction.editReply("El lockdown ya estaba activo.");
+      await interaction.editReply("The lockdown was already active.");
       return;
     }
     const reason =
-      interaction.options.getString("razon")?.trim() || "comando /lockdown";
+      interaction.options.getString("razon")?.trim() || "/lockdown command";
     const result = await applyGuildLockdown(
       interaction.guild,
       interaction.user.id,
@@ -66,17 +66,17 @@ export async function handleLockdownCommand(
     await sendAntiRaidAlert(
       alert,
       "Lockdown",
-      `<@${interaction.user.id}> activó el lockdown (${reason}). Canales tocados: ${result.channels}.`,
+      `<@${interaction.user.id}> activated the lockdown (${reason}). Channels affected: ${result.channels}.`,
     );
     await interaction.editReply(
-      `Lockdown activo. @everyone no puede escribir ni conectar en ${result.channels} canales.`,
+      `Lockdown active. @everyone can't send messages or connect in ${result.channels} channels.`,
     );
     return;
   }
 
   if (sub === "off") {
     if (!settings.lockdownActive) {
-      await interaction.editReply("No hay lockdown activo.");
+      await interaction.editReply("There is no active lockdown.");
       return;
     }
     const result = await liftGuildLockdown(interaction.guild);
@@ -84,10 +84,10 @@ export async function handleLockdownCommand(
     await sendAntiRaidAlert(
       alert,
       "Lockdown",
-      `<@${interaction.user.id}> quitó el lockdown. Canales restaurados: ${result.channels}.`,
+      `<@${interaction.user.id}> removed the lockdown. Channels restored: ${result.channels}.`,
     );
     await interaction.editReply(
-      `Lockdown quitado. Se restauró @everyone en ${result.channels} canales.`,
+      `Lockdown removed. @everyone was restored in ${result.channels} channels.`,
     );
   }
 }

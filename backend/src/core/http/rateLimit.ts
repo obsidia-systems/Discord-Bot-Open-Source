@@ -37,7 +37,7 @@ export const apiRateLimiter = rateLimit({
   keyGenerator: clientKey,
   validate: { keyGeneratorIpFallback: false },
   message: {
-    error: "Demasiadas peticiones. Espera un momento.",
+    error: "Too many requests. Try again in a moment.",
     code: "RATE_LIMITED",
   },
 });
@@ -49,7 +49,7 @@ export const authRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: {
-    error: "Demasiados intentos de login. Espera unos minutos.",
+    error: "Too many login attempts. Wait a few minutes.",
     code: "RATE_LIMITED",
   },
 });
@@ -63,7 +63,7 @@ export const uploadRateLimiter = rateLimit({
   keyGenerator: clientKey,
   validate: { keyGeneratorIpFallback: false },
   message: {
-    error: "Demasiadas subidas. Espera unos minutos.",
+    error: "Too many uploads. Wait a few minutes.",
     code: "RATE_LIMITED",
   },
 });
