@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
 import { Menu, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { NavCategoryGroup } from "@/components/nav/NavCategoryGroup";
+import { NavItem } from "@/components/nav/NavItem";
+import { ThemeToggle } from "@/components/shared/ThemeToggle";
+import { Button } from "@/components/ui/button";
 import {
   brandIcon as BrandIcon,
   flattenNavItems,
   visibleDashboardNav,
 } from "@/lib/nav";
-import { NavCategoryGroup } from "@/components/nav/NavCategoryGroup";
-import { NavItem } from "@/components/nav/NavItem";
-import { ThemeToggle } from "@/components/shared/ThemeToggle";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 /** Categoría fija: siempre abierta, fuera del acordeón. */
@@ -67,7 +67,7 @@ function NavLinks({
   return (
     <nav
       className="flex flex-1 flex-col gap-4 overflow-y-auto px-3 py-4"
-      aria-label="Navegación del panel"
+      aria-label="Dashboard navigation"
     >
       {visibleDashboardNav().map((category) => {
         const isStatic = category.id === STATIC_CATEGORY_ID;
@@ -106,8 +106,8 @@ export function NavSidebar({ currentPath }: NavSidebarProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [path, setPath] = useState(() => normalizePath(currentPath));
   const routeCategoryId = useMemo(() => resolveOpenCategoryId(path), [path]);
-  const [openCategoryId, setOpenCategoryId] = useState<string | null>(
-    () => resolveOpenCategoryId(normalizePath(currentPath)),
+  const [openCategoryId, setOpenCategoryId] = useState<string | null>(() =>
+    resolveOpenCategoryId(normalizePath(currentPath)),
   );
 
   useEffect(() => {
@@ -151,7 +151,7 @@ export function NavSidebar({ currentPath }: NavSidebarProps) {
           variant="outline"
           size="icon"
           className="border-primary/20"
-          aria-label={drawerOpen ? "Cerrar menú" : "Abrir menú"}
+          aria-label={drawerOpen ? "Close menu" : "Open menu"}
           aria-expanded={drawerOpen}
           aria-controls="adobos-sidebar"
           onClick={() => setDrawerOpen((value) => !value)}
@@ -172,7 +172,7 @@ export function NavSidebar({ currentPath }: NavSidebarProps) {
         <button
           type="button"
           className="fixed inset-0 z-40 bg-black/55 backdrop-blur-[2px] lg:hidden"
-          aria-label="Cerrar menú"
+          aria-label="Close menu"
           onClick={() => setDrawerOpen(false)}
         />
       )}
@@ -205,7 +205,7 @@ export function NavSidebar({ currentPath }: NavSidebarProps) {
                 Adobos Bot
               </p>
               <p className="mt-1.5 text-[11px] text-muted-foreground">
-                Panel · estética Ado
+                Panel · Ado aesthetic
               </p>
             </div>
           </div>
@@ -221,7 +221,7 @@ export function NavSidebar({ currentPath }: NavSidebarProps) {
         <div className="shrink-0 space-y-3 border-t border-border/80 p-4">
           <ThemeToggle />
           <p className="text-[11px] leading-relaxed text-muted-foreground">
-            Modular · SQLite · Discord.js
+            Modular · Postgres · Discord.js
           </p>
         </div>
       </aside>

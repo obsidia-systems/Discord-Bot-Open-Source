@@ -1,6 +1,6 @@
 import type { HealthResponse } from "@adobos/shared";
-import { getReadyModules } from "@/lib/nav";
 import { StatusIsland } from "@/features/dashboard/StatusIsland";
+import { getReadyModules } from "@/lib/nav";
 
 interface DashboardHomeProps {
   initialHealth?: HealthResponse | null;
@@ -22,15 +22,15 @@ export function DashboardHome({ initialHealth = null }: DashboardHomeProps) {
         />
         <div className="relative max-w-2xl">
           <p className="font-display text-xs font-semibold uppercase tracking-[0.22em] text-primary">
-            Bienvenido
+            Welcome
           </p>
           <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight sm:text-4xl">
-            Panel Adobos
+            Adobos Panel
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Gestiona mensajes, automatizaciones, moderación y plugins desde un
-            solo lugar. El menú lateral agrupa todo el alcance del bot para
-            crecer sin ruido.
+            Manage messages, automation, moderation and integrations from one
+            place. The sidebar groups the bot's whole feature set so it can grow
+            without clutter.
           </p>
         </div>
       </section>
@@ -40,10 +40,10 @@ export function DashboardHome({ initialHealth = null }: DashboardHomeProps) {
 
         <section className="rounded-2xl border border-border/70 bg-card/70 p-5 shadow-sm backdrop-blur-sm">
           <h2 className="font-display text-base font-semibold">
-            Módulos listos
+            Ready modules
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Funcionalidad disponible ahora mismo.
+            Features available right now.
           </p>
           <ul className="mt-4 space-y-2">
             {ready.map((item) => {
