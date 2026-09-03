@@ -6,6 +6,7 @@ import {
   type RESTPostAPIChatInputApplicationCommandsJSONBody,
   Routes,
 } from "discord.js";
+import { commandsNeedSync } from "../../core/bot/commandDiff.js";
 import {
   createDiscordRest,
   discordApplicationId,
@@ -87,6 +88,20 @@ export async function syncGuildSlashCommands(
         c.options.acceptUser,
       ),
     );
+
+  try {
+    const guild = client.guilds.cache.get(gid);
+    const current = await guild?.commands.fetch();
+    if (current && !commandsNeedSync(current, body)) {
+      logger.info(`custom-commands: sin cambios (${body.length}) guild=${gid}`);
+      return body.length;
+    }
+  } catch (error) {
+    logger.warn(
+      { err: error },
+      `custom-commands: no se pudo comparar, se fuerza el PUT guild=${gid}`,
+    );
+  }
 
   try {
     await rest.put(Routes.applicationGuildCommands(clientId, gid), { body });

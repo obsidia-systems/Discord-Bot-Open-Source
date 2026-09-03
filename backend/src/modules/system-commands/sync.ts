@@ -12,6 +12,7 @@ import type {
   RESTPostAPIChatInputApplicationCommandsJSONBody,
 } from "discord.js";
 import { PermissionFlagsBits, Routes } from "discord.js";
+import { commandsNeedSync } from "../../core/bot/commandDiff.js";
 import {
   createDiscordRest,
   discordApplicationId,
@@ -87,6 +88,9 @@ export function buildGlobalDefaultSlashBodies(): RESTPostAPIChatInputApplication
 /**
  * Un PUT de aplicación: los nativos viven en global, no por guild.
  * Discord puede tardar hasta ~1 h en propagar el cambio.
+ *
+ * Corre en cada `ready` (arranque / reconexión), así que primero compara contra
+ * lo ya registrado y solo hace el `PUT` si el conjunto cambió.
  */
 export async function syncGlobalCommands(client: Client): Promise<number> {
   const rest = createDiscordRest();
@@ -98,10 +102,24 @@ export async function syncGlobalCommands(client: Client): Promise<number> {
   }
 
   const body = buildGlobalDefaultSlashBodies();
+
+  try {
+    const current = await client.application?.commands.fetch();
+    if (current && !commandsNeedSync(current, body)) {
+      logger.info(`slash sync global: sin cambios (${body.length} nativos)`);
+      return body.length;
+    }
+  } catch (error) {
+    logger.warn(
+      { err: error },
+      "system-commands: no se pudo comparar el catálogo global, se fuerza el PUT",
+    );
+  }
+
   await rest.put(Routes.applicationCommands(discordApplicationId(client)), {
     body,
   });
-  logger.info(`slash sync global (${body.length} nativos)`);
+  logger.info(`slash sync global PUT (${body.length} nativos)`);
   return body.length;
 }
 

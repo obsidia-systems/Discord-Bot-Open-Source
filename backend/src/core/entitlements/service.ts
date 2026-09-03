@@ -14,10 +14,11 @@ import { eq } from "drizzle-orm";
 import type { RequestHandler } from "express";
 import { getDb, one } from "../../db/client.js";
 import { guildEntitlements } from "../../db/schema.js";
-import { BoundedTtlMap } from "../cache/boundedTtlMap.js";
+import { cache } from "../cache/store.js";
 import { HttpError } from "../http/httpError.js";
 
-const tierCache = new BoundedTtlMap<string, PlanTier>(5_000, 60_000);
+const TIER_TTL_MS = 60_000;
+const tierKey = (guildId: string) => `ent:tier:${guildId}`;
 
 export class EntitlementError extends Error {
   constructor(
@@ -45,7 +46,7 @@ export function entitlementsOf(tier: PlanTier): {
 }
 
 export async function getGuildTier(guildId: string): Promise<PlanTier> {
-  const cached = tierCache.get(guildId);
+  const cached = await cache().get<PlanTier>(tierKey(guildId));
   if (cached) return cached;
 
   const row = await one(
@@ -57,7 +58,7 @@ export async function getGuildTier(guildId: string): Promise<PlanTier> {
   );
 
   const tier = isPlanTier(row?.tier) ? row.tier : "free";
-  tierCache.set(guildId, tier);
+  await cache().set(tierKey(guildId), tier, TIER_TTL_MS);
   return tier;
 }
 
@@ -80,7 +81,9 @@ export async function getGuildEntitlements(guildId: string) {
 }
 
 export function invalidateGuildEntitlement(guildId: string): void {
-  tierCache.delete(guildId);
+  // Fire-and-forget: con RedisStore (P2.16) esto además publica la invalidación
+  // a las demás réplicas. Los callers ya son async si necesitan esperarla.
+  void cache().del(tierKey(guildId));
 }
 
 export async function upsertGuildEntitlement(input: {

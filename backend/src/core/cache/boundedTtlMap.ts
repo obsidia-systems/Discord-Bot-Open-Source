@@ -31,9 +31,13 @@ export class BoundedTtlMap<K, V> {
     return entry.value;
   }
 
-  set(key: K, value: V): this {
+  /** `ttlMs` opcional sobreescribe el TTL por defecto para esta entrada. */
+  set(key: K, value: V, ttlMs?: number): this {
     this.data.delete(key);
-    this.data.set(key, { value, expiresAt: Date.now() + this.ttlMs });
+    this.data.set(key, {
+      value,
+      expiresAt: Date.now() + (ttlMs ?? this.ttlMs),
+    });
     while (this.data.size > this.maxSize) {
       const oldest = this.data.keys().next().value;
       if (oldest === undefined) break;
