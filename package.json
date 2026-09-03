@@ -5,7 +5,7 @@
   "description": "Bot de Discord modular y panel web self-hosted — monorepo Adobos",
   "packageManager": "pnpm@9.15.4",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "scripts": {
     "dev": "pnpm build:shared && pnpm -r --parallel --filter @adobos/shared --filter @adobos/backend --filter @adobos/frontend run dev",

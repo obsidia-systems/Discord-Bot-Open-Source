@@ -1,5 +1,4 @@
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
@@ -42,8 +41,7 @@ function resolveDatabaseUrl(): string {
 }
 
 function migrationsFolder(): string {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  return path.resolve(here, "../../drizzle");
+  return path.resolve(import.meta.dirname, "../../drizzle");
 }
 
 /** Conecta a Postgres, aplica migraciones Drizzle y deja el pool listo. */

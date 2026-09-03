@@ -2,7 +2,7 @@
 # Backend prod: Discord gateway + API. El panel lo sirve el servicio `frontend`.
 # Canvas nativo se compila en TARGETPLATFORM (ARM64 local / AMD64 TrueNAS).
 
-ARG NODE_VERSION=22
+ARG NODE_VERSION=24
 
 FROM node:${NODE_VERSION}-bookworm-slim AS base
 RUN apt-get update \

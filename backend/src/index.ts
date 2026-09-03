@@ -1,7 +1,6 @@
 import "zod/compile";
 import "dotenv/config";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   startSessionPruneJob,
   stopSessionPruneJob,
@@ -34,7 +33,7 @@ import { closeDatabase, initDatabase } from "#db/client.js";
 import { wireCustomCommandsBuiltinSync } from "#modules/custom-commands/module.js";
 import { ENABLED_MODULES } from "#modules/index.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __dirname = import.meta.dirname;
 
 async function main(): Promise<void> {
   installProcessGuards();
