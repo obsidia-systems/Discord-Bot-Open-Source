@@ -13,7 +13,7 @@ export const streamAlertsModule: AdobosModule = {
   intents: [GatewayIntentBits.Guilds],
   register(ctx) {
     bindStreamAlertsPoller(ctx.client);
-    ctx.route("/api/stream-alerts", streamAlertsRoutes(ctx.client), {
+    ctx.route("/api/stream-alerts", streamAlertsRoutes(ctx.botGateway), {
       feature: "stream-alerts",
     });
     ctx.once("ready", () => {

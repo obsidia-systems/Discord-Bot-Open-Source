@@ -1,6 +1,6 @@
-import { ChannelType, type Client } from "discord.js";
+import { ChannelType } from "discord.js";
 import { Router } from "express";
-import { fetchChannelInGuild } from "#core/http/channelScope.js";
+import type { BotGateway } from "#core/discord/botGateway.js";
 import { guildIdOf } from "#core/http/guildContext.js";
 import { idParams } from "#core/http/schemas.js";
 import { defineRoute } from "#core/http/validate.js";
@@ -24,11 +24,18 @@ import {
 } from "./schema.js";
 
 async function assertDestinationChannel(
-  bot: Client,
+  gateway: BotGateway,
   channelId: string,
   guildId: string,
 ): Promise<void> {
-  const channel = await fetchChannelInGuild(bot, channelId, guildId);
+  const channel = await gateway.getChannel(guildId, channelId);
+  if (!channel) {
+    throw new ScheduledMessagesError(
+      "The channel is not in this server.",
+      404,
+      "CHANNEL_NOT_FOUND",
+    );
+  }
   if (!isScheduledDestinationChannel(channel)) {
     const kind =
       channel.type === ChannelType.GuildForum ? "a forum" : "this channel type";
@@ -40,7 +47,7 @@ async function assertDestinationChannel(
   }
 }
 
-export function scheduledMessagesRoutes(bot: Client): Router {
+export function scheduledMessagesRoutes(gateway: BotGateway): Router {
   const router = Router();
 
   /** GET /api/scheduled-messages */
@@ -76,7 +83,7 @@ export function scheduledMessagesRoutes(bot: Client): Router {
           valid.body.channelId.trim()
         ) {
           await assertDestinationChannel(
-            bot,
+            gateway,
             valid.body.channelId.trim(),
             guildId,
           );
@@ -99,7 +106,7 @@ export function scheduledMessagesRoutes(bot: Client): Router {
           valid.body.channelId.trim()
         ) {
           await assertDestinationChannel(
-            bot,
+            gateway,
             valid.body.channelId.trim(),
             guildId,
           );

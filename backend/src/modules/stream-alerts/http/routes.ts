@@ -1,7 +1,7 @@
 import { isStreamAlertDestinationChannelType } from "@adobos/shared";
-import { ChannelType, type Client } from "discord.js";
+import { ChannelType } from "discord.js";
 import { Router } from "express";
-import { fetchChannelInGuild } from "#core/http/channelScope.js";
+import type { BotGateway } from "#core/discord/botGateway.js";
 import { guildIdOf } from "#core/http/guildContext.js";
 import { idParams } from "#core/http/schemas.js";
 import { defineRoute } from "#core/http/validate.js";
@@ -15,11 +15,18 @@ import {
 import { createStreamAlertSchema, updateStreamAlertSchema } from "./schema.js";
 
 async function assertDestinationChannel(
-  bot: Client,
+  gateway: BotGateway,
   channelId: string,
   guildId: string,
 ): Promise<void> {
-  const channel = await fetchChannelInGuild(bot, channelId, guildId);
+  const channel = await gateway.getChannel(guildId, channelId);
+  if (!channel) {
+    throw new StreamAlertsError(
+      "The channel is not in this server.",
+      404,
+      "CHANNEL_NOT_FOUND",
+    );
+  }
   if (!isStreamAlertDestinationChannelType(channel.type)) {
     const kind =
       channel.type === ChannelType.GuildForum ? "a forum" : "this channel type";
@@ -31,7 +38,7 @@ async function assertDestinationChannel(
   }
 }
 
-export function streamAlertsRoutes(bot: Client): Router {
+export function streamAlertsRoutes(gateway: BotGateway): Router {
   const router = Router();
 
   router.get(
@@ -45,7 +52,11 @@ export function streamAlertsRoutes(bot: Client): Router {
     "/",
     defineRoute({ body: createStreamAlertSchema }, async (req, res, valid) => {
       const guildId = guildIdOf(req);
-      await assertDestinationChannel(bot, valid.body.discordChannelId, guildId);
+      await assertDestinationChannel(
+        gateway,
+        valid.body.discordChannelId,
+        guildId,
+      );
       const alert = await createStreamAlert(valid.body, guildId);
       res.status(201).json({ alert });
     }),
@@ -62,7 +73,7 @@ export function streamAlertsRoutes(bot: Client): Router {
           valid.body.discordChannelId
         ) {
           await assertDestinationChannel(
-            bot,
+            gateway,
             valid.body.discordChannelId,
             guildId,
           );

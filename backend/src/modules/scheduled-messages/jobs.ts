@@ -2,7 +2,6 @@ import type { ScheduledEmbedData, ScheduledMessage } from "@adobos/shared";
 import { computeNextRunAt, isScheduledOneShot } from "@adobos/shared";
 import {
   type AttachmentBuilder,
-  type Channel,
   ChannelType,
   type Client,
   DiscordAPIError,
@@ -35,7 +34,9 @@ export function bindScheduledMessagesScheduler(client: Client): void {
   queue.process((job) => processScheduledMessage(job.id, job.guildId));
 }
 
-export function isScheduledDestinationChannel(channel: Channel): boolean {
+export function isScheduledDestinationChannel(channel: {
+  type: number;
+}): boolean {
   return (
     channel.type === ChannelType.GuildText ||
     channel.type === ChannelType.GuildAnnouncement
