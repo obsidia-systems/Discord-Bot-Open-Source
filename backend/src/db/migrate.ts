@@ -1,4 +1,3 @@
-import "dotenv/config";
 import { logger } from "#core/log.js";
 import { initDatabase } from "./client.js";
 

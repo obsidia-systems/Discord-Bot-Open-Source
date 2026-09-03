@@ -22,13 +22,13 @@
     }
   },
   "scripts": {
-    "dev": "NODE_OPTIONS=\"--conditions=adobos-src\" tsx watch src/index.ts",
+    "dev": "NODE_OPTIONS=\"--conditions=adobos-src\" tsx watch --env-file-if-exists=../.env src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js",
+    "start": "node --env-file-if-exists=../.env dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "NODE_OPTIONS=\"--conditions=adobos-src\" tsx src/db/migrate.ts"
+    "db:migrate": "NODE_OPTIONS=\"--conditions=adobos-src\" tsx --env-file-if-exists=../.env src/db/migrate.ts"
   },
   "dependencies": {
     "@adobos/shared": "workspace:*",
@@ -37,7 +37,6 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "discord.js": "^14.24.2",
-    "dotenv": "^16.4.7",
     "drizzle-orm": "^0.45.2",
     "express": "^4.21.2",
     "express-rate-limit": "^8.7.0",

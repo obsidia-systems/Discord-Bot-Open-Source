@@ -1,5 +1,4 @@
 import "zod/compile";
-import "dotenv/config";
 import path from "node:path";
 import {
   startSessionPruneJob,
