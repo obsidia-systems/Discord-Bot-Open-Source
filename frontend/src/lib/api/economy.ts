@@ -23,7 +23,7 @@ export async function fetchEconomyConfig(): Promise<EconomyConfig> {
   const response = await apiFetch(`/api/economy/config`);
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudo cargar la economía."),
+      await readApiError(response, "Couldn't load the economy."),
     );
   }
   const body = (await response.json()) as EconomyConfigResponse;
@@ -40,7 +40,7 @@ export async function saveEconomyConfig(
   });
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudo guardar la economía."),
+      await readApiError(response, "Couldn't save the economy."),
     );
   }
   const body = (await response.json()) as EconomyConfigResponse;
@@ -55,7 +55,7 @@ export async function fetchEconomyLeaderboard(
   );
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudo cargar el leaderboard."),
+      await readApiError(response, "Couldn't load the leaderboard."),
     );
   }
   return response.json() as Promise<EconomyLeaderboardResponse>;
@@ -71,7 +71,7 @@ export async function adjustEconomyFunds(
   });
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudieron ajustar los fondos."),
+      await readApiError(response, "Couldn't adjust the funds."),
     );
   }
   return response.json() as Promise<AdjustEconomyFundsResponse>;
@@ -81,7 +81,7 @@ export async function fetchEconomyIncomeConfig(): Promise<EconomyIncomeConfig> {
   const response = await apiFetch(`/api/economy/income`);
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudo cargar ingresos y trabajos."),
+      await readApiError(response, "Couldn't load income and jobs."),
     );
   }
   const body = (await response.json()) as EconomyIncomeConfigResponse;
@@ -98,7 +98,7 @@ export async function saveEconomyIncomeConfig(
   });
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudo guardar ingresos y trabajos."),
+      await readApiError(response, "Couldn't save income and jobs."),
     );
   }
   const body = (await response.json()) as EconomyIncomeConfigResponse;
@@ -109,7 +109,7 @@ export async function fetchEconomyCasinoConfig(): Promise<EconomyCasinoConfig> {
   const response = await apiFetch(`/api/economy/casino`);
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudo cargar el casino."),
+      await readApiError(response, "Couldn't load the casino."),
     );
   }
   const body = (await response.json()) as EconomyCasinoConfigResponse;
@@ -126,7 +126,7 @@ export async function saveEconomyCasinoConfig(
   });
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudo guardar el casino."),
+      await readApiError(response, "Couldn't save the casino."),
     );
   }
   const body = (await response.json()) as EconomyCasinoConfigResponse;
@@ -137,7 +137,7 @@ export async function fetchShopItems(): Promise<EconomyShopItem[]> {
   const response = await apiFetch(`/api/economy/shop/items`);
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudieron cargar los ítems."),
+      await readApiError(response, "Couldn't load the items."),
     );
   }
   const body = (await response.json()) as EconomyShopItemsResponse;
@@ -154,7 +154,7 @@ export async function createShopItem(
   });
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudo crear el ítem."),
+      await readApiError(response, "Couldn't create the item."),
     );
   }
   const body = (await response.json()) as EconomyShopItemResponse;
@@ -175,7 +175,7 @@ export async function updateShopItem(
   );
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudo actualizar el ítem."),
+      await readApiError(response, "Couldn't update the item."),
     );
   }
   const body = (await response.json()) as EconomyShopItemResponse;
@@ -189,7 +189,7 @@ export async function deleteShopItem(id: string): Promise<void> {
   );
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudo eliminar el ítem."),
+      await readApiError(response, "Couldn't delete the item."),
     );
   }
 }

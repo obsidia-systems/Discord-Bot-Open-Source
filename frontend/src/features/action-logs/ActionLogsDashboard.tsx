@@ -100,7 +100,7 @@ export function ActionLogsDashboard() {
       }
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "No se pudo cargar Action Logs",
+        err instanceof Error ? err.message : "Couldn't load Action Logs",
       );
     } finally {
       setLoading(false);
@@ -129,9 +129,9 @@ export function ActionLogsDashboard() {
       });
       setConfig(res.config);
       setSavedFingerprint(configFingerprint(res.config));
-      setSuccess("Configuración guardada.");
+      setSuccess("Configuration saved.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al guardar");
+      setError(err instanceof Error ? err.message : "Couldn't save");
     } finally {
       setSaving(false);
     }
@@ -144,11 +144,11 @@ export function ActionLogsDashboard() {
     try {
       const res = await sendActionLogsTest();
       setSuccess(
-        `Embed de prueba enviado a <#${res.channelId}> (mensaje ${res.messageId}).`,
+        `Test embed sent to <#${res.channelId}> (message ${res.messageId}).`,
       );
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "No se pudo enviar la prueba",
+        err instanceof Error ? err.message : "Couldn't send the test",
       );
     } finally {
       setTesting(false);
@@ -159,7 +159,7 @@ export function ActionLogsDashboard() {
     return (
       <div className="flex items-center justify-center gap-2 py-24 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" />
-        Cargando Action Logs…
+        Loading Action Logs…
       </div>
     );
   }
@@ -192,13 +192,13 @@ export function ActionLogsDashboard() {
             active={tab === "config"}
             onClick={() => setTab("config")}
           >
-            Configuración y Filtros
+            Configuration and Filters
           </TabsTrigger>
           <TabsTrigger
             active={tab === "history"}
             onClick={() => setTab("history")}
           >
-            Historial de Registros
+            Log History
           </TabsTrigger>
         </TabsList>
 

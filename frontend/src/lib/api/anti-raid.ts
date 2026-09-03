@@ -10,7 +10,7 @@ export async function fetchAntiRaid(): Promise<{
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar Anti-Raid (${response.status})`,
+        `Couldn't load Anti-Raid (${response.status})`,
       ),
     );
   }
@@ -35,7 +35,7 @@ export async function saveAntiRaidSettings(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo guardar Anti-Raid (${response.status})`,
+        `Couldn't save Anti-Raid (${response.status})`,
       ),
     );
   }
@@ -59,7 +59,7 @@ export async function setAntiRaidLockdown(active: boolean): Promise<{
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cambiar el lockdown (${response.status})`,
+        `Couldn't change lockdown (${response.status})`,
       ),
     );
   }

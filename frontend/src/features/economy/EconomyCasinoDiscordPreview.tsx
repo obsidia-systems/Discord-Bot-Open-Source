@@ -3,7 +3,7 @@ import { applyEconomyMessageTemplate } from "@adobos/shared";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-const MOCK_USER = "@UsuarioDePrueba";
+const MOCK_USER = "@SampleUser";
 const MOCK_AVATAR = "https://cdn.discordapp.com/embed/avatars/0.png";
 const BOT_NAME = "Adobos Bot";
 const ACCENT = "#e11d48";
@@ -40,7 +40,7 @@ function DiscordShell({ children }: { children: ReactNode }) {
             <span className="rounded bg-[#5865F2] px-1 py-px text-[10px] font-semibold uppercase leading-none text-white">
               App
             </span>
-            <span className="text-[11px] text-[#949ba4]">Hoy a las 12:00</span>
+            <span className="text-[11px] text-[#949ba4]">Today at 12:00</span>
           </div>
           {children}
         </div>
@@ -62,7 +62,7 @@ function AppEmojiCard({
   if (faceDown) {
     return (
       <span
-        title="Carta oculta"
+        title="Hidden card"
         className="inline-flex h-9 w-7 shrink-0 flex-col items-center justify-center rounded-[4px] border border-[#1e3a5f] bg-[linear-gradient(145deg,#1e3a8a_0%,#312e81_55%,#1e3a8a_100%)] shadow-sm"
         aria-hidden
       >
@@ -94,7 +94,7 @@ function BlackjackHandPreview() {
     <div className="space-y-2.5 pt-1">
       <div className="space-y-1">
         <p className="text-[11px] font-medium uppercase tracking-wide text-[#949ba4]">
-          Tú · 21
+          You · 21
         </p>
         <div className="flex gap-1">
           <AppEmojiCard rank="A" suit="spades" />
@@ -103,7 +103,7 @@ function BlackjackHandPreview() {
       </div>
       <div className="space-y-1">
         <p className="text-[11px] font-medium uppercase tracking-wide text-[#949ba4]">
-          Crupier
+          Dealer
         </p>
         <div className="flex gap-1">
           <AppEmojiCard rank="K" suit="clubs" />
@@ -111,7 +111,7 @@ function BlackjackHandPreview() {
         </div>
       </div>
       <p className="text-[10px] text-[#949ba4]">
-        Vista previa con App Emojis (cartas como imágenes en Discord).
+        Preview with App Emoji (cards as images in Discord).
       </p>
     </div>
   );
@@ -184,7 +184,7 @@ export function EconomyCasinoDiscordPreview({
   tab: EconomyCasinoSimulatorTab;
   className?: string;
 }) {
-  const currency = currencyName || "monedas";
+  const currency = currencyName || "coins";
   const sampleBet = Math.max(
     config.minBet,
     Math.min(
@@ -202,16 +202,16 @@ export function EconomyCasinoDiscordPreview({
 
   if (!config.isActive) {
     command = "/coinflip";
-    title = "Casino cerrado";
+    title = "Casino closed";
     description =
-      "⛔ El casino está desactivado en este servidor.\nActívalo en la pestaña General.";
+      "⛔ The casino is disabled in this server.\nEnable it on the General tab.";
     color = "#ed4245";
   } else if (tab === "global") {
     command = "/coinflip";
-    title = "Límites de apuesta";
+    title = "Bet limits";
     description = [
-      `Apuesta mínima: **${config.minBet.toLocaleString("es-MX")}** ${currency}`,
-      `Apuesta máxima: **${config.maxBet.toLocaleString("es-MX")}** ${currency}`,
+      `Minimum bet: **${config.minBet.toLocaleString("en-US")}** ${currency}`,
+      `Maximum bet: **${config.maxBet.toLocaleString("en-US")}** ${currency}`,
       "",
       "Usa `/coinflip`, `/roulette`, `/blackjack` o `/slots`.",
     ].join("\n");
@@ -219,37 +219,37 @@ export function EconomyCasinoDiscordPreview({
   } else if (tab === "coinflip") {
     command = "/coinflip";
     const payout = Math.floor(sampleBet * config.coinflip.multiplier);
-    title = "Coinflip — ¡Ganaste!";
+    title = "Coinflip — You won!";
     description = applyEconomyMessageTemplate(config.coinflip.winMessage, {
-      side: "Cara",
-      payout: payout.toLocaleString("es-MX"),
+      side: "Heads",
+      payout: payout.toLocaleString("en-US"),
       currency,
     });
     description += [
       "",
-      `Apuesta: **${sampleBet.toLocaleString("es-MX")}** · x${config.coinflip.multiplier}`,
+      `Bet: **${sampleBet.toLocaleString("en-US")}** · x${config.coinflip.multiplier}`,
       `Cooldown: **${config.coinflip.cooldownSeconds}s**`,
     ].join("\n");
     color = SUCCESS;
-    buttons = ["Otra vez"];
+    buttons = ["Again"];
   } else if (tab === "roulette") {
     command = "/roulette";
-    title = "Ruleta";
+    title = "Roulette";
     description = [
-      `Apuesta de ejemplo: **${sampleBet.toLocaleString("es-MX")}** ${currency}`,
+      `Sample bet: **${sampleBet.toLocaleString("en-US")}** ${currency}`,
       `Cooldown: **${config.roulette.cooldownSeconds}s**`,
       "",
       `🔴/⚫ Color → **x${config.roulette.colorMultiplier}**`,
-      `🟢 Verde → **x${config.roulette.greenMultiplier}**`,
-      `🔢 Número exacto → **x${config.roulette.numberMultiplier}**`,
+      `🟢 Green → **x${config.roulette.greenMultiplier}**`,
+      `🔢 Exact number → **x${config.roulette.numberMultiplier}**`,
     ].join("\n");
     color = ACCENT;
-    buttons = ["Rojo", "Negro", "Verde"];
+    buttons = ["Red", "Black", "Green"];
     if (config.roulette.showNumberHistory) {
       extra = (
         <div className="space-y-1 pt-1">
           <p className="text-[11px] font-medium uppercase tracking-wide text-[#949ba4]">
-            Últimos 5
+            Last 5
           </p>
           <div className="flex gap-1">
             {MOCK_HISTORY.map((n) => (
@@ -271,27 +271,27 @@ export function EconomyCasinoDiscordPreview({
     command = "/slots";
     title = "Slots";
     description = [
-      `Apuesta: **${sampleBet.toLocaleString("es-MX")}** ${currency}`,
+      `Bet: **${sampleBet.toLocaleString("en-US")}** ${currency}`,
       `Cooldown: **${config.slots.cooldownSeconds}s**`,
       "",
-      "Par (2 de 3) ×1.7 · 🍒🍒🍒 ×3 · 💎💎💎 ×80",
+      "Pair (2 of 3) ×1.7 · 🍒🍒🍒 ×3 · 💎💎💎 ×80",
     ].join("\n");
     color = SUCCESS;
-    buttons = ["Otra vez"];
+    buttons = ["Again"];
   } else {
     command = "/blackjack";
     title = "Blackjack";
     description = [
-      `Apuesta: **${sampleBet.toLocaleString("es-MX")}** ${currency}`,
-      `Blackjack natural → **x${config.blackjack.blackjackMultiplier}**`,
-      `Barajas: **${config.blackjack.deckCount}** · Soft 17: **${config.blackjack.standOnSoft17 ? "Planta" : "Pide"}**`,
-      `Doblar: **${config.blackjack.allowDoubleDown ? "Permitido" : "No permitido"}**`,
-      `Dividir: **${config.blackjack.allowSplit ? "Permitido" : "No permitido"}**`,
+      `Bet: **${sampleBet.toLocaleString("en-US")}** ${currency}`,
+      `Natural blackjack → **x${config.blackjack.blackjackMultiplier}**`,
+      `Decks: **${config.blackjack.deckCount}** · Soft 17: **${config.blackjack.standOnSoft17 ? "Stand" : "Hit"}**`,
+      `Double: **${config.blackjack.allowDoubleDown ? "Allowed" : "Not allowed"}**`,
+      `Split: **${config.blackjack.allowSplit ? "Allowed" : "Not allowed"}**`,
     ].join("\n");
     color = SUCCESS;
-    const bjButtons = ["Pedir", "Plantarse"];
-    if (config.blackjack.allowDoubleDown) bjButtons.push("Doblar");
-    if (config.blackjack.allowSplit) bjButtons.push("Dividir");
+    const bjButtons = ["Hit", "Stand"];
+    if (config.blackjack.allowDoubleDown) bjButtons.push("Double");
+    if (config.blackjack.allowSplit) bjButtons.push("Split");
     buttons = bjButtons;
     extra = <BlackjackHandPreview />;
   }
@@ -300,7 +300,7 @@ export function EconomyCasinoDiscordPreview({
     <div className={cn("space-y-3", className)}>
       <DiscordShell>
         <p className="text-[#dbdee1]">
-          {MOCK_USER} usó <span className="text-[#00a8fc]">{command}</span>
+          {MOCK_USER} used <span className="text-[#00a8fc]">{command}</span>
         </p>
         <Embed
           color={color}

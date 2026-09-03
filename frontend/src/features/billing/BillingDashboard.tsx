@@ -37,22 +37,22 @@ type Feedback =
 
 const PLAN_POINTS: Record<PlanTier, string[]> = {
   free: [
-    "Los 18 módulos actuales, completos",
-    "Canvas de bienvenida sin recortes",
-    "Un servidor sin plaza de pago",
-    "Logs 14 días",
+    "All 18 current modules, complete",
+    "Uncropped welcome canvas",
+    "One server without a paid seat",
+    "14-day logs",
   ],
   pro: [
-    "Todo lo de Gratis",
-    "Hasta 3 servidores cubiertos",
-    "Logs 90 días",
-    "Branding del bot por servidor",
+    "Everything in Free",
+    "Up to 3 covered servers",
+    "90-day logs",
+    "Per-server bot branding",
   ],
   business: [
-    "Todo lo de Pro",
-    "Servidores ilimitados",
-    "Logs 1 año",
-    "Webhooks salientes y API pública",
+    "Everything in Pro",
+    "Unlimited servers",
+    "1-year logs",
+    "Outbound webhooks and public API",
   ],
 };
 
@@ -60,7 +60,7 @@ function formatDate(iso: string | null): string | null {
   if (!iso) return null;
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString("es", { dateStyle: "medium" });
+  return date.toLocaleDateString("en-US", { dateStyle: "medium" });
 }
 
 export function BillingDashboard() {
@@ -97,7 +97,7 @@ export function BillingDashboard() {
             message:
               error instanceof Error
                 ? error.message
-                : "No se pudo cargar la facturación",
+                : "Couldn't load billing",
           });
         }
       } finally {
@@ -155,7 +155,7 @@ export function BillingDashboard() {
       setFeedback({
         kind: "error",
         message:
-          error instanceof Error ? error.message : "No se pudo iniciar el pago.",
+          error instanceof Error ? error.message : "Couldn't start the payment.",
       });
       setBusy(null);
     }
@@ -173,7 +173,7 @@ export function BillingDashboard() {
         message:
           error instanceof Error
             ? error.message
-            : "No se pudo abrir el portal.",
+            : "Couldn't open the portal.",
       });
       setBusy(null);
     }
@@ -187,7 +187,7 @@ export function BillingDashboard() {
       await reload();
       setFeedback({
         kind: "ok",
-        message: "Este servidor ya usa tu plan de pago.",
+        message: "This server already uses your paid plan.",
       });
     } catch (error: unknown) {
       setFeedback({
@@ -195,7 +195,7 @@ export function BillingDashboard() {
         message:
           error instanceof Error
             ? error.message
-            : "No se pudo asignar el servidor.",
+            : "Couldn't assign the server.",
       });
     } finally {
       setBusy(null);
@@ -211,7 +211,7 @@ export function BillingDashboard() {
       setConfirmUnassign(false);
       setFeedback({
         kind: "ok",
-        message: "Este servidor volvió al plan Gratis.",
+        message: "This server went back to the Free plan.",
       });
     } catch (error: unknown) {
       setFeedback({
@@ -219,7 +219,7 @@ export function BillingDashboard() {
         message:
           error instanceof Error
             ? error.message
-            : "No se pudo quitar el servidor.",
+            : "Couldn't remove the server.",
       });
     } finally {
       setBusy(null);
@@ -230,7 +230,7 @@ export function BillingDashboard() {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" aria-hidden />
-        Cargando facturación…
+        Loading billing…
       </div>
     );
   }
@@ -243,13 +243,13 @@ export function BillingDashboard() {
     <div className="space-y-6">
       {checkoutBanner === "success" && (
         <p className="rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm">
-          Pago recibido. Activando el plan… recarga si en unos segundos
-          sigues viendo Gratis.
+          Payment received. Activating the plan… reload if you still see Free
+          after a few seconds.
         </p>
       )}
       {checkoutBanner === "canceled" && (
         <p className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-          Checkout cancelado. No se ha cobrado nada.
+          Checkout canceled. Nothing was charged.
         </p>
       )}
       {feedback.kind === "error" && (
@@ -265,35 +265,35 @@ export function BillingDashboard() {
 
       <section className="rounded-2xl border border-border/70 bg-card/70 p-5 shadow-sm sm:p-6">
         <p className="font-display text-xs font-semibold uppercase tracking-[0.22em] text-primary">
-          Este servidor
+          This server
         </p>
         <h2 className="mt-2 font-display text-2xl font-semibold">
           Plan {PLAN_TIER_LABEL[guildTier]}
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          El acceso de features lo decide este servidor, no Stripe en caliente.
-          Una suscripción cubre varios servidores (plazas).
+          Feature access is decided by this server, not Stripe in real time.
+          One subscription covers multiple servers (seats).
         </p>
         {sub && (
           <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
             <div>
-              <dt className="text-muted-foreground">Suscripción</dt>
+              <dt className="text-muted-foreground">Subscription</dt>
               <dd className="font-medium">
                 {PLAN_TIER_LABEL[sub.tier]} ·{" "}
                 {SUBSCRIPTION_STATUS_LABEL[sub.status]}
               </dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">Plazas</dt>
+              <dt className="text-muted-foreground">Seats</dt>
               <dd className="font-medium">
                 {formatSeats(sub.seatsUsed, sub.seatsMax)}
               </dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">Periodo</dt>
+              <dt className="text-muted-foreground">Period</dt>
               <dd className="font-medium">
                 {sub.cancelAt
-                  ? `Se cancela el ${formatDate(sub.cancelAt)}`
+                  ? `Cancels on ${formatDate(sub.cancelAt)}`
                   : (formatDate(sub.currentPeriodEnd) ?? "—")}
               </dd>
             </div>
@@ -312,7 +312,7 @@ export function BillingDashboard() {
               ) : (
                 <CreditCard className="size-4" aria-hidden />
               )}
-              Gestionar suscripción
+              Manage subscription
             </Button>
           )}
           {paid && !data?.guild.coveredByUser && !data?.guild.coveredByOther && (
@@ -324,7 +324,7 @@ export function BillingDashboard() {
               {busy === "assign" && (
                 <Loader2 className="size-4 animate-spin" aria-hidden />
               )}
-              Usar plan de pago en este servidor
+              Use the paid plan on this server
             </Button>
           )}
           {data?.guild.coveredByUser && (
@@ -334,27 +334,27 @@ export function BillingDashboard() {
               disabled={Boolean(busy)}
               onClick={() => setConfirmUnassign(true)}
             >
-              Quitar este servidor del plan
+              Remove this server from the plan
             </Button>
           )}
         </div>
         {sub && seatsOverLimit(sub.seatsUsed, sub.seatsMax) ? (
           <p className="mt-3 text-sm text-muted-foreground">
-            Esta suscripción cubre más servidores que el tope del plan (
-            {formatSeats(sub.seatsUsed, sub.seatsMax)}). No se recortan
-            plazas al bajar de plan; no podrás asignar más hasta quedar
-            dentro del límite.
+            This subscription covers more servers than the plan cap (
+            {formatSeats(sub.seatsUsed, sub.seatsMax)}). Seats aren't reduced
+            when downgrading; you won't be able to assign more until you're
+            within the limit.
           </p>
         ) : null}
         {data?.guild.coveredByOther ? (
           <p className="mt-3 text-sm text-muted-foreground">
-            Este servidor ya está cubierto por otra suscripción.
+            This server is already covered by another subscription.
           </p>
         ) : null}
         {data && !data.configured && (
           <p className="mt-3 text-sm text-muted-foreground">
-            Stripe no está configurado en este entorno. Puedes ver los planes;
-            el checkout se activa con <code>STRIPE_SECRET_KEY</code> y los
+            Stripe isn't configured in this environment. You can view the plans;
+            checkout activates with <code>STRIPE_SECRET_KEY</code> and the
             price ids.
           </p>
         )}
@@ -378,10 +378,10 @@ export function BillingDashboard() {
                 <CardTitle>{PLAN_TIER_LABEL[tier]}</CardTitle>
                 <CardDescription>
                   {tier === "free"
-                    ? "Sin coste · un servidor sin plaza"
+                    ? "Free · one server without a seat"
                     : isUnlimited(covered)
-                      ? `${price} · servidores ilimitados`
-                      : `${price} · hasta ${covered} servidores`}
+                      ? `${price} · unlimited servers`
+                      : `${price} · up to ${covered} servers`}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -413,13 +413,12 @@ export function BillingDashboard() {
                       <Loader2 className="size-4 animate-spin" aria-hidden />
                     )}
                     {paid
-                      ? "Cambia de plan en el portal"
-                      : `Pasar a ${PLAN_TIER_LABEL[tier]}`}
+                      ? "Change plan in the portal"
+                      : `Upgrade to ${PLAN_TIER_LABEL[tier]}`}
                   </Button>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    Plan por defecto si el servidor no consume una plaza de
-                    pago.
+                    Default plan if the server doesn't use a paid seat.
                   </p>
                 )}
               </CardContent>
@@ -430,9 +429,9 @@ export function BillingDashboard() {
 
       <AlertDialog
         open={confirmUnassign}
-        title="Quitar este servidor del plan"
-        description="El servidor volverá a Gratis al momento. Las features de pago dejarán de estar disponibles aquí."
-        confirmLabel="Quitar del plan"
+        title="Remove this server from the plan"
+        description="The server will return to Free immediately. Paid features will stop being available here."
+        confirmLabel="Remove from plan"
         tone="destructive"
         confirming={busy === "unassign"}
         onCancel={() => {

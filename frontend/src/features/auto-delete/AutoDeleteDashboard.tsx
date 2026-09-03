@@ -46,31 +46,31 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 const TEXT_CHANNEL_TYPES = new Set([0, 5, 15]);
 
 const MODE_LABELS: Record<AutoDeleteMode, string> = {
-  COUNTDOWN: "Cuenta Regresiva",
-  SCHEDULED: "Limpieza a Hora Fija",
+  COUNTDOWN: "Countdown",
+  SCHEDULED: "Scheduled cleanup",
 };
 
 const UNIT_LABELS: Record<AutoDeleteDelayUnit, string> = {
-  seconds: "Segundos",
-  minutes: "Minutos",
-  hours: "Horas",
+  seconds: "Seconds",
+  minutes: "Minutes",
+  hours: "Hours",
 };
 
 const FILTER_LABELS: Record<AutoDeleteFilterType, string> = {
-  all: "Todos los mensajes",
-  bots_only: "Solo de Bots",
-  no_attachments: "Solo sin adjuntos (texto puro)",
+  all: "All messages",
+  bots_only: "Bots only",
+  no_attachments: "Only without attachments (plain text)",
 };
 
 /** Orden UI Lun→Dom; valor cron 0=Dom … 6=Sáb. */
 const WEEKDAY_OPTIONS: Array<{ value: AutoDeleteWeekday; label: string }> = [
-  { value: 1, label: "Lun" },
-  { value: 2, label: "Mar" },
-  { value: 3, label: "Mié" },
-  { value: 4, label: "Jue" },
-  { value: 5, label: "Vie" },
-  { value: 6, label: "Sáb" },
-  { value: 0, label: "Dom" },
+  { value: 1, label: "Mon" },
+  { value: 2, label: "Tue" },
+  { value: 3, label: "Wed" },
+  { value: 4, label: "Thu" },
+  { value: 5, label: "Fri" },
+  { value: 6, label: "Sat" },
+  { value: 0, label: "Sun" },
 ];
 
 function configFingerprint(config: AutoDeleteConfig): string {
@@ -172,7 +172,7 @@ export function AutoDeleteDashboard() {
       setError(
         err instanceof Error
           ? err.message
-          : "No se pudo cargar Auto-Delete.",
+          : "Couldn't load Auto-Delete.",
       );
     } finally {
       setLoading(false);
@@ -219,7 +219,7 @@ export function AutoDeleteDashboard() {
 
   const save = async () => {
     if (hasDuplicateChannels) {
-      setError("No puedes configurar el mismo canal en más de una regla.");
+      setError("You can't configure the same channel in more than one rule.");
       return;
     }
     setSaving(true);
@@ -233,10 +233,10 @@ export function AutoDeleteDashboard() {
       });
       setConfig(res.config);
       setSavedFingerprint(configFingerprint(res.config));
-      setSuccess("Configuración de Auto-Delete guardada.");
+      setSuccess("Auto-Delete configuration saved.");
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "No se pudo guardar la config.",
+        err instanceof Error ? err.message : "Couldn't save the config.",
       );
     } finally {
       setSaving(false);
@@ -247,7 +247,7 @@ export function AutoDeleteDashboard() {
     return (
       <div className="flex min-h-[40vh] items-center justify-center gap-2 text-muted-foreground">
         <Loader2 className="size-5 animate-spin" aria-hidden />
-        Cargando Auto-Delete…
+        Loading Auto-Delete…
       </div>
     );
   }
@@ -279,8 +279,7 @@ export function AutoDeleteDashboard() {
         >
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-500" />
           <p>
-            El módulo está inactivo. Las reglas se guardarán pero no se
-            ejecutarán.
+            The module is disabled. Rules will be saved but not run.
           </p>
         </div>
       ) : null}
@@ -289,22 +288,22 @@ export function AutoDeleteDashboard() {
         <div className="min-w-0 lg:col-span-2">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Reglas de Canales</CardTitle>
+              <CardTitle className="text-base">Channel rules</CardTitle>
               <CardDescription>
-                Cuenta regresiva por mensaje o limpieza a hora fija. Los
-                anclados nunca se eliminan. Los hilos del canal (y posts de
-                foro) usan la misma regla.
+                Countdown per message or scheduled cleanup. Pinned messages
+                are never deleted. The channel's threads (and forum posts)
+                use the same rule.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {config.rules.length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-4 rounded-lg border-2 border-dashed border-border px-4 py-12 text-center">
                   <p className="text-sm text-muted-foreground">
-                    No hay reglas de borrado configuradas
+                    No deletion rules configured
                   </p>
                   <Button type="button" variant="outline" onClick={addRule}>
                     <Plus className="size-4" />
-                    Añadir regla
+                    Add rule
                   </Button>
                 </div>
               ) : (
@@ -332,7 +331,7 @@ export function AutoDeleteDashboard() {
                           variant="ghost"
                           size="icon"
                           className="absolute right-2 top-2 text-muted-foreground hover:text-destructive"
-                          aria-label="Eliminar regla"
+                          aria-label="Delete rule"
                           onClick={() => removeRule(index)}
                         >
                           <Trash2 className="size-4" />
@@ -342,7 +341,7 @@ export function AutoDeleteDashboard() {
                           <div className="space-y-4">
                             <div className="space-y-1.5">
                               <Label className="text-xs text-muted-foreground">
-                                Canal
+                                Channel
                               </Label>
                               <Select
                                 value={rule.channelId || undefined}
@@ -356,7 +355,7 @@ export function AutoDeleteDashboard() {
                                     isDuplicate && "border-destructive",
                                   )}
                                 >
-                                  <SelectValue placeholder="Seleccionar canal" />
+                                  <SelectValue placeholder="Select channel" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {textChannels.map((ch) => (
@@ -374,7 +373,7 @@ export function AutoDeleteDashboard() {
 
                             <div className="space-y-1.5">
                               <Label className="text-xs text-muted-foreground">
-                                Modo
+                                Mode
                               </Label>
                               <Select
                                 value={rule.mode}
@@ -405,7 +404,7 @@ export function AutoDeleteDashboard() {
                               <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
                                   <Label className="text-xs text-muted-foreground">
-                                    Tiempo
+                                    Time
                                   </Label>
                                   <Input
                                     type="number"
@@ -425,7 +424,7 @@ export function AutoDeleteDashboard() {
                                 </div>
                                 <div className="space-y-1.5">
                                   <Label className="text-xs text-muted-foreground">
-                                    Unidad
+                                    Unit
                                   </Label>
                                   <Select
                                     value={rule.delayUnit}
@@ -462,7 +461,7 @@ export function AutoDeleteDashboard() {
                               <div className="space-y-4">
                                 <div className="space-y-1.5">
                                   <Label className="text-xs text-muted-foreground">
-                                    Hora (24h)
+                                    Time (24h)
                                   </Label>
                                   <Input
                                     type="time"
@@ -477,7 +476,7 @@ export function AutoDeleteDashboard() {
                                     }
                                   />
                                   <p className="text-[11px] text-muted-foreground">
-                                    Zona horaria:{" "}
+                                    Timezone:{" "}
                                     <span className="font-mono text-foreground/80">
                                       {config.timezone || "UTC"}
                                     </span>
@@ -485,7 +484,7 @@ export function AutoDeleteDashboard() {
                                 </div>
                                 <div className="space-y-1.5">
                                   <Label className="text-xs text-muted-foreground">
-                                    Días de la semana
+                                    Days of the week
                                   </Label>
                                   <div className="flex flex-wrap gap-1.5">
                                     {WEEKDAY_OPTIONS.map((day) => {
@@ -520,8 +519,8 @@ export function AutoDeleteDashboard() {
                                   </div>
                                   <p className="text-[11px] text-muted-foreground">
                                     {(rule.scheduledDays ?? []).length === 0
-                                      ? "Sin selección = todos los días."
-                                      : "Solo se ejecutará en los días marcados."}
+                                      ? "No selection = every day."
+                                      : "It will only run on the checked days."}
                                   </p>
                                 </div>
                               </div>
@@ -529,7 +528,7 @@ export function AutoDeleteDashboard() {
 
                             <div className="space-y-1.5">
                               <Label className="text-xs text-muted-foreground">
-                                Filtro
+                                Filter
                               </Label>
                               <Select
                                 value={rule.filterType}
@@ -560,7 +559,7 @@ export function AutoDeleteDashboard() {
 
                         {isDuplicate ? (
                           <p className="mt-3 text-xs text-destructive">
-                            Este canal ya está en otra regla.
+                            This channel is already in another rule.
                           </p>
                         ) : null}
                       </div>
@@ -575,7 +574,7 @@ export function AutoDeleteDashboard() {
                     onClick={addRule}
                   >
                     <Plus className="size-4" />
-                    Añadir regla de borrado
+                    Add deletion rule
                   </Button>
                 </>
               )}
@@ -586,14 +585,14 @@ export function AutoDeleteDashboard() {
         <div className="lg:col-span-1">
           <Card className="sticky top-4 self-start">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Monitor de Estado</CardTitle>
+              <CardTitle className="text-base">Status monitor</CardTitle>
               <CardDescription>
-                Resumen de la configuración actual.
+                Summary of the current configuration.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">Estado global</span>
+                <span className="text-muted-foreground">Global status</span>
                 <Badge
                   className={cn(
                     "normal-case tracking-normal",
@@ -602,12 +601,12 @@ export function AutoDeleteDashboard() {
                       : "border-border bg-muted text-muted-foreground",
                   )}
                 >
-                  {config.enabled ? "Activo" : "Inactivo"}
+                  {config.enabled ? "Enabled" : "Disabled"}
                 </Badge>
               </div>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-muted-foreground">
-                  Canales configurados
+                  Configured channels
                 </span>
                 <span className="font-mono text-xs">
                   {
@@ -617,19 +616,19 @@ export function AutoDeleteDashboard() {
                 </span>
               </div>
               <div className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">Limpiezas diarias</span>
+                <span className="text-muted-foreground">Daily cleanups</span>
                 <span className="font-mono text-xs">{scheduledCount}</span>
               </div>
               <TimezoneCombobox
                 id="auto-delete-tz"
-                label="Zona horaria (limpieza a hora fija)"
+                label="Timezone (scheduled cleanup)"
                 value={config.timezone || "UTC"}
                 onChange={(timezone) => patch({ timezone })}
                 disabled={saving}
               />
               {hasDuplicateChannels ? (
                 <p className="rounded-md border border-destructive/40 bg-destructive/10 px-2.5 py-2 text-xs text-destructive">
-                  Hay canales duplicados. Corrige las reglas antes de guardar.
+                  There are duplicate channels. Fix the rules before saving.
                 </p>
               ) : null}
               <Button
@@ -643,7 +642,7 @@ export function AutoDeleteDashboard() {
                 ) : (
                   <Save className="size-4" />
                 )}
-                Guardar configuración
+                Save configuration
               </Button>
             </CardContent>
           </Card>

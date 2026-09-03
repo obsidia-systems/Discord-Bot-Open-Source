@@ -18,14 +18,14 @@ function ValueCell({
   tone?: "old" | "new" | "neutral";
 }) {
   const isEmpty = !value || value === "—";
-  const isBool = value === "Activado" || value === "Desactivado";
+  const isBool = value === "Enabled" || value === "Disabled";
 
   if (isBool) {
     return (
       <Badge
         className={cn(
           "normal-case tracking-normal",
-          value === "Activado"
+          value === "Enabled"
             ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
             : "border-border bg-muted text-muted-foreground",
         )}
@@ -59,7 +59,7 @@ function RoleChangesBlock({ entry }: { entry: DiscordAuditEntry }) {
       {(mode === "ROLE_ADD" || mode === "ROLE_UPDATE") && added.length > 0 ? (
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
-            Roles añadidos
+            Roles added
           </p>
           <div className="flex flex-wrap gap-2">
             {added.map((role) => (
@@ -80,7 +80,7 @@ function RoleChangesBlock({ entry }: { entry: DiscordAuditEntry }) {
         <div className="space-y-2">
           {added.length > 0 ? <Separator className="my-1" /> : null}
           <p className="text-xs font-semibold uppercase tracking-wide text-rose-700 dark:text-rose-400">
-            Roles eliminados
+            Roles removed
           </p>
           <div className="flex flex-wrap gap-2">
             {removed.map((role) => (
@@ -98,7 +98,7 @@ function RoleChangesBlock({ entry }: { entry: DiscordAuditEntry }) {
 
       {added.length === 0 && removed.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Sin roles detallados en este evento.
+          No roles detailed in this event.
         </p>
       ) : null}
     </div>
@@ -115,16 +115,16 @@ function PropertyTable({
   if (rows.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        Discord no reportó cambios detallados para este evento.
+        Discord did not report detailed changes for this event.
       </p>
     );
   }
 
   const valueHeader =
     mode === "create"
-      ? "Valor asignado"
+      ? "Assigned value"
       : mode === "delete"
-        ? "Último valor conocido"
+        ? "Last known value"
         : null;
 
   return (
@@ -132,14 +132,14 @@ function PropertyTable({
       <table className="w-full border-collapse text-sm">
         <thead className="bg-muted/40">
           <tr className="border-b border-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            <th className="px-3 py-2">Propiedad</th>
+            <th className="px-3 py-2">Property</th>
             {mode === "update" ? (
               <>
-                <th className="px-3 py-2">Antiguo</th>
+                <th className="px-3 py-2">Old</th>
                 <th className="w-8 px-1 py-2 text-center" aria-hidden>
                   →
                 </th>
-                <th className="px-3 py-2">Nuevo</th>
+                <th className="px-3 py-2">New</th>
               </>
             ) : (
               <th className="px-3 py-2">{valueHeader}</th>

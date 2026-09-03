@@ -70,12 +70,12 @@ type Feedback =
   | { kind: "error"; message: string };
 
 const TIMEOUT_OPTIONS = [
-  { value: "60", label: "60 segundos" },
-  { value: "300", label: "5 minutos" },
-  { value: "600", label: "10 minutos" },
-  { value: "3600", label: "1 hora" },
-  { value: "86400", label: "1 día" },
-  { value: "604800", label: "1 semana" },
+  { value: "60", label: "60 seconds" },
+  { value: "300", label: "5 minutes" },
+  { value: "600", label: "10 minutes" },
+  { value: "3600", label: "1 hour" },
+  { value: "86400", label: "1 day" },
+  { value: "604800", label: "1 week" },
 ] as const;
 
 const USER_ACTIONS: Array<{
@@ -131,7 +131,7 @@ function MemberDossier({
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" aria-hidden />
-        Cargando expediente…
+        Loading record…
       </div>
     );
   }
@@ -139,7 +139,7 @@ function MemberDossier({
   if (!info) {
     return (
       <p className="text-sm text-muted-foreground">
-        Selecciona un usuario para ver su expediente.
+        Select a user to see their record.
       </p>
     );
   }
@@ -169,17 +169,17 @@ function MemberDossier({
           <dd className="font-mono text-xs">{info.id}</dd>
         </div>
         <div className="flex justify-between gap-3">
-          <dt className="text-muted-foreground">Se unió</dt>
+          <dt className="text-muted-foreground">Joined</dt>
           <dd>
             {info.joinedAt
-              ? new Date(info.joinedAt).toLocaleString("es-MX")
+              ? new Date(info.joinedAt).toLocaleString("en-US")
               : "—"}
           </dd>
         </div>
         {info.timedOutUntil ? (
           <div className="flex justify-between gap-3">
-            <dt className="text-muted-foreground">Timeout hasta</dt>
-            <dd>{new Date(info.timedOutUntil).toLocaleString("es-MX")}</dd>
+            <dt className="text-muted-foreground">Timeout until</dt>
+            <dd>{new Date(info.timedOutUntil).toLocaleString("en-US")}</dd>
           </div>
         ) : null}
       </dl>
@@ -206,7 +206,7 @@ function MemberDossier({
           Warns ({info.warnings.length})
         </p>
         {info.warnings.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Sin advertencias.</p>
+          <p className="text-sm text-muted-foreground">No warnings.</p>
         ) : (
           <>
             <ul className="max-h-56 space-y-2 overflow-y-auto">
@@ -217,7 +217,7 @@ function MemberDossier({
                 >
                   <p>{warn.reason}</p>
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    {new Date(warn.createdAt).toLocaleString("es-MX")} · mod{" "}
+                    {new Date(warn.createdAt).toLocaleString("en-US")} · mod{" "}
                     {warn.moderatorId.slice(-4)}
                   </p>
                 </li>
@@ -230,7 +230,7 @@ function MemberDossier({
               disabled={busy}
               onClick={onClearWarns}
             >
-              Limpiar expediente
+              Clear record
             </Button>
           </>
         )}
@@ -250,7 +250,7 @@ function ChannelContextCard({
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" aria-hidden />
-        Cargando canal…
+        Loading channel…
       </div>
     );
   }
@@ -258,7 +258,7 @@ function ChannelContextCard({
   if (!info) {
     return (
       <p className="text-sm text-muted-foreground">
-        Selecciona un canal para ver su contexto.
+        Select a channel to see its context.
       </p>
     );
   }
@@ -266,7 +266,7 @@ function ChannelContextCard({
   return (
     <dl className="space-y-3 text-sm">
       <div>
-        <dt className="text-muted-foreground">Canal</dt>
+        <dt className="text-muted-foreground">Channel</dt>
         <dd className="font-display text-lg font-semibold">#{info.name}</dd>
       </div>
       <div className="flex justify-between gap-3">
@@ -278,17 +278,17 @@ function ChannelContextCard({
         <dd className="flex items-center gap-1.5">
           <Clock className="size-3.5 text-muted-foreground" aria-hidden />
           {info.slowmodeSeconds === 0
-            ? "Desactivado"
+            ? "Disabled"
             : `${info.slowmodeSeconds}s`}
         </dd>
       </div>
       <div className="flex justify-between gap-3">
         <dt className="text-muted-foreground">NSFW</dt>
-        <dd>{info.nsfw ? "Sí" : "No"}</dd>
+        <dd>{info.nsfw ? "Yes" : "No"}</dd>
       </div>
       {info.topic ? (
         <div>
-          <dt className="text-muted-foreground">Tema</dt>
+          <dt className="text-muted-foreground">Topic</dt>
           <dd className="mt-1 text-foreground/90">{info.topic}</dd>
         </div>
       ) : null}
@@ -456,7 +456,7 @@ export function ModerationTools() {
     } catch (error: unknown) {
       setFeedback({
         kind: "error",
-        message: error instanceof Error ? error.message : "Error desconocido",
+        message: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -466,7 +466,7 @@ export function ModerationTools() {
     if (!reason.trim()) {
       setFeedback({
         kind: "error",
-        message: "La razón es obligatoria.",
+        message: "The reason is required.",
       });
       return;
     }
@@ -491,7 +491,7 @@ export function ModerationTools() {
     ) {
       setFeedback({
         kind: "error",
-        message: "Selecciona una plantilla de embed.",
+        message: "Select an embed template.",
       });
       return;
     }
@@ -499,7 +499,7 @@ export function ModerationTools() {
     await runAction(activeAction, {
       action: activeAction,
       userId: memberOption.id,
-      reason: reason.trim() || "Acción desde panel",
+      reason: reason.trim() || "Action from dashboard",
       durationSeconds:
         activeAction === "timeout"
           ? Number.parseInt(timeoutSeconds, 10)
@@ -517,9 +517,9 @@ export function ModerationTools() {
       <div className="space-y-6 lg:col-span-2">
         <Card>
           <CardHeader>
-            <CardTitle>Herramientas de moderación</CardTitle>
+            <CardTitle>Moderation tools</CardTitle>
             <CardDescription>
-              Acciones en vivo · Ban, kick, timeout, warn, purge, lock.
+              Live actions · Ban, kick, timeout, warn, purge, lock.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -529,27 +529,27 @@ export function ModerationTools() {
                   active={tab === "usuarios"}
                   onClick={() => setTab("usuarios")}
                 >
-                  Usuarios
+                  Users
                 </TabsTrigger>
                 <TabsTrigger
                   active={tab === "canales"}
                   onClick={() => setTab("canales")}
                 >
-                  Canales
+                  Channels
                 </TabsTrigger>
                 <TabsTrigger
                   active={tab === "sanciones"}
                   onClick={() => setTab("sanciones")}
                 >
-                  Sanciones Activas
+                  Active sanctions
                 </TabsTrigger>
               </TabsList>
 
               {tab === "usuarios" && (
                 <TabsContent className="space-y-5">
                   <AsyncSearchSelect
-                    label="Buscar miembro"
-                    placeholder="Nombre o ID de Discord…"
+                    label="Search member"
+                    placeholder="Discord name or ID…"
                     value={memberOption}
                     onChange={(next) => {
                       setMemberOption(next);
@@ -594,16 +594,16 @@ export function ModerationTools() {
                       {activeAction ? (
                         <div className="space-y-4 rounded-lg border border-border bg-muted/10 p-4">
                           <p className="text-sm font-medium capitalize">
-                            Acción: {activeAction}
+                            Action: {activeAction}
                           </p>
                           <div className="space-y-2">
-                            <Label htmlFor="mod-reason">Razón *</Label>
+                            <Label htmlFor="mod-reason">Reason *</Label>
                             <Textarea
                               id="mod-reason"
                               value={reason}
                               rows={3}
                               disabled={busy}
-                              placeholder="Motivo de la sanción…"
+                              placeholder="Reason for the sanction…"
                               onChange={(event) =>
                                 setReason(event.target.value)
                               }
@@ -612,14 +612,14 @@ export function ModerationTools() {
 
                           {activeAction === "timeout" ? (
                             <div className="space-y-2">
-                              <Label>Duración</Label>
+                              <Label>Duration</Label>
                               <Select
                                 value={timeoutSeconds}
                                 disabled={busy}
                                 onValueChange={setTimeoutSeconds}
                               >
                                 <SelectTrigger>
-                                  <SelectValue placeholder="Duración…" />
+                                  <SelectValue placeholder="Duration…" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {TIMEOUT_OPTIONS.map((option) => (
@@ -637,7 +637,7 @@ export function ModerationTools() {
 
                           {activeAction === "ban" ? (
                             <div className="space-y-2">
-                              <Label>Borrar mensajes (días)</Label>
+                              <Label>Delete messages (days)</Label>
                               <Select
                                 value={deleteMessageDays}
                                 disabled={busy}
@@ -653,8 +653,8 @@ export function ModerationTools() {
                                       value={String(days)}
                                     >
                                       {days === 0
-                                        ? "No borrar"
-                                        : `${days} día${days > 1 ? "s" : ""}`}
+                                        ? "Don't delete"
+                                        : `${days} day${days > 1 ? "s" : ""}`}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
@@ -666,12 +666,12 @@ export function ModerationTools() {
                             <div className="space-y-3 rounded-md border border-border/80 bg-background/40 p-3">
                               <div>
                                 <p className="text-sm font-medium">
-                                  Notificación al Usuario (DM)
+                                  User notification (DM)
                                 </p>
                                 <p className="text-xs text-muted-foreground">
                                   {activeAction === "kick"
-                                    ? "En Kick se adjunta un invite de un solo uso al DM."
-                                    : "Si el usuario tiene los DMs cerrados, la sanción se aplica igual."}
+                                    ? "For Kick, a single-use invite is attached to the DM."
+                                    : "If the user has DMs disabled, the sanction still applies."}
                                 </p>
                               </div>
 
@@ -681,33 +681,33 @@ export function ModerationTools() {
                                     active={dmMode === "none"}
                                     onClick={() => setDmMode("none")}
                                   >
-                                    Sin DM
+                                    No DM
                                   </TabsTrigger>
                                   <TabsTrigger
                                     active={dmMode === "text"}
                                     onClick={() => setDmMode("text")}
                                   >
-                                    Texto Simple
+                                    Plain text
                                   </TabsTrigger>
                                   <TabsTrigger
                                     active={dmMode === "template"}
                                     onClick={() => setDmMode("template")}
                                   >
-                                    Plantilla Embed
+                                    Embed template
                                   </TabsTrigger>
                                 </TabsList>
 
                                 {dmMode === "text" ? (
                                   <TabsContent className="space-y-2 pt-3">
                                     <Label htmlFor="mod-dm-text">
-                                      Mensaje DM
+                                      DM message
                                     </Label>
                                     <Textarea
                                       id="mod-dm-text"
                                       rows={3}
                                       disabled={busy}
                                       value={dmText}
-                                      placeholder="Has recibido una sanción en {server}. Razón: {reason}"
+                                      placeholder="You've received a sanction in {server}. Reason: {reason}"
                                       onChange={(event) =>
                                         setDmText(event.target.value)
                                       }
@@ -721,7 +721,7 @@ export function ModerationTools() {
 
                                 {dmMode === "template" ? (
                                   <TabsContent className="space-y-2 pt-3">
-                                    <Label>Plantilla</Label>
+                                    <Label>Template</Label>
                                     <Select
                                       value={templateId || undefined}
                                       disabled={busy || templates.length === 0}
@@ -731,8 +731,8 @@ export function ModerationTools() {
                                         <SelectValue
                                           placeholder={
                                             templates.length === 0
-                                              ? "No hay plantillas (créalas en Embeds)"
-                                              : "Selecciona plantilla…"
+                                              ? "No templates (create them in Embeds)"
+                                              : "Select a template…"
                                           }
                                         />
                                       </SelectTrigger>
@@ -768,7 +768,7 @@ export function ModerationTools() {
                             ) : (
                               <Gavel className="size-4" aria-hidden />
                             )}
-                            Ejecutar {activeAction}
+                            Run {activeAction}
                           </Button>
                         </div>
                       ) : null}
@@ -780,8 +780,8 @@ export function ModerationTools() {
               {tab === "canales" && (
                 <TabsContent className="space-y-5">
                   <AsyncSearchSelect
-                    label="Buscar canal"
-                    placeholder="Nombre o ID del canal…"
+                    label="Search channel"
+                    placeholder="Channel name or ID…"
                     value={channelOption}
                     onChange={(next) => {
                       setChannelOption(next);
@@ -796,10 +796,10 @@ export function ModerationTools() {
                       <div className="space-y-3 rounded-lg border border-border p-4">
                         <div className="flex items-center gap-2">
                           <Eraser className="size-4 text-primary" aria-hidden />
-                          <p className="font-medium">Purge / limpiar mensajes</p>
+                          <p className="font-medium">Purge / clear messages</p>
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="purge-limit">Cantidad (1–100)</Label>
+                          <Label htmlFor="purge-limit">Amount (1–100)</Label>
                           <Input
                             id="purge-limit"
                             type="number"
@@ -814,13 +814,13 @@ export function ModerationTools() {
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="purge-reason">
-                            Razón (auditoría)
+                            Reason (audit)
                           </Label>
                           <Input
                             id="purge-reason"
                             value={reason}
                             disabled={busy}
-                            placeholder="Limpieza desde panel…"
+                            placeholder="Cleanup from dashboard…"
                             onChange={(event) =>
                               setReason(event.target.value)
                             }
@@ -833,7 +833,7 @@ export function ModerationTools() {
                             void runAction("purge", {
                               action: "purge",
                               channelId: channelOption.id,
-                              reason: reason.trim() || "Purge desde panel",
+                              reason: reason.trim() || "Purge from dashboard",
                               purgeLimit: Number.parseInt(purgeLimit, 10) || 10,
                             });
                           }}
@@ -846,7 +846,7 @@ export function ModerationTools() {
                           ) : (
                             <Eraser className="size-4" aria-hidden />
                           )}
-                          Ejecutar limpieza
+                          Run cleanup
                         </Button>
                       </div>
 
@@ -857,7 +857,7 @@ export function ModerationTools() {
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="slowmode-seconds">
-                            Segundos (0–21600)
+                            Seconds (0–21600)
                           </Label>
                           <Input
                             id="slowmode-seconds"
@@ -879,24 +879,24 @@ export function ModerationTools() {
                             void runAction("slowmode", {
                               action: "slowmode",
                               channelId: channelOption.id,
-                              reason: reason.trim() || "Slowmode desde panel",
+                              reason: reason.trim() || "Slowmode from dashboard",
                               slowmodeSeconds:
                                 Number.parseInt(slowmodeSeconds, 10) || 0,
                             });
                           }}
                         >
-                          Aplicar slowmode
+                          Apply slowmode
                         </Button>
                       </div>
 
                       <div className="space-y-3 rounded-lg border border-border p-4">
                         <div className="flex items-center gap-2">
                           <Lock className="size-4 text-primary" aria-hidden />
-                          <p className="font-medium">Bloquear canal</p>
+                          <p className="font-medium">Lock channel</p>
                         </div>
                         <p className="text-sm text-muted-foreground">
-                          Quita a @everyone el permiso de escribir. Unlock lo
-                          restaura.
+                          Removes @everyone's permission to send messages. Unlock
+                          restores it.
                         </p>
                         <div className="flex flex-wrap gap-2">
                           <Button
@@ -907,7 +907,7 @@ export function ModerationTools() {
                               void runAction("lock", {
                                 action: "lock",
                                 channelId: channelOption.id,
-                                reason: reason.trim() || "Lock desde panel",
+                                reason: reason.trim() || "Lock from dashboard",
                               });
                             }}
                           >
@@ -922,7 +922,7 @@ export function ModerationTools() {
                               void runAction("unlock", {
                                 action: "unlock",
                                 channelId: channelOption.id,
-                                reason: reason.trim() || "Unlock desde panel",
+                                reason: reason.trim() || "Unlock from dashboard",
                               });
                             }}
                           >
@@ -939,8 +939,8 @@ export function ModerationTools() {
               {tab === "sanciones" && (
                 <TabsContent className="space-y-4">
                   <p className="text-sm text-muted-foreground">
-                    Lista en vivo de baneos y timeouts. Haz clic en una fila
-                    para ver el expediente; usa el botón para revocar.
+                    Live list of bans and timeouts. Click a row to see the
+                    record; use the button to revoke.
                   </p>
                   <ActiveSanctionsPanel
                     selectedUserId={memberOption?.id ?? null}
@@ -974,19 +974,19 @@ export function ModerationTools() {
               {tab === "canales" ? (
                 <>
                   <Clock className="size-4" aria-hidden />
-                  Contexto del canal
+                  Channel context
                 </>
               ) : (
                 <>
                   <UserX className="size-4" aria-hidden />
-                  Expediente
+                  Record
                 </>
               )}
             </CardTitle>
             <CardDescription>
               {tab === "canales"
-                ? "Nombre y slowmode actual."
-                : "Avatar, unión y warns previos."}
+                ? "Current name and slowmode."
+                : "Avatar, join date, and previous warns."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -1005,7 +1005,7 @@ export function ModerationTools() {
                   void runAction("clearwarns", {
                     action: "clearwarns",
                     userId: memberOption.id,
-                    reason: "Limpieza de warns desde panel",
+                    reason: "Clear warns from dashboard",
                   });
                 }}
               />

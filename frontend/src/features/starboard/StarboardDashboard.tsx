@@ -103,7 +103,7 @@ export function StarboardDashboard() {
       setChannels(assets.channels);
       setServerEmojis(assets.emojis);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo cargar.");
+      setError(err instanceof Error ? err.message : "Couldn't load.");
     } finally {
       setLoading(false);
     }
@@ -134,9 +134,9 @@ export function StarboardDashboard() {
       setAllowSelfStar(next.allowSelfStar);
       setAllowBots(next.allowBots);
       setIgnoreChannelIds(next.ignoreChannelIds);
-      setSuccess("Ajustes guardados.");
+      setSuccess("Settings saved.");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar.");
+      setError(err instanceof Error ? err.message : "Couldn't save.");
     } finally {
       setSaving(false);
     }
@@ -156,7 +156,7 @@ export function StarboardDashboard() {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin text-primary" />
-        Cargando Starboard…
+        Loading Starboard…
       </div>
     );
   }
@@ -176,10 +176,10 @@ export function StarboardDashboard() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Tablón</CardTitle>
+          <CardTitle>Board</CardTitle>
           <CardDescription>
-            Cuando un mensaje llega al umbral de reacciones, se copia aquí.
-            No es Action Logs. Posts actuales: {postCount}.
+            When a message reaches the reaction threshold, it's copied here.
+            This isn't Action Logs. Current posts: {postCount}.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -189,11 +189,11 @@ export function StarboardDashboard() {
               checked={enabled}
               onCheckedChange={setEnabled}
             />
-            <Label htmlFor="starboard-enabled">Activo</Label>
+            <Label htmlFor="starboard-enabled">Enabled</Label>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="starboard-channel">Canal del tablón</Label>
+            <Label htmlFor="starboard-channel">Board channel</Label>
             <Select
               value={channelId ?? NONE}
               onValueChange={(value) =>
@@ -202,10 +202,10 @@ export function StarboardDashboard() {
               disabled={saving}
             >
               <SelectTrigger id="starboard-channel">
-                <SelectValue placeholder="Elige un canal" />
+                <SelectValue placeholder="Pick a channel" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NONE}>Sin canal</SelectItem>
+                <SelectItem value={NONE}>No channel</SelectItem>
                 {destinationChannels.map((ch) => (
                   <SelectItem key={ch.id} value={ch.id}>
                     #{ch.name}
@@ -217,7 +217,7 @@ export function StarboardDashboard() {
 
           <div className="space-y-1.5">
             <Label htmlFor="starboard-threshold">
-              Umbral ({STARBOARD_THRESHOLD_MIN}–{STARBOARD_THRESHOLD_MAX})
+              Threshold ({STARBOARD_THRESHOLD_MIN}–{STARBOARD_THRESHOLD_MAX})
             </Label>
             <Input
               id="starboard-threshold"
@@ -234,7 +234,7 @@ export function StarboardDashboard() {
           </div>
 
           <div className="space-y-2">
-            <Label>Emojis que cuentan (máx. {STARBOARD_EMOJIS_MAX})</Label>
+            <Label>Emoji that count (max. {STARBOARD_EMOJIS_MAX})</Label>
             <div className="flex flex-wrap items-center gap-2">
               {emojis.map((key) => {
                 const image = emojiImage(key, serverEmojis);
@@ -257,7 +257,7 @@ export function StarboardDashboard() {
                       type="button"
                       className="text-muted-foreground hover:text-foreground"
                       disabled={saving || emojis.length <= 1}
-                      aria-label="Quitar emoji"
+                      aria-label="Remove emoji"
                       onClick={() => removeEmoji(key)}
                     >
                       <X className="size-3.5" />
@@ -272,8 +272,8 @@ export function StarboardDashboard() {
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              Cualquiera de estos emojis suma al mismo umbral. Un usuario
-              cuenta una vez aunque use varios.
+              Any of these emoji count toward the same threshold. A user
+              counts once even if they use several.
             </p>
           </div>
 
@@ -283,7 +283,7 @@ export function StarboardDashboard() {
               checked={allowSelfStar}
               onCheckedChange={setAllowSelfStar}
             />
-            <Label htmlFor="starboard-self">Contar la reacción del autor</Label>
+            <Label htmlFor="starboard-self">Count the author's reaction</Label>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <Switch
@@ -292,19 +292,19 @@ export function StarboardDashboard() {
               onCheckedChange={setAllowBots}
             />
             <Label htmlFor="starboard-bots">
-              Contar bots y mensajes de bots
+              Count bots and bot messages
             </Label>
           </div>
 
           <ChannelMultiSelect
             id="starboard-ignore"
-            label="Canales ignorados"
-            placeholder="Buscar canales…"
+            label="Ignored channels"
+            placeholder="Search channels…"
             channels={ignorableChannels}
             value={ignoreChannelIds}
             onChange={setIgnoreChannelIds}
             disabled={saving}
-            emptyHint="Ninguno. El canal del tablón nunca cuenta."
+            emptyHint="None. The board channel never counts."
           />
 
           <Button type="button" disabled={saving} onClick={() => void onSave()}>
@@ -313,7 +313,7 @@ export function StarboardDashboard() {
             ) : (
               <Save className="size-4" />
             )}
-            Guardar
+            Save
           </Button>
         </CardContent>
       </Card>

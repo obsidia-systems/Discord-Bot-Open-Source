@@ -12,7 +12,7 @@ export async function fetchAutoReplies(): Promise<AutoRepliesConfigResponse> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar Auto-Replies (${response.status})`,
+        `Couldn't load Auto-Replies (${response.status})`,
       ),
     );
   }
@@ -34,7 +34,7 @@ export async function createAutoReply(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo crear la Auto-Reply (${response.status})`,
+        `Couldn't create the Auto-Reply (${response.status})`,
       ),
     );
   }
@@ -58,7 +58,7 @@ export async function updateAutoReply(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo guardar la Auto-Reply (${response.status})`,
+        `Couldn't save the Auto-Reply (${response.status})`,
       ),
     );
   }
@@ -74,7 +74,7 @@ export async function deleteAutoReply(id: number): Promise<void> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo borrar la Auto-Reply (${response.status})`,
+        `Couldn't delete the Auto-Reply (${response.status})`,
       ),
     );
   }

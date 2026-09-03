@@ -20,7 +20,7 @@ export async function fetchTicketSettings(): Promise<TicketSettingsResponse> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudieron cargar los ajustes de Tickets (${response.status})`,
+        `Couldn't load the Ticket settings (${response.status})`,
       ),
     );
   }
@@ -39,7 +39,7 @@ export async function saveTicketSettings(
     throw new Error(
       await readApiError(
         response,
-        `No se pudieron guardar los ajustes (${response.status})`,
+        `Couldn't save the settings (${response.status})`,
       ),
     );
   }
@@ -52,7 +52,7 @@ export async function fetchTicketPanels(): Promise<TicketPanelsResponse> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudieron cargar los paneles (${response.status})`,
+        `Couldn't load the panels (${response.status})`,
       ),
     );
   }
@@ -71,7 +71,7 @@ export async function createTicketPanel(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo crear el panel (${response.status})`,
+        `Couldn't create the panel (${response.status})`,
       ),
     );
   }
@@ -93,7 +93,7 @@ export async function saveTicketPanel(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo guardar el panel (${response.status})`,
+        `Couldn't save the panel (${response.status})`,
       ),
     );
   }
@@ -110,7 +110,7 @@ export async function deleteTicketPanel(id: number): Promise<void> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo borrar el panel (${response.status})`,
+        `Couldn't delete the panel (${response.status})`,
       ),
     );
   }
@@ -129,7 +129,7 @@ export async function publishTicketPanel(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo publicar el panel (${response.status})`,
+        `Couldn't publish the panel (${response.status})`,
       ),
     );
   }
@@ -153,7 +153,7 @@ export async function fetchTickets(filters: {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar la bandeja (${response.status})`,
+        `Couldn't load the inbox (${response.status})`,
       ),
     );
   }
@@ -168,7 +168,7 @@ export async function fetchTicketDetail(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar el ticket (${response.status})`,
+        `Couldn't load the ticket (${response.status})`,
       ),
     );
   }
@@ -193,7 +193,7 @@ async function ticketAction(
   });
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, `No se pudo completar la acción (${response.status})`),
+      await readApiError(response, `Couldn't complete the action (${response.status})`),
     );
   }
   const json = (await response.json()) as { ticket: TicketSummary };
@@ -245,7 +245,7 @@ export async function removeTicketUser(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo quitar al usuario (${response.status})`,
+        `Couldn't remove the user (${response.status})`,
       ),
     );
   }

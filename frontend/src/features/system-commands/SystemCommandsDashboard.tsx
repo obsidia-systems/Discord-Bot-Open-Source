@@ -51,7 +51,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 type CategoryFilter = "all" | SystemCommandCategory;
 
 const CATEGORY_FILTERS: Array<{ id: CategoryFilter; label: string }> = [
-  { id: "all", label: "Todos" },
+  { id: "all", label: "All" },
   { id: "moderation", label: SYSTEM_COMMAND_CATEGORY_LABELS.moderation },
   { id: "levels", label: SYSTEM_COMMAND_CATEGORY_LABELS.levels },
   { id: "economy", label: SYSTEM_COMMAND_CATEGORY_LABELS.economy },
@@ -158,7 +158,7 @@ export function SystemCommandsDashboard() {
         message:
           error instanceof Error
             ? error.message
-            : "Error al cargar comandos del sistema.",
+            : "Couldn't load system commands.",
       });
     } finally {
       setLoading(false);
@@ -246,12 +246,12 @@ export function SystemCommandsDashboard() {
       );
       setCommands(next);
       setSavedFingerprint(commandsFingerprint(next));
-      setToast({ variant: "success", message: "Cambios guardados." });
+      setToast({ variant: "success", message: "Changes saved." });
     } catch (error) {
       setToast({
         variant: "error",
         message:
-          error instanceof Error ? error.message : "No se pudo guardar.",
+          error instanceof Error ? error.message : "Couldn't save.",
       });
     } finally {
       setSaving(false);
@@ -262,7 +262,7 @@ export function SystemCommandsDashboard() {
     return (
       <div className="flex items-center justify-center gap-2 py-24 text-muted-foreground">
         <Loader2 className="size-5 animate-spin" />
-        Cargando comandos…
+        Loading commands…
       </div>
     );
   }
@@ -281,12 +281,12 @@ export function SystemCommandsDashboard() {
         <div className="flex items-center gap-2">
           <Terminal className="size-5 text-primary" />
           <h1 className="text-2xl font-semibold tracking-tight">
-            Comandos del Sistema
+            System Commands
           </h1>
         </div>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Controla qué comandos fijos están activos y qué roles tienen permiso
-          de usarlos.
+          Control which built-in commands are active and which roles are
+          allowed to use them.
         </p>
       </header>
 
@@ -297,9 +297,9 @@ export function SystemCommandsDashboard() {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar por nombre o descripción…"
+            placeholder="Search by name or description…"
             className="pl-9"
-            aria-label="Buscar comandos"
+            aria-label="Search commands"
           />
         </div>
         <Tabs>
@@ -322,11 +322,11 @@ export function SystemCommandsDashboard() {
         <Card className="mb-2 border-primary/20 bg-muted/30">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">
-              Acciones Masivas para {SYSTEM_COMMAND_CATEGORY_LABELS[category]}
+              Bulk Actions for {SYSTEM_COMMAND_CATEGORY_LABELS[category]}
             </CardTitle>
             <CardDescription>
-              Afecta solo los comandos de esta categoría en el estado local.
-              Pulsa Guardar Cambios para persistir.
+              Affects only the commands in this category in local state.
+              Press Save Changes to persist.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -338,7 +338,7 @@ export function SystemCommandsDashboard() {
                 onClick={() => enableCategory(category, true)}
               >
                 <Power className="size-4" />
-                Activar Todos
+                Enable All
               </Button>
               <Button
                 type="button"
@@ -347,25 +347,25 @@ export function SystemCommandsDashboard() {
                 onClick={() => enableCategory(category, false)}
               >
                 <PowerOff className="size-4" />
-                Desactivar Todos
+                Disable All
               </Button>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <RoleMultiSelect
-                label="Aplicar Rol Permitido a toda la categoría"
-                placeholder="Seleccionar roles…"
+                label="Apply Allowed Role to the whole category"
+                placeholder="Select roles…"
                 roles={roles}
                 value={bulkRoles}
                 onChange={setBulkRoles}
-                emptyHint="Sin roles seleccionados para aplicar."
+                emptyHint="No roles selected to apply."
               />
               <ChannelMultiSelect
-                label="Aplicar Canal Ignorado a toda la categoría"
-                placeholder="Seleccionar canales…"
+                label="Apply Ignored Channel to the whole category"
+                placeholder="Select channels…"
                 channels={selectableChannels}
                 value={bulkChannels}
                 onChange={setBulkChannels}
-                emptyHint="Sin canales seleccionados para aplicar."
+                emptyHint="No channels selected to apply."
               />
             </div>
             <Button
@@ -373,7 +373,7 @@ export function SystemCommandsDashboard() {
               onClick={() => applyBulkToCategory(category)}
               disabled={bulkRoles.length === 0 && bulkChannels.length === 0}
             >
-              Aplicar a la categoría
+              Apply to the category
             </Button>
           </CardContent>
         </Card>
@@ -382,7 +382,7 @@ export function SystemCommandsDashboard() {
       {filtered.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            No hay comandos que coincidan con el filtro.
+            No commands match the filter.
           </CardContent>
         </Card>
       ) : (
@@ -416,7 +416,7 @@ export function SystemCommandsDashboard() {
                       onCheckedChange={(enabled) =>
                         patchCommand(cmd.name, { enabled })
                       }
-                      aria-label={`Activar /${cmd.name}`}
+                      aria-label={`Enable /${cmd.name}`}
                     />
                   </div>
                   <CardDescription className="line-clamp-2 text-sm leading-relaxed">
@@ -431,7 +431,7 @@ export function SystemCommandsDashboard() {
                     onClick={() => setConfiguringName(cmd.name)}
                   >
                     <Eye className="size-4" />
-                    Configurar Comando
+                    Configure Command
                   </Button>
                 </CardContent>
               </Card>
@@ -449,7 +449,7 @@ export function SystemCommandsDashboard() {
           configuring ? (
             <span className="font-mono">/{configuring.name}</span>
           ) : (
-            "Comando"
+            "Command"
           )
         }
         description={configuring?.description}
@@ -459,29 +459,29 @@ export function SystemCommandsDashboard() {
             className="w-full"
             onClick={() => setConfiguringName(null)}
           >
-            Guardar cambios del comando
+            Save command changes
           </Button>
         }
       >
         {configuring ? (
           <div className="space-y-6">
             <section className="space-y-3">
-              <h3 className="text-sm font-semibold">Sintaxis y parámetros</h3>
+              <h3 className="text-sm font-semibold">Syntax and parameters</h3>
               <code className="block overflow-x-auto rounded-md bg-muted p-3 font-mono text-sm">
                 {formatSystemCommandSyntax(configuring)}
               </code>
               {(configuring.parameters ?? configuring.options).length === 0 ? (
                 <p className="text-xs text-muted-foreground">
-                  Este comando no recibe parámetros.
+                  This command takes no parameters.
                 </p>
               ) : (
                 <div className="overflow-hidden rounded-md border border-border">
                   <table className="w-full text-left text-sm">
                     <thead className="bg-muted/50 text-xs text-muted-foreground">
                       <tr>
-                        <th className="px-3 py-2 font-medium">Parámetro</th>
-                        <th className="px-3 py-2 font-medium">Tipo</th>
-                        <th className="px-3 py-2 font-medium">Uso</th>
+                        <th className="px-3 py-2 font-medium">Parameter</th>
+                        <th className="px-3 py-2 font-medium">Type</th>
+                        <th className="px-3 py-2 font-medium">Usage</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -506,7 +506,7 @@ export function SystemCommandsDashboard() {
                                     : "border-border bg-muted text-muted-foreground",
                                 )}
                               >
-                                {param.required ? "Requerido" : "Opcional"}
+                                {param.required ? "Required" : "Optional"}
                               </Badge>
                             </td>
                           </tr>
@@ -519,10 +519,10 @@ export function SystemCommandsDashboard() {
             </section>
 
             <section className="space-y-4 border-t border-border pt-5">
-              <h3 className="text-sm font-semibold">Permisos</h3>
+              <h3 className="text-sm font-semibold">Permissions</h3>
               <RoleMultiSelect
-                label="Roles autorizados"
-                placeholder="Cualquier miembro (vacío)…"
+                label="Authorized roles"
+                placeholder="Any member (empty)…"
                 roles={roles}
                 value={configuring.allowedRoles}
                 onChange={(allowedRoles) =>
@@ -530,19 +530,19 @@ export function SystemCommandsDashboard() {
                 }
                 emptyHint={
                   configuring.requiresAdminByDefault
-                    ? "Sin roles: se exige permiso de moderación de Discord."
-                    : "Sin roles: cualquier miembro puede usarlo."
+                    ? "No roles: Discord moderation permission is required."
+                    : "No roles: any member can use it."
                 }
               />
               <ChannelMultiSelect
-                label="Canales Ignorados"
-                placeholder="Ningún canal ignorado…"
+                label="Ignored Channels"
+                placeholder="No channels ignored…"
                 channels={selectableChannels}
                 value={configuring.ignoredChannels ?? []}
                 onChange={(ignoredChannels) =>
                   patchCommand(configuring.name, { ignoredChannels })
                 }
-                emptyHint="Vacío: el comando se puede usar en todos los canales."
+                emptyHint="Empty: the command can be used in all channels."
               />
               {configuring.supportsEphemeral ? (
                 <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-3">
@@ -550,9 +550,9 @@ export function SystemCommandsDashboard() {
                     htmlFor={`ephemeral-${configuring.name}`}
                     className="text-sm leading-snug"
                   >
-                    Respuesta efímera
+                    Ephemeral response
                     <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
-                      Solo visible para quien ejecuta el comando.
+                      Only visible to whoever runs the command.
                     </span>
                   </Label>
                   <Switch
@@ -577,7 +577,7 @@ export function SystemCommandsDashboard() {
       >
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <p className="text-sm text-muted-foreground">
-            Tienes cambios sin guardar.
+            You have unsaved changes.
           </p>
           <Button
             type="button"
@@ -589,7 +589,7 @@ export function SystemCommandsDashboard() {
             ) : (
               <Save className="size-4" />
             )}
-            Guardar Cambios
+            Save Changes
           </Button>
         </div>
       </div>

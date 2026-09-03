@@ -79,16 +79,16 @@ export function ButtonBuilder({ rows, onChange, disabled }: ButtonBuilderProps) 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Botones Link</CardTitle>
+        <CardTitle>Link buttons</CardTitle>
         <CardDescription>
-          Hasta 5 filas × 5 botones. Cada uno abre una URL http(s). Los botones
-          de rol y de formulario viven en Autoroles y Forms.
+          Up to 5 rows × 5 buttons. Each one opens an http(s) URL. Role and
+          form buttons live in Autoroles and Forms.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {rows.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            Todavía no hay filas. Añade una para empezar.
+            No rows yet. Add one to get started.
           </p>
         )}
 
@@ -98,7 +98,7 @@ export function ButtonBuilder({ rows, onChange, disabled }: ButtonBuilderProps) 
             className="space-y-3 rounded-md border border-border bg-muted/30 p-3"
           >
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-medium">Fila {rowIndex + 1}</p>
+              <p className="text-sm font-medium">Row {rowIndex + 1}</p>
               <div className="flex gap-2">
                 <Button
                   type="button"
@@ -108,7 +108,7 @@ export function ButtonBuilder({ rows, onChange, disabled }: ButtonBuilderProps) 
                   onClick={() => addButton(rowIndex)}
                 >
                   <Plus className="size-3.5" aria-hidden />
-                  Botón
+                  Button
                 </Button>
                 <Button
                   type="button"
@@ -129,7 +129,7 @@ export function ButtonBuilder({ rows, onChange, disabled }: ButtonBuilderProps) 
                   className="grid gap-3 rounded-md border border-border bg-card p-3 sm:grid-cols-2"
                 >
                   <div className="space-y-2">
-                    <Label>Etiqueta</Label>
+                    <Label>Label</Label>
                     <Input
                       value={button.label}
                       maxLength={80}
@@ -163,7 +163,7 @@ export function ButtonBuilder({ rows, onChange, disabled }: ButtonBuilderProps) 
                       onClick={() => removeButton(rowIndex, buttonIndex)}
                     >
                       <Trash2 className="size-3.5" aria-hidden />
-                      Quitar
+                      Remove
                     </Button>
                   </div>
                 </div>
@@ -179,7 +179,7 @@ export function ButtonBuilder({ rows, onChange, disabled }: ButtonBuilderProps) 
           onClick={addRow}
         >
           <Plus className="size-4" aria-hidden />
-          Añadir fila
+          Add row
         </Button>
       </CardContent>
     </Card>

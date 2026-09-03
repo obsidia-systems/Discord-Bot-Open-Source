@@ -10,7 +10,7 @@ export async function fetchSystemCommands(): Promise<SystemCommandConfig[]> {
   const response = await apiFetch(`/api/system-commands`);
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudieron cargar los comandos."),
+      await readApiError(response, "Couldn't load the commands."),
     );
   }
   const body = (await response.json()) as SystemCommandsListResponse;
@@ -27,7 +27,7 @@ export async function saveSystemCommands(
   });
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudieron guardar los cambios."),
+      await readApiError(response, "Couldn't save the changes."),
     );
   }
   const body = (await response.json()) as SystemCommandsUpdateResponse;

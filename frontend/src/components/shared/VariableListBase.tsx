@@ -48,7 +48,7 @@ export function VariableItemCard({
     <button
       type="button"
       onClick={() => void handleCopy()}
-      aria-label={`Copiar ${item.token}`}
+      aria-label={`Copy ${item.token}`}
       className={cn(
         "w-full rounded-lg border border-border/70 bg-muted/20 px-3 py-2.5 text-left transition-colors",
         "hover:border-primary/30 hover:bg-primary/5",
@@ -60,7 +60,7 @@ export function VariableItemCard({
         {item.token}
       </code>
       <span className="mt-1 block text-xs text-muted-foreground">
-        {copied ? "Copiado" : item.tip}
+        {copied ? "Copied" : item.tip}
       </span>
     </button>
   );
@@ -82,7 +82,7 @@ export interface VariableListBaseProps {
 export function VariableListBase({
   items,
   title = "Variables",
-  description = "Clic para copiar.",
+  description = "Click to copy.",
   className,
   children,
 }: VariableListBaseProps) {

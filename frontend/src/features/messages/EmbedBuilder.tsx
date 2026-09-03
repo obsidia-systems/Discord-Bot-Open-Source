@@ -78,17 +78,17 @@ type EmbedFormState = Omit<
 };
 
 const VARIABLE_HINTS = [
-  { token: "{user}", tip: "Mención del usuario" },
-  { token: "{username}", tip: "Nombre de usuario" },
-  { token: "{displayname}", tip: "Nombre en el servidor" },
-  { token: "{server}", tip: "Nombre del servidor" },
-  { token: "{reason}", tip: "Razón de la sanción (moderación)" },
-  { token: "{moderator}", tip: "Nombre del moderador / bot" },
-  { token: "{action}", tip: "Tipo de sanción (warn, kick…)" },
-  { token: "{invite}", tip: "Invite de reingreso (solo kick)" },
-  { token: "{channel}", tip: "Nombre del canal" },
-  { token: "{#canal}", tip: "Link a un canal" },
-  { token: "{&rol}", tip: "Mención de un rol" },
+  { token: "{user}", tip: "User mention" },
+  { token: "{username}", tip: "Username" },
+  { token: "{displayname}", tip: "Name in the server" },
+  { token: "{server}", tip: "Server name" },
+  { token: "{reason}", tip: "Sanction reason (moderation)" },
+  { token: "{moderator}", tip: "Moderator / bot name" },
+  { token: "{action}", tip: "Sanction type (warn, kick…)" },
+  { token: "{invite}", tip: "Re-entry invite (kick only)" },
+  { token: "{channel}", tip: "Channel name" },
+  { token: "{#canal}", tip: "Link to a channel" },
+  { token: "{&rol}", tip: "Role mention" },
 ] as const;
 
 const TEXT_CHANNEL_TYPES = new Set<number>(MESSAGE_SEND_CHANNEL_TYPES);
@@ -255,7 +255,7 @@ export function EmbedBuilder() {
           setAssetsError(
             error instanceof Error
               ? error.message
-              : "No se pudieron cargar assets",
+              : "Couldn't load assets",
           );
         }
       });
@@ -309,25 +309,25 @@ export function EmbedBuilder() {
           setFeedback({
             kind: "ok",
             message:
-              "El mensaje ya no existía en Discord; se limpió el registro huérfano.",
+              "The message no longer existed in Discord; the orphaned record was cleaned up.",
           });
         } else {
           setFeedback({
             kind: "ok",
-            message: `Mensaje actualizado en Discord (ID: ${result.entry.messageId}).`,
+            message: `Message updated in Discord (ID: ${result.entry.messageId}).`,
           });
         }
       } else {
         const result = await sendEmbedToLibrary(payload);
         setFeedback({
           kind: "ok",
-          message: `Mensaje enviado (ID: ${result.messageId}).`,
+          message: `Message sent (ID: ${result.messageId}).`,
         });
       }
     } catch (error: unknown) {
       setFeedback({
         kind: "error",
-        message: error instanceof Error ? error.message : "Error desconocido",
+        message: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -337,7 +337,7 @@ export function EmbedBuilder() {
     if (!name) {
       setFeedback({
         kind: "error",
-        message: "Escribe un nombre para la plantilla.",
+        message: "Enter a name for the template.",
       });
       return;
     }
@@ -355,13 +355,13 @@ export function EmbedBuilder() {
       setTemplateName("");
       setFeedback({
         kind: "ok",
-        message: `Plantilla «${result.template.name}» guardada.`,
+        message: `Template "${result.template.name}" saved.`,
       });
     } catch (error: unknown) {
       setFeedback({
         kind: "error",
         message:
-          error instanceof Error ? error.message : "No se pudo guardar",
+          error instanceof Error ? error.message : "Couldn't save",
       });
     } finally {
       setSavingTemplate(false);
@@ -376,7 +376,7 @@ export function EmbedBuilder() {
     setTopTab("creator");
     setFeedback({
       kind: "ok",
-      message: "Modo edición: al guardar se actualizará el mensaje en Discord.",
+      message: "Edit mode: saving will update the message in Discord.",
     });
   }
 
@@ -388,13 +388,13 @@ export function EmbedBuilder() {
       setTopTab("creator");
       setFeedback({
         kind: "ok",
-        message: `Plantilla «${detail.name}» cargada en el editor.`,
+        message: `Template "${detail.name}" loaded into the editor.`,
       });
     } catch (error: unknown) {
       setFeedback({
         kind: "error",
         message:
-          error instanceof Error ? error.message : "No se pudo cargar",
+          error instanceof Error ? error.message : "Couldn't load",
       });
     }
   }
@@ -407,13 +407,13 @@ export function EmbedBuilder() {
             active={topTab === "creator"}
             onClick={() => setTopTab("creator")}
           >
-            Creador de Embeds
+            Embed Creator
           </TabsTrigger>
           <TabsTrigger
             active={topTab === "library"}
             onClick={() => setTopTab("library")}
           >
-            Biblioteca (Mensajes y Plantillas)
+            Library (Messages and Templates)
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -433,7 +433,7 @@ export function EmbedBuilder() {
       {isEditing ? (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/40 bg-primary/10 px-4 py-3 text-sm">
           <span>
-            Editando mensaje enviado en Discord. Los cambios se aplicarán con{" "}
+            Editing a message sent in Discord. Changes will apply with{" "}
             <code className="text-xs">message.edit()</code>.
           </span>
           <Button
@@ -445,7 +445,7 @@ export function EmbedBuilder() {
               setFeedback({ kind: "idle" });
             }}
           >
-            Cancelar edición
+            Cancel editing
           </Button>
         </div>
       ) : null}
@@ -455,8 +455,8 @@ export function EmbedBuilder() {
             <CardHeader>
               <CardTitle>Message & Embed Builder</CardTitle>
               <CardDescription>
-                Texto, embed, emojis del servidor y botones de acción.
-                {assets ? ` Servidor: ${assets.guildName}` : null}
+                Text, embed, server emoji, and action buttons.
+                {assets ? ` Server: ${assets.guildName}` : null}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -472,13 +472,13 @@ export function EmbedBuilder() {
                     active={tab === "contenido"}
                     onClick={() => setTab("contenido")}
                   >
-                    Contenido
+                    Content
                   </TabsTrigger>
                   <TabsTrigger
                     active={tab === "imagenes"}
                     onClick={() => setTab("imagenes")}
                   >
-                    Imágenes
+                    Images
                   </TabsTrigger>
                   <TabsTrigger
                     active={tab === "extra"}
@@ -491,7 +491,7 @@ export function EmbedBuilder() {
                 {tab === "general" && (
                   <TabsContent className="space-y-5">
                     <div className="space-y-2">
-                      <Label htmlFor="channelId">Canal destino *</Label>
+                      <Label htmlFor="channelId">Destination channel *</Label>
                       {textChannels.length > 0 ? (
                         <Select
                           value={form.channelId || undefined}
@@ -501,7 +501,7 @@ export function EmbedBuilder() {
                           }
                         >
                           <SelectTrigger id="channelId">
-                            <SelectValue placeholder="Selecciona un canal…" />
+                            <SelectValue placeholder="Select a channel…" />
                           </SelectTrigger>
                           <SelectContent>
                             {textChannels.map((channel) => (
@@ -533,7 +533,7 @@ export function EmbedBuilder() {
                     <div className="space-y-2">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <Label htmlFor="message-content">
-                          Mensaje (fuera del embed)
+                          Message (outside the embed)
                         </Label>
                         <div
                           onFocusCapture={() => setEmojiTarget("content")}
@@ -560,7 +560,7 @@ export function EmbedBuilder() {
                         }
                         maxLength={2000}
                         disabled={isSubmitting}
-                        placeholder="Texto opcional encima del embed…"
+                        placeholder="Optional text above the embed…"
                       />
                     </div>
 
@@ -578,7 +578,7 @@ export function EmbedBuilder() {
                         />
                         <input
                           type="color"
-                          aria-label="Selector de color"
+                          aria-label="Color picker"
                           className="h-10 w-12 cursor-pointer rounded-md border border-input bg-background p-1"
                           value={previewColor}
                           onChange={(event) =>
@@ -594,7 +594,7 @@ export function EmbedBuilder() {
                 {tab === "contenido" && (
                   <TabsContent className="space-y-5">
                     <div className="space-y-2">
-                      <Label htmlFor="message-title">Título</Label>
+                      <Label htmlFor="message-title">Title</Label>
                       <Input
                         id="message-title"
                         value={form.title ?? ""}
@@ -607,7 +607,7 @@ export function EmbedBuilder() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="message-url">URL del título</Label>
+                      <Label htmlFor="message-url">Title URL</Label>
                       <Input
                         id="message-url"
                         value={form.url ?? ""}
@@ -619,7 +619,7 @@ export function EmbedBuilder() {
 
                     <div className="space-y-2">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <Label htmlFor="message-description">Descripción</Label>
+                        <Label htmlFor="message-description">Description</Label>
                         <div
                           onFocusCapture={() => setEmojiTarget("description")}
                           onClick={() => setEmojiTarget("description")}
@@ -646,7 +646,7 @@ export function EmbedBuilder() {
                         }
                         maxLength={4096}
                         disabled={isSubmitting}
-                        placeholder="Texto del embed…"
+                        placeholder="Embed text…"
                       />
                     </div>
 
@@ -662,7 +662,7 @@ export function EmbedBuilder() {
                   <TabsContent className="space-y-5">
                     <HybridImageInput
                       id="message-imageUrl"
-                      label="Imagen principal"
+                      label="Main image"
                       value={form.imageUrl}
                       onChange={(next) => update("imageUrl", next)}
                       disabled={isSubmitting}
@@ -680,7 +680,7 @@ export function EmbedBuilder() {
                 {tab === "extra" && (
                   <TabsContent className="space-y-5">
                     <div className="space-y-2">
-                      <Label htmlFor="message-authorName">Autor</Label>
+                      <Label htmlFor="message-authorName">Author</Label>
                       <Input
                         id="message-authorName"
                         value={form.authorName ?? ""}
@@ -693,7 +693,7 @@ export function EmbedBuilder() {
                     </div>
                     <HybridImageInput
                       id="message-authorIconUrl"
-                      label="Icono del autor"
+                      label="Author icon"
                       value={form.authorIconUrl}
                       onChange={(next) => update("authorIconUrl", next)}
                       disabled={isSubmitting}
@@ -713,7 +713,7 @@ export function EmbedBuilder() {
                     </div>
                     <HybridImageInput
                       id="message-footerIconUrl"
-                      label="Icono del footer"
+                      label="Footer icon"
                       value={form.footerIconUrl}
                       onChange={(next) => update("footerIconUrl", next)}
                       disabled={isSubmitting}
@@ -727,7 +727,7 @@ export function EmbedBuilder() {
                           update("timestamp", checked === true)
                         }
                       />
-                      Mostrar timestamp (hora actual) en el embed
+                      Show timestamp (current time) in the embed
                     </label>
                   </TabsContent>
                 )}
@@ -755,11 +755,11 @@ export function EmbedBuilder() {
                 )}
                 {isSubmitting
                   ? isEditing
-                    ? "Actualizando…"
-                    : "Enviando…"
+                    ? "Updating…"
+                    : "Sending…"
                   : isEditing
-                    ? "Actualizar Mensaje en Discord"
-                    : "Enviar mensaje"}
+                    ? "Update Message in Discord"
+                    : "Send message"}
               </Button>
               <Button
                 type="button"
@@ -771,7 +771,7 @@ export function EmbedBuilder() {
                 }}
               >
                 <Save className="size-4" aria-hidden />
-                Guardar como Plantilla
+                Save as Template
               </Button>
             </div>
 
@@ -800,7 +800,7 @@ export function EmbedBuilder() {
         <div className="space-y-4 lg:sticky lg:top-6 lg:self-start">
           <div className="overflow-hidden rounded-lg border border-border bg-[#2b2d31] text-white shadow-sm">
             <div className="border-b border-white/10 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white/60">
-              Vista previa
+              Preview
             </div>
             <div className="space-y-3 p-4">
               {form.content?.trim() && (
@@ -913,7 +913,7 @@ export function EmbedBuilder() {
                         {form.footerText?.trim()}
                         {form.footerText?.trim() && form.timestamp ? " • " : ""}
                         {form.timestamp
-                          ? new Date().toLocaleString("es-MX", {
+                          ? new Date().toLocaleString("en-US", {
                               dateStyle: "short",
                               timeStyle: "short",
                             })
@@ -939,7 +939,7 @@ export function EmbedBuilder() {
                             STYLE_PREVIEW[button.style],
                           )}
                         >
-                          {button.label || "Botón"}
+                          {button.label || "Button"}
                         </span>
                       ))}
                     </div>
@@ -952,9 +952,9 @@ export function EmbedBuilder() {
           {assets && assets.stickers.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Stickers del servidor</CardTitle>
+                <CardTitle>Server stickers</CardTitle>
                 <CardDescription>
-                  Referencia visual (envío en una iteración posterior).
+                  Visual reference (sending in a later iteration).
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -975,7 +975,7 @@ export function EmbedBuilder() {
 
           <VariableListBase
             items={VARIABLE_HINTS}
-            description="Clic para copiar. En moderación se interpolan al enviar el DM."
+            description="Click to copy. In moderation they are interpolated when the DM is sent."
           />
         </div>
       </div>
@@ -984,25 +984,25 @@ export function EmbedBuilder() {
 
       <AlertDialog
         open={saveModalOpen}
-        title="Guardar como Plantilla"
+        title="Save as Template"
         description={
           <div className="space-y-3">
-            <p>Guarda el embed actual sin enviarlo a Discord.</p>
+            <p>Save the current embed without sending it to Discord.</p>
             <div className="space-y-2">
-              <Label htmlFor="save-template-name">Nombre descriptivo</Label>
+              <Label htmlFor="save-template-name">Descriptive name</Label>
               <Input
                 id="save-template-name"
                 value={templateName}
                 onChange={(event) => setTemplateName(event.target.value)}
-                placeholder="ej. Warn DM, Anuncio…"
+                placeholder="e.g. Warn DM, Announcement…"
                 disabled={savingTemplate}
                 autoFocus
               />
             </div>
           </div>
         }
-        confirmLabel="Guardar plantilla"
-        cancelLabel="Cancelar"
+        confirmLabel="Save template"
+        cancelLabel="Cancel"
         confirming={savingTemplate}
         onCancel={() => setSaveModalOpen(false)}
         onConfirm={() => void onConfirmSaveTemplate()}

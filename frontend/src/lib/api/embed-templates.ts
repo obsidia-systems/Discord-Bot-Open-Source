@@ -44,7 +44,7 @@ export async function listEmbedTemplates(
     throw new Error(
       await readApiError(
         response,
-        `Error al listar plantillas (${response.status})`,
+        `Couldn't list templates (${response.status})`,
       ),
     );
   }
@@ -66,7 +66,7 @@ export async function fetchEmbedTemplate(
     throw new Error(
       await readApiError(
         response,
-        `Error al cargar plantilla (${response.status})`,
+        `Couldn't load template (${response.status})`,
       ),
     );
   }
@@ -140,7 +140,7 @@ export async function saveEmbedTemplate(
     throw new Error(
       await readApiError(
         response,
-        `Error al guardar plantilla (${response.status})`,
+        `Couldn't save template (${response.status})`,
       ),
     );
   }
@@ -162,7 +162,7 @@ export async function deleteEmbedTemplate(
     throw new Error(
       await readApiError(
         response,
-        `Error al eliminar plantilla (${response.status})`,
+        `Couldn't delete template (${response.status})`,
       ),
     );
   }

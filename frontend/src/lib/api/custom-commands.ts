@@ -12,7 +12,7 @@ export async function fetchCustomCommands(): Promise<CustomCommandsListResponse>
     throw new Error(
       await readApiError(
         response,
-        `No se pudieron cargar los comandos (${response.status})`,
+        `Couldn't load the commands (${response.status})`,
       ),
     );
   }
@@ -34,7 +34,7 @@ export async function createCustomCommand(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo crear el comando (${response.status})`,
+        `Couldn't create the command (${response.status})`,
       ),
     );
   }
@@ -57,7 +57,7 @@ export async function updateCustomCommand(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo actualizar el comando (${response.status})`,
+        `Couldn't update the command (${response.status})`,
       ),
     );
   }
@@ -80,7 +80,7 @@ export async function toggleCustomCommand(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cambiar el estado (${response.status})`,
+        `Couldn't change the status (${response.status})`,
       ),
     );
   }
@@ -96,7 +96,7 @@ export async function syncCustomCommands(): Promise<{ ok: boolean; count: number
     throw new Error(
       await readApiError(
         response,
-        `No se pudo sincronizar con Discord (${response.status})`,
+        `Couldn't sync with Discord (${response.status})`,
       ),
     );
   }
@@ -111,7 +111,7 @@ export async function deleteCustomCommand(id: number): Promise<void> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo eliminar el comando (${response.status})`,
+        `Couldn't delete the command (${response.status})`,
       ),
     );
   }

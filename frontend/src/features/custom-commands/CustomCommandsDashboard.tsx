@@ -126,10 +126,10 @@ function MiniEmbedPreview({ embed }: { embed: CustomCommandEmbed }) {
         />
         <div className="min-w-0 flex-1 space-y-2 p-3">
           <p className="text-sm font-semibold text-white">
-            {embed.title || "Sin título"}
+            {embed.title || "Untitled"}
           </p>
           <p className="whitespace-pre-wrap leading-relaxed">
-            {embed.description || "Sin descripción"}
+            {embed.description || "No description"}
           </p>
           {image ? (
             <img
@@ -163,9 +163,9 @@ function VariablesReferenceCard() {
   return (
     <Card className="sticky top-4 self-start">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Referencia de Variables</CardTitle>
+        <CardTitle className="text-base">Variables Reference</CardTitle>
         <CardDescription>
-          Haz clic para copiar un token al portapapeles.
+          Click to copy a token to the clipboard.
         </CardDescription>
       </CardHeader>
       <CardContent className="max-h-[70vh] overflow-y-auto">
@@ -277,7 +277,7 @@ export function CustomCommandsDashboard() {
       setError(
         err instanceof Error
           ? err.message
-          : "No se pudieron cargar los comandos.",
+          : "Couldn't load the commands.",
       );
     } finally {
       setLoading(false);
@@ -291,7 +291,7 @@ export function CustomCommandsDashboard() {
   const openCreate = () => {
     if (atCustomLimit) {
       setError(
-        `Has alcanzado el límite de ${customCap} Custom Commands de este plan.`,
+        `You've reached this plan's limit of ${customCap} Custom Commands.`,
       );
       return;
     }
@@ -343,11 +343,11 @@ export function CustomCommandsDashboard() {
   const save = async () => {
     const name = normalizeCustomCommandName(draft.name);
     if (!isValidCustomCommandName(name)) {
-      setError("Nombre inválido: solo minúsculas, números, _ y - (máx. 32).");
+      setError("Invalid name: only lowercase, numbers, _ and - (max. 32).");
       return;
     }
     if (!draft.description.trim()) {
-      setError("La descripción es obligatoria.");
+      setError("The description is required.");
       return;
     }
     const responseData: CustomCommandResponseData = {
@@ -357,7 +357,7 @@ export function CustomCommandsDashboard() {
         : null,
     };
     if (!responseData.content.trim() && !responseData.embed) {
-      setError("Añade texto de respuesta o activa el embed.");
+      setError("Add response text or enable the embed.");
       return;
     }
 
@@ -376,7 +376,7 @@ export function CustomCommandsDashboard() {
       if (editingId == null) {
         if (atCustomLimit) {
           setError(
-            `Has alcanzado el límite de ${customCap} Custom Commands de este plan.`,
+            `You've reached this plan's limit of ${customCap} Custom Commands.`,
           );
           setSaving(false);
           return;
@@ -384,28 +384,28 @@ export function CustomCommandsDashboard() {
         const res = await createCustomCommand(body);
         setEditingId(res.command.id);
         setDraft(commandToDraft(res.command));
-        setSuccess(`Comando /${res.command.name} guardado.`);
+        setSuccess(`Command /${res.command.name} saved.`);
         if (res.synced === false) {
           setError(
             res.warning ??
-              "Guardado en el panel, pero Discord no se actualizó. Usa Re-sync.",
+              "Saved in the dashboard, but Discord wasn't updated. Use Re-sync.",
           );
         }
       } else {
         const res = await updateCustomCommand(editingId, body);
         setDraft(commandToDraft(res.command));
-        setSuccess(`Comando /${res.command.name} guardado.`);
+        setSuccess(`Command /${res.command.name} saved.`);
         if (res.synced === false) {
           setError(
             res.warning ??
-              "Guardado en el panel, pero Discord no se actualizó. Usa Re-sync.",
+              "Saved in the dashboard, but Discord wasn't updated. Use Re-sync.",
           );
         }
       }
       await load();
       setMainTab("list");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar.");
+      setError(err instanceof Error ? err.message : "Couldn't save.");
     } finally {
       setSaving(false);
     }
@@ -422,12 +422,12 @@ export function CustomCommandsDashboard() {
       if (res.synced === false) {
         setError(
           res.warning ??
-            "Estado guardado, pero Discord no se actualizó. Usa Re-sync.",
+            "Status saved, but Discord wasn't updated. Use Re-sync.",
         );
       }
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "No se pudo cambiar el estado.",
+        err instanceof Error ? err.message : "Couldn't change the status.",
       );
     } finally {
       setTogglingId(null);
@@ -439,9 +439,9 @@ export function CustomCommandsDashboard() {
     setError(null);
     try {
       const res = await syncCustomCommands();
-      setSuccess(`Sincronizados ${res.count} slash con Discord.`);
+      setSuccess(`Synced ${res.count} slash commands with Discord.`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo sincronizar.");
+      setError(err instanceof Error ? err.message : "Couldn't sync.");
     } finally {
       setSyncing(false);
     }
@@ -450,7 +450,7 @@ export function CustomCommandsDashboard() {
   const onDelete = async (command: CustomCommand) => {
     if (
       !window.confirm(
-        `¿Eliminar \`/${command.name}\`? Se quitará también de Discord.`,
+        `Delete \`/${command.name}\`? It will also be removed from Discord.`,
       )
     ) {
       return;
@@ -463,10 +463,10 @@ export function CustomCommandsDashboard() {
         setDraft(emptyDraft());
         setMainTab("list");
       }
-      setSuccess(`Comando /${command.name} eliminado.`);
+      setSuccess(`Command /${command.name} deleted.`);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo eliminar.");
+      setError(err instanceof Error ? err.message : "Couldn't delete.");
     }
   };
 
@@ -474,7 +474,7 @@ export function CustomCommandsDashboard() {
     return (
       <div className="flex min-h-[40vh] items-center justify-center gap-2 text-muted-foreground">
         <Loader2 className="size-5 animate-spin" aria-hidden />
-        Cargando Custom Commands…
+        Loading Custom Commands…
       </div>
     );
   }
@@ -501,7 +501,7 @@ export function CustomCommandsDashboard() {
                 active={mainTab === "list"}
                 onClick={() => setMainTab("list")}
               >
-                Mis Comandos
+                My Commands
               </TabsTrigger>
               <TabsTrigger
                 type="button"
@@ -510,7 +510,7 @@ export function CustomCommandsDashboard() {
                   if (mainTab !== "builder") openCreate();
                 }}
               >
-                Crear/Editar
+                Create/Edit
               </TabsTrigger>
             </TabsList>
 
@@ -519,8 +519,8 @@ export function CustomCommandsDashboard() {
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm text-muted-foreground">
                     {commands.length === 0
-                      ? "Aún no hay comandos."
-                      : `${commands.length}${isUnlimited("customCommands") ? "" : ` / ${customCap}`} comando${commands.length === 1 ? "" : "s"}`}
+                      ? "No commands yet."
+                      : `${commands.length}${isUnlimited("customCommands") ? "" : ` / ${customCap}`} command${commands.length === 1 ? "" : "s"}`}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <Button
@@ -544,7 +544,7 @@ export function CustomCommandsDashboard() {
                       disabled={atCustomLimit}
                     >
                       <Plus className="size-4" aria-hidden />
-                      Nuevo
+                      New
                     </Button>
                   </div>
                 </div>
@@ -553,15 +553,15 @@ export function CustomCommandsDashboard() {
                   <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-primary/40 bg-primary/5 px-6 py-14 text-center">
                     <Terminal className="size-8 text-primary/70" aria-hidden />
                     <p className="text-sm font-medium">
-                      No hay Custom Commands
+                      No Custom Commands
                     </p>
                     <p className="max-w-sm text-xs text-muted-foreground">
-                      Crea slash commands como{" "}
-                      <code className="rounded bg-muted px-1">/reglas</code> con
-                      texto, embeds y variables.
+                      Create slash commands like{" "}
+                      <code className="rounded bg-muted px-1">/rules</code> with
+                      text, embeds, and variables.
                     </p>
                     <Button type="button" onClick={openCreate}>
-                      Crear comando
+                      Create command
                     </Button>
                   </div>
                 ) : (
@@ -576,7 +576,7 @@ export function CustomCommandsDashboard() {
                                   /{command.name}
                                 </p>
                                 {command.options.ephemeral ? (
-                                  <Badge>Silencioso</Badge>
+                                  <Badge>Silent</Badge>
                                 ) : null}
                                 {command.options.dmResponse ? (
                                   <Badge>DM</Badge>
@@ -588,7 +588,7 @@ export function CustomCommandsDashboard() {
                                       : undefined
                                   }
                                 >
-                                  {command.isActive ? "Activo" : "Pausado"}
+                                  {command.isActive ? "Active" : "Paused"}
                                 </Badge>
                               </div>
                               <p className="truncate text-sm text-muted-foreground">
@@ -605,8 +605,8 @@ export function CustomCommandsDashboard() {
                                   }
                                   aria-label={
                                     command.isActive
-                                      ? "Desactivar comando"
-                                      : "Activar comando"
+                                      ? "Disable command"
+                                      : "Enable command"
                                   }
                                 />
                                 <span className="text-xs text-muted-foreground">
@@ -624,7 +624,7 @@ export function CustomCommandsDashboard() {
                                 onClick={() => openEdit(command)}
                               >
                                 <Pencil className="size-3.5" aria-hidden />
-                                Editar
+                                Edit
                               </Button>
                               <Button
                                 type="button"
@@ -634,7 +634,7 @@ export function CustomCommandsDashboard() {
                                 onClick={() => void onDelete(command)}
                               >
                                 <Trash2 className="size-3.5" aria-hidden />
-                                Eliminar
+                                Delete
                               </Button>
                             </div>
                           </CardContent>
@@ -660,14 +660,14 @@ export function CustomCommandsDashboard() {
                       active={builderTab === "options"}
                       onClick={() => setBuilderTab("options")}
                     >
-                      Opciones
+                      Options
                     </TabsTrigger>
                     <TabsTrigger
                       type="button"
                       active={builderTab === "permissions"}
                       onClick={() => setBuilderTab("permissions")}
                     >
-                      Permisos
+                      Permissions
                     </TabsTrigger>
                   </TabsList>
 
@@ -676,22 +676,22 @@ export function CustomCommandsDashboard() {
                       <Card>
                         <CardHeader className="pb-3">
                           <CardTitle className="text-base">
-                            Identidad del slash
+                            Slash identity
                           </CardTitle>
                           <CardDescription>
-                            Nombre y descripción visibles en Discord.
+                            Name and description shown in Discord.
                           </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                           <div className="space-y-1.5">
-                            <Label htmlFor="cc-name">Nombre</Label>
+                            <Label htmlFor="cc-name">Name</Label>
                             <div className="flex items-center gap-2">
                               <span className="text-muted-foreground">/</span>
                               <Input
                                 id="cc-name"
                                 value={draft.name}
                                 maxLength={32}
-                                placeholder="reglas"
+                                placeholder="rules"
                                 className={cn(
                                   "font-mono",
                                   !nameValid && "border-destructive",
@@ -707,15 +707,15 @@ export function CustomCommandsDashboard() {
                               />
                             </div>
                             <p className="text-[11px] text-muted-foreground">
-                              Solo minúsculas, números, guiones y guiones bajos
-                              (máx. 32). Regex:{" "}
+                              Only lowercase, numbers, hyphens, and underscores
+                              (max. 32). Regex:{" "}
                               <code className="rounded bg-muted px-1">
                                 {CUSTOM_COMMAND_NAME_REGEX.source}
                               </code>
                             </p>
                           </div>
                           <div className="space-y-1.5">
-                            <Label htmlFor="cc-desc">Descripción</Label>
+                            <Label htmlFor="cc-desc">Description</Label>
                             <Input
                               id="cc-desc"
                               value={draft.description}
@@ -731,10 +731,10 @@ export function CustomCommandsDashboard() {
                           <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
                             <div>
                               <p className="text-sm font-medium">
-                                Activo en Discord
+                                Active in Discord
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                OFF quita el slash sin borrar el comando.
+                                OFF removes the slash command without deleting it.
                               </p>
                             </div>
                             <Switch
@@ -752,21 +752,21 @@ export function CustomCommandsDashboard() {
 
                       <Card>
                         <CardHeader className="pb-3">
-                          <CardTitle className="text-base">Respuesta</CardTitle>
+                          <CardTitle className="text-base">Response</CardTitle>
                           <CardDescription>
-                            Texto plano y/o embed. Usa variables de la columna
-                            derecha.
+                            Plain text and/or embed. Use variables from the
+                            right column.
                           </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                           <div className="space-y-1.5">
-                            <Label htmlFor="cc-content">Texto</Label>
+                            <Label htmlFor="cc-content">Text</Label>
                             <Textarea
                               id="cc-content"
                               rows={4}
                               value={draft.responseData.content}
                               maxLength={2000}
-                              placeholder="Hola {user}! Bienvenido a {server}."
+                              placeholder="Hi {user}! Welcome to {server}."
                               onChange={(e) =>
                                 setDraft((prev) => ({
                                   ...prev,
@@ -782,10 +782,10 @@ export function CustomCommandsDashboard() {
                           <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
                             <div>
                               <p className="text-sm font-medium">
-                                Incluir embed
+                                Include embed
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                Mini constructor de embed Discord.
+                                Mini Discord embed builder.
                               </p>
                             </div>
                             <Switch
@@ -824,7 +824,7 @@ export function CustomCommandsDashboard() {
                                   />
                                 </div>
                                 <div className="space-y-1.5">
-                                  <Label>Título</Label>
+                                  <Label>Title</Label>
                                   <Input
                                     value={
                                       draft.responseData.embed?.title ?? ""
@@ -837,7 +837,7 @@ export function CustomCommandsDashboard() {
                                 </div>
                               </div>
                               <div className="space-y-1.5">
-                                <Label>Descripción</Label>
+                                <Label>Description</Label>
                                 <Textarea
                                   rows={3}
                                   value={
@@ -852,7 +852,7 @@ export function CustomCommandsDashboard() {
                                 />
                               </div>
                               <div className="space-y-1.5">
-                                <Label>Imagen URL (opcional)</Label>
+                                <Label>Image URL (optional)</Label>
                                 <Input
                                   type="url"
                                   placeholder="https://… o /uploads/…"
@@ -882,9 +882,9 @@ export function CustomCommandsDashboard() {
                     <TabsContent className="mt-4">
                       <Card>
                         <CardHeader className="pb-3">
-                          <CardTitle className="text-base">Opciones</CardTitle>
+                          <CardTitle className="text-base">Options</CardTitle>
                           <CardDescription>
-                            Comportamiento al ejecutar el comando.
+                            Behavior when the command runs.
                           </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-3">
@@ -892,38 +892,38 @@ export function CustomCommandsDashboard() {
                             [
                               {
                                 key: "ephemeral" as const,
-                                label: "Respuesta silenciosa",
-                                help: "Solo el usuario que ejecuta ve la respuesta (ephemeral).",
+                                label: "Silent response",
+                                help: "Only the user who runs it sees the response (ephemeral).",
                               },
                               {
                                 key: "dmResponse" as const,
-                                label: "Respuesta por DM",
-                                help: "Envía el contenido al privado en lugar del canal.",
+                                label: "Response by DM",
+                                help: "Sends the content to DMs instead of the channel.",
                               },
                               {
                                 key: "autoDelete" as const,
-                                label: "Auto-eliminar respuesta",
-                                help: "Borra la respuesta del bot a los 15 segundos.",
+                                label: "Auto-delete response",
+                                help: "Deletes the bot's response after 15 seconds.",
                               },
                               {
                                 key: "disableMentions" as const,
-                                label: "Desactivar pings",
-                                help: "Nadie recibe notificación, ni siquiera {user}.",
+                                label: "Disable pings",
+                                help: "Nobody gets a notification, not even {user}.",
                               },
                               {
                                 key: "allowEveryone" as const,
-                                label: "Permitir @everyone / @here",
-                                help: "Solo entonces {everyone} y {here} notifican. Apagado por defecto.",
+                                label: "Allow @everyone / @here",
+                                help: "Only then do {everyone} and {here} notify. Off by default.",
                               },
                               {
                                 key: "acceptText" as const,
-                                label: "Opción texto",
-                                help: "Añade /comando texto:… y el token {text}.",
+                                label: "Text option",
+                                help: "Adds /command text:… and the {text} token.",
                               },
                               {
                                 key: "acceptUser" as const,
-                                label: "Opción usuario",
-                                help: "Añade /comando usuario:@… y el token {target}.",
+                                label: "User option",
+                                help: "Adds /command user:@… and the {target} token.",
                               },
                             ] as const
                           ).map((item) => (
@@ -949,7 +949,7 @@ export function CustomCommandsDashboard() {
                           ))}
                           <div className="space-y-1.5 pt-2">
                             <Label htmlFor="cc-cooldown">
-                              Cooldown (segundos)
+                              Cooldown (seconds)
                             </Label>
                             <Input
                               id="cc-cooldown"
@@ -967,7 +967,7 @@ export function CustomCommandsDashboard() {
                               }
                             />
                             <p className="text-[11px] text-muted-foreground">
-                              0 = sin límite entre usos por usuario.
+                              0 = no limit between uses per user.
                             </p>
                           </div>
                         </CardContent>
@@ -979,15 +979,15 @@ export function CustomCommandsDashboard() {
                     <TabsContent className="mt-4">
                       <Card>
                         <CardHeader className="pb-3">
-                          <CardTitle className="text-base">Permisos</CardTitle>
+                          <CardTitle className="text-base">Permissions</CardTitle>
                           <CardDescription>
-                            Vacío = sin restricción. Ignorados tienen prioridad
-                            sobre permitidos.
+                            Empty = no restriction. Ignored takes priority over
+                            allowed.
                           </CardDescription>
                         </CardHeader>
                         <CardContent className="grid gap-4 sm:grid-cols-2">
                           <RoleMultiSelect
-                            label="Roles permitidos"
+                            label="Allowed roles"
                             roles={roleOptions}
                             value={draft.permissions.allowedRoleIds}
                             onChange={(allowedRoleIds) =>
@@ -995,7 +995,7 @@ export function CustomCommandsDashboard() {
                             }
                           />
                           <RoleMultiSelect
-                            label="Roles ignorados"
+                            label="Ignored roles"
                             roles={roleOptions}
                             value={draft.permissions.ignoredRoleIds}
                             onChange={(ignoredRoleIds) =>
@@ -1003,7 +1003,7 @@ export function CustomCommandsDashboard() {
                             }
                           />
                           <ChannelMultiSelect
-                            label="Canales permitidos"
+                            label="Allowed channels"
                             channels={channelOptions}
                             value={draft.permissions.allowedChannelIds}
                             onChange={(allowedChannelIds) =>
@@ -1011,7 +1011,7 @@ export function CustomCommandsDashboard() {
                             }
                           />
                           <ChannelMultiSelect
-                            label="Canales ignorados"
+                            label="Ignored channels"
                             channels={channelOptions}
                             value={draft.permissions.ignoredChannelIds}
                             onChange={(ignoredChannelIds) =>
@@ -1035,7 +1035,7 @@ export function CustomCommandsDashboard() {
                     ) : (
                       <Save className="size-4" aria-hidden />
                     )}
-                    Guardar y sincronizar
+                    Save and sync
                   </Button>
                   <Button
                     type="button"
@@ -1046,7 +1046,7 @@ export function CustomCommandsDashboard() {
                       setDraft(emptyDraft());
                     }}
                   >
-                    Cancelar
+                    Cancel
                   </Button>
                 </div>
               </TabsContent>

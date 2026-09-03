@@ -13,7 +13,7 @@ export async function fetchActionLogsConfig(): Promise<ActionLogsConfigResponse>
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar la configuración (${response.status})`,
+        `Couldn't load the settings (${response.status})`,
       ),
     );
   }
@@ -35,7 +35,7 @@ export async function saveActionLogsConfig(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo guardar la configuración (${response.status})`,
+        `Couldn't save the settings (${response.status})`,
       ),
     );
   }
@@ -63,7 +63,7 @@ export async function fetchActionLogsHistory(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar el historial (${response.status})`,
+        `Couldn't load history (${response.status})`,
       ),
     );
   }
@@ -80,7 +80,7 @@ export async function sendActionLogsTest(): Promise<ActionLogsTestResponse> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo enviar el embed de prueba (${response.status})`,
+        `Couldn't send the test embed (${response.status})`,
       ),
     );
   }

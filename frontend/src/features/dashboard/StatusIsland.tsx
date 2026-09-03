@@ -34,7 +34,7 @@ export function StatusIsland({ initialHealth = null }: StatusIslandProps) {
             ? prev
             : {
                 kind: "error",
-                message: error instanceof Error ? error.message : "Error desconocido",
+                message: error instanceof Error ? error.message : "Unknown error",
               },
         );
       });
@@ -51,19 +51,19 @@ export function StatusIsland({ initialHealth = null }: StatusIslandProps) {
     >
       <div className="flex items-center gap-2 text-sm font-medium text-foreground">
         <Activity className="size-4 text-primary" aria-hidden />
-        Estado del sistema
+        System status
       </div>
 
       {state.kind === "loading" && (
         <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" aria-hidden />
-          Comprobando API…
+          Checking API…
         </p>
       )}
 
       {state.kind === "error" && (
         <p className="mt-3 text-sm text-red-700 dark:text-red-400">
-          No se pudo contactar la API. Arranca el backend en el puerto 3000.
+          Couldn't reach the API. Start the backend on port 3000.
           <span className="mt-1 block text-muted-foreground">{state.message}</span>
         </p>
       )}
@@ -91,7 +91,7 @@ export function StatusIsland({ initialHealth = null }: StatusIslandProps) {
               )}
             >
               <Bot className="size-4" aria-hidden />
-              {state.data.botReady ? "Conectado" : "Desconectado / sin token"}
+              {state.data.botReady ? "Connected" : "Disconnected / no token"}
             </dd>
           </div>
         </dl>

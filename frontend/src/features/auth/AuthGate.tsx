@@ -51,16 +51,16 @@ export function AuthGate() {
   if (empty && me) {
     return (
       <div className="flex min-h-[30vh] flex-col items-center justify-center gap-3 px-6 py-10 text-center">
-        <h2 className="font-display text-lg font-semibold">Sin servidores</h2>
+        <h2 className="font-display text-lg font-semibold">No servers</h2>
         <p className="max-w-md text-sm text-muted-foreground">
-          Añade Adobos a un servidor donde puedas Gestionar servidor. Discord
-          te pedirá los permisos; luego vuelve y entra con tu cuenta.
+          Add Adobos to a server where you can Manage Server. Discord will ask
+          for the permissions; then come back and sign in with your account.
         </p>
         <a
           href="/auth/invite"
           className="inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
         >
-          Añadir a un servidor
+          Add to a server
         </a>
         <button
           type="button"
@@ -72,7 +72,7 @@ export function AuthGate() {
             });
           }}
         >
-          Cerrar sesión
+          Sign out
         </button>
       </div>
     );
@@ -81,7 +81,7 @@ export function AuthGate() {
   if (!me) {
     return (
       <div className="border-b border-border/70 px-4 py-2 text-sm text-muted-foreground lg:px-8">
-        Comprobando sesión…
+        Checking session…
       </div>
     );
   }
@@ -101,7 +101,7 @@ export function AuthGate() {
     <div className="border-b border-border/70 bg-card/40">
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 text-sm lg:px-8">
         <label className="flex min-w-0 items-center gap-2">
-          <span className="shrink-0 text-muted-foreground">Servidor</span>
+          <span className="shrink-0 text-muted-foreground">Server</span>
           <select
             className="max-w-[16rem] truncate rounded-md border border-border bg-background px-2 py-1"
             value={selected}
@@ -112,7 +112,7 @@ export function AuthGate() {
           >
             {me.guilds.map((guild) => (
               <option key={guild.id} value={guild.id}>
-                {guild.botPresent ? guild.name : `${guild.name} (sin bot)`}
+                {guild.botPresent ? guild.name : `${guild.name} (no bot)`}
               </option>
             ))}
           </select>
@@ -137,20 +137,20 @@ export function AuthGate() {
               });
             }}
           >
-            Salir
+            Sign out
           </button>
         </div>
       </div>
       {selectedMissingBot ? (
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 px-4 py-2 text-sm lg:px-8">
           <p className="text-muted-foreground">
-            Adobos no está en este servidor. Añádelo para poder usar el panel.
+            Adobos isn't in this server. Add it to use the dashboard.
           </p>
           <a
             href={`/auth/invite?guildId=${encodeURIComponent(selectedGuild.id)}`}
             className="font-semibold text-primary hover:underline"
           >
-            Añadir al servidor
+            Add to the server
           </a>
         </div>
       ) : null}

@@ -53,7 +53,7 @@ export function EmbedLibraryPanel({
       setData(await fetchEmbedLibrary());
     } catch (error: unknown) {
       onToast(
-        error instanceof Error ? error.message : "No se pudo cargar la biblioteca",
+        error instanceof Error ? error.message : "Couldn't load the library",
         "error",
       );
     } finally {
@@ -72,15 +72,15 @@ export function EmbedLibraryPanel({
       const result = await deleteSentEmbed(deleteSentId);
       onToast(
         result.orphaned
-          ? "Registro limpio: el mensaje ya no existía en Discord."
-          : "Mensaje eliminado de Discord y del registro.",
+          ? "Record cleaned: the message no longer existed in Discord."
+          : "Message deleted from Discord and the registry.",
         "ok",
       );
       setDeleteSentId(null);
       await refresh();
     } catch (error: unknown) {
       onToast(
-        error instanceof Error ? error.message : "Error al eliminar",
+        error instanceof Error ? error.message : "Couldn't delete",
         "error",
       );
     } finally {
@@ -93,12 +93,12 @@ export function EmbedLibraryPanel({
     setBusy(true);
     try {
       await deleteEmbedTemplate(deleteTemplateId);
-      onToast("Plantilla eliminada.", "ok");
+      onToast("Template deleted.", "ok");
       setDeleteTemplateId(null);
       await refresh();
     } catch (error: unknown) {
       onToast(
-        error instanceof Error ? error.message : "Error al borrar plantilla",
+        error instanceof Error ? error.message : "Couldn't delete template",
         "error",
       );
     } finally {
@@ -108,7 +108,7 @@ export function EmbedLibraryPanel({
 
   function formatDate(iso: string): string {
     try {
-      return new Date(iso).toLocaleString("es-MX");
+      return new Date(iso).toLocaleString("en-US");
     } catch {
       return iso;
     }
@@ -125,7 +125,7 @@ export function EmbedLibraryPanel({
             active={subTab === "sent"}
             onClick={() => setSubTab("sent")}
           >
-            Mensajes Enviados
+            Sent Messages
           </TabsTrigger>
           <TabsTrigger
             active={subTab === "templates"}
@@ -137,16 +137,16 @@ export function EmbedLibraryPanel({
 
         {loading ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" /> Cargando…
+            <Loader2 className="size-4 animate-spin" /> Loading…
           </p>
         ) : subTab === "sent" ? (
           <TabsContent>
             {sent.length === 0 ? (
               <Card>
                 <CardHeader>
-                  <CardTitle>Sin mensajes enviados</CardTitle>
+                  <CardTitle>No messages sent</CardTitle>
                   <CardDescription>
-                    Los embeds que envíes desde el creador aparecerán aquí.
+                    Embeds you send from the creator will appear here.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -160,10 +160,10 @@ export function EmbedLibraryPanel({
                           {entry.title ||
                             entry.embedData.title ||
                             entry.embedData.content?.slice(0, 40) ||
-                            "Sin título"}
+                            "Untitled"}
                         </CardTitle>
                         <Badge className="border-sky-500/40 bg-sky-500/15 text-sky-300">
-                          Enviado
+                          Sent
                         </Badge>
                       </div>
                       <CardDescription>
@@ -181,7 +181,7 @@ export function EmbedLibraryPanel({
                         onClick={() => onEditSent(entry)}
                       >
                         <Pencil className="size-4" aria-hidden />
-                        Editar en Discord
+                        Edit in Discord
                       </Button>
                       <Button
                         type="button"
@@ -191,7 +191,7 @@ export function EmbedLibraryPanel({
                         onClick={() => setDeleteSentId(entry.id)}
                       >
                         <Trash2 className="size-4" aria-hidden />
-                        Eliminar de Discord
+                        Delete from Discord
                       </Button>
                     </CardContent>
                   </Card>
@@ -204,9 +204,9 @@ export function EmbedLibraryPanel({
             {templates.length === 0 ? (
               <Card>
                 <CardHeader>
-                  <CardTitle>Sin plantillas</CardTitle>
+                  <CardTitle>No templates</CardTitle>
                   <CardDescription>
-                    Usa «Guardar como Plantilla» en el creador.
+                    Use "Save as Template" in the creator.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -246,7 +246,7 @@ export function EmbedLibraryPanel({
                         onClick={() => setDeleteTemplateId(tpl.id)}
                       >
                         <Trash2 className="size-4" aria-hidden />
-                        Borrar Plantilla
+                        Delete Template
                       </Button>
                     </CardContent>
                   </Card>
@@ -259,9 +259,9 @@ export function EmbedLibraryPanel({
 
       <AlertDialog
         open={deleteSentId != null}
-        title="Eliminar mensaje de Discord"
-        description="Se borrará el mensaje en el canal y el registro local. Si ya no existe en Discord, solo se limpia el registro."
-        confirmLabel="Eliminar"
+        title="Delete message from Discord"
+        description="The message in the channel and the local record will be deleted. If it no longer exists in Discord, only the record is cleaned up."
+        confirmLabel="Delete"
         tone="destructive"
         confirming={busy}
         onCancel={() => setDeleteSentId(null)}
@@ -270,9 +270,9 @@ export function EmbedLibraryPanel({
 
       <AlertDialog
         open={deleteTemplateId != null}
-        title="Borrar plantilla"
-        description="Esta acción no se puede deshacer."
-        confirmLabel="Borrar"
+        title="Delete template"
+        description="This action can't be undone."
+        confirmLabel="Delete"
         tone="destructive"
         confirming={busy}
         onCancel={() => setDeleteTemplateId(null)}

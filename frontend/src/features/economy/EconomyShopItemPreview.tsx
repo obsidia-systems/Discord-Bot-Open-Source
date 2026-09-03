@@ -72,7 +72,7 @@ function DiscordShell({ children }: { children: ReactNode }) {
             <span className="rounded bg-[#5865F2] px-1 py-px text-[10px] font-semibold uppercase leading-none text-white">
               App
             </span>
-            <span className="text-[11px] text-[#949ba4]">Hoy a las 12:00</span>
+            <span className="text-[11px] text-[#949ba4]">Today at 12:00</span>
           </div>
           {children}
         </div>
@@ -104,7 +104,7 @@ export function EconomyShopItemPreview({
     <div className={cn("space-y-3", className)}>
       <DiscordShell>
         <p className="text-[#dbdee1]">
-          @UsuarioDePrueba usó{" "}
+          @SampleUser used{" "}
           <span className="text-[#00a8fc]">/shop</span>
         </p>
         <div className="mt-1 overflow-hidden rounded-sm bg-[#2b2d31]">
@@ -116,17 +116,17 @@ export function EconomyShopItemPreview({
             <div className="min-w-0 flex-1 space-y-2 p-3">
               <p className="flex items-center gap-2 text-sm font-semibold text-white">
                 <IconMark icon={item.icon} />
-                {item.name || "Nombre del ítem"}
+                {item.name || "Item name"}
               </p>
               <p className="whitespace-pre-wrap leading-relaxed text-[#dbdee1]">
-                {item.description || "Sin descripción."}
+                {item.description || "No description."}
               </p>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div>
-                  <p className="font-semibold text-white">Precio</p>
+                  <p className="font-semibold text-white">Price</p>
                   <p>
-                    {item.price.toLocaleString("es-MX")}{" "}
-                    {currencyName || "monedas"}
+                    {item.price.toLocaleString("en-US")}{" "}
+                    {currencyName || "coins"}
                   </p>
                 </div>
                 <div>
@@ -141,11 +141,11 @@ export function EconomyShopItemPreview({
 
       <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2.5">
         <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          Beneficios
+          Benefits
         </p>
         {summary.length === 0 ? (
           <p className="mt-1 text-xs text-muted-foreground">
-            Activa al menos una recompensa.
+            Enable at least one reward.
           </p>
         ) : (
           <ul className="mt-1.5 space-y-1 text-xs text-foreground">

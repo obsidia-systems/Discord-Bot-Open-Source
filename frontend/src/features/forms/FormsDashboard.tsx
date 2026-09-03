@@ -76,10 +76,10 @@ type BuilderTab = "message" | "questions" | "reception";
 const TEXT_CHANNEL_TYPES = new Set([0, 5]);
 
 const STYLE_LABELS: Record<FormQuestionStyle, string> = {
-  SHORT: "Texto corto",
-  PARAGRAPH: "Párrafo",
-  STRING_SELECT: "Desplegable",
-  FILE_UPLOAD: "Archivo",
+  SHORT: "Short text",
+  PARAGRAPH: "Paragraph",
+  STRING_SELECT: "Dropdown",
+  FILE_UPLOAD: "File",
 };
 
 function mediaToStored(value: HybridImageValue): string | null {
@@ -130,10 +130,10 @@ function FormsEmbedPreview({
           <div className="flex gap-3">
             <div className="min-w-0 flex-1 space-y-2">
               <p className="text-sm font-semibold text-white">
-                {form.embedTitle || "Sin título"}
+                {form.embedTitle || "Untitled"}
               </p>
               <p className="whitespace-pre-wrap leading-relaxed text-[#dbdee1]">
-                {form.embedDescription || "Sin descripción"}
+                {form.embedDescription || "No description"}
               </p>
             </div>
             {thumbPreview ? (
@@ -155,7 +155,7 @@ function FormsEmbedPreview({
             type="button"
             className="mt-1 rounded bg-[#5865f2] px-3 py-1.5 text-xs font-medium text-white"
           >
-            {form.buttonLabel || "Abrir formulario"}
+            {form.buttonLabel || "Open form"}
           </button>
         </div>
       </div>
@@ -168,13 +168,13 @@ function FormsModalPreview({ form }: { form: InteractiveForm }) {
     <div className="overflow-hidden rounded-xl border border-[#1e1f22] bg-[#313338] shadow-xl">
       <div className="border-b border-black/20 px-4 py-3">
         <p className="text-sm font-semibold text-white">
-          {form.modalTitle || "Formulario"}
+          {form.modalTitle || "Form"}
         </p>
       </div>
       <div className="space-y-3 px-4 py-3">
         {form.questions.length === 0 ? (
           <p className="text-xs text-[#b5bac1]">
-            Añade preguntas para ver el modal.
+            Add questions to see the modal.
           </p>
         ) : (
           form.questions.map((q) => (
@@ -203,10 +203,10 @@ function FormsModalPreview({ form }: { form: InteractiveForm }) {
       </div>
       <div className="flex justify-end gap-2 border-t border-black/20 px-4 py-3">
         <span className="rounded px-3 py-1.5 text-xs text-[#b5bac1]">
-          Cancelar
+          Cancel
         </span>
         <span className="rounded bg-[#5865f2] px-3 py-1.5 text-xs font-medium text-white">
-          Enviar
+          Submit
         </span>
       </div>
     </div>
@@ -261,7 +261,7 @@ export function FormsDashboard() {
 
   const channelName = useCallback(
     (channelId: string | null) => {
-      if (!channelId) return "Sin canal";
+      if (!channelId) return "No channel";
       return (
         textChannels.find((ch) => ch.id === channelId)?.name ?? channelId
       );
@@ -300,7 +300,7 @@ export function FormsDashboard() {
       setTemplates(templatesRes.templates);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "No se pudo cargar Forms.",
+        err instanceof Error ? err.message : "Couldn't load Forms.",
       );
     } finally {
       setLoading(false);
@@ -331,7 +331,7 @@ export function FormsDashboard() {
       await load();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "No se pudo crear el formulario.",
+        err instanceof Error ? err.message : "Couldn't create the form.",
       );
     }
   };
@@ -399,12 +399,12 @@ export function FormsDashboard() {
       }));
       setImageValue(image);
       setThumbValue(thumb);
-      setSuccess(`Plantilla «${detail.name}» cargada.`);
+      setSuccess(`Template "${detail.name}" loaded.`);
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "No se pudo cargar la plantilla.",
+          : "Couldn't load the template.",
       );
       setTemplateId("none");
     }
@@ -435,7 +435,7 @@ export function FormsDashboard() {
 
   const save = async () => {
     if (editingId == null) {
-      setError("No hay formulario en edición.");
+      setError("No form being edited.");
       return;
     }
     setSaving(true);
@@ -444,10 +444,10 @@ export function FormsDashboard() {
     try {
       const res = await saveForm(editingId, payload());
       applyFormToDraft(res.form);
-      setSuccess("Formulario guardado.");
+      setSuccess("Form saved.");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar.");
+      setError(err instanceof Error ? err.message : "Couldn't save.");
     } finally {
       setSaving(false);
     }
@@ -455,7 +455,7 @@ export function FormsDashboard() {
 
   const publish = async () => {
     if (editingId == null) {
-      setError("No hay formulario en edición.");
+      setError("No form being edited.");
       return;
     }
     setPublishing(true);
@@ -464,10 +464,10 @@ export function FormsDashboard() {
     try {
       const res = await publishForm(editingId, payload());
       applyFormToDraft(res.form);
-      setSuccess("Formulario publicado en Discord.");
+      setSuccess("Form published to Discord.");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo publicar.");
+      setError(err instanceof Error ? err.message : "Couldn't publish.");
     } finally {
       setPublishing(false);
     }
@@ -476,7 +476,7 @@ export function FormsDashboard() {
   const onDelete = async (form: InteractiveForm) => {
     if (
       !window.confirm(
-        `¿Eliminar «${form.embedTitle}»? Se borrarán sus respuestas y el mensaje publicado (si existe).`,
+        `Delete "${form.embedTitle}"? Its responses and the published message (if any) will be deleted.`,
       )
     ) {
       return;
@@ -489,10 +489,10 @@ export function FormsDashboard() {
         setDraft(defaultInteractiveForm());
         setMainTab("list");
       }
-      setSuccess("Formulario eliminado.");
+      setSuccess("Form deleted.");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo eliminar.");
+      setError(err instanceof Error ? err.message : "Couldn't delete.");
     }
   };
 
@@ -509,7 +509,7 @@ export function FormsDashboard() {
       setError(
         err instanceof Error
           ? err.message
-          : "No se pudieron cargar las respuestas.",
+          : "Couldn't load the responses.",
       );
       setResponses([]);
     } finally {
@@ -521,7 +521,7 @@ export function FormsDashboard() {
     return (
       <div className="flex min-h-[40vh] items-center justify-center gap-2 text-muted-foreground">
         <Loader2 className="size-5 animate-spin" aria-hidden />
-        Cargando Forms…
+        Loading Forms…
       </div>
     );
   }
@@ -546,7 +546,7 @@ export function FormsDashboard() {
             active={mainTab === "list"}
             onClick={() => setMainTab("list")}
           >
-            Mis Formularios
+            My Forms
           </TabsTrigger>
           <TabsTrigger
             type="button"
@@ -558,7 +558,7 @@ export function FormsDashboard() {
               }
             }}
           >
-            {editingId != null ? "Crear/Editar" : "Crear/Editar"}
+            {editingId != null ? "Create/Edit" : "Create/Edit"}
           </TabsTrigger>
         </TabsList>
 
@@ -567,7 +567,7 @@ export function FormsDashboard() {
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm text-muted-foreground">
                 {forms.length === 0
-                  ? "Aún no hay formularios."
+                  ? "No forms yet."
                   : `${forms.length}/${FORMS_MAX_PER_GUILD} formulario${forms.length === 1 ? "" : "s"}`}
               </p>
               <Button
@@ -577,7 +577,7 @@ export function FormsDashboard() {
                 onClick={() => void openCreate()}
               >
                 <Plus className="size-4" aria-hidden />
-                Nuevo
+                New
               </Button>
             </div>
 
@@ -587,13 +587,13 @@ export function FormsDashboard() {
                   className="size-8 text-primary/70"
                   aria-hidden
                 />
-                <p className="text-sm font-medium">No hay formularios</p>
+                <p className="text-sm font-medium">No forms</p>
                 <p className="max-w-sm text-xs text-muted-foreground">
-                  Crea un formulario interactivo con modal de Discord y canal
-                  de recepción.
+                  Create an interactive form with a Discord modal and a
+                  reception channel.
                 </p>
                 <Button type="button" onClick={() => void openCreate()}>
-                  Crear formulario
+                  Create form
                 </Button>
               </div>
             ) : (
@@ -611,23 +611,23 @@ export function FormsDashboard() {
                               {form.responseCount} resp.
                             </Badge>
                             {form.enabled ? null : (
-                              <Badge>Cerrado</Badge>
+                              <Badge>Closed</Badge>
                             )}
                             {form.submitMode === "once" ? (
-                              <Badge>Una vez</Badge>
+                              <Badge>Once</Badge>
                             ) : null}
                             {form.publishedMessageId ? (
                               <Badge className="border-primary/40 bg-primary/15 text-primary">
-                                Publicado
+                                Published
                               </Badge>
                             ) : null}
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            Recepción: #{channelName(form.receptionChannelId)}
+                            Reception: #{channelName(form.receptionChannelId)}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {form.questions.length}/{FORMS_MAX_QUESTIONS}{" "}
-                            preguntas
+                            questions
                             {form.cooldownMinutes > 0
                               ? ` · Cooldown ${form.cooldownMinutes} min`
                               : ""}
@@ -640,7 +640,7 @@ export function FormsDashboard() {
                             onClick={() => void openResponses(form)}
                           >
                             <Eye className="size-3.5" aria-hidden />
-                            Ver Respuestas
+                            View Responses
                           </Button>
                           <Button
                             type="button"
@@ -649,7 +649,7 @@ export function FormsDashboard() {
                             onClick={() => openEdit(form)}
                           >
                             <Pencil className="size-3.5" aria-hidden />
-                            Editar
+                            Edit
                           </Button>
                           <Button
                             type="button"
@@ -659,7 +659,7 @@ export function FormsDashboard() {
                             onClick={() => void onDelete(form)}
                           >
                             <Trash2 className="size-3.5" aria-hidden />
-                            Eliminar
+                            Delete
                           </Button>
                         </div>
                       </CardContent>
@@ -680,21 +680,21 @@ export function FormsDashboard() {
                       active={builderTab === "message"}
                       onClick={() => setBuilderTab("message")}
                     >
-                      1. Mensaje Base
+                      1. Base Message
                     </TabsTrigger>
                     <TabsTrigger
                       type="button"
                       active={builderTab === "questions"}
                       onClick={() => setBuilderTab("questions")}
                     >
-                      2. Preguntas (Modal)
+                      2. Questions (Modal)
                     </TabsTrigger>
                     <TabsTrigger
                       type="button"
                       active={builderTab === "reception"}
                       onClick={() => setBuilderTab("reception")}
                     >
-                      3. Recepción
+                      3. Reception
                     </TabsTrigger>
                   </TabsList>
 
@@ -703,16 +703,16 @@ export function FormsDashboard() {
                       <Card>
                         <CardHeader className="pb-3">
                           <CardTitle className="text-base">
-                            Embed de invitación
+                            Invitation embed
                           </CardTitle>
                           <CardDescription>
-                            Mensaje con botón que abre el modal.
+                            Message with a button that opens the modal.
                           </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                           <div className="space-y-1.5">
                             <Label>
-                              Cargar desde Plantilla de Embed (Opcional)
+                              Load from an Embed Template (Optional)
                             </Label>
                             <Select
                               value={templateId}
@@ -723,14 +723,14 @@ export function FormsDashboard() {
                                 <SelectValue
                                   placeholder={
                                     templates.length === 0
-                                      ? "No hay plantillas"
-                                      : "Selecciona una plantilla"
+                                      ? "No templates"
+                                      : "Select a template"
                                   }
                                 />
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="none">
-                                  Sin plantilla
+                                  No template
                                 </SelectItem>
                                 {templates.map((tpl) => (
                                   <SelectItem
@@ -745,7 +745,7 @@ export function FormsDashboard() {
                           </div>
 
                           <div className="space-y-1.5">
-                            <Label>Canal de publicación</Label>
+                            <Label>Publish channel</Label>
                             <Select
                               value={draft.publishChannelId || undefined}
                               onValueChange={(value) =>
@@ -753,7 +753,7 @@ export function FormsDashboard() {
                               }
                             >
                               <SelectTrigger>
-                                <SelectValue placeholder="Seleccionar canal" />
+                                <SelectValue placeholder="Select channel" />
                               </SelectTrigger>
                               <SelectContent>
                                 {textChannels.map((ch) => (
@@ -766,7 +766,7 @@ export function FormsDashboard() {
                           </div>
 
                           <div className="space-y-1.5">
-                            <Label>Título del embed</Label>
+                            <Label>Embed title</Label>
                             <Input
                               value={draft.embedTitle}
                               maxLength={256}
@@ -776,7 +776,7 @@ export function FormsDashboard() {
                             />
                           </div>
                           <div className="space-y-1.5">
-                            <Label>Descripción</Label>
+                            <Label>Description</Label>
                             <Textarea
                               rows={4}
                               value={draft.embedDescription}
@@ -790,7 +790,7 @@ export function FormsDashboard() {
                           <div className="grid gap-4 sm:grid-cols-2">
                             <HybridImageInput
                               id="forms-image"
-                              label="Imagen principal"
+                              label="Main image"
                               value={imageValue}
                               uploadImmediately
                               onChange={(next) => {
@@ -837,7 +837,7 @@ export function FormsDashboard() {
                               </div>
                             </div>
                             <div className="space-y-1.5">
-                              <Label>Texto del botón</Label>
+                              <Label>Button text</Label>
                               <Input
                                 value={draft.buttonLabel}
                                 maxLength={80}
@@ -849,7 +849,7 @@ export function FormsDashboard() {
                           </div>
 
                           <div className="space-y-1.5">
-                            <Label>Título del modal</Label>
+                            <Label>Modal title</Label>
                             <Input
                               value={draft.modalTitle}
                               maxLength={45}
@@ -858,7 +858,7 @@ export function FormsDashboard() {
                               }
                             />
                             <p className="text-[11px] text-muted-foreground">
-                              Máximo 45 caracteres (límite de Discord).
+                              Maximum 45 characters (Discord limit).
                             </p>
                           </div>
                         </CardContent>
@@ -869,15 +869,15 @@ export function FormsDashboard() {
                   {builderTab === "questions" ? (
                     <TabsContent className="mt-4 space-y-4">
                       <p className="text-sm text-muted-foreground">
-                        Discord permite máximo {FORMS_MAX_QUESTIONS} campos por
-                        modal (texto, desplegable o archivo).
+                        Discord allows a maximum of {FORMS_MAX_QUESTIONS} fields per
+                        modal (text, dropdown, or file).
                       </p>
                       {draft.questions.map((question, index) => (
                         <Card key={question.id}>
                           <CardContent className="space-y-3 p-4">
                             <div className="flex items-start justify-between gap-2">
                               <p className="text-sm font-medium">
-                                {question.label || `Pregunta ${index + 1}`}
+                                {question.label || `Question ${index + 1}`}
                               </p>
                               <Button
                                 type="button"
@@ -890,7 +890,7 @@ export function FormsDashboard() {
                               </Button>
                             </div>
                             <div className="space-y-1.5">
-                              <Label>Título de la pregunta</Label>
+                              <Label>Question title</Label>
                               <Input
                                 value={question.label}
                                 maxLength={45}
@@ -907,7 +907,7 @@ export function FormsDashboard() {
                                 value={question.placeholder}
                                 maxLength={100}
                                 disabled={question.style === "FILE_UPLOAD"}
-                                placeholder="Texto de ayuda dentro del campo…"
+                                placeholder="Help text inside the field…"
                                 onChange={(e) =>
                                   updateQuestion(index, {
                                     placeholder: e.target.value,
@@ -917,7 +917,7 @@ export function FormsDashboard() {
                             </div>
                             {question.style === "STRING_SELECT" ? (
                               <div className="space-y-1.5">
-                                <Label>Opciones (una por línea)</Label>
+                                <Label>Options (one per line)</Label>
                                 <Textarea
                                   rows={4}
                                   value={question.options
@@ -941,7 +941,7 @@ export function FormsDashboard() {
                             ) : null}
                             <div className="grid gap-3 sm:grid-cols-2">
                               <div className="space-y-1.5">
-                                <Label>Tipo</Label>
+                                <Label>Type</Label>
                                 <Select
                                   value={question.style}
                                   onValueChange={(value) =>
@@ -968,7 +968,7 @@ export function FormsDashboard() {
                               </div>
                               <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
                                 <Label className="text-sm">
-                                  Campo obligatorio
+                                  Required field
                                 </Label>
                                 <Switch
                                   checked={question.required}
@@ -992,7 +992,7 @@ export function FormsDashboard() {
                         onClick={addQuestion}
                       >
                         <Plus className="size-4" aria-hidden />
-                        Añadir pregunta
+                        Add question
                         <Badge className="ml-1">
                           {draft.questions.length}/{FORMS_MAX_QUESTIONS}
                         </Badge>
@@ -1005,19 +1005,19 @@ export function FormsDashboard() {
                       <Card>
                         <CardHeader className="pb-3">
                           <CardTitle className="text-base">
-                            Canal de recepción
+                            Reception channel
                           </CardTitle>
                           <CardDescription>
-                            Aquí el bot enviará un embed con cada respuesta
-                            completada.
+                            The bot will send an embed here for every completed
+                            response.
                           </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                           <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
                             <div>
-                              <Label className="text-sm">Formulario abierto</Label>
+                              <Label className="text-sm">Form open</Label>
                               <p className="text-[11px] text-muted-foreground">
-                                Si está cerrado, el botón de Discord no acepta envíos.
+                                If closed, the Discord button doesn't accept submissions.
                               </p>
                             </div>
                             <Switch
@@ -1026,7 +1026,7 @@ export function FormsDashboard() {
                             />
                           </div>
                           <div className="space-y-1.5">
-                            <Label>Canal de logs</Label>
+                            <Label>Log channel</Label>
                             <Select
                               value={draft.receptionChannelId || undefined}
                               onValueChange={(value) =>
@@ -1034,7 +1034,7 @@ export function FormsDashboard() {
                               }
                             >
                               <SelectTrigger>
-                                <SelectValue placeholder="Seleccionar canal" />
+                                <SelectValue placeholder="Select channel" />
                               </SelectTrigger>
                               <SelectContent>
                                 {textChannels.map((ch) => (
@@ -1046,7 +1046,7 @@ export function FormsDashboard() {
                             </Select>
                           </div>
                           <div className="space-y-1.5">
-                            <Label>Envíos</Label>
+                            <Label>Submissions</Label>
                             <Select
                               value={draft.submitMode}
                               onValueChange={(value) =>
@@ -1061,17 +1061,17 @@ export function FormsDashboard() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="cooldown">
-                                  Cooldown (minutos)
+                                  Cooldown (minutes)
                                 </SelectItem>
                                 <SelectItem value="once">
-                                  Una sola vez por usuario
+                                  Once per user
                                 </SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
                           {draft.submitMode === "cooldown" ? (
                           <div className="space-y-1.5">
-                            <Label>Cooldown (Minutos)</Label>
+                            <Label>Cooldown (Minutes)</Label>
                             <Input
                               type="number"
                               min={0}
@@ -1087,22 +1087,22 @@ export function FormsDashboard() {
                               }
                             />
                             <p className="text-[11px] text-muted-foreground">
-                              Tiempo que debe esperar un usuario antes de volver
-                              a enviar este formulario. 0 = sin límite.
+                              Time a user must wait before submitting this form
+                              again. 0 = no limit.
                             </p>
                           </div>
                           ) : null}
                           <RoleMultiSelect
-                            label="Roles requeridos"
+                            label="Required roles"
                             roles={roles}
                             value={draft.requiredRoleIds}
                             onChange={(requiredRoleIds) =>
                               patch({ requiredRoleIds })
                             }
-                            emptyHint="Cualquiera puede enviar."
+                            emptyHint="Anyone can submit."
                           />
                           <RoleMultiSelect
-                            label="Roles bloqueados"
+                            label="Blocked roles"
                             roles={roles}
                             value={draft.blockedRoleIds}
                             onChange={(blockedRoleIds) =>
@@ -1110,7 +1110,7 @@ export function FormsDashboard() {
                             }
                           />
                           <div className="space-y-1.5">
-                            <Label>Ping al staff</Label>
+                            <Label>Ping staff</Label>
                             <Select
                               value={draft.pingRoleId || "none"}
                               onValueChange={(value) =>
@@ -1120,10 +1120,10 @@ export function FormsDashboard() {
                               }
                             >
                               <SelectTrigger>
-                                <SelectValue placeholder="Sin ping" />
+                                <SelectValue placeholder="No ping" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="none">Sin ping</SelectItem>
+                                <SelectItem value="none">No ping</SelectItem>
                                 {roles.map((role) => (
                                   <SelectItem key={role.id} value={role.id}>
                                     @{role.name}
@@ -1133,7 +1133,7 @@ export function FormsDashboard() {
                             </Select>
                           </div>
                           <div className="space-y-1.5">
-                            <Label>Rol al aceptar</Label>
+                            <Label>Role on accept</Label>
                             <Select
                               value={draft.acceptRoleId || "none"}
                               onValueChange={(value) =>
@@ -1143,10 +1143,10 @@ export function FormsDashboard() {
                               }
                             >
                               <SelectTrigger>
-                                <SelectValue placeholder="Ninguno" />
+                                <SelectValue placeholder="None" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="none">Ninguno</SelectItem>
+                                <SelectItem value="none">None</SelectItem>
                                 {roles.map((role) => (
                                   <SelectItem key={role.id} value={role.id}>
                                     @{role.name}
@@ -1156,7 +1156,7 @@ export function FormsDashboard() {
                             </Select>
                           </div>
                           <div className="space-y-1.5">
-                            <Label>Mensaje de confirmación</Label>
+                            <Label>Confirmation message</Label>
                             <Input
                               value={draft.thankYouMessage}
                               maxLength={500}
@@ -1174,11 +1174,11 @@ export function FormsDashboard() {
 
               <Card className="sticky top-4 self-start">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Vista previa</CardTitle>
+                  <CardTitle className="text-base">Preview</CardTitle>
                   <CardDescription>
                     {builderTab === "questions"
-                      ? "Modal de Discord"
-                      : "Mensaje de invitación"}
+                      ? "Discord modal"
+                      : "Invitation message"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1193,19 +1193,19 @@ export function FormsDashboard() {
                   )}
                   <div className="space-y-1 text-xs text-muted-foreground">
                     <p>
-                      Preguntas:{" "}
+                      Questions:{" "}
                       <span className="font-mono text-foreground">
                         {draft.questions.length}/{FORMS_MAX_QUESTIONS}
                       </span>
                     </p>
                     <p>
-                      Publicado:{" "}
+                      Published:{" "}
                       <span className="font-mono text-foreground">
-                        {draft.publishedMessageId ? "Sí" : "No"}
+                        {draft.publishedMessageId ? "Yes" : "No"}
                       </span>
                     </p>
                     {dirty ? (
-                      <p className="text-amber-500">Cambios sin guardar</p>
+                      <p className="text-amber-500">Unsaved changes</p>
                     ) : null}
                   </div>
                   <div className="flex flex-col gap-2">
@@ -1220,7 +1220,7 @@ export function FormsDashboard() {
                       ) : (
                         <Save className="size-4" aria-hidden />
                       )}
-                      Guardar
+                      Save
                     </Button>
                     <Button
                       type="button"
@@ -1232,7 +1232,7 @@ export function FormsDashboard() {
                       ) : (
                         <Send className="size-4" aria-hidden />
                       )}
-                      Publicar en Discord
+                      Publish to Discord
                     </Button>
                   </div>
                 </CardContent>
@@ -1247,10 +1247,10 @@ export function FormsDashboard() {
         onOpenChange={setResponsesOpen}
         title={
           responsesForm
-            ? `Respuestas · ${responsesForm.embedTitle || responsesForm.modalTitle}`
-            : "Respuestas"
+            ? `Responses · ${responsesForm.embedTitle || responsesForm.modalTitle}`
+            : "Responses"
         }
-        description={`${responses.length} envío${responses.length === 1 ? "" : "s"}`}
+        description={`${responses.length} submission${responses.length === 1 ? "" : "s"}`}
         className="max-w-3xl"
       >
         <div className="flex items-center justify-end gap-2 border-b border-border px-4 py-2">
@@ -1263,7 +1263,7 @@ export function FormsDashboard() {
               if (!responsesForm) return;
               void downloadFormResponsesCsv(responsesForm.id).catch((err) =>
                 setError(
-                  err instanceof Error ? err.message : "No se pudo exportar.",
+                  err instanceof Error ? err.message : "Couldn't export.",
                 ),
               );
             }}
@@ -1276,11 +1276,11 @@ export function FormsDashboard() {
           {loadingResponses ? (
             <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
               <Loader2 className="size-4 animate-spin" aria-hidden />
-              Cargando…
+              Loading…
             </div>
           ) : responses.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              Aún no hay respuestas para este formulario.
+              No responses for this form yet.
             </p>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-border">
@@ -1288,16 +1288,16 @@ export function FormsDashboard() {
                 <thead className="border-b border-border bg-muted/40">
                   <tr>
                     <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Usuario
+                      User
                     </th>
                     <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Fecha
+                      Date
                     </th>
                     <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Estado
+                      Status
                     </th>
                     <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Detalle
+                      Detail
                     </th>
                   </tr>
                 </thead>
@@ -1330,10 +1330,10 @@ export function FormsDashboard() {
                           <td className="px-3 py-2.5">
                             <Badge>
                               {row.status === "accepted"
-                                ? "Aceptada"
+                                ? "Accepted"
                                 : row.status === "rejected"
-                                  ? "Rechazada"
-                                  : "Pendiente"}
+                                  ? "Rejected"
+                                  : "Pending"}
                             </Badge>
                           </td>
                           <td className="px-3 py-2.5 text-right">
@@ -1345,7 +1345,7 @@ export function FormsDashboard() {
                                 setExpandedResponseId(open ? null : row.id)
                               }
                             >
-                              {open ? "Ocultar" : "Ver"}
+                              {open ? "Hide" : "View"}
                             </Button>
                           </td>
                         </tr>

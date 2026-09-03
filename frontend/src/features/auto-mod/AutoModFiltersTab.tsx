@@ -24,36 +24,36 @@ export function AutoModFiltersTab({
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground leading-relaxed">
-        Palabras, invitaciones y menciones se sincronizan con AutoMod nativo de
-        Discord al guardar: el mensaje no llega al canal. Zalgo, mayúsculas,
-        flood y ráfagas las cubre el bot. Hace falta el permiso Administrar
-        servidor.
+        Words, invites, and mentions sync with Discord's native AutoMod on
+        save: the message never reaches the channel. Zalgo, caps, flood, and
+        bursts are handled by the bot. The Manage Server permission is
+        required.
       </p>
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Filtros de texto</CardTitle>
+          <CardTitle className="text-base">Text filters</CardTitle>
           <CardDescription>
-            Detección heurística sobre el contenido del mensaje.
+            Heuristic detection over the message content.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <FilterToggle
             id="zalgo"
             label="Zalgo"
-            description="Bloquea texto con demasiados combining marks."
+            description="Blocks text with too many combining marks."
             checked={filters.zalgo}
             onCheckedChange={(zalgo) => onChange({ zalgo })}
           />
           <FilterToggle
             id="excessCaps"
-            label="Exceso de mayúsculas"
-            description="Umbral configurable de mayúsculas en el mensaje."
+            label="Excess caps"
+            description="Configurable caps threshold in the message."
             checked={filters.excessCaps}
             onCheckedChange={(excessCaps) => onChange({ excessCaps })}
           >
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="capsPercentage">Porcentaje máximo (%)</Label>
+                <Label htmlFor="capsPercentage">Maximum percentage (%)</Label>
                 <Input
                   id="capsPercentage"
                   type="number"
@@ -69,7 +69,7 @@ export function AutoModFiltersTab({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="capsMinLength">
-                  Longitud mínima (caracteres)
+                  Minimum length (characters)
                 </Label>
                 <Input
                   id="capsMinLength"
@@ -88,8 +88,8 @@ export function AutoModFiltersTab({
           </FilterToggle>
           <FilterToggle
             id="bannedWords"
-            label="Palabras prohibidas"
-            description="Bloquea en Discord (nativo) y en el bot. Palabra entera."
+            label="Banned words"
+            description="Blocks in Discord (native) and in the bot. Whole word."
             checked={filters.bannedWordsEnabled}
             onCheckedChange={(bannedWordsEnabled) =>
               onChange({ bannedWordsEnabled })
@@ -97,11 +97,11 @@ export function AutoModFiltersTab({
           >
             <TagListInput
               id="bannedWordsInput"
-              label="Lista"
+              label="List"
               values={filters.bannedWords}
               onChange={(bannedWords) => onChange({ bannedWords })}
-              placeholder="Escribe una palabra y presiona Enter..."
-              emptyHint="Añade palabras con Enter. Se guardan como etiquetas."
+              placeholder="Type a word and press Enter..."
+              emptyHint="Add words with Enter. They are saved as tags."
               maxItems={AUTO_MOD_MAX_BANNED_WORDS}
             />
           </FilterToggle>
@@ -110,33 +110,33 @@ export function AutoModFiltersTab({
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Filtros de enlaces</CardTitle>
+          <CardTitle className="text-base">Link filters</CardTitle>
           <CardDescription>
-            Invitaciones de Discord y URLs fuera de lista blanca.
+            Discord invites and URLs outside the allowlist.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <FilterToggle
             id="antiInvites"
-            label="Anti-Invitaciones de Discord"
+            label="Anti-Discord-invites"
             description="Nativo + bot. Cubre gg, discord.com/invite, ptb/canary, discord.new, spoilers y leet."
             checked={filters.antiInvites}
             onCheckedChange={(antiInvites) => onChange({ antiInvites })}
           />
           <FilterToggle
             id="antiLinks"
-            label="Anti-Links (lista blanca)"
-            description="Solo el bot (Discord no tiene allowlist de hosts genéricos)."
+            label="Anti-Links (allowlist)"
+            description="Bot only (Discord has no allowlist for generic hosts)."
             checked={filters.antiLinks}
             onCheckedChange={(antiLinks) => onChange({ antiLinks })}
           >
             <TagListInput
               id="allowedLinksInput"
-              label="Enlaces permitidos"
+              label="Allowed links"
               values={filters.allowedLinks}
               onChange={(allowedLinks) => onChange({ allowedLinks })}
-              placeholder="dominio.com y Enter..."
-              emptyHint="Añade dominios con Enter (ej. youtube.com)."
+              placeholder="domain.com and Enter..."
+              emptyHint="Add domains with Enter (e.g. youtube.com)."
               maxItems={AUTO_MOD_MAX_ALLOWED_LINKS}
             />
           </FilterToggle>
@@ -145,30 +145,30 @@ export function AutoModFiltersTab({
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Filtros de spam</CardTitle>
+          <CardTitle className="text-base">Spam filters</CardTitle>
           <CardDescription>
-            Ráfagas, repetición, menciones y muros de texto.
+            Bursts, repetition, mentions, and walls of text.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <FilterToggle
             id="messageSpam"
-            label="Spam de mensajes"
-            description="≥5 mensajes del mismo usuario en 4 segundos."
+            label="Message spam"
+            description="≥5 messages from the same user in 4 seconds."
             checked={filters.messageSpam}
             onCheckedChange={(messageSpam) => onChange({ messageSpam })}
           />
           <FilterToggle
             id="repeatedText"
-            label="Texto repetido"
-            description="Mismo contenido ≥3 veces en 12 segundos."
+            label="Repeated text"
+            description="Same content ≥3 times in 12 seconds."
             checked={filters.repeatedText}
             onCheckedChange={(repeatedText) => onChange({ repeatedText })}
           />
           <FilterToggle
             id="mentionSpam"
-            label="Spam de menciones"
-            description="Regla nativa de Discord (incluye protección ante raid de menciones)."
+            label="Mention spam"
+            description="Native Discord rule (includes mention-raid protection)."
             checked={filters.mentionSpam}
             onCheckedChange={(mentionSpam) => onChange({ mentionSpam })}
             headerExtra={
@@ -177,7 +177,7 @@ export function AutoModFiltersTab({
                   htmlFor="mentionLimit"
                   className="whitespace-nowrap text-[11px] font-normal text-muted-foreground"
                 >
-                  Máx.
+                  Max.
                 </Label>
                 <Input
                   id="mentionLimit"
@@ -197,14 +197,14 @@ export function AutoModFiltersTab({
           />
           <FilterToggle
             id="textFlood"
-            label="Muros de texto (Text Flood)"
-            description="Mensajes demasiado largos o con demasiados saltos de línea."
+            label="Walls of text (Text Flood)"
+            description="Messages that are too long or have too many line breaks."
             checked={filters.textFlood}
             onCheckedChange={(textFlood) => onChange({ textFlood })}
           >
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="floodMaxChars">Límite de caracteres</Label>
+                <Label htmlFor="floodMaxChars">Character limit</Label>
                 <Input
                   id="floodMaxChars"
                   type="number"
@@ -219,7 +219,7 @@ export function AutoModFiltersTab({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="floodMaxLines">Límite de saltos de línea</Label>
+                <Label htmlFor="floodMaxLines">Line break limit</Label>
                 <Input
                   id="floodMaxLines"
                   type="number"

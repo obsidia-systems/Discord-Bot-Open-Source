@@ -19,7 +19,7 @@ export async function uploadBackgroundFile(
     throw new Error(
       await readApiError(
         response,
-        `Error al subir imagen (${response.status})`,
+        `Couldn't upload image (${response.status})`,
       ),
     );
   }
@@ -42,7 +42,7 @@ export async function uploadImageFile(
     throw new Error(
       await readApiError(
         response,
-        `Error al subir imagen (${response.status})`,
+        `Couldn't upload image (${response.status})`,
       ),
     );
   }

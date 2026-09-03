@@ -122,7 +122,7 @@ export function AutoRepliesDashboard() {
       );
       setChannels(assets.channels);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo cargar.");
+      setError(err instanceof Error ? err.message : "Couldn't load.");
     } finally {
       setLoading(false);
     }
@@ -150,7 +150,7 @@ export function AutoRepliesDashboard() {
   async function onCreate(): Promise<void> {
     if (!creating) return;
     if (!creating.trigger.trim() || !creating.response.trim()) {
-      setError("Escribe un trigger y una respuesta.");
+      setError("Enter a trigger and a response.");
       return;
     }
     setSavingId("new");
@@ -159,10 +159,10 @@ export function AutoRepliesDashboard() {
     try {
       await createAutoReply(payload(creating));
       setCreating(null);
-      setSuccess("Auto-Reply creada.");
+      setSuccess("Auto-reply created.");
       await load();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo crear.");
+      setError(err instanceof Error ? err.message : "Couldn't create.");
     } finally {
       setSavingId(null);
     }
@@ -171,7 +171,7 @@ export function AutoRepliesDashboard() {
   async function onSave(id: number): Promise<void> {
     const draft = drafts[id];
     if (!draft?.trigger.trim() || !draft.response.trim()) {
-      setError("Escribe un trigger y una respuesta.");
+      setError("Enter a trigger and a response.");
       return;
     }
     setSavingId(id);
@@ -179,10 +179,10 @@ export function AutoRepliesDashboard() {
     setSuccess(null);
     try {
       await updateAutoReply(id, payload(draft));
-      setSuccess("Auto-Reply guardada.");
+      setSuccess("Auto-reply saved.");
       await load();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar.");
+      setError(err instanceof Error ? err.message : "Couldn't save.");
     } finally {
       setSavingId(null);
     }
@@ -194,10 +194,10 @@ export function AutoRepliesDashboard() {
     setSuccess(null);
     try {
       await deleteAutoReply(id);
-      setSuccess("Auto-Reply borrada.");
+      setSuccess("Auto-reply deleted.");
       await load();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo borrar.");
+      setError(err instanceof Error ? err.message : "Couldn't delete.");
     } finally {
       setSavingId(null);
     }
@@ -205,7 +205,7 @@ export function AutoRepliesDashboard() {
 
   function openCreate(): void {
     if (atLimit) {
-      setError(`Has alcanzado el límite de ${cap} Auto-Replies de este plan.`);
+      setError(`You've reached this plan's limit of ${cap} auto-replies.`);
       return;
     }
     setCreating(emptyDraft());
@@ -215,7 +215,7 @@ export function AutoRepliesDashboard() {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin text-primary" />
-        Cargando Auto-Replies…
+        Loading auto-replies…
       </div>
     );
   }
@@ -237,12 +237,12 @@ export function AutoRepliesDashboard() {
         <CardHeader>
           <CardTitle>Auto-Replies</CardTitle>
           <CardDescription>
-            Si un mensaje coincide con el trigger, el bot responde. No es
-            Custom Commands (eso es slash) ni Auto-Mod (eso filtra). Tokens:{" "}
+            When a message matches the trigger, the bot replies. This is not
+            Custom Commands (those are slash) or Auto-Mod (that filters). Tokens:{" "}
             {"{user}"} {"{username}"} {"{server}"} {"{channel}"}.{" "}
             {isUnlimited("autoReplies")
-              ? `${replies.length} reglas.`
-              : `${replies.length} / ${cap} reglas.`}
+              ? `${replies.length} rules.`
+              : `${replies.length} / ${cap} rules.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -253,7 +253,7 @@ export function AutoRepliesDashboard() {
             disabled={atLimit || creating !== null}
           >
             <Plus className="size-4" aria-hidden />
-            Nueva regla
+            New rule
           </Button>
         </CardContent>
       </Card>
@@ -266,14 +266,14 @@ export function AutoRepliesDashboard() {
           onChange={setCreating}
           onSave={() => void onCreate()}
           onCancel={() => setCreating(null)}
-          submitLabel="Crear"
+          submitLabel="Create"
         />
       ) : null}
 
       {replies.length === 0 && !creating ? (
         <p className="text-sm text-muted-foreground">
-          Aún no hay reglas. Ejemplo: trigger <code>hola</code>, respuesta{" "}
-          <code>¡Hola {"{user}"}!</code>.
+          No rules yet. Example: trigger <code>hi</code>, response{" "}
+          <code>Hi {"{user}"}!</code>.
         </p>
       ) : (
         replies.map((row) => {
@@ -289,7 +289,7 @@ export function AutoRepliesDashboard() {
               }
               onSave={() => void onSave(row.id)}
               onDelete={() => void onDelete(row.id)}
-              submitLabel="Guardar"
+              submitLabel="Save"
             />
           );
         })
@@ -338,14 +338,14 @@ function ReplyForm({
               value={draft.trigger}
               maxLength={AUTO_REPLY_TRIGGER_MAX}
               disabled={saving}
-              placeholder="hola"
+              placeholder="hi"
               onChange={(event) =>
                 onChange({ ...draft, trigger: event.target.value })
               }
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Coincidencia</Label>
+            <Label>Match</Label>
             <Select
               value={draft.matchMode}
               onValueChange={(value) =>
@@ -371,12 +371,12 @@ function ReplyForm({
         </div>
 
         <div className="space-y-1.5">
-          <Label>Respuesta</Label>
+          <Label>Response</Label>
           <Textarea
             value={draft.response}
             maxLength={AUTO_REPLY_RESPONSE_MAX}
             disabled={saving}
-            placeholder="¡Hola {user}!"
+            placeholder="Hi {user}!"
             onChange={(event) =>
               onChange({ ...draft, response: event.target.value })
             }
@@ -410,7 +410,7 @@ function ReplyForm({
               onCheckedChange={(enabled) => onChange({ ...draft, enabled })}
               disabled={saving}
             />
-            <Label htmlFor={enabledId}>Activa</Label>
+            <Label htmlFor={enabledId}>Enabled</Label>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <Switch
@@ -419,7 +419,7 @@ function ReplyForm({
               onCheckedChange={(useReply) => onChange({ ...draft, useReply })}
               disabled={saving}
             />
-            <Label htmlFor={replyId}>Responder al mensaje (reply)</Label>
+            <Label htmlFor={replyId}>Reply to the message</Label>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <Switch
@@ -430,7 +430,7 @@ function ReplyForm({
               }
               disabled={saving}
             />
-            <Label htmlFor={caseId}>Distinguir mayúsculas</Label>
+            <Label htmlFor={caseId}>Case-sensitive</Label>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <Switch
@@ -439,22 +439,22 @@ function ReplyForm({
               onCheckedChange={(wholeWord) => onChange({ ...draft, wholeWord })}
               disabled={saving}
             />
-            <Label htmlFor={wordId}>Palabra completa (hola ≠ holanda)</Label>
+            <Label htmlFor={wordId}>Whole word (hi ≠ history)</Label>
           </div>
         </div>
 
         <ChannelMultiSelect
-          label="Solo en estos canales (vacío = todos)"
+          label="Only in these channels (empty = all)"
           channels={channelOptions}
           value={draft.allowedChannelIds}
           onChange={(allowedChannelIds) =>
             onChange({ ...draft, allowedChannelIds })
           }
           disabled={saving}
-          emptyHint="Todos los canales de texto."
+          emptyHint="All text channels."
         />
         <ChannelMultiSelect
-          label="Ignorar canales"
+          label="Ignored channels"
           channels={channelOptions}
           value={draft.ignoredChannelIds}
           onChange={(ignoredChannelIds) =>
@@ -479,7 +479,7 @@ function ReplyForm({
               disabled={saving}
               onClick={onCancel}
             >
-              Cancelar
+              Cancel
             </Button>
           ) : null}
           {onDelete ? (
@@ -490,7 +490,7 @@ function ReplyForm({
               onClick={onDelete}
             >
               <Trash2 className="size-4" />
-              Borrar
+              Delete
             </Button>
           ) : null}
         </div>

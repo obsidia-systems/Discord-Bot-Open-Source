@@ -12,7 +12,7 @@ export async function fetchStreamAlerts(): Promise<StreamAlertsConfigResponse> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar Stream Alerts (${response.status})`,
+        `Couldn't load Stream Alerts (${response.status})`,
       ),
     );
   }
@@ -34,7 +34,7 @@ export async function createStreamAlert(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo crear la alerta (${response.status})`,
+        `Couldn't create the alert (${response.status})`,
       ),
     );
   }
@@ -58,7 +58,7 @@ export async function updateStreamAlert(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo guardar la alerta (${response.status})`,
+        `Couldn't save the alert (${response.status})`,
       ),
     );
   }
@@ -74,7 +74,7 @@ export async function deleteStreamAlert(id: number): Promise<void> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo borrar la alerta (${response.status})`,
+        `Couldn't delete the alert (${response.status})`,
       ),
     );
   }

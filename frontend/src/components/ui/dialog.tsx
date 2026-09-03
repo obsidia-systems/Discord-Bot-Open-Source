@@ -44,7 +44,7 @@ export function Dialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
         type="button"
-        aria-label="Cerrar"
+        aria-label="Close"
         className="absolute inset-0 bg-black/60"
         onClick={() => onOpenChange(false)}
       />
@@ -83,7 +83,7 @@ export function Dialog({
             size="icon"
             className="absolute right-2 top-2 z-10 size-7"
             onClick={() => onOpenChange(false)}
-            aria-label="Cerrar"
+            aria-label="Close"
           >
             <X className="size-3.5" aria-hidden />
           </Button>

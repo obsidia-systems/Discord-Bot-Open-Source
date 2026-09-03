@@ -144,7 +144,7 @@ const leaderboardColumns: ColumnDef<LevelsLeaderboardEntry, unknown>[] = [
   },
   {
     id: "user",
-    header: "Usuario",
+    header: "User",
     cell: ({ row }) => {
       const e = row.original;
       return (
@@ -166,20 +166,20 @@ const leaderboardColumns: ColumnDef<LevelsLeaderboardEntry, unknown>[] = [
   },
   {
     accessorKey: "level",
-    header: "Nivel",
+    header: "Level",
     cell: ({ row }) => (
       <Badge className="normal-case tracking-normal font-mono text-xs">
-        Nv. {row.original.level}
+        Lv. {row.original.level}
       </Badge>
     ),
     meta: { className: "w-24" },
   },
   {
     accessorKey: "xp",
-    header: "XP total",
+    header: "Total XP",
     cell: ({ row }) => (
       <span className="font-mono text-xs">
-        {row.original.xp.toLocaleString("es-MX")}
+        {row.original.xp.toLocaleString("en-US")}
       </span>
     ),
     meta: { className: "w-28" },
@@ -270,11 +270,11 @@ export function LevelsDashboard() {
   );
 
   const liveChannelLabel = useMemo(() => {
-    if (!config.liveLeaderboardChannelId) return "Sin configurar";
+    if (!config.liveLeaderboardChannelId) return "Not configured";
     const ch = textChannels.find(
       (c) => c.id === config.liveLeaderboardChannelId,
     );
-    return ch ? `#${ch.name}` : "Canal configurado";
+    return ch ? `#${ch.name}` : "Configured channel";
   }, [config.liveLeaderboardChannelId, textChannels]);
 
   const loadLeaderboard = useCallback(async () => {
@@ -287,7 +287,7 @@ export function LevelsDashboard() {
       setError(
         err instanceof Error
           ? err.message
-          : "No se pudo cargar la clasificación.",
+          : "Couldn't load the leaderboard.",
       );
     } finally {
       setLeaderboardLoading(false);
@@ -309,7 +309,7 @@ export function LevelsDashboard() {
       setGuildIconUrl(assets.iconUrl ?? null);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "No se pudo cargar Levels.",
+        err instanceof Error ? err.message : "Couldn't load Levels.",
       );
     } finally {
       setLoading(false);
@@ -452,10 +452,10 @@ export function LevelsDashboard() {
       });
       setConfig(res.config);
       setSavedFingerprint(configFingerprint(res.config));
-      setSuccess("Configuración de Levels guardada.");
+      setSuccess("Levels configuration saved.");
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "No se pudo guardar la config.",
+        err instanceof Error ? err.message : "Couldn't save the config.",
       );
     } finally {
       setSaving(false);
@@ -466,7 +466,7 @@ export function LevelsDashboard() {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" />
-        Cargando Levels…
+        Loading Levels…
       </div>
     );
   }
@@ -499,28 +499,28 @@ export function LevelsDashboard() {
                 active={tab === "xp"}
                 onClick={() => setTab("xp")}
               >
-                Ajustes de XP
+                XP Settings
               </TabsTrigger>
               <TabsTrigger
                 className="w-full"
                 active={tab === "rewards"}
                 onClick={() => setTab("rewards")}
               >
-                Recompensas
+                Rewards
               </TabsTrigger>
               <TabsTrigger
                 className="w-full"
                 active={tab === "leaderboard"}
                 onClick={() => setTab("leaderboard")}
               >
-                Clasificación
+                Leaderboard
               </TabsTrigger>
               <TabsTrigger
                 className="w-full"
                 active={tab === "discord"}
                 onClick={() => setTab("discord")}
               >
-                Discord y Exclusiones
+                Discord and Exclusions
               </TabsTrigger>
             </TabsList>
 
@@ -529,14 +529,14 @@ export function LevelsDashboard() {
                 <div className="space-y-4">
                   <Card>
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Texto</CardTitle>
+                      <CardTitle className="text-base">Text</CardTitle>
                       <CardDescription>
-                        XP aleatoria por mensaje con cooldown anti-spam.
+                        Random XP per message with an anti-spam cooldown.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <div className="flex items-center justify-between gap-3">
-                        <Label htmlFor="textXpMin">XP mínima</Label>
+                        <Label htmlFor="textXpMin">Minimum XP</Label>
                         <Input
                           id="textXpMin"
                           type="number"
@@ -552,7 +552,7 @@ export function LevelsDashboard() {
                         />
                       </div>
                       <div className="flex items-center justify-between gap-3">
-                        <Label htmlFor="textXpMax">XP máxima</Label>
+                        <Label htmlFor="textXpMax">Maximum XP</Label>
                         <Input
                           id="textXpMax"
                           type="number"
@@ -569,7 +569,7 @@ export function LevelsDashboard() {
                       </div>
                       <div className="flex items-center justify-between gap-3">
                         <Label htmlFor="cooldownSeconds">
-                          Cooldown (segundos)
+                          Cooldown (seconds)
                         </Label>
                         <Input
                           id="cooldownSeconds"
@@ -590,17 +590,17 @@ export function LevelsDashboard() {
 
                   <Card>
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Voz</CardTitle>
+                      <CardTitle className="text-base">Voice</CardTitle>
                       <CardDescription>
-                        XP por minuto en canales de voz (sin mute/deafen).
+                        XP per minute in voice channels (not muted/deafened).
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0 space-y-0.5">
-                          <Label htmlFor="voiceXpPerMinute">XP por minuto</Label>
+                          <Label htmlFor="voiceXpPerMinute">XP per minute</Label>
                           <p className="text-xs text-muted-foreground">
-                            Solo cuenta miembros activos en voz.
+                            Only counts members active in voice.
                           </p>
                         </div>
                         <div className="flex shrink-0 items-center gap-3">
@@ -633,11 +633,11 @@ export function LevelsDashboard() {
                         <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-4">
                           <div className="min-w-0 space-y-0.5">
                             <Label htmlFor="streamMultiplier">
-                              Bonus por transmitir pantalla (Stream)
+                              Screen-share bonus (Stream)
                             </Label>
                             <p className="text-xs text-muted-foreground">
-                              Ej: 1.5 dará 50% más de XP por minuto al hacer
-                              stream.
+                              E.g.: 1.5 gives 50% more XP per minute while
+                              streaming.
                             </p>
                           </div>
                           <div className="relative shrink-0">
@@ -667,14 +667,14 @@ export function LevelsDashboard() {
 
                   <Card>
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Multiplicador</CardTitle>
+                      <CardTitle className="text-base">Multiplier</CardTitle>
                       <CardDescription>
-                        Escala global de XP (texto y voz).
+                        Global XP scale (text and voice).
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
                       <div className="flex items-center justify-between gap-3">
-                        <Label htmlFor="xpMultiplier">Multiplicador base</Label>
+                        <Label htmlFor="xpMultiplier">Base multiplier</Label>
                         <Input
                           id="xpMultiplier"
                           type="number"
@@ -702,11 +702,11 @@ export function LevelsDashboard() {
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">
-                        Multiplicadores Extra
+                        Extra Multipliers
                       </CardTitle>
                       <CardDescription>
-                        Configura bonus de XP por rol o zonas calientes por
-                        canal. Los bonus se suman al multiplicador base.
+                        Configure XP bonuses per role or hot zones per
+                        channel. Bonuses add to the base multiplier.
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -717,14 +717,14 @@ export function LevelsDashboard() {
                             active={multipliersTab === "roles"}
                             onClick={() => setMultipliersTab("roles")}
                           >
-                            Por Rol
+                            By Role
                           </TabsTrigger>
                           <TabsTrigger
                             type="button"
                             active={multipliersTab === "channels"}
                             onClick={() => setMultipliersTab("channels")}
                           >
-                            Por Canal
+                            By Channel
                           </TabsTrigger>
                         </TabsList>
 
@@ -732,8 +732,7 @@ export function LevelsDashboard() {
                           <TabsContent className="mt-3 space-y-3">
                             {config.customMultipliers.length === 0 ? (
                               <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
-                                Aún no hay multiplicadores. Añade el primero
-                                debajo.
+                                No multipliers yet. Add the first one below.
                               </p>
                             ) : (
                               config.customMultipliers.map((entry, index) => {
@@ -764,7 +763,7 @@ export function LevelsDashboard() {
                                             </span>
                                           </span>
                                         ) : (
-                                          <SelectValue placeholder="Seleccionar rol" />
+                                          <SelectValue placeholder="Select role" />
                                         )}
                                       </SelectTrigger>
                                       <SelectContent>
@@ -784,7 +783,7 @@ export function LevelsDashboard() {
                                       </SelectContent>
                                     </Select>
                                     <span className="text-sm text-muted-foreground">
-                                      gana
+                                      earns
                                     </span>
                                     <div className="relative">
                                       <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
@@ -810,7 +809,7 @@ export function LevelsDashboard() {
                                       variant="ghost"
                                       size="icon"
                                       className="shrink-0 text-muted-foreground hover:text-destructive"
-                                      aria-label="Eliminar multiplicador"
+                                      aria-label="Delete multiplier"
                                       onClick={() => removeMultiplier(index)}
                                     >
                                       <Trash2 className="size-4" />
@@ -826,7 +825,7 @@ export function LevelsDashboard() {
                               onClick={addMultiplier}
                             >
                               <Plus className="size-4" />
-                              Añadir multiplicador
+                              Add multiplier
                             </Button>
                           </TabsContent>
                         ) : null}
@@ -835,8 +834,7 @@ export function LevelsDashboard() {
                           <TabsContent className="mt-3 space-y-3">
                             {config.customChannelMultipliers.length === 0 ? (
                               <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
-                                Aún no hay zonas calientes. Añade la primera
-                                debajo.
+                                No hot zones yet. Add the first one below.
                               </p>
                             ) : (
                               config.customChannelMultipliers.map(
@@ -874,7 +872,7 @@ export function LevelsDashboard() {
                                               </span>
                                             </span>
                                           ) : (
-                                            <SelectValue placeholder="Seleccionar canal" />
+                                            <SelectValue placeholder="Select channel" />
                                           )}
                                         </SelectTrigger>
                                         <SelectContent>
@@ -901,7 +899,7 @@ export function LevelsDashboard() {
                                         </SelectContent>
                                       </Select>
                                       <span className="text-sm text-muted-foreground">
-                                        gana
+                                        earns
                                       </span>
                                       <div className="relative">
                                         <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
@@ -927,7 +925,7 @@ export function LevelsDashboard() {
                                         variant="ghost"
                                         size="icon"
                                         className="shrink-0 text-muted-foreground hover:text-destructive"
-                                        aria-label="Eliminar multiplicador de canal"
+                                        aria-label="Delete channel multiplier"
                                         onClick={() =>
                                           removeChannelMultiplier(index)
                                         }
@@ -946,7 +944,7 @@ export function LevelsDashboard() {
                               onClick={addChannelMultiplier}
                             >
                               <Plus className="size-4" />
-                              Añadir multiplicador
+                              Add multiplier
                             </Button>
                           </TabsContent>
                         ) : null}
@@ -962,17 +960,17 @@ export function LevelsDashboard() {
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base">
-                      Recompensas de rol
+                      Role rewards
                     </CardTitle>
                     <CardDescription>
-                      Al alcanzar un nivel se otorga el rol (acumulativo si sube
-                      varios niveles de golpe).
+                      Reaching a level grants the role (cumulative if several
+                      levels are gained at once).
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {config.rewards.length === 0 ? (
                       <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
-                        Aún no hay recompensas. Añade la primera debajo.
+                        No rewards yet. Add the first one below.
                       </p>
                     ) : (
                       config.rewards.map((reward, index) => {
@@ -985,7 +983,7 @@ export function LevelsDashboard() {
                             className="flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-muted/10 px-3 py-2.5"
                           >
                             <span className="text-sm text-muted-foreground">
-                              Al alcanzar el nivel
+                              On reaching level
                             </span>
                             <Input
                               type="number"
@@ -1000,7 +998,7 @@ export function LevelsDashboard() {
                               className="h-9 w-20"
                             />
                             <span className="text-sm text-muted-foreground">
-                              otorgar rol
+                              grant role
                             </span>
                             <Select
                               value={reward.roleId || undefined}
@@ -1019,7 +1017,7 @@ export function LevelsDashboard() {
                                     </span>
                                   </span>
                                 ) : (
-                                  <SelectValue placeholder="Seleccionar rol" />
+                                  <SelectValue placeholder="Select role" />
                                 )}
                               </SelectTrigger>
                               <SelectContent>
@@ -1040,7 +1038,7 @@ export function LevelsDashboard() {
                               variant="ghost"
                               size="icon"
                               className="shrink-0 text-muted-foreground hover:text-destructive"
-                              aria-label="Eliminar recompensa"
+                              aria-label="Delete reward"
                               onClick={() => removeReward(index)}
                             >
                               <Trash2 className="size-4" />
@@ -1056,7 +1054,7 @@ export function LevelsDashboard() {
                       onClick={addReward}
                     >
                       <Plus className="size-4" />
-                      Añadir recompensa
+                      Add reward
                     </Button>
                   </CardContent>
                 </Card>
@@ -1070,12 +1068,12 @@ export function LevelsDashboard() {
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="space-y-1">
                         <CardTitle className="text-base">
-                          Clasificación (Top {LEADERBOARD_LIMIT})
+                          Leaderboard (Top {LEADERBOARD_LIMIT})
                         </CardTitle>
                         <CardDescription>
                           {leaderboardTotal > 0
-                            ? `${Math.min(leaderboard.length, LEADERBOARD_LIMIT)} de ${leaderboardTotal} usuarios con XP.`
-                            : "Usuarios ordenados por XP total."}
+                            ? `${Math.min(leaderboard.length, LEADERBOARD_LIMIT)} of ${leaderboardTotal} users with XP.`
+                            : "Users sorted by total XP."}
                         </CardDescription>
                       </div>
                       <Button
@@ -1090,7 +1088,7 @@ export function LevelsDashboard() {
                         ) : (
                           <RefreshCw className="size-4" />
                         )}
-                        Actualizar
+                        Refresh
                       </Button>
                     </div>
                   </CardHeader>
@@ -1098,13 +1096,13 @@ export function LevelsDashboard() {
                     {leaderboardLoading && leaderboard.length === 0 ? (
                       <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
                         <Loader2 className="size-4 animate-spin" />
-                        Cargando clasificación…
+                        Loading leaderboard…
                       </div>
                     ) : (
                       <DataTable
                         columns={leaderboardColumns}
                         data={leaderboard}
-                        emptyMessage="Nadie tiene XP todavía."
+                        emptyMessage="Nobody has XP yet."
                         minWidthClassName="min-w-[520px]"
                       />
                     )}
@@ -1119,18 +1117,18 @@ export function LevelsDashboard() {
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">
-                        Canales de Discord
+                        Discord Channels
                       </CardTitle>
                       <CardDescription>
-                        Leaderboard en vivo (Top 10) y anuncios de subida de
-                        nivel. El mensaje se actualiza con debounce anti
-                        rate-limit.
+                        Live leaderboard (Top 10) and level-up announcements.
+                        The message is updated with an anti-rate-limit
+                        debounce.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="space-y-1.5">
                         <Label htmlFor="liveLbChannel">
-                          Canal de Leaderboard en vivo
+                          Live Leaderboard channel
                         </Label>
                         <Select
                           value={config.liveLeaderboardChannelId ?? "__none__"}
@@ -1142,10 +1140,10 @@ export function LevelsDashboard() {
                           }
                         >
                           <SelectTrigger id="liveLbChannel">
-                            <SelectValue placeholder="Sin canal" />
+                            <SelectValue placeholder="No channel" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="__none__">Sin canal</SelectItem>
+                            <SelectItem value="__none__">No channel</SelectItem>
                             {textChannels.map((ch) => (
                               <SelectItem key={ch.id} value={ch.id}>
                                 #{ch.name}
@@ -1156,7 +1154,7 @@ export function LevelsDashboard() {
                       </div>
                       <div className="space-y-1.5">
                         <Label htmlFor="levelUpChannel">
-                          Canal de Subida de Nivel
+                          Level-Up channel
                         </Label>
                         <Select
                           value={config.levelUpChannelId ?? "__none__"}
@@ -1168,10 +1166,10 @@ export function LevelsDashboard() {
                           }
                         >
                           <SelectTrigger id="levelUpChannel">
-                            <SelectValue placeholder="Sin canal" />
+                            <SelectValue placeholder="No channel" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="__none__">Sin canal</SelectItem>
+                            <SelectItem value="__none__">No channel</SelectItem>
                             {textChannels.map((ch) => (
                               <SelectItem key={ch.id} value={ch.id}>
                                 #{ch.name}
@@ -1180,8 +1178,8 @@ export function LevelsDashboard() {
                           </SelectContent>
                         </Select>
                         <p className="text-xs text-muted-foreground">
-                          Si no hay canal, no se envía el anuncio de subida de
-                          nivel. Texto y anuncios; sin foros.
+                          If there's no channel, the level-up announcement
+                          isn't sent. Text and announcements; no forums.
                         </p>
                       </div>
                     </CardContent>
@@ -1190,10 +1188,10 @@ export function LevelsDashboard() {
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">
-                        Apariencia de embeds
+                        Embed appearance
                       </CardTitle>
                       <CardDescription>
-                        Título, texto y color que Discord usa de verdad.
+                        Title, text, and color that Discord actually uses.
                         Tokens: {"{user}"} {"{username}"} {"{level}"}{" "}
                         {"{server}"} {"{xp}"}.
                       </CardDescription>
@@ -1201,7 +1199,7 @@ export function LevelsDashboard() {
                     <CardContent className="space-y-4">
                       <div className="grid gap-4 sm:grid-cols-[auto_1fr]">
                         <div className="space-y-1.5">
-                          <Label>Color de subida</Label>
+                          <Label>Level-up color</Label>
                           <Input
                             type="color"
                             className="h-10 w-14 cursor-pointer p-1"
@@ -1212,7 +1210,7 @@ export function LevelsDashboard() {
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <Label htmlFor="levelUpTitle">Título de subida</Label>
+                          <Label htmlFor="levelUpTitle">Level-up title</Label>
                           <Input
                             id="levelUpTitle"
                             maxLength={256}
@@ -1225,7 +1223,7 @@ export function LevelsDashboard() {
                       </div>
                       <div className="space-y-1.5">
                         <Label htmlFor="levelUpMessage">
-                          Descripción de subida
+                          Level-up description
                         </Label>
                         <Textarea
                           id="levelUpMessage"
@@ -1240,10 +1238,10 @@ export function LevelsDashboard() {
                       <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
                         <div>
                           <p className="text-sm font-medium">
-                            Miniatura del usuario
+                            User thumbnail
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Avatar en el embed de subida de nivel.
+                            Avatar in the level-up embed.
                           </p>
                         </div>
                         <Switch
@@ -1255,7 +1253,7 @@ export function LevelsDashboard() {
                       </div>
                       <div className="grid gap-4 sm:grid-cols-[auto_1fr]">
                         <div className="space-y-1.5">
-                          <Label>Color del leaderboard</Label>
+                          <Label>Leaderboard color</Label>
                           <Input
                             type="color"
                             className="h-10 w-14 cursor-pointer p-1"
@@ -1269,7 +1267,7 @@ export function LevelsDashboard() {
                         </div>
                         <div className="space-y-1.5">
                           <Label htmlFor="lbTitle">
-                            Título del leaderboard
+                            Leaderboard title
                           </Label>
                           <Input
                             id="lbTitle"
@@ -1285,14 +1283,14 @@ export function LevelsDashboard() {
                       </div>
                       <div className="space-y-1.5">
                         <Label htmlFor="lbDesc">
-                          Intro del leaderboard (opcional)
+                          Leaderboard intro (optional)
                         </Label>
                         <Textarea
                           id="lbDesc"
                           rows={2}
                           maxLength={500}
                           value={config.leaderboardEmbedDescription}
-                          placeholder="{total} miembros con XP"
+                          placeholder="{total} members with XP"
                           onChange={(e) =>
                             patch({
                               leaderboardEmbedDescription: e.target.value,
@@ -1303,10 +1301,10 @@ export function LevelsDashboard() {
                       <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
                         <div>
                           <p className="text-sm font-medium">
-                            Miniatura del servidor
+                            Server thumbnail
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Icono del guild en el leaderboard en vivo.
+                            Guild icon in the live leaderboard.
                           </p>
                         </div>
                         <Switch
@@ -1321,20 +1319,20 @@ export function LevelsDashboard() {
 
                   <Card>
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Exclusiones</CardTitle>
+                      <CardTitle className="text-base">Exclusions</CardTitle>
                       <CardDescription>
-                        Roles y canales donde no se gana XP.
+                        Roles and channels where no XP is earned.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <RoleMultiSelect
-                        label="Roles ignorados"
+                        label="Ignored roles"
                         roles={assignableRoles}
                         value={config.ignoredRoles}
                         onChange={(ignoredRoles) => patch({ ignoredRoles })}
                       />
                       <ChannelMultiSelect
-                        label="Canales / categorías ignorados"
+                        label="Ignored channels / categories"
                         channels={ignoreChannels}
                         value={config.ignoredChannels}
                         onChange={(ignoredChannels) =>
@@ -1358,7 +1356,7 @@ export function LevelsDashboard() {
                   Monitor
                 </CardTitle>
                 <CardDescription>
-                  Vista previa Discord o resumen de datos.
+                  Discord preview or data summary.
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-1 flex-col gap-3">
@@ -1368,14 +1366,14 @@ export function LevelsDashboard() {
                     active={monitorSideTab === "preview"}
                     onClick={() => setMonitorSideTab("preview")}
                   >
-                    Vista Previa
+                    Preview
                   </TabsTrigger>
                   <TabsTrigger
                     className="w-full"
                     active={monitorSideTab === "datos"}
                     onClick={() => setMonitorSideTab("datos")}
                   >
-                    Datos
+                    Data
                   </TabsTrigger>
                 </TabsList>
 
@@ -1383,7 +1381,7 @@ export function LevelsDashboard() {
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                        Anuncio de nivel
+                        Level announcement
                       </p>
                       <LevelUpDiscordPreview config={config} />
                     </div>
@@ -1419,7 +1417,7 @@ export function LevelsDashboard() {
                     ) : (
                       <Save className="size-4" />
                     )}
-                    Guardar configuración
+                    Save configuration
                   </Button>
                 ) : null}
               </CardContent>
@@ -1429,9 +1427,9 @@ export function LevelsDashboard() {
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <TrendingUp className="size-4 text-primary" />
-                  Monitor de estado
+                  Status monitor
                 </CardTitle>
-                <CardDescription>Resumen en vivo de la config.</CardDescription>
+                <CardDescription>Live summary of the config.</CardDescription>
               </CardHeader>
               <CardContent>
                 <StatusMonitorBody
@@ -1466,7 +1464,7 @@ function StatusMonitorBody({
   return (
     <div className="space-y-3 text-sm">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-muted-foreground">Estado general</span>
+        <span className="text-muted-foreground">Overall status</span>
         <Badge
           className={cn(
             "normal-case tracking-normal",
@@ -1475,39 +1473,39 @@ function StatusMonitorBody({
               : "border-border bg-muted text-muted-foreground",
           )}
         >
-          {config.enabled ? "Activo" : "Inactivo"}
+          {config.enabled ? "Enabled" : "Disabled"}
         </Badge>
       </div>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-muted-foreground">Multiplicador base</span>
+        <span className="text-muted-foreground">Base multiplier</span>
         <span className="font-mono text-xs">
           {config.xpMultiplier}x
         </span>
       </div>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-muted-foreground">Recompensas</span>
+        <span className="text-muted-foreground">Rewards</span>
         <span className="font-mono text-xs">{config.rewards.length}</span>
       </div>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-muted-foreground">XP texto</span>
+        <span className="text-muted-foreground">Text XP</span>
         <span className="font-mono text-xs">
           {config.textXpMin}–{config.textXpMax}
         </span>
       </div>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-muted-foreground">Bonus stream</span>
+        <span className="text-muted-foreground">Stream bonus</span>
         <span className="font-mono text-xs">
           {Number(config.streamMultiplier ?? 1).toFixed(1)}x
         </span>
       </div>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-muted-foreground">Zonas calientes</span>
+        <span className="text-muted-foreground">Hot zones</span>
         <span className="font-mono text-xs">
           {(config.customChannelMultipliers ?? []).length}
         </span>
       </div>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-muted-foreground">Leaderboard vivo</span>
+        <span className="text-muted-foreground">Live leaderboard</span>
         <span className="max-w-[140px] truncate text-right text-xs">
           {liveChannelLabel}
         </span>
@@ -1515,13 +1513,13 @@ function StatusMonitorBody({
       <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
         <div className="mb-1 flex items-center gap-1.5 font-medium text-foreground/80">
           <Info className="size-3.5" />
-          Fórmula de nivel
+          Level formula
         </div>
         <code className="text-[10px]">floor(0.1 × √totalXp)</code>
       </div>
       <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
         <p className="mb-2 text-[11px] font-medium text-foreground/80">
-          Curva de XP (Preview)
+          XP curve (Preview)
         </p>
         <ul className="space-y-1 font-mono text-[11px] text-muted-foreground">
           {[1, 2, 3, 4, 5].map((level) => (
@@ -1529,8 +1527,8 @@ function StatusMonitorBody({
               key={level}
               className="flex items-center justify-between gap-2"
             >
-              <span>Nivel {level}</span>
-              <span>{calculateBaseXPForLevel(level).toLocaleString("es-MX")} XP</span>
+              <span>Level {level}</span>
+              <span>{calculateBaseXPForLevel(level).toLocaleString("en-US")} XP</span>
             </li>
           ))}
         </ul>
@@ -1546,7 +1544,7 @@ function StatusMonitorBody({
         ) : (
           <Save className="size-4" />
         )}
-        Guardar configuración
+        Save configuration
       </Button>
     </div>
   );

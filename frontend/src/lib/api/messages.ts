@@ -51,7 +51,7 @@ export async function sendChannelMessage(
 
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, `Error al enviar (${response.status})`),
+      await readApiError(response, `Couldn't send (${response.status})`),
     );
   }
 
@@ -141,7 +141,7 @@ export async function sendEmbedMessage(
     throw new Error(
       await readApiError(
         response,
-        `Error al enviar embed (${response.status})`,
+        `Couldn't send embed (${response.status})`,
       ),
     );
   }

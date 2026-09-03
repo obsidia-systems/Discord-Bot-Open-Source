@@ -50,7 +50,7 @@ export function Sheet({
     >
       <button
         type="button"
-        aria-label="Cerrar panel"
+        aria-label="Close panel"
         className={cn(
           "absolute inset-0 bg-black/60 transition-opacity duration-200",
           open ? "opacity-100" : "opacity-0",
@@ -88,7 +88,7 @@ export function Sheet({
             onClick={() => onOpenChange(false)}
           >
             <X className="size-4" aria-hidden />
-            <span className="sr-only">Cerrar</span>
+            <span className="sr-only">Close</span>
           </Button>
         </header>
         <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-6">

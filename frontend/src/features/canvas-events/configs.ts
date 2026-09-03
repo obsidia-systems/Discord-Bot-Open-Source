@@ -5,46 +5,46 @@ import {
 import type { CanvasEventBuilderConfig } from "./CanvasEventBuilder";
 
 export const leaveBuilderConfig: CanvasEventBuilderConfig = {
-  cardTitle: "Diseño de la despedida",
+  cardTitle: "Leave card design",
   cardDescription:
-    "Tarjeta PNG 1920×1080 cuando alguien abandona el servidor.",
-  defaultMessage: "{user} abandonó el servidor. Ahora somos {membercount}.",
-  defaultPrimaryText: "¡Hasta pronto!",
+    "1920×1080 PNG card when someone leaves the server.",
+  defaultMessage: "{user} left the server. We are now {membercount}.",
+  defaultPrimaryText: "See you soon!",
   defaultSecondaryText: "{username}",
-  loadingLabel: "configuración de despedidas",
-  saveLabel: "Guardar despedida",
-  savedActiveMessage: "Despedida guardada y activa.",
-  savedInactiveMessage: "Configuración guardada (módulo desactivado).",
+  loadingLabel: "leave settings",
+  saveLabel: "Save leave card",
+  savedActiveMessage: "Leave card saved and active.",
+  savedInactiveMessage: "Configuration saved (module disabled).",
   fetchSettings: () => fetchCanvasEventSettings("leave"),
   saveSettings: (payload) => saveCanvasEventSettings("leave", payload),
 };
 
 export const banBuilderConfig: CanvasEventBuilderConfig = {
-  cardTitle: "Diseño del baneo",
+  cardTitle: "Ban card design",
   cardDescription:
-    "Tarjeta PNG 1920×1080 cuando alguien es baneado del servidor.",
-  defaultMessage: "{user} fue baneado del servidor.",
-  defaultPrimaryText: "Usuario baneado",
+    "1920×1080 PNG card when someone is banned from the server.",
+  defaultMessage: "{user} was banned from the server.",
+  defaultPrimaryText: "User banned",
   defaultSecondaryText: "{username}",
-  loadingLabel: "configuración de baneos",
-  saveLabel: "Guardar baneo",
-  savedActiveMessage: "Baneo guardado y activo.",
-  savedInactiveMessage: "Configuración guardada (módulo desactivado).",
+  loadingLabel: "ban settings",
+  saveLabel: "Save ban card",
+  savedActiveMessage: "Ban card saved and active.",
+  savedInactiveMessage: "Configuration saved (module disabled).",
   fetchSettings: () => fetchCanvasEventSettings("ban"),
   saveSettings: (payload) => saveCanvasEventSettings("ban", payload),
 };
 
 export const boostBuilderConfig: CanvasEventBuilderConfig = {
-  cardTitle: "Diseño del boost",
+  cardTitle: "Boost card design",
   cardDescription:
-    "Tarjeta PNG 1920×1080 cuando alguien impulsa el servidor.",
-  defaultMessage: "{user} impulsó el servidor. ¡Gracias!",
-  defaultPrimaryText: "¡Gracias por el boost!",
+    "1920×1080 PNG card when someone boosts the server.",
+  defaultMessage: "{user} boosted the server. Thank you!",
+  defaultPrimaryText: "Thanks for the boost!",
   defaultSecondaryText: "{username}",
-  loadingLabel: "configuración de boosts",
-  saveLabel: "Guardar boost",
-  savedActiveMessage: "Boost guardado y activo.",
-  savedInactiveMessage: "Configuración guardada (módulo desactivado).",
+  loadingLabel: "boost settings",
+  saveLabel: "Save boost card",
+  savedActiveMessage: "Boost card saved and active.",
+  savedInactiveMessage: "Configuration saved (module disabled).",
   fetchSettings: () => fetchCanvasEventSettings("boost"),
   saveSettings: (payload) => saveCanvasEventSettings("boost", payload),
 };

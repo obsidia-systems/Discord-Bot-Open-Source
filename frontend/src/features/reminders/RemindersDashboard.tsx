@@ -44,7 +44,7 @@ export function RemindersDashboard() {
       setTimezone(config.settings.timezone);
       setEnabled(config.settings.enabled);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo cargar.");
+      setError(err instanceof Error ? err.message : "Couldn't load.");
     } finally {
       setLoading(false);
     }
@@ -63,9 +63,9 @@ export function RemindersDashboard() {
       setSettings(next);
       setTimezone(next.timezone);
       setEnabled(next.enabled);
-      setSuccess("Ajustes guardados.");
+      setSuccess("Settings saved.");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar.");
+      setError(err instanceof Error ? err.message : "Couldn't save.");
     } finally {
       setSaving(false);
     }
@@ -77,10 +77,10 @@ export function RemindersDashboard() {
     setSuccess(null);
     try {
       await deleteReminder(id);
-      setSuccess(`Cancelado #${id}.`);
+      setSuccess(`Cancelled #${id}.`);
       await load();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo cancelar.");
+      setError(err instanceof Error ? err.message : "Couldn't cancel.");
     } finally {
       setSaving(false);
     }
@@ -90,7 +90,7 @@ export function RemindersDashboard() {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin text-primary" />
-        Cargando Reminders…
+        Loading reminders…
       </div>
     );
   }
@@ -110,17 +110,18 @@ export function RemindersDashboard() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Avisos personales</CardTitle>
+          <CardTitle>Personal reminders</CardTitle>
           <CardDescription>
-            El miembro usa <code>/remind in</code> o <code>/remind at</code>.
-            El bot avisa por DM; si está cerrado, menciona en el canal. No
-            publica anuncios: eso es Scheduled Messages. Pendientes: {rows.length}.
+            Members use <code>/remind in</code> or <code>/remind at</code>. The
+            bot notifies by DM; if DMs are closed, it mentions them in the
+            channel. It does not post announcements — that's Scheduled Messages.
+            Pending: {rows.length}.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <label className="flex items-center gap-2 text-sm">
             <Switch checked={enabled} onCheckedChange={setEnabled} />
-            Activo
+            Enabled
           </label>
           <TimezoneCombobox value={timezone} onChange={setTimezone} />
           <Button type="button" disabled={saving} onClick={() => void onSave()}>
@@ -129,23 +130,23 @@ export function RemindersDashboard() {
             ) : (
               <Save className="size-4" />
             )}
-            Guardar
+            Save
           </Button>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Pendientes</CardTitle>
+          <CardTitle>Pending</CardTitle>
           <CardDescription>
-            Staff puede cancelar cualquiera. El dueño usa{" "}
+            Staff can cancel any of them. The owner uses{" "}
             <code>/remind cancel</code>.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Nadie tiene un aviso pendiente.
+              Nobody has a pending reminder.
             </p>
           ) : (
             rows.map((row) => (
@@ -158,7 +159,7 @@ export function RemindersDashboard() {
                     #{row.id} · {formatDue(row.dueAt)}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Usuario {row.userId}
+                    User {row.userId}
                   </p>
                   <p className="text-sm break-words">{row.message}</p>
                 </div>
@@ -169,7 +170,7 @@ export function RemindersDashboard() {
                   onClick={() => void onDelete(row.id)}
                 >
                   <Trash2 className="size-4" />
-                  Cancelar
+                  Cancel
                 </Button>
               </div>
             ))

@@ -7,7 +7,7 @@ export async function fetchEntitlements(): Promise<GuildEntitlements> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar el plan del servidor (${response.status})`,
+        `Couldn't load the server plan (${response.status})`,
       ),
     );
   }

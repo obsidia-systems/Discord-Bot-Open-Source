@@ -122,7 +122,7 @@ export function VoiceRoomsDashboard() {
       );
       setChannels(assets.channels);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo cargar.");
+      setError(err instanceof Error ? err.message : "Couldn't load.");
     } finally {
       setLoading(false);
     }
@@ -155,7 +155,7 @@ export function VoiceRoomsDashboard() {
 
   async function onCreate(): Promise<void> {
     if (!creating?.hubChannelId) {
-      setError("Elige un canal hub de voz.");
+      setError("Pick a voice hub channel.");
       return;
     }
     setSavingId("new");
@@ -173,10 +173,10 @@ export function VoiceRoomsDashboard() {
         allowedActions: creating.allowedActions,
       });
       setCreating(null);
-      setSuccess("Generador creado.");
+      setSuccess("Generator created.");
       await load();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo crear.");
+      setError(err instanceof Error ? err.message : "Couldn't create.");
     } finally {
       setSavingId(null);
     }
@@ -185,7 +185,7 @@ export function VoiceRoomsDashboard() {
   async function onSave(id: number): Promise<void> {
     const draft = drafts[id];
     if (!draft?.hubChannelId) {
-      setError("Elige un canal hub de voz.");
+      setError("Pick a voice hub channel.");
       return;
     }
     setSavingId(id);
@@ -202,10 +202,10 @@ export function VoiceRoomsDashboard() {
         enabled: draft.enabled,
         allowedActions: draft.allowedActions,
       });
-      setSuccess("Generador guardado.");
+      setSuccess("Generator saved.");
       await load();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar.");
+      setError(err instanceof Error ? err.message : "Couldn't save.");
     } finally {
       setSavingId(null);
     }
@@ -217,10 +217,10 @@ export function VoiceRoomsDashboard() {
     setSuccess(null);
     try {
       await deleteVoiceRoomGenerator(id);
-      setSuccess("Generador eliminado. Las salas vivas de ese hub se borran.");
+      setSuccess("Generator deleted. That hub's live rooms are removed.");
       await load();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo borrar.");
+      setError(err instanceof Error ? err.message : "Couldn't delete.");
     } finally {
       setSavingId(null);
     }
@@ -230,7 +230,7 @@ export function VoiceRoomsDashboard() {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin text-primary" />
-        Cargando Voice Rooms…
+        Loading Voice Rooms…
       </div>
     );
   }
@@ -252,9 +252,9 @@ export function VoiceRoomsDashboard() {
         <CardHeader>
           <CardTitle>Join to Create</CardTitle>
           <CardDescription>
-            El miembro entra al hub, el bot crea una sala y lo mueve. Vacía
-            (~5 s) = se borra. El dueño usa <code>/voice</code>. El hub nunca
-            se elimina. Salas vivas ahora: {liveCount}.
+            A member joins the hub, the bot creates a room and moves them. Empty
+            (~5 s) = deleted. The owner uses <code>/voice</code>. The hub is
+            never deleted. Live rooms now: {liveCount}.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
@@ -267,14 +267,14 @@ export function VoiceRoomsDashboard() {
             onClick={() => setCreating(emptyDraft())}
           >
             <Plus className="size-4" />
-            Añadir generador
+            Add generator
           </Button>
         </CardContent>
       </Card>
 
       {creating ? (
         <GeneratorForm
-          title="Nuevo generador"
+          title="New generator"
           draft={creating}
           voiceChannels={voiceChannels}
           categories={categories}
@@ -332,7 +332,7 @@ function GeneratorForm(props: {
       <CardContent className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label>Canal hub (voz)</Label>
+            <Label>Hub channel (voice)</Label>
             <Select
               value={draft.hubChannelId || NONE}
               onValueChange={(value) =>
@@ -343,10 +343,10 @@ function GeneratorForm(props: {
               }
             >
               <SelectTrigger>
-                <SelectValue placeholder="Selecciona un canal de voz" />
+                <SelectValue placeholder="Select a voice channel" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NONE}>Selecciona…</SelectItem>
+                <SelectItem value={NONE}>Select…</SelectItem>
                 {props.voiceChannels.map((ch) => (
                   <SelectItem key={ch.id} value={ch.id}>
                     {ch.name}
@@ -356,7 +356,7 @@ function GeneratorForm(props: {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Categoría de las salas</Label>
+            <Label>Room category</Label>
             <Select
               value={draft.categoryId || NONE}
               onValueChange={(value) =>
@@ -367,10 +367,10 @@ function GeneratorForm(props: {
               }
             >
               <SelectTrigger>
-                <SelectValue placeholder="Misma que el hub" />
+                <SelectValue placeholder="Same as the hub" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NONE}>Misma que el hub</SelectItem>
+                <SelectItem value={NONE}>Same as the hub</SelectItem>
                 {props.categories.map((ch) => (
                   <SelectItem key={ch.id} value={ch.id}>
                     {ch.name}
@@ -382,7 +382,7 @@ function GeneratorForm(props: {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor={`tpl-${props.title}`}>Plantilla de nombre</Label>
+          <Label htmlFor={`tpl-${props.title}`}>Name template</Label>
           <Input
             id={`tpl-${props.title}`}
             value={draft.nameTemplate}
@@ -393,13 +393,13 @@ function GeneratorForm(props: {
             placeholder="{user}'s room"
           />
           <p className="text-xs text-muted-foreground">
-            {"{user}"} = nombre visible. El hub no se borra nunca.
+            {"{user}"} = visible name. The hub is never deleted.
           </p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label>Límite default (0 = sin límite)</Label>
+            <Label>Default limit (0 = no limit)</Label>
             <Input
               type="number"
               min={0}
@@ -414,7 +414,7 @@ function GeneratorForm(props: {
             />
           </div>
           <div className="space-y-2">
-            <Label>Bitrate default kbps (0 = Discord)</Label>
+            <Label>Default bitrate kbps (0 = Discord)</Label>
             <Input
               type="number"
               min={0}
@@ -438,7 +438,7 @@ function GeneratorForm(props: {
                 props.onChange({ ...draft, enabled })
               }
             />
-            Activo
+            Enabled
           </label>
           <label className="flex items-center gap-2 text-sm">
             <Switch
@@ -447,12 +447,12 @@ function GeneratorForm(props: {
                 props.onChange({ ...draft, autoText })
               }
             />
-            Crear canal de texto al instante
+            Create a text channel instantly
           </label>
         </div>
 
         <div className="space-y-2">
-          <Label>Qué puede hacer el dueño</Label>
+          <Label>What the owner can do</Label>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {VOICE_ROOM_ACTIONS.map((action) => (
               <label
@@ -476,11 +476,11 @@ function GeneratorForm(props: {
             ) : (
               <Save className="size-4" />
             )}
-            Guardar
+            Save
           </Button>
           {props.onCancel ? (
             <Button type="button" variant="outline" onClick={props.onCancel}>
-              Cancelar
+              Cancel
             </Button>
           ) : null}
           {props.onDelete ? (
@@ -491,7 +491,7 @@ function GeneratorForm(props: {
               onClick={props.onDelete}
             >
               <Trash2 className="size-4" />
-              Eliminar
+              Delete
             </Button>
           ) : null}
         </div>

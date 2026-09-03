@@ -34,9 +34,9 @@ export function ActionLogDiscordPreview({
   return (
     <Card className="overflow-hidden">
       <CardHeader className="space-y-1 pb-2 pt-4">
-        <CardTitle className="text-sm">Ejemplo de registro en Discord</CardTitle>
+        <CardTitle className="text-sm">Example log in Discord</CardTitle>
         <CardDescription className="text-xs">
-          Estilo técnico del webhook (plantilla de ejemplo).
+          Technical webhook style (example template).
         </CardDescription>
       </CardHeader>
       <CardContent className="pb-3 pt-0">
@@ -55,7 +55,7 @@ export function ActionLogDiscordPreview({
                 <span className="rounded bg-[#5865f2] px-1 py-px text-[9px] font-bold uppercase tracking-wide text-white">
                   App
                 </span>
-                <span className="text-[10px] text-[#949ba4]">Hoy a las 12:00</span>
+                <span className="text-[10px] text-[#949ba4]">Today at 12:00</span>
               </div>
 
               <div
@@ -68,47 +68,47 @@ export function ActionLogDiscordPreview({
                     <div
                       className="size-4 shrink-0 rounded-full bg-[#4e5058]"
                       aria-hidden
-                      title="Avatar del ejecutor"
+                      title="Executor avatar"
                     />
                     <span className="truncate text-[11px] font-semibold text-white">
-                      <Tpl>usuario_ejecutor</Tpl>
+                      <Tpl>executor_user</Tpl>
                       <span className="font-normal text-[#b5bac1]">
                         {" "}
-                        (ID: <Tpl>id_ejecutor</Tpl>)
+                        (ID: <Tpl>executor_id</Tpl>)
                       </span>
                     </span>
                   </div>
 
                   <p className="text-[12px] text-[#dbdee1]">
-                    <strong className="font-semibold text-white">Acción:</strong>{" "}
-                    Mensaje Eliminado
+                    <strong className="font-semibold text-white">Action:</strong>{" "}
+                    Message Deleted
                   </p>
 
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
                     <div className="min-w-0">
                       <p className="text-[10px] font-semibold text-[#b5bac1]">
-                        Canal
+                        Channel
                       </p>
                       <p className="truncate text-[11px] text-[#00a8fc]">
-                        <Tpl>canal_afectado</Tpl>
+                        <Tpl>affected_channel</Tpl>
                       </p>
                     </div>
                     <div className="min-w-0">
                       <p className="text-[10px] font-semibold text-[#b5bac1]">
-                        Afectado
+                        Affected
                       </p>
                       <p className="truncate text-[11px] text-[#00a8fc]">
-                        <Tpl>usuario_afectado</Tpl>
+                        <Tpl>affected_user</Tpl>
                       </p>
                     </div>
                   </div>
 
                   <div className="space-y-0.5">
                     <p className="text-[10px] font-semibold text-[#b5bac1]">
-                      Contenido original
+                      Original content
                     </p>
                     <div className="border-l-2 border-[#4e5058] pl-2 font-mono text-[10px] text-[#dbdee1]">
-                      <Tpl>contenido_del_mensaje_eliminado</Tpl>
+                      <Tpl>deleted_message_content</Tpl>
                     </div>
                   </div>
 
@@ -117,10 +117,10 @@ export function ActionLogDiscordPreview({
                     <div
                       className="size-3.5 shrink-0 rounded-full bg-[#5865f2]/80"
                       aria-hidden
-                      title="Avatar del afectado"
+                      title="Affected avatar"
                     />
                     <p className="font-mono text-[9px] text-[#949ba4]">
-                      Afectado ID: <Tpl>id_afectado</Tpl>
+                      Affected ID: <Tpl>affected_id</Tpl>
                     </p>
                   </div>
                 </div>

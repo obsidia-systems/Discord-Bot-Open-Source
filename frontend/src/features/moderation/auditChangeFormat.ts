@@ -1,96 +1,96 @@
 import type { DiscordAuditChangeItem, DiscordAuditTone } from "@adobos/shared";
 
 const PROPERTY_LABELS: Record<string, string> = {
-  name: "Nombre",
-  type: "Tipo",
-  topic: "Tema / Descripción",
-  nsfw: "Restricción de edad (NSFW)",
-  rate_limit_per_user: "Modo lento",
-  bitrate: "Tasa de bits",
-  user_limit: "Límite de usuarios",
-  position: "Posición",
-  color: "Color hex",
-  hoist: "Mostrar separado",
-  mentionable: "Mencionable",
-  permissions: "Permisos",
-  allow: "Permitir",
-  deny: "Denegar",
-  nick: "Apodo",
-  mute: "Silenciado",
-  deaf: "Ensordecido",
+  name: "Name",
+  type: "Type",
+  topic: "Topic / Description",
+  nsfw: "Age restriction (NSFW)",
+  rate_limit_per_user: "Slowmode",
+  bitrate: "Bitrate",
+  user_limit: "User limit",
+  position: "Position",
+  color: "Hex color",
+  hoist: "Display separately",
+  mentionable: "Mentionable",
+  permissions: "Permissions",
+  allow: "Allow",
+  deny: "Deny",
+  nick: "Nickname",
+  mute: "Muted",
+  deaf: "Deafened",
   communication_disabled_until: "Timeout",
-  description: "Descripción",
-  $add: "Roles añadidos",
-  $remove: "Roles eliminados",
-  code: "Código de invitación",
-  channel_id: "Canal",
-  inviter_id: "Invitado por",
-  uses: "Usos actuales",
-  max_uses: "Usos máximos",
-  max_age: "Caducidad",
-  temporary: "Temporal",
+  description: "Description",
+  $add: "Roles added",
+  $remove: "Roles removed",
+  code: "Invite code",
+  channel_id: "Channel",
+  inviter_id: "Invited by",
+  uses: "Current uses",
+  max_uses: "Max uses",
+  max_age: "Expiration",
+  temporary: "Temporary",
   avatar_hash: "Avatar",
-  icon_hash: "Icono",
+  icon_hash: "Icon",
   splash_hash: "Splash",
   banner_hash: "Banner",
-  vanity_url_code: "URL vanity",
-  preferred_locale: "Idioma",
-  afk_channel_id: "Canal AFK",
-  afk_timeout: "Timeout AFK",
-  system_channel_id: "Canal de sistema",
-  rules_channel_id: "Canal de reglas",
-  public_updates_channel_id: "Canal de actualizaciones",
-  mfa_level: "Nivel MFA",
-  verification_level: "Verificación",
-  explicit_content_filter: "Filtro de contenido",
-  default_message_notifications: "Notificaciones",
-  owner_id: "Propietario",
+  vanity_url_code: "Vanity URL",
+  preferred_locale: "Language",
+  afk_channel_id: "AFK channel",
+  afk_timeout: "AFK timeout",
+  system_channel_id: "System channel",
+  rules_channel_id: "Rules channel",
+  public_updates_channel_id: "Updates channel",
+  mfa_level: "MFA level",
+  verification_level: "Verification",
+  explicit_content_filter: "Content filter",
+  default_message_notifications: "Notifications",
+  owner_id: "Owner",
   id: "ID",
 };
 
 const CHANNEL_TYPES: Record<string, string> = {
-  "0": "Texto",
+  "0": "Text",
   "1": "DM",
-  "2": "Voz",
-  "3": "Grupo DM",
-  "4": "Categoría",
-  "5": "Anuncios",
-  "10": "Hilo de anuncio",
-  "11": "Hilo público",
-  "12": "Hilo privado",
-  "13": "Escenario",
-  "14": "Directorio",
-  "15": "Foro",
+  "2": "Voice",
+  "3": "Group DM",
+  "4": "Category",
+  "5": "Announcements",
+  "10": "Announcement thread",
+  "11": "Public thread",
+  "12": "Private thread",
+  "13": "Stage",
+  "14": "Directory",
+  "15": "Forum",
   "16": "Media",
 };
 
 const PERMISSION_FLAGS: Array<{ bit: bigint; label: string }> = [
-  { bit: 1n << 0n, label: "Crear invitaciones" },
-  { bit: 1n << 1n, label: "Expulsar miembros" },
-  { bit: 1n << 2n, label: "Banear miembros" },
-  { bit: 1n << 3n, label: "Administrador" },
-  { bit: 1n << 4n, label: "Gestionar canales" },
-  { bit: 1n << 5n, label: "Gestionar servidor" },
-  { bit: 1n << 6n, label: "Añadir reacciones" },
-  { bit: 1n << 7n, label: "Ver registro de auditoría" },
-  { bit: 1n << 10n, label: "Ver canal" },
-  { bit: 1n << 11n, label: "Enviar mensajes" },
-  { bit: 1n << 12n, label: "Enviar TTS" },
-  { bit: 1n << 13n, label: "Gestionar mensajes" },
-  { bit: 1n << 14n, label: "Insertar enlaces" },
-  { bit: 1n << 15n, label: "Adjuntar archivos" },
-  { bit: 1n << 16n, label: "Leer historial" },
-  { bit: 1n << 17n, label: "Mencionar @everyone" },
-  { bit: 1n << 18n, label: "Usar emojis externos" },
-  { bit: 1n << 20n, label: "Conectar a voz" },
-  { bit: 1n << 21n, label: "Hablar" },
-  { bit: 1n << 22n, label: "Silenciar miembros" },
-  { bit: 1n << 23n, label: "Ensordecer miembros" },
-  { bit: 1n << 24n, label: "Mover miembros" },
-  { bit: 1n << 27n, label: "Gestionar roles" },
-  { bit: 1n << 28n, label: "Gestionar webhooks" },
-  { bit: 1n << 29n, label: "Gestionar emojis" },
-  { bit: 1n << 40n, label: "Moderar miembros" },
+  { bit: 1n << 0n, label: "Create invites" },
+  { bit: 1n << 1n, label: "Kick members" },
+  { bit: 1n << 2n, label: "Ban members" },
+  { bit: 1n << 3n, label: "Administrator" },
+  { bit: 1n << 4n, label: "Manage channels" },
+  { bit: 1n << 5n, label: "Manage server" },
+  { bit: 1n << 6n, label: "Add reactions" },
+  { bit: 1n << 7n, label: "View audit log" },
+  { bit: 1n << 10n, label: "View channel" },
+  { bit: 1n << 11n, label: "Send messages" },
+  { bit: 1n << 12n, label: "Send TTS messages" },
+  { bit: 1n << 13n, label: "Manage messages" },
+  { bit: 1n << 14n, label: "Embed links" },
+  { bit: 1n << 15n, label: "Attach files" },
+  { bit: 1n << 16n, label: "Read message history" },
+  { bit: 1n << 17n, label: "Mention @everyone" },
+  { bit: 1n << 18n, label: "Use external emoji" },
+  { bit: 1n << 20n, label: "Connect to voice" },
+  { bit: 1n << 21n, label: "Speak" },
+  { bit: 1n << 22n, label: "Mute members" },
+  { bit: 1n << 23n, label: "Deafen members" },
+  { bit: 1n << 24n, label: "Move members" },
+  { bit: 1n << 27n, label: "Manage roles" },
+  { bit: 1n << 28n, label: "Manage webhooks" },
+  { bit: 1n << 29n, label: "Manage emoji" },
+  { bit: 1n << 40n, label: "Moderate members" },
 ];
 
 export type SheetLayoutMode = "create" | "update" | "delete";
@@ -109,7 +109,7 @@ export function humanizePropertyKey(key: string): string {
 }
 
 function decodePermissions(raw?: string): string {
-  if (!raw || raw === "—" || raw === "0") return raw === "0" ? "Ninguno" : "—";
+  if (!raw || raw === "—" || raw === "0") return raw === "0" ? "None" : "—";
   try {
     const bits = BigInt(raw);
     const labels = PERMISSION_FLAGS.filter(
@@ -129,34 +129,34 @@ function formatIsoDate(raw?: string): string {
   if (!raw || raw === "—") return "—";
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) return raw;
-  return date.toLocaleString("es-MX", {
+  return date.toLocaleString("en-US", {
     dateStyle: "short",
     timeStyle: "medium",
   });
 }
 
 function formatBoolean(raw: string): string {
-  if (raw === "true") return "Activado";
-  if (raw === "false") return "Desactivado";
+  if (raw === "true") return "Enabled";
+  if (raw === "false") return "Disabled";
   return raw;
 }
 
 function formatDurationSeconds(raw: string): string {
   const seconds = Number.parseInt(raw, 10);
   if (!Number.isFinite(seconds)) return raw;
-  if (seconds === 0) return "Sin límite";
-  if (seconds < 60) return `${seconds} segundos`;
+  if (seconds === 0) return "No limit";
+  if (seconds < 60) return `${seconds} seconds`;
   if (seconds < 3600) {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
-    return s > 0 ? `${m} min ${s} s` : `${m} minutos`;
+    return s > 0 ? `${m} min ${s} s` : `${m} minutes`;
   }
   if (seconds < 86400) {
     const h = Math.floor(seconds / 3600);
-    return `${h} hora${h === 1 ? "" : "s"}`;
+    return `${h} hour${h === 1 ? "" : "s"}`;
   }
   const d = Math.floor(seconds / 86400);
-  return `${d} día${d === 1 ? "" : "s"}`;
+  return `${d} day${d === 1 ? "" : "s"}`;
 }
 
 /** Humaniza un valor según la propiedad Discord. */
@@ -167,13 +167,13 @@ export function humanizePropertyValue(key: string, raw?: string): string {
     return decodePermissions(raw);
   }
   if (key === "type") {
-    return CHANNEL_TYPES[raw] ?? `Tipo ${raw}`;
+    return CHANNEL_TYPES[raw] ?? `Type ${raw}`;
   }
   if (key === "rate_limit_per_user") {
     const n = Number.parseInt(raw, 10);
     if (!Number.isFinite(n)) return raw;
-    if (n === 0) return "Desactivado";
-    return `${n} segundos`;
+    if (n === 0) return "Disabled";
+    return `${n} seconds`;
   }
   if (key === "bitrate") {
     const n = Number.parseInt(raw, 10);
@@ -191,7 +191,7 @@ export function humanizePropertyValue(key: string, raw?: string): string {
   }
   if (key === "max_uses" || key === "uses" || key === "user_limit") {
     const n = Number.parseInt(raw, 10);
-    if (Number.isFinite(n) && n === 0 && key !== "uses") return "Ilimitado";
+    if (Number.isFinite(n) && n === 0 && key !== "uses") return "Unlimited";
   }
   if (
     key === "nsfw" ||

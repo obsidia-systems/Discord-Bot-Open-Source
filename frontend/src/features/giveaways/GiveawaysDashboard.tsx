@@ -112,7 +112,7 @@ export function GiveawaysDashboard() {
       setRows(list.giveaways);
     } catch (err: unknown) {
       setError(
-        err instanceof Error ? err.message : "No se pudo cargar Giveaways.",
+        err instanceof Error ? err.message : "Couldn't load Giveaways.",
       );
     } finally {
       setLoading(false);
@@ -131,7 +131,7 @@ export function GiveawaysDashboard() {
       await fn();
       if (ok) setSuccess(ok);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar.");
+      setError(err instanceof Error ? err.message : "Couldn't save.");
     } finally {
       setSaving(false);
     }
@@ -143,7 +143,7 @@ export function GiveawaysDashboard() {
       setDetail(res.giveaway);
       setDetailOpen(true);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo abrir.");
+      setError(err instanceof Error ? err.message : "Couldn't open.");
     }
   }
 
@@ -160,7 +160,7 @@ export function GiveawaysDashboard() {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" />
-        Cargando Giveaways…
+        Loading Giveaways…
       </div>
     );
   }
@@ -180,24 +180,24 @@ export function GiveawaysDashboard() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Nuevo sorteo</CardTitle>
+          <CardTitle>New giveaway</CardTitle>
           <CardDescription>
-            Botón Participar en Discord. Las entradas viven aquí, no en una
-            reacción. {runningCount}/{GIVEAWAYS_MAX_RUNNING} en curso.
+            Enter button in Discord. Entries live here, not in a
+            reaction. {runningCount}/{GIVEAWAYS_MAX_RUNNING} running.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor="gw-prize">Premio</Label>
+            <Label htmlFor="gw-prize">Prize</Label>
             <Input
               id="gw-prize"
               value={prize}
               onChange={(e) => setPrize(e.target.value)}
-              placeholder="Nitro, rol, etc."
+              placeholder="Nitro, role, etc."
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="gw-desc">Descripción</Label>
+            <Label htmlFor="gw-desc">Description</Label>
             <Textarea
               id="gw-desc"
               value={description}
@@ -206,16 +206,16 @@ export function GiveawaysDashboard() {
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1.5">
-              <Label>Canal</Label>
+              <Label>Channel</Label>
               <Select
                 value={channelId ?? "__none__"}
                 onValueChange={(v) => setChannelId(v === "__none__" ? null : v)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar…" />
+                  <SelectValue placeholder="Select…" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">Ninguno</SelectItem>
+                  <SelectItem value="__none__">None</SelectItem>
                   {textChannels.map((ch) => (
                     <SelectItem key={ch.id} value={ch.id}>
                       #{ch.name}
@@ -225,7 +225,7 @@ export function GiveawaysDashboard() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="gw-mins">Duración (minutos)</Label>
+              <Label htmlFor="gw-mins">Duration (minutes)</Label>
               <Input
                 id="gw-mins"
                 type="number"
@@ -238,7 +238,7 @@ export function GiveawaysDashboard() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="gw-winners">Ganadores</Label>
+              <Label htmlFor="gw-winners">Winners</Label>
               <Input
                 id="gw-winners"
                 type="number"
@@ -252,20 +252,20 @@ export function GiveawaysDashboard() {
             </div>
           </div>
           <RoleMultiSelect
-            label="Roles obligatorios"
+            label="Required roles"
             roles={mentionRoles}
             value={requiredRoleIds}
             onChange={setRequiredRoleIds}
           />
           <RoleMultiSelect
-            label="Roles bloqueados"
+            label="Blocked roles"
             roles={mentionRoles}
             value={blockedRoleIds}
             onChange={setBlockedRoleIds}
           />
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="gw-guild-age">Días mínimos en el servidor</Label>
+              <Label htmlFor="gw-guild-age">Minimum days in the server</Label>
               <Input
                 id="gw-guild-age"
                 type="number"
@@ -278,7 +278,7 @@ export function GiveawaysDashboard() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="gw-acct-age">Días mínimos de la cuenta</Label>
+              <Label htmlFor="gw-acct-age">Minimum account age (days)</Label>
               <Input
                 id="gw-acct-age"
                 type="number"
@@ -310,7 +310,7 @@ export function GiveawaysDashboard() {
                 setPrize("");
                 setDescription("");
                 await refreshList();
-              }, "Sorteo publicado.")
+              }, "Giveaway published.")
             }
           >
             {saving ? (
@@ -318,21 +318,21 @@ export function GiveawaysDashboard() {
             ) : (
               <Plus className="size-4" />
             )}
-            Publicar
+            Publish
           </Button>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Ajustes</CardTitle>
+          <CardTitle>Settings</CardTitle>
           <CardDescription>
-            DM al ganador y rol que recibe ping al terminar.
+            DM to the winner and role pinged when it ends.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <RoleMultiSelect
-            label="Roles manager (además de Manage Guild)"
+            label="Manager roles (in addition to Manage Guild)"
             roles={mentionRoles}
             value={settings.managerRoleIds}
             onChange={(managerRoleIds) =>
@@ -340,7 +340,7 @@ export function GiveawaysDashboard() {
             }
           />
           <div className="space-y-1.5">
-            <Label>Rol de ping al terminar</Label>
+            <Label>Role to ping when it ends</Label>
             <Select
               value={settings.pingRoleId ?? "__none__"}
               onValueChange={(v) =>
@@ -354,7 +354,7 @@ export function GiveawaysDashboard() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none__">Ninguno</SelectItem>
+                <SelectItem value="__none__">None</SelectItem>
                 {mentionRoles.map((role) => (
                   <SelectItem key={role.id} value={role.id}>
                     {role.name}
@@ -364,7 +364,7 @@ export function GiveawaysDashboard() {
             </Select>
           </div>
           <div className="flex items-center justify-between gap-4">
-            <Label htmlFor="gw-dm">Avisar al ganador por DM</Label>
+            <Label htmlFor="gw-dm">Notify the winner by DM</Label>
             <Switch
               id="gw-dm"
               checked={settings.dmWinners}
@@ -383,11 +383,11 @@ export function GiveawaysDashboard() {
                   dmWinners: settings.dmWinners,
                 });
                 setSettings(saved.settings);
-              }, "Ajustes guardados.")
+              }, "Settings saved.")
             }
           >
             <Save className="size-4" />
-            Guardar ajustes
+            Save settings
           </Button>
         </CardContent>
       </Card>
@@ -396,10 +396,10 @@ export function GiveawaysDashboard() {
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left text-muted-foreground">
             <tr>
-              <th className="px-3 py-2 font-medium">Premio</th>
-              <th className="px-3 py-2 font-medium">Estado</th>
-              <th className="px-3 py-2 font-medium">Entradas</th>
-              <th className="px-3 py-2 font-medium">Termina</th>
+              <th className="px-3 py-2 font-medium">Prize</th>
+              <th className="px-3 py-2 font-medium">Status</th>
+              <th className="px-3 py-2 font-medium">Entries</th>
+              <th className="px-3 py-2 font-medium">Ends</th>
             </tr>
           </thead>
           <tbody>
@@ -409,7 +409,7 @@ export function GiveawaysDashboard() {
                   className="px-3 py-6 text-center text-muted-foreground"
                   colSpan={4}
                 >
-                  Aún no hay sorteos.
+                  No giveaways yet.
                 </td>
               </tr>
             ) : (
@@ -439,10 +439,10 @@ export function GiveawaysDashboard() {
       <Dialog
         open={detailOpen}
         onOpenChange={setDetailOpen}
-        title={detail?.prize ?? "Sorteo"}
+        title={detail?.prize ?? "Giveaway"}
         description={
           detail
-            ? `${GIVEAWAY_STATUS_LABEL[detail.status]} · ${detail.entryCount} participante(s)`
+            ? `${GIVEAWAY_STATUS_LABEL[detail.status]} · ${detail.entryCount} participant(s)`
             : undefined
         }
         className="max-w-lg"
@@ -450,12 +450,12 @@ export function GiveawaysDashboard() {
         {detail ? (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Termina {formatWhen(detail.endsAt)}
-              {detail.messageId ? "" : " · sin mensaje en Discord"}
+              Ends {formatWhen(detail.endsAt)}
+              {detail.messageId ? "" : " · no message in Discord"}
             </p>
             {detail.winnerIds.length > 0 ? (
               <p className="text-sm">
-                Ganadores:{" "}
+                Winners:{" "}
                 {detail.winnerIds.map((id) => (
                   <span key={id} className="mr-2 font-mono text-xs">
                     {id}
@@ -474,10 +474,10 @@ export function GiveawaysDashboard() {
                         void withBusy(async () => {
                           await endGiveaway(detail.id);
                           await refreshList();
-                        }, "Sorteo cerrado.")
+                        }, "Giveaway closed.")
                       }
                     >
-                      Terminar ahora
+                      End now
                     </Button>
                   ) : null}
                   <Button
@@ -488,10 +488,10 @@ export function GiveawaysDashboard() {
                       void withBusy(async () => {
                         await cancelGiveaway(detail.id);
                         await refreshList();
-                      }, "Sorteo cancelado.")
+                      }, "Giveaway canceled.")
                     }
                   >
-                    Cancelar
+                    Cancel
                   </Button>
                 </>
               ) : null}
@@ -503,7 +503,7 @@ export function GiveawaysDashboard() {
                     void withBusy(async () => {
                       await rerollGiveaway(detail.id);
                       await refreshList();
-                    }, "Reroll hecho.")
+                    }, "Reroll done.")
                   }
                 >
                   Reroll
@@ -517,11 +517,11 @@ export function GiveawaysDashboard() {
                   void withBusy(async () => {
                     await publishGiveaway(detail.id);
                     await refreshList();
-                  }, "Mensaje republicado.")
+                  }, "Message republished.")
                 }
               >
                 <Send className="size-4" />
-                Republicar
+                Republish
               </Button>
             </div>
           </div>

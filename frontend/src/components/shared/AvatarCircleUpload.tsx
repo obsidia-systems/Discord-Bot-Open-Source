@@ -33,7 +33,7 @@ export function AvatarCircleUpload({
       <button
         type="button"
         disabled={disabled}
-        aria-label="Cambiar avatar"
+        aria-label="Change avatar"
         className={cn(
           "group relative size-[100px] overflow-hidden rounded-full",
           "border-2 border-border bg-muted shadow-sm",
@@ -60,7 +60,7 @@ export function AvatarCircleUpload({
         >
           <Camera className="size-6" />
           <span className="text-[10px] font-medium uppercase tracking-wide">
-            Subir
+            Upload
           </span>
         </span>
       </button>

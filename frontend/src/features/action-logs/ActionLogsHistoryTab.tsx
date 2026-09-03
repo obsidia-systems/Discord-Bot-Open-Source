@@ -42,14 +42,14 @@ import {
 
 const CATEGORY_FILTERS: Array<{ value: ActionLogCategory | "all"; label: string }> =
   [
-    { value: "all", label: "Todas" },
-    { value: "MESSAGES", label: "Mensajes" },
-    { value: "MEMBERS", label: "Miembros" },
+    { value: "all", label: "All" },
+    { value: "MESSAGES", label: "Messages" },
+    { value: "MEMBERS", label: "Members" },
     { value: "ROLES", label: "Roles" },
-    { value: "CHANNELS", label: "Canales" },
-    { value: "VOICE", label: "Voz" },
-    { value: "INVITES", label: "Invitaciones" },
-    { value: "ASSETS", label: "Recursos" },
+    { value: "CHANNELS", label: "Channels" },
+    { value: "VOICE", label: "Voice" },
+    { value: "INVITES", label: "Invites" },
+    { value: "ASSETS", label: "Assets" },
   ];
 
 export function ActionLogsHistoryTab() {
@@ -88,7 +88,7 @@ export function ActionLogsHistoryTab() {
       setTotal(result.total);
       setTotalPages(result.totalPages);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al cargar historial");
+      setError(err instanceof Error ? err.message : "Couldn't load history");
     } finally {
       setLoading(false);
     }
@@ -106,16 +106,16 @@ export function ActionLogsHistoryTab() {
     () => [
       {
         accessorKey: "createdAt",
-        header: "Fecha / Hora",
+        header: "Date / Time",
         cell: ({ row }) => (
           <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
-            {new Date(row.original.createdAt).toLocaleString("es-MX")}
+            {new Date(row.original.createdAt).toLocaleString("en-US")}
           </span>
         ),
       },
       {
         accessorKey: "category",
-        header: "Categoría",
+        header: "Category",
         cell: ({ row }) => (
           <Badge className={categoryBadgeClass(row.original.category)}>
             {CATEGORY_LABELS[row.original.category]}
@@ -124,7 +124,7 @@ export function ActionLogsHistoryTab() {
       },
       {
         accessorKey: "eventType",
-        header: "Evento",
+        header: "Event",
         cell: ({ row }) => (
           <Badge>
             {EVENT_TYPE_LABELS[row.original.eventType] ??
@@ -134,7 +134,7 @@ export function ActionLogsHistoryTab() {
       },
       {
         id: "actor",
-        header: "Usuario / Ejecutor",
+        header: "User / Executor",
         cell: ({ row }) => (
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">
@@ -163,7 +163,7 @@ export function ActionLogsHistoryTab() {
             }}
           >
             <Eye className="size-3.5" aria-hidden />
-            Detalles
+            Details
           </Button>
         ),
       },
@@ -183,30 +183,30 @@ export function ActionLogsHistoryTab() {
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Historial de registros</CardTitle>
+          <CardTitle className="text-base">Log history</CardTitle>
           <CardDescription>
-            Eventos capturados en SQLite (máx. 50 por página). Los mensajes muy
-            antiguos pueden no incluir el texto previo si no estaban en caché de
-            discord.js.
+            Events captured in SQLite (max. 50 per page). Very old messages may
+            not include the previous text if they weren't in the discord.js
+            cache.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-4">
             <div className="space-y-1.5 md:col-span-2">
-              <Label htmlFor="logs-q">Buscar</Label>
+              <Label htmlFor="logs-q">Search</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   id="logs-q"
                   className="pl-9"
-                  placeholder="Usuario, texto o tipo de evento…"
+                  placeholder="User, text, or event type…"
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                 />
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Categoría</Label>
+              <Label>Category</Label>
               <Select
                 value={category}
                 onValueChange={(v) =>
@@ -214,7 +214,7 @@ export function ActionLogsHistoryTab() {
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Categoría" />
+                  <SelectValue placeholder="Category" />
                 </SelectTrigger>
                 <SelectContent>
                   {CATEGORY_FILTERS.map((opt) => (
@@ -238,11 +238,11 @@ export function ActionLogsHistoryTab() {
                 ) : (
                   <RefreshCw className="size-4" />
                 )}
-                Actualizar
+                Refresh
               </Button>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="logs-from">Desde</Label>
+              <Label htmlFor="logs-from">From</Label>
               <Input
                 id="logs-from"
                 type="datetime-local"
@@ -251,7 +251,7 @@ export function ActionLogsHistoryTab() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="logs-to">Hasta</Label>
+              <Label htmlFor="logs-to">To</Label>
               <Input
                 id="logs-to"
                 type="datetime-local"
@@ -264,7 +264,7 @@ export function ActionLogsHistoryTab() {
           {loading && entries.length === 0 ? (
             <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" />
-              Cargando registros…
+              Loading logs…
             </div>
           ) : (
             <DataTable columns={columns} data={entries} />
@@ -272,7 +272,7 @@ export function ActionLogsHistoryTab() {
 
           <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
             <span>
-              {total} registro{total === 1 ? "" : "s"} · página {page} de{" "}
+              {total} log{total === 1 ? "" : "s"} · page {page} of{" "}
               {totalPages}
             </span>
             <div className="flex gap-2">

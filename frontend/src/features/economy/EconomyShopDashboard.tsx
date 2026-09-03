@@ -193,7 +193,7 @@ export function EconomyShopDashboard() {
         message:
           error instanceof Error
             ? error.message
-            : "Error al cargar la tienda.",
+            : "Couldn't load the shop.",
       });
     } finally {
       setLoading(false);
@@ -259,10 +259,10 @@ export function EconomyShopDashboard() {
 
       if (editingId) {
         await updateShopItem(editingId, payload);
-        setToast({ variant: "success", message: "Ítem actualizado." });
+        setToast({ variant: "success", message: "Item updated." });
       } else {
         await createShopItem(payload);
-        setToast({ variant: "success", message: "Ítem creado." });
+        setToast({ variant: "success", message: "Item created." });
       }
       await load();
       setMainTab("list");
@@ -270,7 +270,7 @@ export function EconomyShopDashboard() {
       setToast({
         variant: "error",
         message:
-          error instanceof Error ? error.message : "No se pudo guardar.",
+          error instanceof Error ? error.message : "Couldn't save.",
       });
     } finally {
       setSaving(false);
@@ -278,16 +278,16 @@ export function EconomyShopDashboard() {
   }
 
   async function handleDelete(id: string): Promise<void> {
-    if (!confirm("¿Eliminar este ítem de la tienda?")) return;
+    if (!confirm("Delete this item from the shop?")) return;
     try {
       await deleteShopItem(id);
-      setToast({ variant: "success", message: "Ítem eliminado." });
+      setToast({ variant: "success", message: "Item deleted." });
       await load();
     } catch (error) {
       setToast({
         variant: "error",
         message:
-          error instanceof Error ? error.message : "No se pudo eliminar.",
+          error instanceof Error ? error.message : "Couldn't delete.",
       });
     }
   }
@@ -306,7 +306,7 @@ export function EconomyShopDashboard() {
         message:
           error instanceof Error
             ? error.message
-            : "No se pudo subir la imagen.",
+            : "Couldn't upload the image.",
       });
     } finally {
       setUploadingIcon(false);
@@ -318,7 +318,7 @@ export function EconomyShopDashboard() {
     return (
       <div className="flex items-center justify-center gap-2 py-24 text-muted-foreground">
         <Loader2 className="size-5 animate-spin" />
-        Cargando tienda…
+        Loading shop…
       </div>
     );
   }
@@ -344,15 +344,15 @@ export function EconomyShopDashboard() {
                   <div>
                     <CardTitle className="flex items-center gap-2 text-base">
                       <Store className="size-4 text-primary" />
-                      Catálogo ({items.length})
+                      Catalog ({items.length})
                     </CardTitle>
                     <CardDescription>
-                      Ítems canjeables con /shop y /buy.
+                      Items redeemable with /shop and /buy.
                     </CardDescription>
                   </div>
                   <Button type="button" size="sm" onClick={openCreate}>
                     <Plus className="size-4" />
-                    Nuevo ítem
+                    New item
                   </Button>
                 </div>
               </CardHeader>
@@ -360,7 +360,7 @@ export function EconomyShopDashboard() {
                 {items.length === 0 ? (
                   <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center">
                     <p className="text-sm text-muted-foreground">
-                      Todavía no hay ítems. Crea el primero.
+                      No items yet. Create the first one.
                     </p>
                     <Button
                       type="button"
@@ -368,7 +368,7 @@ export function EconomyShopDashboard() {
                       onClick={openCreate}
                     >
                       <Plus className="size-4" />
-                      Crear ítem
+                      Create item
                     </Button>
                   </div>
                 ) : (
@@ -388,18 +388,18 @@ export function EconomyShopDashboard() {
                           </p>
                           {!item.enabled ? (
                             <Badge className="normal-case tracking-normal opacity-70">
-                              Pausado
+                              Paused
                             </Badge>
                           ) : null}
                           <Badge className="normal-case tracking-normal">
-                            {countActiveRewards(item.rewards)} beneficio
+                            {countActiveRewards(item.rewards)} benefit
                             {countActiveRewards(item.rewards) === 1
                               ? ""
                               : "s"}
                           </Badge>
                         </div>
                         <p className="mt-0.5 text-xs text-muted-foreground">
-                          {item.price.toLocaleString("es-MX")} {currencyName} ·
+                          {item.price.toLocaleString("en-US")} {currencyName} ·
                           Stock {item.stock === null ? "∞" : item.stock}
                         </p>
                       </div>
@@ -411,14 +411,14 @@ export function EconomyShopDashboard() {
                           onClick={() => openEdit(item)}
                         >
                           <Pencil className="size-3.5" />
-                          Editar
+                          Edit
                         </Button>
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
                           className="text-muted-foreground hover:text-destructive"
-                          aria-label="Eliminar"
+                          aria-label="Delete"
                           onClick={() => void handleDelete(item.id)}
                         >
                           <Trash2 className="size-4" />
@@ -436,13 +436,13 @@ export function EconomyShopDashboard() {
                   active={builderTab === "appearance"}
                   onClick={() => setBuilderTab("appearance")}
                 >
-                  1. Apariencia
+                  1. Appearance
                 </TabsTrigger>
                 <TabsTrigger
                   active={builderTab === "rewards"}
                   onClick={() => setBuilderTab("rewards")}
                 >
-                  2. Recompensas
+                  2. Rewards
                 </TabsTrigger>
               </TabsList>
 
@@ -452,29 +452,29 @@ export function EconomyShopDashboard() {
                     <Card>
                       <CardHeader className="pb-3">
                         <CardTitle className="text-base">
-                          Apariencia en /shop
+                          Appearance in /shop
                         </CardTitle>
                         <CardDescription>
                           {editingId
-                            ? "Editando ítem existente."
-                            : "Creando un ítem nuevo."}
+                            ? "Editing an existing item."
+                            : "Creating a new item."}
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
                         <div className="grid gap-4 sm:grid-cols-2">
                           <div className="space-y-2">
-                            <Label htmlFor="item-name">Nombre</Label>
+                            <Label htmlFor="item-name">Name</Label>
                             <Input
                               id="item-name"
                               value={draft.name}
                               onChange={(e) =>
                                 patchDraft({ name: e.target.value })
                               }
-                              placeholder="VIP Semanal"
+                              placeholder="Weekly VIP"
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="item-price">Precio</Label>
+                            <Label htmlFor="item-price">Price</Label>
                             <Input
                               id="item-price"
                               type="number"
@@ -489,7 +489,7 @@ export function EconomyShopDashboard() {
                           </div>
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="item-desc">Descripción</Label>
+                          <Label htmlFor="item-desc">Description</Label>
                           <Textarea
                             id="item-desc"
                             value={draft.description}
@@ -500,7 +500,7 @@ export function EconomyShopDashboard() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label>Emoji o icono</Label>
+                          <Label>Emoji or icon</Label>
                           <div className="flex flex-wrap items-center gap-2">
                             <div className="flex size-10 items-center justify-center rounded-md border border-border bg-muted/40">
                               <ShopItemIcon
@@ -529,7 +529,7 @@ export function EconomyShopDashboard() {
                               ) : (
                                 <ImagePlus className="size-4" />
                               )}
-                              Subir imagen
+                              Upload image
                             </Button>
                             <input
                               ref={iconFileRef}
@@ -544,9 +544,9 @@ export function EconomyShopDashboard() {
                         </div>
                         <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-3">
                           <div>
-                            <p className="text-sm font-medium">Stock infinito</p>
+                            <p className="text-sm font-medium">Infinite stock</p>
                             <p className="text-xs text-muted-foreground">
-                              Sin límite de compras.
+                              No purchase limit.
                             </p>
                           </div>
                           <Switch
@@ -560,7 +560,7 @@ export function EconomyShopDashboard() {
                         </div>
                         {!stockUnlimited ? (
                           <div className="space-y-2">
-                            <Label htmlFor="item-stock">Límite de stock</Label>
+                            <Label htmlFor="item-stock">Stock limit</Label>
                             <Input
                               id="item-stock"
                               type="number"
@@ -576,9 +576,9 @@ export function EconomyShopDashboard() {
                         ) : null}
                         <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-3">
                           <div>
-                            <p className="text-sm font-medium">Ítem activo</p>
+                            <p className="text-sm font-medium">Item active</p>
                             <p className="text-xs text-muted-foreground">
-                              Visible en /shop si está activo.
+                              Visible in /shop if active.
                             </p>
                           </div>
                           <Switch
@@ -595,7 +595,7 @@ export function EconomyShopDashboard() {
                       variant="outline"
                       onClick={() => setBuilderTab("rewards")}
                     >
-                      Continuar a recompensas →
+                      Continue to rewards →
                     </Button>
                   </div>
                 </TabsContent>
@@ -606,14 +606,14 @@ export function EconomyShopDashboard() {
                   <div className="space-y-3">
                     <RewardToggleCard
                       icon={Shield}
-                      title="Asignación de Rol"
-                      description="Otorga un rol existente al comprador."
+                      title="Role Assignment"
+                      description="Grants an existing role to the buyer."
                       enabled={rewards.hasRole}
                       onEnabledChange={(hasRole) => patchRewards({ hasRole })}
                     >
                       <div className="space-y-4">
                         <div className="space-y-2">
-                          <Label>Rol</Label>
+                          <Label>Role</Label>
                           <Select
                             value={rewards.roleConfig.roleId || undefined}
                             onValueChange={(roleId) =>
@@ -640,7 +640,7 @@ export function EconomyShopDashboard() {
                                     </span>
                                   </span>
                                 ) : (
-                                  <SelectValue placeholder="Seleccionar rol" />
+                                  <SelectValue placeholder="Select role" />
                                 );
                               })()}
                             </SelectTrigger>
@@ -661,10 +661,10 @@ export function EconomyShopDashboard() {
                         <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-3">
                           <div>
                             <p className="text-sm font-medium">
-                              ¿Es un rol temporal?
+                              Is it a temporary role?
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              Se retirará del miembro al expirar.
+                              It will be removed from the member when it expires.
                             </p>
                           </div>
                           <Switch
@@ -682,7 +682,7 @@ export function EconomyShopDashboard() {
                         {rewards.roleConfig.temporary ? (
                           <div className="grid gap-4 sm:grid-cols-2">
                             <div className="space-y-2">
-                              <Label>Duración</Label>
+                              <Label>Duration</Label>
                               <Input
                                 type="number"
                                 min={1}
@@ -699,7 +699,7 @@ export function EconomyShopDashboard() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>Unidad</Label>
+                              <Label>Unit</Label>
                               <Select
                                 value={rewards.roleConfig.durationUnit}
                                 onValueChange={(durationUnit) =>
@@ -718,8 +718,8 @@ export function EconomyShopDashboard() {
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="hours">Horas</SelectItem>
-                                  <SelectItem value="days">Días</SelectItem>
+                                  <SelectItem value="hours">Hours</SelectItem>
+                                  <SelectItem value="days">Days</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -730,8 +730,8 @@ export function EconomyShopDashboard() {
 
                     <RewardToggleCard
                       icon={Lock}
-                      title="Canal Privado"
-                      description="Crea un canal de texto solo para el comprador."
+                      title="Private Channel"
+                      description="Creates a text channel just for the buyer."
                       enabled={rewards.hasChannel}
                       onEnabledChange={(hasChannel) =>
                         patchRewards({ hasChannel })
@@ -739,7 +739,7 @@ export function EconomyShopDashboard() {
                     >
                       <div className="space-y-4">
                         <div className="space-y-2">
-                          <Label>Nombre del canal</Label>
+                          <Label>Channel name</Label>
                           <Input
                             value={rewards.channelConfig.nameTemplate}
                             onChange={(e) =>
@@ -750,14 +750,14 @@ export function EconomyShopDashboard() {
                                 },
                               })
                             }
-                            placeholder="privado-{username}"
+                            placeholder="private-{username}"
                           />
                           <p className="text-xs text-muted-foreground">
                             Variables: {"{username}"}, {"{displayname}"}
                           </p>
                         </div>
                         <div className="space-y-2">
-                          <Label>Categoría</Label>
+                          <Label>Category</Label>
                           <Select
                             value={
                               rewards.channelConfig.categoryId ?? "__auto__"
@@ -776,7 +776,7 @@ export function EconomyShopDashboard() {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="__auto__">
-                                Zonas Privadas (auto)
+                                Private Zones (auto)
                               </SelectItem>
                               {categoryChannels.map((ch) => (
                                 <SelectItem key={ch.id} value={ch.id}>
@@ -789,10 +789,10 @@ export function EconomyShopDashboard() {
                         <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-3">
                           <div>
                             <p className="text-sm font-medium">
-                              ¿Es un canal temporal?
+                              Is it a temporary channel?
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              Se eliminará al expirar.
+                              It will be deleted when it expires.
                             </p>
                           </div>
                           <Switch
@@ -810,7 +810,7 @@ export function EconomyShopDashboard() {
                         {rewards.channelConfig.temporary ? (
                           <div className="grid gap-4 sm:grid-cols-2">
                             <div className="space-y-2">
-                              <Label>Duración</Label>
+                              <Label>Duration</Label>
                               <Input
                                 type="number"
                                 min={1}
@@ -827,7 +827,7 @@ export function EconomyShopDashboard() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>Unidad</Label>
+                              <Label>Unit</Label>
                               <Select
                                 value={rewards.channelConfig.durationUnit}
                                 onValueChange={(durationUnit) =>
@@ -846,8 +846,8 @@ export function EconomyShopDashboard() {
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="hours">Horas</SelectItem>
-                                  <SelectItem value="days">Días</SelectItem>
+                                  <SelectItem value="hours">Hours</SelectItem>
+                                  <SelectItem value="days">Days</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -858,8 +858,8 @@ export function EconomyShopDashboard() {
 
                     <RewardToggleCard
                       icon={TrendingUp}
-                      title="Multiplicadores"
-                      description="Boost de XP o economía (puede ser temporal)."
+                      title="Multipliers"
+                      description="XP or economy boost (can be temporary)."
                       enabled={rewards.hasBoost}
                       onEnabledChange={(hasBoost) =>
                         patchRewards({ hasBoost })
@@ -868,7 +868,7 @@ export function EconomyShopDashboard() {
                       <div className="space-y-4">
                         <div className="grid gap-4 sm:grid-cols-2">
                           <div className="space-y-2">
-                            <Label>Tipo</Label>
+                            <Label>Type</Label>
                             <Select
                               value={rewards.boostConfig.module}
                               onValueChange={(module) =>
@@ -886,7 +886,7 @@ export function EconomyShopDashboard() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="xp">XP</SelectItem>
-                                <SelectItem value="economy">Economía</SelectItem>
+                                <SelectItem value="economy">Economy</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -911,10 +911,10 @@ export function EconomyShopDashboard() {
                         <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-3">
                           <div>
                             <p className="text-sm font-medium">
-                              ¿Es un boost temporal?
+                              Is it a temporary boost?
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              Si no, el multiplicador permanece activo.
+                              If not, the multiplier stays active.
                             </p>
                           </div>
                           <Switch
@@ -932,7 +932,7 @@ export function EconomyShopDashboard() {
                         {rewards.boostConfig.temporary ? (
                           <div className="grid gap-4 sm:grid-cols-2">
                             <div className="space-y-2">
-                              <Label>Duración</Label>
+                              <Label>Duration</Label>
                               <Input
                                 type="number"
                                 min={1}
@@ -949,7 +949,7 @@ export function EconomyShopDashboard() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>Unidad</Label>
+                              <Label>Unit</Label>
                               <Select
                                 value={rewards.boostConfig.durationUnit}
                                 onValueChange={(durationUnit) =>
@@ -968,8 +968,8 @@ export function EconomyShopDashboard() {
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="hours">Horas</SelectItem>
-                                  <SelectItem value="days">Días</SelectItem>
+                                  <SelectItem value="hours">Hours</SelectItem>
+                                  <SelectItem value="days">Days</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -980,8 +980,8 @@ export function EconomyShopDashboard() {
 
                     <RewardToggleCard
                       icon={MessageSquareWarning}
-                      title="Entrega Manual (Staff)"
-                      description="Notifica al staff para recompensas externas."
+                      title="Manual Delivery (Staff)"
+                      description="Notifies staff for external rewards."
                       enabled={rewards.hasManual}
                       onEnabledChange={(hasManual) =>
                         patchRewards({ hasManual })
@@ -989,7 +989,7 @@ export function EconomyShopDashboard() {
                     >
                       <div className="space-y-4">
                         <div className="space-y-2">
-                          <Label>Instrucciones</Label>
+                          <Label>Instructions</Label>
                           <Textarea
                             value={rewards.manualConfig.staffInstructions}
                             onChange={(e) =>
@@ -1001,12 +1001,12 @@ export function EconomyShopDashboard() {
                               })
                             }
                             rows={3}
-                            placeholder="Dar 100k en Minecraft…"
+                            placeholder="Give 100k in Minecraft…"
                           />
                         </div>
                         <div className="grid gap-4 sm:grid-cols-2">
                           <div className="space-y-2">
-                            <Label>Canal de logs</Label>
+                            <Label>Log channel</Label>
                             <Select
                               value={
                                 rewards.manualConfig.logChannelId || undefined
@@ -1021,7 +1021,7 @@ export function EconomyShopDashboard() {
                               }
                             >
                               <SelectTrigger>
-                                <SelectValue placeholder="Seleccionar canal" />
+                                <SelectValue placeholder="Select channel" />
                               </SelectTrigger>
                               <SelectContent>
                                 {textChannels.map((ch) => (
@@ -1033,7 +1033,7 @@ export function EconomyShopDashboard() {
                             </Select>
                           </div>
                           <div className="space-y-2">
-                            <Label>Rol del staff</Label>
+                            <Label>Staff role</Label>
                             <Select
                               value={
                                 rewards.manualConfig.pingRoleId || undefined
@@ -1093,9 +1093,9 @@ export function EconomyShopDashboard() {
 
         <Card className="sticky top-4 self-start">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Vista previa</CardTitle>
+            <CardTitle className="text-base">Preview</CardTitle>
             <CardDescription>
-              Embed de /shop y beneficios activos.
+              /shop embed and active benefits.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -1123,7 +1123,7 @@ export function EconomyShopDashboard() {
                   ) : (
                     <Save className="size-4" />
                   )}
-                  {editingId ? "Guardar cambios" : "Crear ítem"}
+                  {editingId ? "Save changes" : "Create item"}
                 </Button>
                 <Button
                   type="button"
@@ -1131,13 +1131,13 @@ export function EconomyShopDashboard() {
                   className="w-full"
                   onClick={() => setMainTab("list")}
                 >
-                  Volver al listado
+                  Back to list
                 </Button>
               </>
             ) : (
               <Button type="button" className="w-full" onClick={openCreate}>
                 <Plus className="size-4" />
-                Nuevo ítem
+                New item
               </Button>
             )}
           </CardContent>
@@ -1176,7 +1176,7 @@ function RewardToggleCard({
           <Switch
             checked={enabled}
             onCheckedChange={onEnabledChange}
-            aria-label={`Activar ${title}`}
+            aria-label={`Enable ${title}`}
           />
         </div>
       </CardHeader>

@@ -104,9 +104,9 @@ const ACTION_STYLES: Exclude<MessageButtonStyle, "Link">[] = [
 ];
 
 const TYPE_LABEL: Record<AutoroleRegistryType, string> = {
-  BUTTONS: "Botones",
-  SELECT: "Menú desplegable",
-  REACTIONS: "Reacciones",
+  BUTTONS: "Buttons",
+  SELECT: "Dropdown menu",
+  REACTIONS: "Reactions",
 };
 
 const BUTTON_PREVIEW_CLASS: Record<
@@ -128,7 +128,7 @@ function mediaSrc(value?: string): string | null {
 function emptyRow(): MappingRow {
   return {
     roleId: "",
-    label: "Obtener rol",
+    label: "Get role",
     emojiKey: "",
     style: "Primary",
     selection: null,
@@ -143,7 +143,7 @@ function rowsFromReactions(
     const isCustom = reaction.emojiKey.startsWith("custom:");
     return {
       roleId: "",
-      label: reaction.name ? `Rol ${reaction.name}` : "Obtener rol",
+      label: reaction.name ? `${reaction.name} role` : "Get role",
       emojiKey: reaction.emojiKey,
       style: "Primary" as const,
       selection: {
@@ -184,7 +184,7 @@ function embedFromFetched(
 }
 
 const DUPLICATE_AUTOROLE_TOAST =
-  "Este mensaje ya cuenta con un autorol activo. Visita «Mensajes Activos» para gestionarlo.";
+  "This message already has an active autorole. Go to \"Active Messages\" to manage it.";
 
 function rowsFromMappings(mappings: AutoroleMappingItem[]): MappingRow[] {
   if (mappings.length === 0) return [emptyRow()];
@@ -360,7 +360,7 @@ export function AutoRoleBuilder() {
         setMessageFetchError(
           error instanceof Error
             ? error.message
-            : "El mensaje no existe en el canal seleccionado",
+            : "The message doesn't exist in the selected channel",
         );
       })
       .finally(() => {
@@ -381,7 +381,7 @@ export function AutoRoleBuilder() {
         message:
           error instanceof Error
             ? error.message
-            : "No se pudo cargar el registro",
+            : "Couldn't load the registry",
       });
     } finally {
       setListLoading(false);
@@ -430,7 +430,7 @@ export function AutoRoleBuilder() {
       return;
     }
     if (!assets) {
-      setFeedback({ kind: "error", message: "Assets no disponibles." });
+      setFeedback({ kind: "error", message: "Assets unavailable." });
       return;
     }
     setFeedback({ kind: "loading" });
@@ -469,7 +469,7 @@ export function AutoRoleBuilder() {
     } catch (error: unknown) {
       setFeedback({
         kind: "error",
-        message: error instanceof Error ? error.message : "Error al crear",
+        message: error instanceof Error ? error.message : "Couldn't create",
       });
     }
   }
@@ -485,11 +485,11 @@ export function AutoRoleBuilder() {
       });
       setHumanRoles(result.config.humanRoles);
       setBotRoles(result.config.botRoles);
-      setFeedback({ kind: "ok", message: "Roles al unirse guardados." });
+      setFeedback({ kind: "ok", message: "Join roles saved." });
     } catch (error: unknown) {
       setFeedback({
         kind: "error",
-        message: error instanceof Error ? error.message : "Error al guardar",
+        message: error instanceof Error ? error.message : "Couldn't save",
       });
     }
   }
@@ -517,17 +517,17 @@ export function AutoRoleBuilder() {
         setFeedback({
           kind: "ok",
           message:
-            "Mappings guardados en SQLite, pero el mensaje ya no existe en Discord (huérfano).",
+            "Mappings saved in SQLite, but the message no longer exists in Discord (orphaned).",
         });
       } else {
-        setFeedback({ kind: "ok", message: "Roles del mensaje actualizados." });
+        setFeedback({ kind: "ok", message: "Message roles updated." });
       }
       setManageEntry(null);
       await refreshRegistry();
     } catch (error: unknown) {
       setFeedback({
         kind: "error",
-        message: error instanceof Error ? error.message : "Error al actualizar",
+        message: error instanceof Error ? error.message : "Couldn't update",
       });
     }
   }
@@ -562,21 +562,21 @@ export function AutoRoleBuilder() {
         setFeedback({
           kind: "ok",
           message:
-            "Título local actualizado. El mensaje no existe en Discord (huérfano).",
+            "Local title updated. The message doesn't exist in Discord (orphaned).",
         });
         setSuccessToast(
-          "Registro actualizado. El mensaje no existe en Discord (huérfano).",
+          "Registry updated. The message doesn't exist in Discord (orphaned).",
         );
       } else {
-        setFeedback({ kind: "ok", message: "Mensaje actualizado en Discord." });
-        setSuccessToast("Mensaje actualizado en Discord");
+        setFeedback({ kind: "ok", message: "Message updated in Discord." });
+        setSuccessToast("Message updated in Discord");
       }
       setEditEntry(null);
       await refreshRegistry();
     } catch (error: unknown) {
       setFeedback({
         kind: "error",
-        message: error instanceof Error ? error.message : "Error al editar",
+        message: error instanceof Error ? error.message : "Couldn't edit",
       });
     }
   }
@@ -597,15 +597,15 @@ export function AutoRoleBuilder() {
       setFeedback({
         kind: "ok",
         message: result.orphaned
-          ? "Registro limpio (el mensaje ya no existía en Discord)."
-          : "Autorol eliminado del mensaje y del registro.",
+          ? "Registry cleaned (the message no longer existed in Discord)."
+          : "Autorole removed from the message and the registry.",
       });
       setDeleteId(null);
       await refreshRegistry();
     } catch (error: unknown) {
       setFeedback({
         kind: "error",
-        message: error instanceof Error ? error.message : "Error al eliminar",
+        message: error instanceof Error ? error.message : "Couldn't delete",
       });
     }
   }
@@ -638,7 +638,7 @@ export function AutoRoleBuilder() {
                 <div className="flex items-center gap-2">
                   <div className="min-w-0 flex-1 space-y-1">
                     <Label className="text-[11px] text-muted-foreground">
-                      Rol
+                      Role
                     </Label>
                     <Select
                       value={row.roleId || undefined}
@@ -652,7 +652,7 @@ export function AutoRoleBuilder() {
                           ...row,
                           roleId,
                           label:
-                            row.label === "Obtener rol" || !row.label
+                            row.label === "Get role" || !row.label
                               ? roleName
                               : row.label,
                         };
@@ -672,7 +672,7 @@ export function AutoRoleBuilder() {
                             </span>
                           </span>
                         ) : (
-                          <SelectValue placeholder="Selecciona un rol…" />
+                          <SelectValue placeholder="Select a role…" />
                         )}
                       </SelectTrigger>
                       <SelectContent>
@@ -705,7 +705,7 @@ export function AutoRoleBuilder() {
                 <div className="flex items-end gap-2">
                   <div className="min-w-0 flex-1 space-y-1">
                     <Label className="text-[11px] text-muted-foreground">
-                      Etiqueta
+                      Label
                     </Label>
                     <Input
                       className="h-9"
@@ -740,7 +740,7 @@ export function AutoRoleBuilder() {
                   {type !== "REACTIONS" ? (
                     <div className="min-w-[7.5rem] space-y-1">
                       <Label className="text-[11px] text-muted-foreground">
-                        Estilo
+                        Style
                       </Label>
                       <Select
                         value={row.style ?? "Primary"}
@@ -779,7 +779,7 @@ export function AutoRoleBuilder() {
           onClick={() => setRows([...rows, emptyRow()])}
         >
           <Plus className="size-4" aria-hidden />
-          Añadir asignación
+          Add mapping
         </Button>
       </div>
     );
@@ -791,7 +791,7 @@ export function AutoRoleBuilder() {
     return (
       <div className="flex h-full min-h-[280px] flex-col overflow-hidden rounded-lg border border-border bg-[#2b2d31] text-white shadow-sm">
         <div className="shrink-0 border-b border-white/10 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white/60">
-          Vista previa en vivo
+          Live preview
           {channelLabel ? (
             <span className="ml-2 font-normal normal-case text-white/40">
               #{channelLabel}
@@ -803,7 +803,7 @@ export function AutoRoleBuilder() {
             messageFetching ? (
               <div className="flex items-center gap-2 text-sm text-white/60">
                 <Loader2 className="size-4 animate-spin" aria-hidden />
-                Cargando mensaje…
+                Loading message…
               </div>
             ) : messageFetchError ? (
               <div className="rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-3 text-sm text-rose-300">
@@ -909,7 +909,7 @@ export function AutoRoleBuilder() {
                                 ? " • "
                                 : ""}
                               {embed.timestamp
-                                ? new Date().toLocaleString("es-MX")
+                                ? new Date().toLocaleString("en-US")
                                 : ""}
                             </div>
                           )}
@@ -920,7 +920,7 @@ export function AutoRoleBuilder() {
                   {!fetchedMessage.content.trim() &&
                   fetchedMessage.embeds.length === 0 ? (
                     <p className="text-sm text-white/45">
-                      Mensaje sin contenido de texto ni embeds.
+                      Message with no text content or embeds.
                     </p>
                   ) : null}
                 </div>
@@ -928,10 +928,10 @@ export function AutoRoleBuilder() {
             ) : (
               <div className="rounded-md border border-dashed border-white/20 bg-white/5 px-3 py-6 text-center text-sm text-white/60">
                 {!channelId
-                  ? "Selecciona un canal e ingresa el ID del mensaje."
+                  ? "Select a channel and enter the message ID."
                   : existingMessageId.trim()
-                    ? "Escribe un ID de mensaje válido (17–20 dígitos)."
-                    : "Ingresa el ID del mensaje para previsualizarlo."}
+                    ? "Enter a valid message ID (17–20 digits)."
+                    : "Enter the message ID to preview it."}
               </div>
             )
           ) : null}
@@ -946,7 +946,7 @@ export function AutoRoleBuilder() {
                   {parseDiscordEmojis(plainContent)}
                 </Markdown>
               ) : (
-                <span className="text-white/40">Texto del mensaje…</span>
+                <span className="text-white/40">Message text…</span>
               )}
             </div>
           ) : null}
@@ -1023,7 +1023,7 @@ export function AutoRoleBuilder() {
                           ? " • "
                           : ""}
                         {previewEmbed.timestamp
-                          ? new Date().toLocaleString("es-MX")
+                          ? new Date().toLocaleString("en-US")
                           : ""}
                       </div>
                     )}
@@ -1033,8 +1033,8 @@ export function AutoRoleBuilder() {
             ) : (
               <p className="text-sm text-white/50">
                 {templateId
-                  ? "Cargando plantilla…"
-                  : "Selecciona una plantilla para previsualizar."}
+                  ? "Loading template…"
+                  : "Select a template to preview."}
               </p>
             )
           ) : null}
@@ -1059,7 +1059,7 @@ export function AutoRoleBuilder() {
                     !row.selection.display.startsWith("<") ? (
                     <span>{row.selection.display}</span>
                   ) : null}
-                  {row.label || "Rol"}
+                  {row.label || "Role"}
                 </span>
               ))}
             </div>
@@ -1067,9 +1067,9 @@ export function AutoRoleBuilder() {
 
           {createType === "SELECT" ? (
             <div className="rounded bg-[#4e5058] px-3 py-2 text-xs text-white/90">
-              Elige un rol…
+              Pick a role…
               <span className="ml-2 text-white/50">
-                ({activeRows.filter((r) => r.roleId).length} opciones)
+                ({activeRows.filter((r) => r.roleId).length} options)
               </span>
             </div>
           ) : null}
@@ -1113,7 +1113,7 @@ export function AutoRoleBuilder() {
               setFeedback({ kind: "idle" });
             }}
           >
-            Mensajes Activos
+            Active Messages
           </TabsTrigger>
           <TabsTrigger
             active={topTab === "create"}
@@ -1122,7 +1122,7 @@ export function AutoRoleBuilder() {
               setFeedback({ kind: "idle" });
             }}
           >
-            Crear Nuevo Autorol
+            Create New Autorole
           </TabsTrigger>
           <TabsTrigger
             active={topTab === "autojoin"}
@@ -1131,7 +1131,7 @@ export function AutoRoleBuilder() {
               setFeedback({ kind: "idle" });
             }}
           >
-            Roles Automáticos
+            Automatic Roles
           </TabsTrigger>
         </TabsList>
 
@@ -1139,14 +1139,14 @@ export function AutoRoleBuilder() {
           <TabsContent className="space-y-4">
             {listLoading ? (
               <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" /> Cargando registro…
+                <Loader2 className="size-4 animate-spin" /> Loading registry…
               </p>
             ) : entries.length === 0 ? (
               <Card>
                 <CardHeader>
-                  <CardTitle>Sin menús activos</CardTitle>
+                  <CardTitle>No active menus</CardTitle>
                   <CardDescription>
-                    Crea un autorol en la pestaña «Crear Nuevo Autorol».
+                    Create an autorole on the "Create New Autorole" tab.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -1164,20 +1164,20 @@ export function AutoRoleBuilder() {
                       <div className="flex flex-wrap gap-1.5 pt-1">
                         {entry.isBotAuthor === true ? (
                           <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 normal-case tracking-normal dark:text-emerald-400">
-                            Enviado por el Bot
+                            Sent by the Bot
                           </Badge>
                         ) : entry.isBotAuthor === false ? (
                           <Badge className="border-amber-500/30 bg-amber-500/10 text-amber-800 normal-case tracking-normal dark:text-amber-300">
-                            Mensaje Externo (Usuario)
+                            External Message (User)
                           </Badge>
                         ) : (
                           <Badge className="normal-case tracking-normal text-muted-foreground">
-                            Autoría desconocida
+                            Unknown author
                           </Badge>
                         )}
                         {entry.orphaned ? (
                           <Badge className="border-rose-500/30 bg-rose-500/10 text-rose-700 normal-case tracking-normal dark:text-rose-400">
-                            Huérfano
+                            Orphaned
                           </Badge>
                         ) : null}
                       </div>
@@ -1187,7 +1187,7 @@ export function AutoRoleBuilder() {
                           assets?.channels.find((c) => c.id === entry.channelId)
                             ?.name ??
                           entry.channelId}{" "}
-                        · {entry.rolesMapping.length} rol(es)
+                        · {entry.rolesMapping.length} role(s)
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="mt-auto flex flex-col gap-2">
@@ -1199,10 +1199,10 @@ export function AutoRoleBuilder() {
                         onClick={() => openManage(entry)}
                       >
                         <Users className="size-4" aria-hidden />
-                        Agregar / Gestionar roles
+                        Add / Manage roles
                       </Button>
                       {entry.isBotAuthor === false ? (
-                        <Tooltip content="Discord no permite a los bots editar el texto o embed de mensajes enviados por usuarios humanos.">
+                        <Tooltip content="Discord doesn't allow bots to edit the text or embed of messages sent by human users.">
                           <span className="w-full">
                             <Button
                               type="button"
@@ -1212,7 +1212,7 @@ export function AutoRoleBuilder() {
                               disabled
                             >
                               <Pencil className="size-4" aria-hidden />
-                              Editar contenido / Embed
+                              Edit content / Embed
                             </Button>
                           </span>
                         </Tooltip>
@@ -1226,7 +1226,7 @@ export function AutoRoleBuilder() {
                           onClick={() => void openEditContent(entry)}
                         >
                           <Pencil className="size-4" aria-hidden />
-                          Editar contenido / Embed
+                          Edit content / Embed
                         </Button>
                       )}
                       <Button
@@ -1237,7 +1237,7 @@ export function AutoRoleBuilder() {
                         onClick={() => setDeleteId(entry.id)}
                       >
                         <Trash2 className="size-4" aria-hidden />
-                        Eliminar
+                        Delete
                       </Button>
                     </CardContent>
                   </Card>
@@ -1255,15 +1255,15 @@ export function AutoRoleBuilder() {
               <div className="mb-6 grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
                 <Card className="flex h-full flex-col">
                   <CardHeader>
-                    <CardTitle>Paso 1 · Configuración del mensaje</CardTitle>
+                    <CardTitle>Step 1 · Message configuration</CardTitle>
                     <CardDescription>
-                      Plantilla, mensaje existente o texto plano — sin
-                      constructor de embeds aquí.
+                      Template, existing message, or plain text — no embed
+                      builder here.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="grid flex-1 content-start gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label>Tipo de interacción</Label>
+                      <Label>Interaction type</Label>
                       <Select
                         value={createType}
                         onValueChange={(v) =>
@@ -1274,17 +1274,17 @@ export function AutoRoleBuilder() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="BUTTONS">Botones</SelectItem>
+                          <SelectItem value="BUTTONS">Buttons</SelectItem>
                           <SelectItem value="SELECT">
-                            Menú desplegable
+                            Dropdown menu
                           </SelectItem>
-                          <SelectItem value="REACTIONS">Reacciones</SelectItem>
+                          <SelectItem value="REACTIONS">Reactions</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Origen</Label>
+                      <Label>Source</Label>
                       <Select
                         value={createSource}
                         onValueChange={(v) =>
@@ -1296,20 +1296,20 @@ export function AutoRoleBuilder() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="template">
-                            Seleccionar plantilla de Embed
+                            Select an Embed template
                           </SelectItem>
                           <SelectItem value="existing">
-                            Usar ID de mensaje existente
+                            Use an existing message ID
                           </SelectItem>
                           <SelectItem value="plain">
-                            Mensaje de texto plano
+                            Plain text message
                           </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Canal</Label>
+                      <Label>Channel</Label>
                       {sendChannels.length > 0 ? (
                         <Select
                           value={channelId || undefined}
@@ -1321,7 +1321,7 @@ export function AutoRoleBuilder() {
                           disabled={busy}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Selecciona un canal…" />
+                            <SelectValue placeholder="Select a channel…" />
                           </SelectTrigger>
                           <SelectContent>
                             {sendChannels.map((channel) => (
@@ -1333,31 +1333,31 @@ export function AutoRoleBuilder() {
                         </Select>
                       ) : (
                         <p className="text-sm text-muted-foreground">
-                          No hay canales de texto o anuncios.
+                          No text or announcement channels.
                         </p>
                       )}
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Nombre en el registro (opcional)</Label>
+                      <Label>Name in the registry (optional)</Label>
                       <Input
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
-                        placeholder="Ej. Roles de colores"
+                        placeholder="e.g. Color roles"
                         disabled={busy}
                       />
                     </div>
 
                     {createSource === "template" ? (
                       <div className="space-y-2 sm:col-span-2">
-                        <Label>Plantilla</Label>
+                        <Label>Template</Label>
                         <Select
                           value={templateId || undefined}
                           onValueChange={setTemplateId}
                           disabled={busy}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Elige plantilla…" />
+                            <SelectValue placeholder="Pick a template…" />
                           </SelectTrigger>
                           <SelectContent>
                             {templates.map((tpl) => (
@@ -1375,7 +1375,7 @@ export function AutoRoleBuilder() {
 
                     {createSource === "existing" ? (
                       <div className="space-y-2 sm:col-span-2">
-                        <Label>ID del mensaje</Label>
+                        <Label>Message ID</Label>
                         <div className="relative">
                           <Input
                             value={existingMessageId}
@@ -1384,8 +1384,8 @@ export function AutoRoleBuilder() {
                             }
                             placeholder={
                               channelId
-                                ? "Snowflake del mensaje"
-                                : "Primero selecciona un canal"
+                                ? "Message snowflake"
+                                : "Select a channel first"
                             }
                             disabled={busy || !channelId}
                             required
@@ -1414,7 +1414,7 @@ export function AutoRoleBuilder() {
                           </p>
                         ) : fetchedMessage ? (
                           <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                            Mensaje encontrado · @{fetchedMessage.author.username}
+                            Message found · @{fetchedMessage.author.username}
                           </p>
                         ) : null}
                       </div>
@@ -1422,7 +1422,7 @@ export function AutoRoleBuilder() {
 
                     {createSource === "plain" ? (
                       <div className="space-y-2 sm:col-span-2">
-                        <Label>Texto del mensaje</Label>
+                        <Label>Message text</Label>
                         <Textarea
                           value={plainContent}
                           onChange={(e) => setPlainContent(e.target.value)}
@@ -1445,9 +1445,9 @@ export function AutoRoleBuilder() {
                 <CardHeader>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="space-y-1.5">
-                      <CardTitle>Paso 2 · Mapeo de roles</CardTitle>
+                      <CardTitle>Step 2 · Role mapping</CardTitle>
                       <CardDescription>
-                        Emoji, etiqueta, rol y estilo — dos por fila.
+                        Emoji, label, role, and style — two per row.
                       </CardDescription>
                     </div>
                     {createSource === "existing" &&
@@ -1461,7 +1461,7 @@ export function AutoRoleBuilder() {
                         onClick={autocompleteReactions}
                       >
                         <Sparkles className="size-4" aria-hidden />
-                        Autocompletar emojis del mensaje
+                        Autofill emoji from the message
                       </Button>
                     ) : null}
                   </div>
@@ -1491,7 +1491,7 @@ export function AutoRoleBuilder() {
                   ) : (
                     <Save className="size-4" />
                   )}
-                  Publicar autorol
+                  Publish autorole
                 </Button>
                 <FeedbackBanner feedback={feedback} />
               </div>
@@ -1505,21 +1505,21 @@ export function AutoRoleBuilder() {
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
                 <Card className="lg:col-span-8">
                   <CardHeader>
-                    <CardTitle>Roles al unirse</CardTitle>
+                    <CardTitle>Roles on join</CardTitle>
                     <CardDescription>
-                      Humanos y bots reciben roles distintos al entrar.
+                      Humans and bots get different roles when they join.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="grid gap-5 sm:grid-cols-2">
                     <RoleMultiSelect
-                      label="Roles a asignar a Humanos"
+                      label="Roles to assign to Humans"
                       roles={assignableRoles}
                       value={humanRoles}
                       onChange={setHumanRoles}
                       disabled={busy}
                     />
                     <RoleMultiSelect
-                      label="Roles a asignar a Bots"
+                      label="Roles to assign to Bots"
                       roles={assignableRoles}
                       value={botRoles}
                       onChange={setBotRoles}
@@ -1530,11 +1530,11 @@ export function AutoRoleBuilder() {
                 <aside className="space-y-4 lg:col-span-4 lg:sticky lg:top-6 lg:self-start">
                   <div className="overflow-hidden rounded-lg border border-border bg-[#2b2d31] text-white shadow-sm">
                     <div className="border-b border-white/10 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white/60">
-                      Vista previa
+                      Preview
                     </div>
                     <div className="space-y-3 p-4 text-sm text-white/80">
                       <div>
-                        <p className="mb-1 text-xs text-white/50">Humanos</p>
+                        <p className="mb-1 text-xs text-white/50">Humans</p>
                         <p>
                           {humanRoles.length
                             ? humanRoles
@@ -1567,7 +1567,7 @@ export function AutoRoleBuilder() {
                     ) : (
                       <Save className="size-4" />
                     )}
-                    Guardar configuración
+                    Save configuration
                   </Button>
                   <FeedbackBanner feedback={feedback} />
                 </aside>
@@ -1582,7 +1582,7 @@ export function AutoRoleBuilder() {
         onOpenChange={(open) => {
           if (!open) setManageEntry(null);
         }}
-        title="Gestionar roles"
+        title="Manage roles"
         description={
           manageEntry
             ? `${manageEntry.title} · ${TYPE_LABEL[manageEntry.type]}`
@@ -1602,7 +1602,7 @@ export function AutoRoleBuilder() {
               ) : (
                 <Save className="size-4" />
               )}
-              Guardar en Discord
+              Save to Discord
             </Button>
           </div>
         ) : null}
@@ -1615,8 +1615,8 @@ export function AutoRoleBuilder() {
         }}
         side="right"
         className="w-full max-w-[450px] sm:max-w-[540px]"
-        title="Editar Contenido de Autorol"
-        description="Modifica el texto o embed del mensaje en vivo. Los cambios se aplicarán instantáneamente en Discord."
+        title="Edit Autorole Content"
+        description="Edit the text or embed of the live message. Changes apply instantly in Discord."
         footer={
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button
@@ -1625,7 +1625,7 @@ export function AutoRoleBuilder() {
               disabled={busy}
               onClick={() => setEditEntry(null)}
             >
-              Cancelar
+              Cancel
             </Button>
             <Button
               type="button"
@@ -1637,7 +1637,7 @@ export function AutoRoleBuilder() {
               ) : (
                 <Save className="size-4" aria-hidden />
               )}
-              Guardar Cambios en Discord
+              Save Changes to Discord
             </Button>
           </div>
         }
@@ -1647,7 +1647,7 @@ export function AutoRoleBuilder() {
             {editLoading ? (
               <p className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="size-4 animate-spin" aria-hidden />
-                Cargando contenido actual…
+                Loading current content…
               </p>
             ) : (
               <Tabs>
@@ -1656,13 +1656,13 @@ export function AutoRoleBuilder() {
                     active={editTab === "message"}
                     onClick={() => setEditTab("message")}
                   >
-                    Mensaje Base
+                    Base Message
                   </TabsTrigger>
                   <TabsTrigger
                     active={editTab === "embed"}
                     onClick={() => setEditTab("embed")}
                   >
-                    Campos del Embed
+                    Embed Fields
                   </TabsTrigger>
                 </TabsList>
 
@@ -1670,7 +1670,7 @@ export function AutoRoleBuilder() {
                   <TabsContent className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="autorole-edit-dashboard-title">
-                        Título en el dashboard
+                        Dashboard title
                       </Label>
                       <Input
                         id="autorole-edit-dashboard-title"
@@ -1682,7 +1682,7 @@ export function AutoRoleBuilder() {
                     <div className="space-y-2">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <Label htmlFor="autorole-edit-content">
-                          Texto del mensaje
+                          Message text
                         </Label>
                         <DiscordEmojiPicker
                           serverEmojis={assets?.emojis ?? []}
@@ -1707,12 +1707,12 @@ export function AutoRoleBuilder() {
                             content: e.target.value,
                           }))
                         }
-                        placeholder="Texto plano fuera del embed…"
+                        placeholder="Plain text outside the embed…"
                         disabled={busy}
                         maxLength={2000}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Este texto aparece encima del embed en Discord.
+                        This text appears above the embed in Discord.
                       </p>
                     </div>
                   </TabsContent>
@@ -1748,9 +1748,9 @@ export function AutoRoleBuilder() {
 
       <AlertDialog
         open={deleteId != null}
-        title="Eliminar autorol"
-        description="Se quitarán los botones/reacciones del mensaje en Discord y el registro en la base de datos. Si el mensaje ya no existe, solo se limpia el registro."
-        confirmLabel="Eliminar"
+        title="Delete autorole"
+        description="The message's buttons/reactions in Discord and the record in the database will be removed. If the message no longer exists, only the record is cleaned up."
+        confirmLabel="Delete"
         tone="destructive"
         confirming={busy}
         onCancel={() => setDeleteId(null)}

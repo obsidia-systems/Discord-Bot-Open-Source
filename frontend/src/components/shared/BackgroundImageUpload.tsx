@@ -18,7 +18,7 @@ export interface BackgroundImageUploadProps {
  */
 export function BackgroundImageUpload({
   id = "background-image-upload",
-  label = "Fondo",
+  label = "Background",
   src,
   disabled,
   uploading,
@@ -40,7 +40,7 @@ export function BackgroundImageUpload({
       <button
         type="button"
         disabled={busy}
-        aria-label="Cambiar fondo"
+        aria-label="Change background"
         className={cn(
           "group relative h-28 w-full overflow-hidden rounded-lg border-2 border-border bg-muted shadow-sm sm:h-32",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -82,7 +82,7 @@ export function BackgroundImageUpload({
             <Upload className="size-5" />
           )}
           <span className="text-[11px] font-medium tracking-wide">
-            {uploading ? "Subiendo…" : "Cambiar fondo"}
+            {uploading ? "Uploading…" : "Change background"}
           </span>
         </span>
       </button>
@@ -96,7 +96,7 @@ export function BackgroundImageUpload({
         onChange={onChange}
       />
       <p className="text-[11px] text-muted-foreground">
-        PNG, JPG o WEBP · máx. 5MB
+        PNG, JPG, or WEBP · max. 5MB
       </p>
     </div>
   );

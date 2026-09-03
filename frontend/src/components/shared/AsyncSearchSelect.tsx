@@ -39,7 +39,7 @@ interface AsyncSearchSelectProps {
 export function AsyncSearchSelect({
   id: idProp,
   label,
-  placeholder = "Buscar…",
+  placeholder = "Search…",
   value,
   onChange,
   onSearch,
@@ -90,7 +90,7 @@ export function AsyncSearchSelect({
         .catch((err: unknown) => {
           if (cancelled) return;
           setOptions([]);
-          setError(err instanceof Error ? err.message : "Error de búsqueda");
+          setError(err instanceof Error ? err.message : "Search error");
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
@@ -143,7 +143,7 @@ export function AsyncSearchSelect({
             size="icon"
             className="size-10 shrink-0"
             disabled={disabled}
-            aria-label="Limpiar selección"
+            aria-label="Clear selection"
             onClick={() => onChange(null)}
           >
             <X className="size-4" />
@@ -181,13 +181,13 @@ export function AsyncSearchSelect({
               <li className="px-2 py-3 text-xs text-muted-foreground">
                 {emptyHint ??
                   (minQueryLength > 0
-                    ? `Escribe al menos ${minQueryLength} carácter(es)…`
-                    : "Escribe un nombre o ID…")}
+                    ? `Type at least ${minQueryLength} character(s)…`
+                    : "Type a name or ID…")}
               </li>
             ) : null}
             {showEmpty ? (
               <li className="px-2 py-3 text-xs text-muted-foreground">
-                Sin resultados.
+                No results.
               </li>
             ) : null}
             {options.map((option) => {

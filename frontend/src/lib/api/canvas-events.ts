@@ -20,7 +20,7 @@ export async function fetchCanvasEventSettings(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar ${eventType} (${response.status})`,
+        `Couldn't load ${eventType} (${response.status})`,
       ),
     );
   }
@@ -41,7 +41,7 @@ export async function saveCanvasEventSettings(
     throw new Error(
       await readApiError(
         response,
-        `Error al guardar ${eventType} (${response.status})`,
+        `Couldn't save ${eventType} (${response.status})`,
       ),
     );
   }

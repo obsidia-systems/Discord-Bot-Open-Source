@@ -47,12 +47,12 @@ function isCategory(type: number): boolean {
 export function ChannelMultiSelect({
   id,
   label,
-  placeholder = "Buscar canales…",
+  placeholder = "Search channels…",
   channels,
   value,
   onChange,
   disabled,
-  emptyHint = "Sin canales seleccionados.",
+  emptyHint = "No channels selected.",
 }: ChannelMultiSelectProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -138,7 +138,7 @@ export function ChannelMultiSelect({
                 onClick={() => toggle(ch.id)}
                 title={
                   category
-                    ? `Categoría · también ignora ${kids} canal(es) hijo(s)`
+                    ? `Category · also ignores ${kids} child channel(s)`
                     : undefined
                 }
               >
@@ -146,7 +146,7 @@ export function ChannelMultiSelect({
                 {category ? ch.name : `#${ch.name}`}
                 {category ? (
                   <span className="text-[10px] text-muted-foreground">
-                    +hijos
+                    +children
                   </span>
                 ) : null}
                 <X className="size-3 opacity-60" aria-hidden />
@@ -186,7 +186,7 @@ export function ChannelMultiSelect({
           <ul className="max-h-56 overflow-y-auto p-1">
             {filtered.length === 0 ? (
               <li className="px-2 py-3 text-xs text-muted-foreground">
-                Sin resultados.
+                No results.
               </li>
             ) : null}
             {filtered.map((ch) => {
@@ -211,7 +211,7 @@ export function ChannelMultiSelect({
                       </span>
                       {category ? (
                         <span className="block text-[11px] text-muted-foreground">
-                          Categoría · ignora también {kids} canal(es) hijo(s)
+                          Category · also ignores {kids} child channel(s)
                         </span>
                       ) : null}
                     </span>

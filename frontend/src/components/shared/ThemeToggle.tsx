@@ -14,9 +14,9 @@ const OPTIONS: {
   label: string;
   icon: typeof Sun;
 }[] = [
-  { id: "light", label: "Claro", icon: Sun },
-  { id: "dark", label: "Oscuro", icon: Moon },
-  { id: "system", label: "Sistema", icon: Monitor },
+  { id: "light", label: "Light", icon: Sun },
+  { id: "dark", label: "Dark", icon: Moon },
+  { id: "system", label: "System", icon: Monitor },
 ];
 
 export function ThemeToggle() {
@@ -44,7 +44,7 @@ export function ThemeToggle() {
     <div
       className="inline-flex w-full rounded-lg border border-border bg-muted/40 p-1"
       role="group"
-      aria-label="Tema de la interfaz"
+      aria-label="Interface theme"
     >
       {OPTIONS.map((option) => {
         const Icon = option.icon;

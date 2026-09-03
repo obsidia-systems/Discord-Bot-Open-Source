@@ -91,11 +91,11 @@ function ChannelSelect({
         onValueChange={(v) => onChange(v === "__none__" ? null : v)}
       >
         <SelectTrigger id={id}>
-          <SelectValue placeholder="Seleccionar…" />
+          <SelectValue placeholder="Select…" />
         </SelectTrigger>
         <SelectContent>
           {allowEmpty ? (
-            <SelectItem value="__none__">Ninguno</SelectItem>
+            <SelectItem value="__none__">None</SelectItem>
           ) : null}
           {channels.map((ch) => (
             <SelectItem key={ch.id} value={ch.id}>
@@ -189,7 +189,7 @@ export function TicketsDashboard({
       setSettings(cfg.settings);
       setPanels(panelList.panels);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo cargar Tickets.");
+      setError(err instanceof Error ? err.message : "Couldn't load Tickets.");
     } finally {
       setLoading(false);
     }
@@ -202,7 +202,7 @@ export function TicketsDashboard({
   useEffect(() => {
     if (loading || !settings) return;
     void loadInbox().catch((err: unknown) => {
-      setError(err instanceof Error ? err.message : "No se pudo cargar la bandeja.");
+      setError(err instanceof Error ? err.message : "Couldn't load the inbox.");
     });
   }, [loadInbox, loading, settings]);
 
@@ -214,7 +214,7 @@ export function TicketsDashboard({
       await fn();
       if (ok) setSuccess(ok);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar.");
+      setError(err instanceof Error ? err.message : "Couldn't save.");
     } finally {
       setSaving(false);
     }
@@ -229,7 +229,7 @@ export function TicketsDashboard({
       setAddUserId("");
       setDetailOpen(true);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo abrir el ticket.");
+      setError(err instanceof Error ? err.message : "Couldn't open the ticket.");
     }
   }
 
@@ -243,7 +243,7 @@ export function TicketsDashboard({
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" />
-        Cargando Tickets…
+        Loading Tickets…
       </div>
     );
   }
@@ -271,19 +271,19 @@ export function TicketsDashboard({
             active={tab === "inbox"}
             onClick={() => setTab("inbox")}
           >
-            Bandeja
+            Inbox
           </TabsTrigger>
           <TabsTrigger
             active={tab === "panels"}
             onClick={() => setTab("panels")}
           >
-            Paneles
+            Panels
           </TabsTrigger>
           <TabsTrigger
             active={tab === "settings"}
             onClick={() => setTab("settings")}
           >
-            Ajustes
+            Settings
           </TabsTrigger>
         </TabsList>
 
@@ -291,15 +291,15 @@ export function TicketsDashboard({
           <TabsContent className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Bandeja</CardTitle>
+                <CardTitle>Inbox</CardTitle>
                 <CardDescription>
-                  El expediente vive en Postgres. Si Discord borra el canal, el
-                  ticket sigue aquí.
+                  The record lives in Postgres. If Discord deletes the channel,
+                  the ticket stays here.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="space-y-1.5">
-                  <Label>Estado</Label>
+                  <Label>Status</Label>
                   <Select
                     value={statusFilter || "__all__"}
                     onValueChange={(v) =>
@@ -310,7 +310,7 @@ export function TicketsDashboard({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__all__">Todos</SelectItem>
+                      <SelectItem value="__all__">All</SelectItem>
                       {TICKET_STATUSES.map((status) => (
                         <SelectItem key={status} value={status}>
                           {TICKET_STATUS_LABEL[status]}
@@ -320,7 +320,7 @@ export function TicketsDashboard({
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="type-filter">Tipo</Label>
+                  <Label htmlFor="type-filter">Type</Label>
                   <Input
                     id="type-filter"
                     value={typeFilter}
@@ -352,11 +352,11 @@ export function TicketsDashboard({
                 <thead className="bg-muted/50 text-left text-muted-foreground">
                   <tr>
                     <th className="px-3 py-2 font-medium">#</th>
-                    <th className="px-3 py-2 font-medium">Estado</th>
-                    <th className="px-3 py-2 font-medium">Tipo</th>
+                    <th className="px-3 py-2 font-medium">Status</th>
+                    <th className="px-3 py-2 font-medium">Type</th>
                     <th className="px-3 py-2 font-medium">Opener</th>
                     <th className="px-3 py-2 font-medium">Staff</th>
-                    <th className="px-3 py-2 font-medium">Abierto</th>
+                    <th className="px-3 py-2 font-medium">Opened</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -366,7 +366,7 @@ export function TicketsDashboard({
                         className="px-3 py-6 text-center text-muted-foreground"
                         colSpan={6}
                       >
-                        No hay tickets con estos filtros.
+                        No tickets match these filters.
                       </td>
                     </tr>
                   ) : (
@@ -410,11 +410,11 @@ export function TicketsDashboard({
                   void withBusy(async () => {
                     const created = await createTicketPanel({});
                     setPanels((prev) => [...prev, created.panel]);
-                  }, "Panel creado.")
+                  }, "Panel created.")
                 }
               >
                 <Plus className="size-4" />
-                Nuevo panel
+                New panel
               </Button>
             </div>
             {panels.map((panel) => (
@@ -442,7 +442,7 @@ export function TicketsDashboard({
                         row.id === saved.panel.id ? saved.panel : row,
                       ),
                     );
-                  }, "Panel guardado.")
+                  }, "Panel saved.")
                 }
                 onPublish={() =>
                   void withBusy(async () => {
@@ -458,19 +458,19 @@ export function TicketsDashboard({
                         row.id === published.panel.id ? published.panel : row,
                       ),
                     );
-                  }, "Panel publicado en Discord.")
+                  }, "Panel published to Discord.")
                 }
                 onDelete={() =>
                   void withBusy(async () => {
                     await deleteTicketPanel(panel.id);
                     setPanels((prev) => prev.filter((row) => row.id !== panel.id));
-                  }, "Panel borrado.")
+                  }, "Panel deleted.")
                 }
               />
             ))}
             {panels.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Crea un panel, elige canal y publica el mensaje con botones.
+                Create a panel, choose a channel, and publish the message with buttons.
               </p>
             ) : null}
           </TabsContent>
@@ -480,16 +480,16 @@ export function TicketsDashboard({
           <TabsContent>
             <Card>
               <CardHeader>
-                <CardTitle>Ajustes</CardTitle>
+                <CardTitle>Settings</CardTitle>
                 <CardDescription>
-                  Categoría privada, staff y plantilla del canal. Tope operativo:
-                  50 abiertos por servidor, 1 por usuario por defecto.
+                  Private category, staff, and channel template. Operating cap:
+                  50 open per server, 1 per user by default.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <ChannelSelect
                   id="ticket-category"
-                  label="Categoría de tickets"
+                  label="Ticket category"
                   value={settings.categoryId}
                   channels={categories}
                   onChange={(categoryId) =>
@@ -498,7 +498,7 @@ export function TicketsDashboard({
                 />
                 <ChannelSelect
                   id="ticket-log"
-                  label="Canal de log"
+                  label="Log channel"
                   value={settings.logChannelId}
                   channels={textChannels}
                   onChange={(logChannelId) =>
@@ -506,7 +506,7 @@ export function TicketsDashboard({
                   }
                 />
                 <RoleMultiSelect
-                  label="Roles de staff"
+                  label="Staff roles"
                   roles={roles}
                   value={settings.staffRoleIds}
                   onChange={(staffRoleIds) =>
@@ -515,7 +515,7 @@ export function TicketsDashboard({
                 />
                 <div className="space-y-1.5">
                   <Label htmlFor="name-template">
-                    Plantilla del canal ({"{n}"}, {"{user}"}, {"{type}"})
+                    Channel template ({"{n}"}, {"{user}"}, {"{type}"})
                   </Label>
                   <Input
                     id="name-template"
@@ -526,7 +526,7 @@ export function TicketsDashboard({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Abiertos por usuario</Label>
+                  <Label>Open per user</Label>
                   <Select
                     value={String(settings.maxOpenPerUser)}
                     onValueChange={(v) =>
@@ -550,9 +550,9 @@ export function TicketsDashboard({
                 </div>
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <Label htmlFor="opener-close">El opener puede cerrar</Label>
+                    <Label htmlFor="opener-close">The opener can close</Label>
                     <p className="text-xs text-muted-foreground">
-                      Claim, waiting y add/remove siguen siendo solo staff.
+                      Claim, waiting, and add/remove are still staff-only.
                     </p>
                   </div>
                   <Switch
@@ -576,7 +576,7 @@ export function TicketsDashboard({
                         openerCanClose: settings.openerCanClose,
                       });
                       setSettings(saved.settings);
-                    }, "Ajustes guardados.")
+                    }, "Settings saved.")
                   }
                 >
                   {saving ? (
@@ -584,7 +584,7 @@ export function TicketsDashboard({
                   ) : (
                     <Save className="size-4" />
                   )}
-                  Guardar
+                  Save
                 </Button>
               </CardContent>
             </Card>
@@ -617,7 +617,7 @@ export function TicketsDashboard({
                       void withBusy(async () => {
                         await claimTicket(detail.id);
                         await refreshDetail(detail.id);
-                      }, "Ticket reclamado.")
+                      }, "Ticket claimed.")
                     }
                   >
                     Claim
@@ -676,7 +676,7 @@ export function TicketsDashboard({
                     void withBusy(async () => {
                       await reopenTicket(detail.id);
                       await refreshDetail(detail.id);
-                    }, "Ticket reabierto.")
+                    }, "Ticket reopened.")
                   }
                 >
                   Reopen
@@ -686,12 +686,12 @@ export function TicketsDashboard({
 
             {detail.status !== "closed" ? (
               <div className="space-y-2">
-                <Label htmlFor="close-reason">Motivo de cierre</Label>
+                <Label htmlFor="close-reason">Close reason</Label>
                 <Textarea
                   id="close-reason"
                   value={closeReason}
                   onChange={(e) => setCloseReason(e.target.value)}
-                  placeholder="Obligatorio para cerrar"
+                  placeholder="Required to close"
                 />
                 <Button
                   size="sm"
@@ -703,16 +703,16 @@ export function TicketsDashboard({
                         reason: closeReason.trim(),
                       });
                       await refreshDetail(detail.id);
-                    }, "Ticket cerrado.")
+                    }, "Ticket closed.")
                   }
                 >
-                  Cerrar
+                  Close
                 </Button>
                 <div className="flex gap-2">
                   <Input
                     value={addUserId}
                     onChange={(e) => setAddUserId(e.target.value)}
-                    placeholder="ID o mención para añadir"
+                    placeholder="ID or mention to add"
                   />
                   <Button
                     size="sm"
@@ -726,7 +726,7 @@ export function TicketsDashboard({
                       })
                     }
                   >
-                    Añadir
+                    Add
                   </Button>
                 </div>
                 <ul className="space-y-1 text-sm">
@@ -749,7 +749,7 @@ export function TicketsDashboard({
                             })
                           }
                         >
-                          Quitar
+                          Remove
                         </Button>
                       </li>
                     ))}
@@ -788,7 +788,7 @@ export function TicketsDashboard({
 
             {detail.closeReason ? (
               <p className="text-sm text-muted-foreground">
-                Motivo: {detail.closeReason}
+                Reason: {detail.closeReason}
               </p>
             ) : null}
           </div>
@@ -828,20 +828,20 @@ function PanelCard({
         <CardTitle>Panel #{panel.id}</CardTitle>
         <CardDescription>
           {panel.messageId
-            ? "Publicado. Volver a publicar actualiza el mensaje."
-            : "Aún no publicado."}
+            ? "Published. Publishing again updates the message."
+            : "Not published yet."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <ChannelSelect
           id={`panel-ch-${panel.id}`}
-          label="Canal de publicación"
+          label="Publish channel"
           value={panel.channelId}
           channels={channels}
           onChange={(channelId) => onChange({ ...panel, channelId })}
         />
         <div className="space-y-1.5">
-          <Label>Título</Label>
+          <Label>Title</Label>
           <Input
             value={panel.embedTitle}
             onChange={(e) =>
@@ -850,7 +850,7 @@ function PanelCard({
           />
         </div>
         <div className="space-y-1.5">
-          <Label>Descripción</Label>
+          <Label>Description</Label>
           <Textarea
             value={panel.embedDescription}
             onChange={(e) =>
@@ -868,7 +868,7 @@ function PanelCard({
           />
         </div>
         <div className="space-y-2">
-          <Label>Botones (máx. 5 tipos)</Label>
+          <Label>Buttons (max. 5 types)</Label>
           {panel.buttons.map((btn, index) => (
             <div key={`${btn.typeKey}-${index}`} className="grid gap-2 sm:grid-cols-3">
               <Input
@@ -879,7 +879,7 @@ function PanelCard({
               <Input
                 value={btn.label}
                 onChange={(e) => setButton(index, { label: e.target.value })}
-                placeholder="Etiqueta"
+                placeholder="Label"
               />
               <Select
                 value={btn.style}
@@ -919,7 +919,7 @@ function PanelCard({
                 })
               }
             >
-              Añadir botón
+              Add button
             </Button>
             {panel.buttons.length > 1 ? (
               <Button
@@ -933,7 +933,7 @@ function PanelCard({
                   })
                 }
               >
-                Quitar último
+                Remove last
               </Button>
             ) : null}
           </div>
@@ -941,15 +941,15 @@ function PanelCard({
         <div className="flex flex-wrap gap-2">
           <Button disabled={saving} onClick={onSave}>
             <Save className="size-4" />
-            Guardar
+            Save
           </Button>
           <Button disabled={saving} variant="secondary" onClick={onPublish}>
             <Send className="size-4" />
-            Publicar
+            Publish
           </Button>
           <Button disabled={saving} variant="ghost" onClick={onDelete}>
             <Trash2 className="size-4" />
-            Borrar
+            Delete
           </Button>
         </div>
       </CardContent>

@@ -60,7 +60,7 @@ interface TimezoneComboboxProps {
 /** Combobox con búsqueda local de zonas IANA. */
 export function TimezoneCombobox({
   id = "timezone",
-  label = "Zona horaria",
+  label = "Timezone",
   value,
   onChange,
   disabled,
@@ -117,7 +117,7 @@ export function TimezoneCombobox({
             <Input
               autoFocus
               value={query}
-              placeholder="Buscar zona (ej. Mexico, Madrid)…"
+              placeholder="Search zone (e.g. Mexico, Madrid)…"
               className="h-8 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -125,7 +125,7 @@ export function TimezoneCombobox({
           <ul className="max-h-56 overflow-y-auto p-1">
             {filtered.length === 0 ? (
               <li className="px-2 py-3 text-center text-xs text-muted-foreground">
-                Sin resultados
+                No results
               </li>
             ) : (
               filtered.map((tz) => (

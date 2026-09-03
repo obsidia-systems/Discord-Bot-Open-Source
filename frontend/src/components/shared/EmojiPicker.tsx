@@ -33,7 +33,7 @@ export function EmojiPicker({ emojis, onInsert, disabled }: EmojiPickerProps) {
         onClick={() => setOpen((value) => !value)}
       >
         <Smile className="size-4" aria-hidden />
-        Emojis del servidor
+        Server emoji
       </Button>
 
       {open && (
@@ -41,14 +41,14 @@ export function EmojiPicker({ emojis, onInsert, disabled }: EmojiPickerProps) {
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar emoji…"
+            placeholder="Search emoji…"
             className="mb-2 h-8"
           />
           {filtered.length === 0 ? (
             <p className="px-1 py-3 text-xs text-muted-foreground">
               {emojis.length === 0
-                ? "No hay emojis cargados. Revisa DISCORD_GUILD_ID."
-                : "Sin resultados."}
+                ? "No emoji loaded. Check DISCORD_GUILD_ID."
+                : "No results."}
             </p>
           ) : (
             <div className="grid max-h-48 grid-cols-6 gap-1 overflow-y-auto">
@@ -71,7 +71,7 @@ export function EmojiPicker({ emojis, onInsert, disabled }: EmojiPickerProps) {
             </div>
           )}
           <p className="mt-2 text-[11px] text-muted-foreground">
-            Inserta el formato Discord <code className="font-mono">&lt;:name:id&gt;</code>
+            Inserts the Discord format <code className="font-mono">&lt;:name:id&gt;</code>
           </p>
         </div>
       )}

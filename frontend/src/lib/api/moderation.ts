@@ -20,7 +20,7 @@ export async function searchModMembers(
   );
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, `Error al buscar miembros (${response.status})`),
+      await readApiError(response, `Couldn't search members (${response.status})`),
     );
   }
   return response.json() as Promise<ModMemberSearchResponse>;
@@ -34,7 +34,7 @@ export async function searchModChannels(
   );
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, `Error al buscar canales (${response.status})`),
+      await readApiError(response, `Couldn't search channels (${response.status})`),
     );
   }
   return response.json() as Promise<ModChannelSearchResponse>;
@@ -48,7 +48,7 @@ export async function fetchModMemberInfo(
   );
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, `Error al cargar miembro (${response.status})`),
+      await readApiError(response, `Couldn't load member (${response.status})`),
     );
   }
   return response.json() as Promise<ModMemberInfoResponse>;
@@ -62,7 +62,7 @@ export async function fetchModChannelInfo(
   );
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, `Error al cargar canal (${response.status})`),
+      await readApiError(response, `Couldn't load channel (${response.status})`),
     );
   }
   return response.json() as Promise<ModChannelInfoResponse>;
@@ -103,7 +103,7 @@ export async function executeModAction(
   // 206 = sanción aplicada pero DM falló (DMs cerrados).
   if (!response.ok && response.status !== 206) {
     throw new Error(
-      await readApiError(response, `Acción fallida (${response.status})`),
+      await readApiError(response, `Action failed (${response.status})`),
     );
   }
   return response.json() as Promise<ModActionResponse>;
@@ -131,7 +131,7 @@ export async function fetchDiscordAuditLog(
     const error = new Error(
       await readApiError(
         response,
-        `Error al cargar auditoría (${response.status})`,
+        `Couldn't load audit log (${response.status})`,
       ),
     ) as Error & { status?: number };
     error.status = response.status;
@@ -148,7 +148,7 @@ export async function fetchActiveBans(): Promise<ModActiveBansResponse> {
     throw new Error(
       await readApiError(
         response,
-        `Error al cargar baneos (${response.status})`,
+        `Couldn't load bans (${response.status})`,
       ),
     );
   }
@@ -163,7 +163,7 @@ export async function fetchActiveTimeouts(): Promise<ModActiveTimeoutsResponse> 
     throw new Error(
       await readApiError(
         response,
-        `Error al cargar timeouts (${response.status})`,
+        `Couldn't load timeouts (${response.status})`,
       ),
     );
   }

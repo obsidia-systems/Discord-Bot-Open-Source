@@ -14,7 +14,7 @@ export async function fetchForms(): Promise<FormsListResponse> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar Formularios (${response.status})`,
+        `Couldn't load Forms (${response.status})`,
       ),
     );
   }
@@ -27,7 +27,7 @@ export async function fetchForm(id: number): Promise<FormResponseBody> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar el formulario (${response.status})`,
+        `Couldn't load the form (${response.status})`,
       ),
     );
   }
@@ -49,7 +49,7 @@ export async function createForm(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo crear el formulario (${response.status})`,
+        `Couldn't create the form (${response.status})`,
       ),
     );
   }
@@ -72,7 +72,7 @@ export async function saveForm(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo guardar el formulario (${response.status})`,
+        `Couldn't save the form (${response.status})`,
       ),
     );
   }
@@ -87,7 +87,7 @@ export async function deleteForm(id: number): Promise<void> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo eliminar el formulario (${response.status})`,
+        `Couldn't delete the form (${response.status})`,
       ),
     );
   }
@@ -109,7 +109,7 @@ export async function publishForm(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo publicar el formulario (${response.status})`,
+        `Couldn't publish the form (${response.status})`,
       ),
     );
   }
@@ -124,7 +124,7 @@ export async function fetchFormResponses(
     throw new Error(
       await readApiError(
         response,
-        `No se pudieron cargar las respuestas (${response.status})`,
+        `Couldn't load the responses (${response.status})`,
       ),
     );
   }
@@ -137,7 +137,7 @@ export async function downloadFormResponsesCsv(id: number): Promise<void> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo exportar el CSV (${response.status})`,
+        `Couldn't export the CSV (${response.status})`,
       ),
     );
   }

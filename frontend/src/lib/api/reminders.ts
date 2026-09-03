@@ -10,7 +10,7 @@ export async function fetchReminders(): Promise<{
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar Reminders (${response.status})`,
+        `Couldn't load Reminders (${response.status})`,
       ),
     );
   }
@@ -36,7 +36,7 @@ export async function saveReminderSettings(input: {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo guardar Reminders (${response.status})`,
+        `Couldn't save Reminders (${response.status})`,
       ),
     );
   }
@@ -50,7 +50,7 @@ export async function deleteReminder(id: number): Promise<void> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cancelar el recordatorio (${response.status})`,
+        `Couldn't cancel the reminder (${response.status})`,
       ),
     );
   }

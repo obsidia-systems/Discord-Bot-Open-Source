@@ -24,7 +24,7 @@ export interface DataTableProps<TData> {
 export function DataTable<TData>({
   columns,
   data,
-  emptyMessage = "Sin resultados.",
+  emptyMessage = "No results.",
   className,
   minWidthClassName = "min-w-[840px]",
   tableFixed = false,

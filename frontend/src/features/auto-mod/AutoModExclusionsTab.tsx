@@ -35,29 +35,29 @@ export function AutoModExclusionsTab({
     <div className="space-y-4">
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Exclusiones</CardTitle>
+          <CardTitle className="text-base">Exclusions</CardTitle>
           <CardDescription>
-            Roles inmunes y canales donde Auto-Mod no actúa. Los roles/canales
-            ignorados también se envían a AutoMod nativo (tope Discord: 20
-            roles, 50 canales).
+            Immune roles and channels where Auto-Mod doesn't act. Ignored
+            roles/channels are also sent to native AutoMod (Discord cap: 20
+            roles, 50 channels).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <FilterToggle
             id="skipStaff"
-            label="Ignorar staff"
-            description="Aplica al bot (Administrator / Manage Messages). En nativo, añade esos roles a Roles inmunes."
+            label="Ignore staff"
+            description="Applies to the bot (Administrator / Manage Messages). In native, add those roles to Immune roles."
             checked={config.skipStaff}
             onCheckedChange={(skipStaff) => onPatch({ skipStaff })}
           />
           <RoleMultiSelect
-            label="Roles inmunes"
+            label="Immune roles"
             roles={assignableRoles}
             value={config.ignoredRoles}
             onChange={(ignoredRoles) => onPatch({ ignoredRoles })}
           />
           <ChannelMultiSelect
-            label="Canales / categorías ignorados"
+            label="Ignored channels / categories"
             channels={ignoreChannels}
             value={config.ignoredChannels}
             onChange={(ignoredChannels) => onPatch({ ignoredChannels })}
@@ -68,15 +68,15 @@ export function AutoModExclusionsTab({
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">
-            Canal de alertas de seguridad
+            Security alert channel
           </CardTitle>
           <CardDescription>
-            Si está vacío, se usa el canal global de Action Logs.
+            If empty, the global Action Logs channel is used.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-1.5">
-            <Label htmlFor="logChannel">Canal de alertas</Label>
+            <Label htmlFor="logChannel">Alert channel</Label>
             <Select
               value={config.logChannelId ?? "__none__"}
               onValueChange={(value) =>
@@ -86,11 +86,11 @@ export function AutoModExclusionsTab({
               }
             >
               <SelectTrigger id="logChannel">
-                <SelectValue placeholder="Usar fallback Action Logs" />
+                <SelectValue placeholder="Use Action Logs fallback" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">
-                  Usar fallback Action Logs
+                  Use Action Logs fallback
                 </SelectItem>
                 {textChannels.map((ch) => (
                   <SelectItem key={ch.id} value={ch.id}>

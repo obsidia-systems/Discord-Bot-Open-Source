@@ -49,7 +49,7 @@ export function ImageDropzone({
       if (rejected.length > 0) {
         setError(
           rejected[0]?.errors[0]?.message ??
-            "Archivo no válido.",
+            "Invalid file.",
         );
         return;
       }
@@ -97,9 +97,9 @@ export function ImageDropzone({
         )}
         <p className="text-xs font-medium">
           {isDragActive
-            ? "Suelta la imagen…"
+            ? "Drop the image…"
             : acceptHint ??
-              `Arrastra o haz clic (${formats} · máx. ${maxSizeMb}MB)`}
+              `Drag or click (${formats} · max. ${maxSizeMb}MB)`}
         </p>
       </div>
 
@@ -116,7 +116,7 @@ export function ImageDropzone({
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
               <ImagePlus className="size-3 shrink-0" aria-hidden />
-              Vista previa
+              Preview
             </p>
           </div>
           <Button
@@ -125,7 +125,7 @@ export function ImageDropzone({
             size="icon"
             className="size-8 shrink-0"
             disabled={disabled}
-            aria-label="Quitar imagen nueva"
+            aria-label="Remove new image"
             onClick={(event) => {
               event.stopPropagation();
               onFile(null);

@@ -11,7 +11,7 @@ export async function fetchLevelsConfig(): Promise<LevelsConfigResponse> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar Levels (${response.status})`,
+        `Couldn't load Levels (${response.status})`,
       ),
     );
   }
@@ -33,7 +33,7 @@ export async function saveLevelsConfig(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo guardar Levels (${response.status})`,
+        `Couldn't save Levels (${response.status})`,
       ),
     );
   }
@@ -50,7 +50,7 @@ export async function fetchLevelsLeaderboard(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar la clasificación (${response.status})`,
+        `Couldn't load the leaderboard (${response.status})`,
       ),
     );
   }

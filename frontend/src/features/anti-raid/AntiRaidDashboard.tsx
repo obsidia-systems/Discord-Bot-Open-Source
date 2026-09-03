@@ -55,14 +55,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 const NONE = "__none__";
 
 const NUKE_LABELS: Record<NukeAction, string> = {
-  channelCreate: "Crear canales",
-  channelDelete: "Borrar canales",
-  roleCreate: "Crear roles",
-  roleDelete: "Borrar roles",
+  channelCreate: "Create channels",
+  channelDelete: "Delete channels",
+  roleCreate: "Create roles",
+  roleDelete: "Delete roles",
   memberBan: "Bans",
   memberKick: "Kicks",
-  botAdd: "Añadir bots",
-  webhookCreate: "Crear webhooks",
+  botAdd: "Add bots",
+  webhookCreate: "Create webhooks",
 };
 
 function applySettings(
@@ -108,7 +108,7 @@ export function AntiRaidDashboard() {
       setChannels(assets.channels);
       setRoles(assets.roles);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo cargar.");
+      setError(err instanceof Error ? err.message : "Couldn't load.");
     } finally {
       setLoading(false);
     }
@@ -153,9 +153,9 @@ export function AntiRaidDashboard() {
       const next = await saveAntiRaidSettings(payload);
       applySettings(next, setSettings);
       setNukeUserRaw(next.nukeWhitelistUserIds.join(", "));
-      setSuccess("Ajustes guardados.");
+      setSuccess("Settings saved.");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar.");
+      setError(err instanceof Error ? err.message : "Couldn't save.");
     } finally {
       setSaving(false);
     }
@@ -169,9 +169,9 @@ export function AntiRaidDashboard() {
       const next = await setAntiRaidLockdown(active);
       applySettings(next.settings, setSettings);
       setNukeAvailable(next.nukeAvailable);
-      setSuccess(active ? "Lockdown activo." : "Lockdown quitado.");
+      setSuccess(active ? "Lockdown active." : "Lockdown removed.");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo cambiar.");
+      setError(err instanceof Error ? err.message : "Couldn't change.");
     } finally {
       setLocking(false);
     }
@@ -181,7 +181,7 @@ export function AntiRaidDashboard() {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin text-primary" />
-        Cargando Anti-Raid…
+        Loading Anti-Raid…
       </div>
     );
   }
@@ -201,11 +201,11 @@ export function AntiRaidDashboard() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Protección ante raids</CardTitle>
+          <CardTitle>Raid protection</CardTitle>
           <CardDescription>
-            Flood de joins y cuentas nuevas. No es Auto-Mod (eso filtra
-            mensajes) ni Action Logs (eso solo registra). Lockdown de
-            emergencia: {settings.lockdownActive ? "activo" : "apagado"}.
+            Join floods and new accounts. This isn't Auto-Mod (that filters
+            messages) or Action Logs (that only records). Emergency
+            lockdown: {settings.lockdownActive ? "active" : "off"}.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -215,11 +215,11 @@ export function AntiRaidDashboard() {
               checked={settings.enabled}
               onCheckedChange={(enabled) => patch({ enabled })}
             />
-            <Label htmlFor="raid-enabled">Activo</Label>
+            <Label htmlFor="raid-enabled">Enabled</Label>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="raid-alert">Canal de alertas</Label>
+            <Label htmlFor="raid-alert">Alert channel</Label>
             <Select
               value={settings.alertChannelId ?? NONE}
               onValueChange={(value) =>
@@ -228,10 +228,10 @@ export function AntiRaidDashboard() {
               disabled={saving}
             >
               <SelectTrigger id="raid-alert">
-                <SelectValue placeholder="Sin canal" />
+                <SelectValue placeholder="No channel" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NONE}>Sin canal</SelectItem>
+                <SelectItem value={NONE}>No channel</SelectItem>
                 {textChannels.map((ch) => (
                   <SelectItem key={ch.id} value={ch.id}>
                     #{ch.name}
@@ -243,12 +243,12 @@ export function AntiRaidDashboard() {
 
           <RoleMultiSelect
             id="raid-whitelist"
-            label="Roles exentos (joins)"
+            label="Exempt roles (joins)"
             roles={roles}
             value={settings.whitelistRoleIds}
             onChange={(whitelistRoleIds) => patch({ whitelistRoleIds })}
             disabled={saving}
-            emptyHint="Nadie exento salvo el dueño del servidor."
+            emptyHint="Nobody is exempt except the server owner."
           />
 
           <div className="flex items-center gap-2 text-sm">
@@ -259,7 +259,7 @@ export function AntiRaidDashboard() {
                 patch({ joinFloodEnabled })
               }
             />
-            <Label htmlFor="raid-flood">Flood de joins</Label>
+            <Label htmlFor="raid-flood">Join flood</Label>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1.5">
@@ -277,7 +277,7 @@ export function AntiRaidDashboard() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="raid-window">Ventana (s)</Label>
+              <Label htmlFor="raid-window">Window (s)</Label>
               <Input
                 id="raid-window"
                 type="number"
@@ -295,7 +295,7 @@ export function AntiRaidDashboard() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="raid-join-action">Acción</Label>
+              <Label htmlFor="raid-join-action">Action</Label>
               <Select
                 value={settings.joinAction}
                 onValueChange={(value) =>
@@ -323,12 +323,12 @@ export function AntiRaidDashboard() {
                 patch({ accountAgeEnabled })
               }
             />
-            <Label htmlFor="raid-age">Edad mínima de cuenta</Label>
+            <Label htmlFor="raid-age">Minimum account age</Label>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="raid-days">
-                Días ({ANTI_RAID_AGE_DAYS_MIN}–{ANTI_RAID_AGE_DAYS_MAX})
+                Days ({ANTI_RAID_AGE_DAYS_MIN}–{ANTI_RAID_AGE_DAYS_MAX})
               </Label>
               <Input
                 id="raid-days"
@@ -345,7 +345,7 @@ export function AntiRaidDashboard() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="raid-age-action">Acción</Label>
+              <Label htmlFor="raid-age-action">Action</Label>
               <Select
                 value={settings.accountAgeAction}
                 onValueChange={(value) =>
@@ -365,7 +365,7 @@ export function AntiRaidDashboard() {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="raid-lock-join">Durante lockdown, joins nuevos</Label>
+            <Label htmlFor="raid-lock-join">During lockdown, new joins</Label>
             <Select
               value={settings.lockdownJoinAction}
               onValueChange={(value) =>
@@ -381,7 +381,7 @@ export function AntiRaidDashboard() {
               <SelectContent>
                 <SelectItem value="timeout">Timeout</SelectItem>
                 <SelectItem value="kick">Kick</SelectItem>
-                <SelectItem value="none">No tocar</SelectItem>
+                <SelectItem value="none">Leave alone</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -398,7 +398,7 @@ export function AntiRaidDashboard() {
               ) : (
                 <ShieldBan className="size-4" />
               )}
-              {settings.lockdownActive ? "Quitar lockdown" : "Activar lockdown"}
+              {settings.lockdownActive ? "Remove lockdown" : "Enable lockdown"}
             </Button>
             <Button type="button" disabled={saving} onClick={() => void onSave()}>
               {saving ? (
@@ -406,13 +406,13 @@ export function AntiRaidDashboard() {
               ) : (
                 <Save className="size-4" />
               )}
-              Guardar
+              Save
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            También puedes usar <code>/lockdown on</code> o{" "}
-            <code>/lockdown off</code> en Discord (puede tardar ~1 h en
-            aparecer si es la primera vez).
+            You can also use <code>/lockdown on</code> or{" "}
+            <code>/lockdown off</code> in Discord (it may take ~1 h to
+            appear the first time).
           </p>
         </CardContent>
       </Card>
@@ -421,16 +421,16 @@ export function AntiRaidDashboard() {
         <CardHeader>
           <CardTitle>Anti-Nuke</CardTitle>
           <CardDescription>
-            Si un staff o un bot empieza a borrar canales, roles o a banear
-            en masa, se le quitan permisos peligrosos. Plan Pro.
-            {nukeAvailable ? "" : " Este servidor está en Gratis."}
+            If a staff member or a bot starts deleting channels, roles, or
+            mass-banning, dangerous permissions are removed. Pro plan.
+            {nukeAvailable ? "" : " This server is on Free."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {!nukeUnlocked ? (
             <p className="text-sm text-muted-foreground">
-              Esta función requiere el plan Pro. El raid básico de arriba
-              sigue disponible.
+              This feature requires the Pro plan. The basic raid protection
+              above is still available.
             </p>
           ) : (
             <>
@@ -440,11 +440,11 @@ export function AntiRaidDashboard() {
                   checked={settings.nukeEnabled}
                   onCheckedChange={(nukeEnabled) => patch({ nukeEnabled })}
                 />
-                <Label htmlFor="nuke-enabled">Activo</Label>
+                <Label htmlFor="nuke-enabled">Enabled</Label>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor="nuke-window">Ventana (s)</Label>
+                  <Label htmlFor="nuke-window">Window (s)</Label>
                   <Input
                     id="nuke-window"
                     type="number"
@@ -462,7 +462,7 @@ export function AntiRaidDashboard() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="nuke-punish">Sanción</Label>
+                  <Label htmlFor="nuke-punish">Punishment</Label>
                   <Select
                     value={settings.nukePunishment}
                     onValueChange={(value) =>
@@ -474,7 +474,7 @@ export function AntiRaidDashboard() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="strip">Quitar roles peligrosos</SelectItem>
+                      <SelectItem value="strip">Remove dangerous roles</SelectItem>
                       <SelectItem value="kick">Kick</SelectItem>
                       <SelectItem value="ban">Ban</SelectItem>
                     </SelectContent>
@@ -506,17 +506,17 @@ export function AntiRaidDashboard() {
               </div>
               <RoleMultiSelect
                 id="nuke-roles"
-                label="Roles exentos (nuke)"
+                label="Exempt roles (nuke)"
                 roles={roles}
                 value={settings.nukeWhitelistRoleIds}
                 onChange={(nukeWhitelistRoleIds) =>
                   patch({ nukeWhitelistRoleIds })
                 }
                 disabled={saving}
-                emptyHint="Solo el dueño está exento."
+                emptyHint="Only the owner is exempt."
               />
               <div className="space-y-1.5">
-                <Label htmlFor="nuke-users">Usuarios exentos (IDs)</Label>
+                <Label htmlFor="nuke-users">Exempt users (IDs)</Label>
                 <Input
                   id="nuke-users"
                   value={nukeUserRaw}
@@ -531,7 +531,7 @@ export function AntiRaidDashboard() {
                 ) : (
                   <Save className="size-4" />
                 )}
-                Guardar Anti-Nuke
+                Save Anti-Nuke
               </Button>
             </>
           )}

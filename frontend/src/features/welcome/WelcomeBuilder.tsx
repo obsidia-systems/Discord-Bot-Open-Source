@@ -78,9 +78,9 @@ const CARD_FONT = "Inter, sans-serif";
 const DEFAULT_LAYERS = defaultWelcomeTextLayers();
 
 const PREVIEW_CTX = {
-  userMention: "@NuevoMiembro",
-  username: "NuevoMiembro",
-  displayName: "NuevoMiembro",
+  userMention: "@NewMember",
+  username: "NewMember",
+  displayName: "NewMember",
   serverName: "Adobos",
   memberCount: 128,
 };
@@ -88,12 +88,12 @@ const PREVIEW_CTX = {
 const WELCOME_VARIABLES = [
   {
     token: "{user}",
-    tip: "Mención en el mensaje Discord; nombre visible en la tarjeta PNG",
+    tip: "Mention in the Discord message; visible name on the PNG card",
   },
-  { token: "{username}", tip: "Nombre de usuario" },
-  { token: "{displayname}", tip: "Apodo en el servidor" },
-  { token: "{server}", tip: "Nombre del servidor" },
-  { token: "{membercount}", tip: "Cantidad de miembros" },
+  { token: "{username}", tip: "Username" },
+  { token: "{displayname}", tip: "Server nickname" },
+  { token: "{server}", tip: "Server name" },
+  { token: "{membercount}", tip: "Member count" },
 ] as const;
 
 function previewMessage(text: string): string {
@@ -154,7 +154,7 @@ function AxisSlider({
             step={1}
             value={value}
             disabled={disabled}
-            aria-label={`${label} (píxeles)`}
+            aria-label={`${label} (pixels)`}
             className="h-8 w-20 border-border/60 bg-muted/40 px-2 text-right font-mono text-xs tabular-nums shadow-none"
             onChange={(event) => {
               const next = Number.parseInt(event.target.value, 10);
@@ -362,13 +362,13 @@ function TextLayerEditor({
       {open ? (
         <div className="space-y-4 border-t border-border px-3 py-4">
           <div className="space-y-2">
-            <Label htmlFor={`layer-text-${layer.id}`}>Contenido</Label>
+            <Label htmlFor={`layer-text-${layer.id}`}>Content</Label>
             <Input
               id={`layer-text-${layer.id}`}
               value={layer.text}
               maxLength={200}
               disabled={disabled}
-              placeholder="¡Bienvenido a {server}!"
+              placeholder="Welcome to {server}!"
               onChange={(event) =>
                 onChange({ ...layer, text: event.target.value })
               }
@@ -393,7 +393,7 @@ function TextLayerEditor({
           />
           <AxisSlider
             id={`layer-size-${layer.id}`}
-            label="Tamaño"
+            label="Size"
             value={layer.fontSize}
             min={FONT_SIZE_MIN}
             max={FONT_SIZE_MAX}
@@ -410,7 +410,7 @@ function TextLayerEditor({
           />
 
           <div className="space-y-2">
-            <Label>Peso</Label>
+            <Label>Weight</Label>
             <Select
               value={layer.weight}
               disabled={disabled}
@@ -425,14 +425,14 @@ function TextLayerEditor({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="bold">Negrita</SelectItem>
+                <SelectItem value="bold">Bold</SelectItem>
                 <SelectItem value="normal">Normal</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-2">
-            <Label>Alineación</Label>
+            <Label>Alignment</Label>
             <Select
               value={layer.align === "center" ? "center" : "left"}
               disabled={disabled}
@@ -447,8 +447,8 @@ function TextLayerEditor({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="center">Centro</SelectItem>
-                <SelectItem value="left">Izquierda</SelectItem>
+                <SelectItem value="center">Center</SelectItem>
+                <SelectItem value="left">Left</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -461,7 +461,7 @@ function TextLayerEditor({
             onClick={onRemove}
           >
             <Trash2 className="size-4" aria-hidden />
-            Eliminar capa
+            Delete layer
           </Button>
         </div>
       ) : null}
@@ -516,7 +516,7 @@ export function WelcomeBuilder() {
         setAssetsError(
           error instanceof Error
             ? error.message
-            : "No se pudo cargar la configuración",
+            : "Couldn't load the configuration",
         );
       } finally {
         if (!cancelled) setLoadingSettings(false);
@@ -578,7 +578,7 @@ export function WelcomeBuilder() {
     } catch (error: unknown) {
       setFeedback({
         kind: "error",
-        message: error instanceof Error ? error.message : "Error al subir",
+        message: error instanceof Error ? error.message : "Upload failed",
       });
     } finally {
       setUploading(false);
@@ -590,14 +590,14 @@ export function WelcomeBuilder() {
     if (!guildId) {
       setFeedback({
         kind: "error",
-        message: "No se pudo resolver el servidor.",
+        message: "Couldn't resolve the server.",
       });
       return;
     }
     if (isEnabled && !channelId) {
       setFeedback({
         kind: "error",
-        message: "Selecciona un canal de destino para activar el módulo.",
+        message: "Select a destination channel to enable the module.",
       });
       return;
     }
@@ -622,13 +622,13 @@ export function WelcomeBuilder() {
       setFeedback({
         kind: "ok",
         message: isEnabled
-          ? "Welcome guardada y activa."
-          : "Configuración guardada (módulo desactivado).",
+          ? "Welcome saved and active."
+          : "Configuration saved (module disabled).",
       });
     } catch (error: unknown) {
       setFeedback({
         kind: "error",
-        message: error instanceof Error ? error.message : "Error desconocido",
+        message: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -637,7 +637,7 @@ export function WelcomeBuilder() {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" aria-hidden />
-        Cargando configuración de bienvenidas…
+        Loading welcome settings…
       </div>
     );
   }
@@ -675,8 +675,8 @@ export function WelcomeBuilder() {
       )}
       {assets && (
         <p className="-mt-3 text-xs text-muted-foreground">
-          Servidor: {assets.guildName} · módulo{" "}
-          {isEnabled ? "habilitado" : "deshabilitado"}
+          Server: {assets.guildName} · module{" "}
+          {isEnabled ? "enabled" : "disabled"}
         </p>
       )}
 
@@ -684,14 +684,14 @@ export function WelcomeBuilder() {
         <div className="space-y-6 lg:col-span-2">
           <Card>
             <CardHeader>
-              <CardTitle>Canal destino</CardTitle>
+              <CardTitle>Destination channel</CardTitle>
               <CardDescription>
-                El bot publicará la bienvenida aquí.
+                The bot will post the welcome here.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                <Label htmlFor="welcome-channel">Canal</Label>
+                <Label htmlFor="welcome-channel">Channel</Label>
                 {sendChannels.length > 0 ? (
                   <Select
                     value={channelId || undefined}
@@ -699,7 +699,7 @@ export function WelcomeBuilder() {
                     onValueChange={setChannelId}
                   >
                     <SelectTrigger id="welcome-channel">
-                      <SelectValue placeholder="Selecciona un canal…" />
+                      <SelectValue placeholder="Select a channel…" />
                     </SelectTrigger>
                     <SelectContent>
                       {sendChannels.map((channel) => (
@@ -711,7 +711,7 @@ export function WelcomeBuilder() {
                   </Select>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    No hay canales de texto o anuncios.
+                    No text or announcement channels.
                   </p>
                 )}
               </div>
@@ -720,21 +720,21 @@ export function WelcomeBuilder() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Diseño de la bienvenida</CardTitle>
+              <CardTitle>Welcome card design</CardTitle>
               <CardDescription>
-                Tarjeta PNG 1920×1080 con mensaje Discord opcional.
+                1920×1080 PNG card with an optional Discord message.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2">
                 <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 md:h-full">
-                  <Label htmlFor="messageContent">Mensaje Discord</Label>
+                  <Label htmlFor="messageContent">Discord message</Label>
                   <Textarea
                     id="messageContent"
                     value={messageContent}
                     maxLength={500}
                     disabled={isSubmitting}
-                    placeholder="{user} llegó al servidor. Ahora somos {membercount}."
+                    placeholder="{user} joined the server. We are now {membercount}."
                     className="h-full min-h-[8.5rem] resize-y md:min-h-0"
                     onChange={(event) => setMessageContent(event.target.value)}
                   />
@@ -750,7 +750,7 @@ export function WelcomeBuilder() {
                   />
                   <AxisSlider
                     id="blurAmount"
-                    label="Desenfoque"
+                    label="Blur"
                     value={blurAmount}
                     min={0}
                     max={10}
@@ -772,7 +772,7 @@ export function WelcomeBuilder() {
                     active={designTab === "texto"}
                     onClick={() => setDesignTab("texto")}
                   >
-                    Texto
+                    Text
                   </TabsTrigger>
                 </TabsList>
 
@@ -796,7 +796,7 @@ export function WelcomeBuilder() {
                     />
                     <AxisSlider
                       id="avatarSize"
-                      label="Tamaño del avatar"
+                      label="Avatar size"
                       value={avatarSize}
                       max={AVATAR_SIZE_MAX}
                       min={AVATAR_SIZE_MIN}
@@ -805,7 +805,7 @@ export function WelcomeBuilder() {
                     />
                     <AxisSlider
                       id="avatarBorderWidth"
-                      label="Grosor del borde"
+                      label="Border width"
                       value={avatarBorderWidth}
                       min={0}
                       max={40}
@@ -814,7 +814,7 @@ export function WelcomeBuilder() {
                     />
                     <HexColorField
                       id="avatarBorderColor"
-                      label="Color del borde"
+                      label="Border color"
                       value={avatarBorderColor}
                       disabled={isSubmitting}
                       onChange={setAvatarBorderColor}
@@ -826,7 +826,7 @@ export function WelcomeBuilder() {
                   <TabsContent className="space-y-4">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm text-muted-foreground">
-                        Capas independientes con posición y estilo propios.
+                        Independent layers with their own position and style.
                       </p>
                       <Button
                         type="button"
@@ -836,7 +836,7 @@ export function WelcomeBuilder() {
                         onClick={addLayer}
                       >
                         <Plus className="size-4" aria-hidden />
-                        Agregar nuevo texto
+                        Add new text
                       </Button>
                     </div>
 
@@ -861,7 +861,7 @@ export function WelcomeBuilder() {
                       ))}
                       {textLayers.length === 0 && (
                         <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
-                          No hay capas. Agrega un texto para empezar.
+                          No layers. Add a text to get started.
                         </p>
                       )}
                     </div>
@@ -881,7 +881,7 @@ export function WelcomeBuilder() {
               ) : (
                 <Save className="size-4" aria-hidden />
               )}
-              Guardar bienvenida
+              Save welcome
             </Button>
 
             {feedback.kind === "ok" && (
@@ -908,24 +908,24 @@ export function WelcomeBuilder() {
         <div className="space-y-6 lg:sticky lg:top-6 lg:self-start">
           <Card>
             <CardHeader>
-              <CardTitle>Vista previa</CardTitle>
+              <CardTitle>Preview</CardTitle>
               <CardDescription>
-                Lienzo 1920×1080 escalado.
+                Scaled 1920×1080 canvas.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 px-5 pb-5 pt-0">
               {canvasPreview}
               {messageContent.trim() ? (
                 <p className="text-sm text-muted-foreground">
-                  Mensaje:{" "}
+                  Message:{" "}
                   <span className="text-foreground">
                     {previewMessage(messageContent)}
                   </span>
                 </p>
               ) : null}
               <p className="text-[11px] text-muted-foreground">
-                Si el texto se corta, baja el tamaño. Con alineación al centro,
-                X es el punto medio de la capa.
+                If the text is cut off, reduce the size. With center alignment,
+                X is the layer's midpoint.
               </p>
             </CardContent>
           </Card>

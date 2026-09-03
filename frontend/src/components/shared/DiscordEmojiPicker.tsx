@@ -93,7 +93,7 @@ export function DiscordEmojiPicker({
         size="icon"
         disabled={disabled}
         className={cn("size-9 shrink-0", className)}
-        aria-label={value ? "Cambiar emoji" : "Elegir emoji"}
+        aria-label={value ? "Change emoji" : "Pick an emoji"}
         onClick={() => setOpen(true)}
       >
         {buttonImage ? (
@@ -108,8 +108,8 @@ export function DiscordEmojiPicker({
       <Dialog
         open={open}
         onOpenChange={setOpen}
-        title="Elegir emoji"
-        description="Nativos o del servidor"
+        title="Pick an emoji"
+        description="Native or server emoji"
         className="w-auto max-w-[min(100vw-2rem,360px)] overflow-hidden p-0"
       >
         <div className="overflow-hidden [&_.EmojiPickerReact]:!border-0">
@@ -117,7 +117,7 @@ export function DiscordEmojiPicker({
             theme={Theme.DARK}
             width={350}
             height={400}
-            searchPlaceHolder="Buscar emoji…"
+            searchPlaceHolder="Search emoji…"
             previewConfig={{ showPreview: false }}
             lazyLoadEmojis
             customEmojis={customEmojis}

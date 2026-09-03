@@ -126,7 +126,7 @@ export function StreamAlertsDashboard() {
       setChannels(assets.channels);
       setRoles(assets.roles);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo cargar.");
+      setError(err instanceof Error ? err.message : "Couldn't load.");
     } finally {
       setLoading(false);
     }
@@ -150,7 +150,7 @@ export function StreamAlertsDashboard() {
   async function onCreate(): Promise<void> {
     if (!creating) return;
     if (!creating.handle.trim() || !creating.discordChannelId) {
-      setError("Elige plataforma, canal de Discord y el handle o URL.");
+      setError("Pick a platform, a Discord channel, and the handle or URL.");
       return;
     }
     setSavingId("new");
@@ -162,7 +162,7 @@ export function StreamAlertsDashboard() {
       setSuccess("Alerta creada. El bot avisa al pasar a en directo.");
       await load();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo crear.");
+      setError(err instanceof Error ? err.message : "Couldn't create.");
     } finally {
       setSavingId(null);
     }
@@ -171,7 +171,7 @@ export function StreamAlertsDashboard() {
   async function onSave(id: number): Promise<void> {
     const draft = drafts[id];
     if (!draft?.handle.trim() || !draft.discordChannelId) {
-      setError("Elige plataforma, canal de Discord y el handle o URL.");
+      setError("Pick a platform, a Discord channel, and the handle or URL.");
       return;
     }
     setSavingId(id);
@@ -182,7 +182,7 @@ export function StreamAlertsDashboard() {
       setSuccess("Alerta guardada.");
       await load();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar.");
+      setError(err instanceof Error ? err.message : "Couldn't save.");
     } finally {
       setSavingId(null);
     }
@@ -197,7 +197,7 @@ export function StreamAlertsDashboard() {
       setSuccess("Alerta borrada.");
       await load();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo borrar.");
+      setError(err instanceof Error ? err.message : "Couldn't delete.");
     } finally {
       setSavingId(null);
     }
@@ -206,7 +206,7 @@ export function StreamAlertsDashboard() {
   function openCreate(): void {
     if (atLimit) {
       setError(
-        `Has alcanzado el límite de ${cap} Stream Alerts de este plan.`,
+        `You've reached this plan's limit of ${cap} Stream Alerts.`,
       );
       return;
     }
@@ -217,7 +217,7 @@ export function StreamAlertsDashboard() {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin text-primary" />
-        Cargando Stream Alerts…
+        Loading Stream Alerts…
       </div>
     );
   }
@@ -239,29 +239,29 @@ export function StreamAlertsDashboard() {
         <CardHeader>
           <CardTitle>Stream Alerts</CardTitle>
           <CardDescription>
-            El bot comprueba Twitch, YouTube y Kick y avisa en Discord solo al
-            pasar de offline a en directo. No es Action Logs ni un anuncio de
-            evento programado. TikTok queda fuera de esta oleada.
+            The bot checks Twitch, YouTube, and Kick and alerts in Discord only
+            when a channel goes from offline to live. This isn't Action Logs or a
+            scheduled event announcement. TikTok is out of scope for this wave.
             {" "}
             {isUnlimited("streamAlerts")
-              ? `${alerts.length} alertas.`
-              : `${alerts.length} / ${cap} alertas.`}
+              ? `${alerts.length} alerts.`
+              : `${alerts.length} / ${cap} alerts.`}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground">
           {!credentials.twitch ? (
             <p>
-              Twitch: añade <code>TWITCH_CLIENT_ID</code> y{" "}
-              <code>TWITCH_CLIENT_SECRET</code> al entorno del backend.
+              Twitch: add <code>TWITCH_CLIENT_ID</code> and{" "}
+              <code>TWITCH_CLIENT_SECRET</code> to the backend environment.
             </p>
           ) : null}
           {!credentials.youtube ? (
             <p>
-              YouTube: añade <code>YOUTUBE_API_KEY</code> (Data API v3). Se
-              comprueba cada 5 min por cuota.
+              YouTube: add <code>YOUTUBE_API_KEY</code> (Data API v3). Checked
+              every 5 min due to quota.
             </p>
           ) : null}
-          <p>Kick no necesita clave. El poller corre cada 60 s en el worker.</p>
+          <p>Kick needs no key. The poller runs every 60 s in the worker.</p>
           <Button
             type="button"
             size="sm"
@@ -269,7 +269,7 @@ export function StreamAlertsDashboard() {
             disabled={atLimit || creating !== null}
           >
             <Plus className="size-4" aria-hidden />
-            Nueva alerta
+            New alert
           </Button>
         </CardContent>
       </Card>
@@ -283,13 +283,13 @@ export function StreamAlertsDashboard() {
           onChange={setCreating}
           onSave={() => void onCreate()}
           onCancel={() => setCreating(null)}
-          submitLabel="Crear"
+          submitLabel="Create"
         />
       ) : null}
 
       {alerts.length === 0 && !creating ? (
         <p className="text-sm text-muted-foreground">
-          Aún no hay alertas. Pega la URL del canal y elige dónde avisar.
+          No alerts yet. Paste the channel URL and choose where to notify.
         </p>
       ) : (
         alerts.map((alert) => {
@@ -304,7 +304,7 @@ export function StreamAlertsDashboard() {
                       : undefined
                   }
                 >
-                  {alert.isLive ? "En directo" : "Offline"}
+                  {alert.isLive ? "Live" : "Offline"}
                 </Badge>
                 <span className="text-xs text-muted-foreground">
                   {STREAM_ALERT_PLATFORM_LABEL[alert.platform]} ·{" "}
@@ -321,7 +321,7 @@ export function StreamAlertsDashboard() {
                 }
                 onSave={() => void onSave(alert.id)}
                 onDelete={() => void onDelete(alert.id)}
-                submitLabel="Guardar"
+                submitLabel="Save"
               />
             </div>
           );
@@ -358,7 +358,7 @@ function AlertForm({
       <CardContent className="space-y-4 pt-6">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label>Plataforma</Label>
+            <Label>Platform</Label>
             <Select
               value={draft.platform}
               onValueChange={(value) =>
@@ -379,11 +379,11 @@ function AlertForm({
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Canal / handle / URL</Label>
+            <Label>Channel / handle / URL</Label>
             <Input
               value={draft.handle}
               disabled={saving}
-              placeholder="https://twitch.tv/nombre o @handle"
+              placeholder="https://twitch.tv/name or @handle"
               onChange={(event) =>
                 onChange({ ...draft, handle: event.target.value })
               }
@@ -393,7 +393,7 @@ function AlertForm({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label>Canal de Discord</Label>
+            <Label>Discord channel</Label>
             <Select
               value={draft.discordChannelId || NONE}
               onValueChange={(value) =>
@@ -405,10 +405,10 @@ function AlertForm({
               disabled={saving}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Elige un canal" />
+                <SelectValue placeholder="Pick a channel" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NONE}>Elige un canal</SelectItem>
+                <SelectItem value={NONE}>Pick a channel</SelectItem>
                 {channels.map((ch) => (
                   <SelectItem key={ch.id} value={ch.id}>
                     #{ch.name}
@@ -418,7 +418,7 @@ function AlertForm({
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Mencionar rol (opcional)</Label>
+            <Label>Mention role (optional)</Label>
             <Select
               value={draft.mentionRoleId || NONE}
               onValueChange={(value) =>
@@ -430,10 +430,10 @@ function AlertForm({
               disabled={saving}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Sin mención" />
+                <SelectValue placeholder="No mention" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NONE}>Sin mención</SelectItem>
+                <SelectItem value={NONE}>No mention</SelectItem>
                 {roles.map((role) => (
                   <SelectItem key={role.id} value={role.id}>
                     @{role.name}
@@ -445,7 +445,7 @@ function AlertForm({
         </div>
 
         <div className="space-y-1.5">
-          <Label>Plantilla</Label>
+          <Label>Template</Label>
           <Textarea
             value={draft.template}
             maxLength={STREAM_ALERT_TEMPLATE_MAX}
@@ -467,7 +467,7 @@ function AlertForm({
             onCheckedChange={(enabled) => onChange({ ...draft, enabled })}
             disabled={saving}
           />
-          <Label htmlFor={enabledId}>Activa</Label>
+          <Label htmlFor={enabledId}>Enabled</Label>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -486,7 +486,7 @@ function AlertForm({
               disabled={saving}
               onClick={onCancel}
             >
-              Cancelar
+              Cancel
             </Button>
           ) : null}
           {onDelete ? (
@@ -497,7 +497,7 @@ function AlertForm({
               onClick={onDelete}
             >
               <Trash2 className="size-4" />
-              Borrar
+              Delete
             </Button>
           ) : null}
         </div>

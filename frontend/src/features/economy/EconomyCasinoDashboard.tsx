@@ -92,7 +92,7 @@ export function EconomyCasinoDashboard() {
             message:
               error instanceof Error
                 ? error.message
-                : "No se pudo cargar el casino.",
+                : "Couldn't load the casino.",
           });
         }
       } finally {
@@ -121,7 +121,7 @@ export function EconomyCasinoDashboard() {
       setSavedFingerprint(fingerprint(next));
       setToast({
         variant: "success",
-        message: "Configuración del casino guardada.",
+        message: "Casino configuration saved.",
       });
     } catch (error) {
       setToast({
@@ -129,7 +129,7 @@ export function EconomyCasinoDashboard() {
         message:
           error instanceof Error
             ? error.message
-            : "No se pudo guardar el casino.",
+            : "Couldn't save the casino.",
       });
     } finally {
       setSaving(false);
@@ -140,7 +140,7 @@ export function EconomyCasinoDashboard() {
     return (
       <div className="flex items-center justify-center gap-2 py-24 text-muted-foreground">
         <Loader2 className="size-5 animate-spin" />
-        Cargando casino…
+        Loading casino…
       </div>
     );
   }
@@ -175,7 +175,7 @@ export function EconomyCasinoDashboard() {
                 active={tab === "roulette"}
                 onClick={() => setTab("roulette")}
               >
-                Ruleta
+                Roulette
               </TabsTrigger>
               <TabsTrigger
                 active={tab === "blackjack"}
@@ -196,15 +196,15 @@ export function EconomyCasinoDashboard() {
                 <div className="space-y-4">
                   <Card>
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Activar Casino</CardTitle>
+                      <CardTitle className="text-base">Enable Casino</CardTitle>
                       <CardDescription>
-                        Interruptor maestro. Si está apagado, los comandos de
-                        juego no aceptan apuestas.
+                        Master switch. If off, the game commands don't accept
+                        bets.
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
                       <div className="flex items-center justify-between gap-4">
-                        <Label htmlFor="casino-active">Casino activo</Label>
+                        <Label htmlFor="casino-active">Casino active</Label>
                         <Switch
                           id="casino-active"
                           checked={config.isActive}
@@ -219,7 +219,7 @@ export function EconomyCasinoDashboard() {
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">
-                        Límites de Apuesta
+                        Bet Limits
                       </CardTitle>
                       <CardDescription>
                         Aplican a `/coinflip`, `/roulette`, `/blackjack` y `/slots`.
@@ -227,7 +227,7 @@ export function EconomyCasinoDashboard() {
                     </CardHeader>
                     <CardContent className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label htmlFor="min-bet">Apuesta mínima</Label>
+                        <Label htmlFor="min-bet">Minimum bet</Label>
                         <Input
                           id="min-bet"
                           type="number"
@@ -243,7 +243,7 @@ export function EconomyCasinoDashboard() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="max-bet">Apuesta máxima</Label>
+                        <Label htmlFor="max-bet">Maximum bet</Label>
                         <Input
                           id="max-bet"
                           type="number"
@@ -271,7 +271,7 @@ export function EconomyCasinoDashboard() {
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">Coinflip</CardTitle>
                       <CardDescription>
-                        Cara o cruz. Placeholders:{" "}
+                        Heads or tails. Placeholders:{" "}
                         <code className="text-xs">{"{side}"}</code>,{" "}
                         <code className="text-xs">{"{payout}"}</code>,{" "}
                         <code className="text-xs">{"{currency}"}</code>.
@@ -280,7 +280,7 @@ export function EconomyCasinoDashboard() {
                     <CardContent className="space-y-4">
                       <div className="space-y-2">
                         <Label htmlFor="cf-mult">
-                          Multiplicador de ganancia
+                          Win multiplier
                         </Label>
                         <Input
                           id="cf-mult"
@@ -300,7 +300,7 @@ export function EconomyCasinoDashboard() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="cf-win">Mensaje de victoria</Label>
+                        <Label htmlFor="cf-win">Win message</Label>
                         <Input
                           id="cf-win"
                           value={config.coinflip.winMessage}
@@ -321,15 +321,15 @@ export function EconomyCasinoDashboard() {
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">
-                        Ritmo de juego
+                        Game pace
                       </CardTitle>
                       <CardDescription>
-                        Segundos de espera entre cada coinflip.
+                        Wait seconds between each coinflip.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="cf-cd">Cooldown entre tiros</Label>
+                        <Label htmlFor="cf-cd">Cooldown between flips</Label>
                         <Input
                           id="cf-cd"
                           type="number"
@@ -347,7 +347,7 @@ export function EconomyCasinoDashboard() {
                           }
                         />
                         <p className="text-xs text-muted-foreground">
-                          Segundos que debe esperar cada usuario entre jugadas.
+                          Seconds each user must wait between plays.
                         </p>
                       </div>
                     </CardContent>
@@ -361,14 +361,14 @@ export function EconomyCasinoDashboard() {
                 <div className="space-y-4">
                   <Card>
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Ruleta</CardTitle>
+                      <CardTitle className="text-base">Roulette</CardTitle>
                       <CardDescription>
-                        Multiplicadores base por tipo de apuesta.
+                        Base multipliers per bet type.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-4 sm:grid-cols-3">
                       <div className="space-y-2">
-                        <Label htmlFor="ro-color">Color (Rojo/Negro)</Label>
+                        <Label htmlFor="ro-color">Color (Red/Black)</Label>
                         <Input
                           id="ro-color"
                           type="number"
@@ -387,7 +387,7 @@ export function EconomyCasinoDashboard() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="ro-green">Verde</Label>
+                        <Label htmlFor="ro-green">Green</Label>
                         <Input
                           id="ro-green"
                           type="number"
@@ -406,7 +406,7 @@ export function EconomyCasinoDashboard() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="ro-num">Número exacto</Label>
+                        <Label htmlFor="ro-num">Exact number</Label>
                         <Input
                           id="ro-num"
                           type="number"
@@ -429,14 +429,14 @@ export function EconomyCasinoDashboard() {
 
                   <Card>
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Mesa</CardTitle>
+                      <CardTitle className="text-base">Table</CardTitle>
                       <CardDescription>
-                        Cooldown entre giros e historial en el embed.
+                        Cooldown between spins and history in the embed.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="ro-cd">Cooldown entre giros</Label>
+                        <Label htmlFor="ro-cd">Cooldown between spins</Label>
                         <Input
                           id="ro-cd"
                           type="number"
@@ -454,17 +454,17 @@ export function EconomyCasinoDashboard() {
                           }
                         />
                         <p className="text-xs text-muted-foreground">
-                          Segundos que debe esperar cada usuario entre
+                          Seconds each user must wait between
                           `/roulette`.
                         </p>
                       </div>
                       <div className="flex items-center justify-between gap-4">
                         <div>
                           <Label htmlFor="ro-history">
-                            Mostrar historial de números
+                            Show number history
                           </Label>
                           <p className="text-xs text-muted-foreground">
-                            Últimos 5 resultados en el embed de la mesa.
+                            Last 5 results in the table embed.
                           </p>
                         </div>
                         <Switch
@@ -494,15 +494,15 @@ export function EconomyCasinoDashboard() {
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">Blackjack</CardTitle>
                       <CardDescription>
-                        Pagos y double down en la primera decisión.
+                        Payouts and double down on the first decision.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="flex items-center justify-between gap-4">
                         <div>
-                          <Label htmlFor="bj-double">Permitir «Doblar»</Label>
+                          <Label htmlFor="bj-double">Allow "Double"</Label>
                           <p className="text-xs text-muted-foreground">
-                            Double Down en la primera decisión.
+                            Double Down on the first decision.
                           </p>
                         </div>
                         <Switch
@@ -521,10 +521,10 @@ export function EconomyCasinoDashboard() {
                       </div>
                       <div className="flex items-center justify-between gap-4">
                         <div>
-                          <Label htmlFor="bj-split">Permitir «Dividir»</Label>
+                          <Label htmlFor="bj-split">Allow "Split"</Label>
                           <p className="text-xs text-muted-foreground">
-                            Split de un par (misma figura) si hay saldo para la
-                            segunda apuesta.
+                            Split a pair (same rank) if there's a balance for the
+                            second bet.
                           </p>
                         </div>
                         <Switch
@@ -543,7 +543,7 @@ export function EconomyCasinoDashboard() {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="bj-mult">
-                          Multiplicador de Blackjack natural
+                          Natural blackjack multiplier
                         </Label>
                         <Input
                           id="bj-mult"
@@ -575,7 +575,7 @@ export function EconomyCasinoDashboard() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="bj-decks">Cantidad de barajas</Label>
+                        <Label htmlFor="bj-decks">Number of decks</Label>
                         <Select
                           value={String(config.blackjack.deckCount)}
                           onValueChange={(value) =>
@@ -594,12 +594,12 @@ export function EconomyCasinoDashboard() {
                           }
                         >
                           <SelectTrigger id="bj-decks">
-                            <SelectValue placeholder="Barajas" />
+                            <SelectValue placeholder="Decks" />
                           </SelectTrigger>
                           <SelectContent>
                             {CASINO_DECK_COUNTS.map((n) => (
                               <SelectItem key={n} value={String(n)}>
-                                {n} {n === 1 ? "baraja" : "barajas"}
+                                {n} {n === 1 ? "deck" : "decks"}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -608,10 +608,10 @@ export function EconomyCasinoDashboard() {
                       <div className="flex items-center justify-between gap-4">
                         <div>
                           <Label htmlFor="bj-soft17">
-                            El crupier se planta en 17 suave
+                            The dealer stands on soft 17
                           </Label>
                           <p className="text-xs text-muted-foreground">
-                            Regla estándar de casino (stand on soft 17).
+                            Standard casino rule (stand on soft 17).
                           </p>
                         </div>
                         <Switch
@@ -641,13 +641,13 @@ export function EconomyCasinoDashboard() {
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">Slots</CardTitle>
                       <CardDescription>
-                        Tres rodillos, CSPRNG. Par = 2 de 3 iguales (×1.7).
-                        Casa documentada ≈ 5.6%.
+                        Three reels, CSPRNG. Pair = 2 of 3 matching (×1.7).
+                        Documented house edge ≈ 5.6%.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="sl-cd">Cooldown entre giros</Label>
+                        <Label htmlFor="sl-cd">Cooldown between spins</Label>
                         <Input
                           id="sl-cd"
                           type="number"
@@ -665,12 +665,12 @@ export function EconomyCasinoDashboard() {
                           }
                         />
                         <p className="text-xs text-muted-foreground">
-                          Segundos entre cada `/slots` por usuario.
+                          Seconds between each `/slots` per user.
                         </p>
                       </div>
                       <div className="rounded-md border border-border/70 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-                        <p className="font-medium text-foreground">Pagos</p>
-                        <p>Par (2 de 3) ×1.7 · 🍒🍒🍒 ×3 · 🍋🍋🍋 ×4</p>
+                        <p className="font-medium text-foreground">Payouts</p>
+                        <p>Pair (2 of 3) ×1.7 · 🍒🍒🍒 ×3 · 🍋🍋🍋 ×4</p>
                         <p>🍊 ×5 · 🍇 ×8 · 🔔 ×12 · ⭐ ×20 · 7️⃣ ×40 · 💎 ×80</p>
                       </div>
                     </CardContent>
@@ -685,9 +685,9 @@ export function EconomyCasinoDashboard() {
           <div className="sticky top-20 space-y-4">
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Vista previa</CardTitle>
+                <CardTitle className="text-base">Preview</CardTitle>
                 <CardDescription>
-                  Simulación del embed en Discord según la pestaña activa.
+                  Simulation of the Discord embed based on the active tab.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -708,7 +708,7 @@ export function EconomyCasinoDashboard() {
               ) : (
                 <Save className="size-4" />
               )}
-              Guardar Configuración del Casino
+              Save Casino Configuration
             </Button>
           </div>
         </div>

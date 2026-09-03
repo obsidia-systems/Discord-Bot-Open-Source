@@ -12,7 +12,7 @@ export async function fetchScheduledMessages(): Promise<ScheduledMessagesListRes
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar Scheduled Messages (${response.status})`,
+        `Couldn't load Scheduled Messages (${response.status})`,
       ),
     );
   }
@@ -34,7 +34,7 @@ export async function createScheduledMessage(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo crear el mensaje (${response.status})`,
+        `Couldn't create the message (${response.status})`,
       ),
     );
   }
@@ -57,7 +57,7 @@ export async function updateScheduledMessage(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo actualizar el mensaje (${response.status})`,
+        `Couldn't update the message (${response.status})`,
       ),
     );
   }
@@ -83,7 +83,7 @@ export async function toggleScheduledMessage(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cambiar el estado (${response.status})`,
+        `Couldn't change the status (${response.status})`,
       ),
     );
   }
@@ -101,7 +101,7 @@ export async function sendScheduledMessageNow(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo enviar ahora (${response.status})`,
+        `Couldn't send now (${response.status})`,
       ),
     );
   }
@@ -116,7 +116,7 @@ export async function deleteScheduledMessage(id: number): Promise<void> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo eliminar el mensaje (${response.status})`,
+        `Couldn't delete the message (${response.status})`,
       ),
     );
   }

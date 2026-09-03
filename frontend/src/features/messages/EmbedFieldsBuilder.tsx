@@ -60,8 +60,8 @@ export function EmbedFieldsBuilder({
         </Button>
       </div>
       <p className="text-xs text-muted-foreground">
-        Hasta {EMBED_FIELDS_MAX}. Nombre 256, valor 1024. Inline agrupa de a 3
-        como Discord.
+        Up to {EMBED_FIELDS_MAX}. Name 256, value 1024. Inline groups by 3
+        like Discord.
       </p>
       {fields.map((field, index) => (
         <div
@@ -85,7 +85,7 @@ export function EmbedFieldsBuilder({
           <Input
             value={field.name}
             maxLength={EMBED_FIELD_NAME_MAX}
-            placeholder="Nombre"
+            placeholder="Name"
             disabled={disabled}
             onChange={(event) =>
               updateField(index, { name: event.target.value })
@@ -95,7 +95,7 @@ export function EmbedFieldsBuilder({
             value={field.value}
             maxLength={EMBED_FIELD_VALUE_MAX}
             rows={2}
-            placeholder="Valor"
+            placeholder="Value"
             disabled={disabled}
             onChange={(event) =>
               updateField(index, { value: event.target.value })

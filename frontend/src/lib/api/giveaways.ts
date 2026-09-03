@@ -14,7 +14,7 @@ export async function fetchGiveawaySettings(): Promise<GiveawaySettingsResponse>
     throw new Error(
       await readApiError(
         response,
-        `No se pudieron cargar los ajustes (${response.status})`,
+        `Couldn't load the settings (${response.status})`,
       ),
     );
   }
@@ -33,7 +33,7 @@ export async function saveGiveawaySettings(
     throw new Error(
       await readApiError(
         response,
-        `No se pudieron guardar los ajustes (${response.status})`,
+        `Couldn't save the settings (${response.status})`,
       ),
     );
   }
@@ -46,7 +46,7 @@ export async function fetchGiveaways(): Promise<GiveawayListResponse> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudieron cargar los sorteos (${response.status})`,
+        `Couldn't load the giveaways (${response.status})`,
       ),
     );
   }
@@ -61,7 +61,7 @@ export async function fetchGiveawayDetail(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar el sorteo (${response.status})`,
+        `Couldn't load the giveaway (${response.status})`,
       ),
     );
   }
@@ -80,7 +80,7 @@ export async function createGiveaway(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo crear el sorteo (${response.status})`,
+        `Couldn't create the giveaway (${response.status})`,
       ),
     );
   }
@@ -98,7 +98,7 @@ async function postAction(id: number, path: string): Promise<Giveaway> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo completar la acción (${response.status})`,
+        `Couldn't complete the action (${response.status})`,
       ),
     );
   }

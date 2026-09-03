@@ -101,9 +101,9 @@ function rolesOrderFingerprint(roles: RolesBuilderRole[]): string {
 
 const PERMISSION_TAB_SHORT: Record<string, string> = {
   general: "General",
-  moderation: "Moderación",
-  membership: "Membresía",
-  voice: "Voz",
+  moderation: "Moderation",
+  membership: "Membership",
+  voice: "Voice",
 };
 
 function PermissionsTabs({
@@ -239,13 +239,13 @@ function RolesHierarchyPanel({
           ) : (
             <Save className="size-4" />
           )}
-          Guardar nueva jerarquía
+          Save new hierarchy
         </Button>
       ) : null}
 
       <p className="text-xs text-muted-foreground">
-        Arrastra los roles gestionables para cambiar la prioridad. Los roles
-        bloqueados (por encima del bot, managed o el propio bot) no se mueven.
+        Drag manageable roles to change priority. Locked roles (above the bot,
+        managed, or the bot itself) don't move.
       </p>
 
       <DragDropContext onDragEnd={onDragEnd}>
@@ -261,7 +261,7 @@ function RolesHierarchyPanel({
             >
               {roles.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No hay roles en este servidor.
+                  No roles in this server.
                 </p>
               ) : (
                 roles.map((role, index) => {
@@ -314,7 +314,7 @@ function RolesHierarchyPanel({
                           </span>
                           {locked ? (
                             <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                              {role.managed ? "managed" : "No gestionable"}
+                              {role.managed ? "managed" : "Not manageable"}
                             </span>
                           ) : (
                             <span className="flex shrink-0 gap-0.5">
@@ -324,7 +324,7 @@ function RolesHierarchyPanel({
                                 size="icon"
                                 className="size-7"
                                 disabled={!canManage}
-                                aria-label={`Editar ${role.name}`}
+                                aria-label={`Edit ${role.name}`}
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   onEdit(role);
@@ -338,7 +338,7 @@ function RolesHierarchyPanel({
                                 size="icon"
                                 className="size-7 text-destructive hover:text-destructive"
                                 disabled={!canManage}
-                                aria-label={`Borrar ${role.name}`}
+                                aria-label={`Delete ${role.name}`}
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   onDelete(role);
@@ -416,7 +416,7 @@ export function RolesBuilderDashboard() {
       setError(
         err instanceof Error
           ? err.message
-          : "No se pudo cargar Roles Builder.",
+          : "Couldn't load Roles Builder.",
       );
     } finally {
       setLoading(false);
@@ -465,7 +465,7 @@ export function RolesBuilderDashboard() {
   const onCreate = async () => {
     const trimmed = name.trim();
     if (!trimmed) {
-      setError("Escribe un nombre para el rol.");
+      setError("Enter a name for the role.");
       return;
     }
 
@@ -482,8 +482,8 @@ export function RolesBuilderDashboard() {
       });
       setSuccess(
         res.warning
-          ? `Rol «${res.role.name}» creado. ${res.warning}`
-          : `Rol «${res.role.name}» creado en Discord.`,
+          ? `Role "${res.role.name}" created. ${res.warning}`
+          : `Role "${res.role.name}" created in Discord.`,
       );
       resetForm();
       const list = await fetchRolesBuilderList();
@@ -492,7 +492,7 @@ export function RolesBuilderDashboard() {
       setError(
         err instanceof Error
           ? err.message
-          : "No se pudo crear el rol en Discord.",
+          : "Couldn't create the role in Discord.",
       );
     } finally {
       setCreating(false);
@@ -503,7 +503,7 @@ export function RolesBuilderDashboard() {
     if (!editingRoleId) return;
     const trimmed = name.trim();
     if (!trimmed) {
-      setError("Escribe un nombre para el rol.");
+      setError("Enter a name for the role.");
       return;
     }
 
@@ -527,7 +527,7 @@ export function RolesBuilderDashboard() {
         payload.permissions = [...selectedPerms];
       }
       const res = await updateGuildRole(editingRoleId, payload);
-      setSuccess(`Rol «${res.role.name}» actualizado en Discord.`);
+      setSuccess(`Role "${res.role.name}" updated in Discord.`);
       resetForm();
       const list = await fetchRolesBuilderList();
       applyList(list);
@@ -535,7 +535,7 @@ export function RolesBuilderDashboard() {
       setError(
         err instanceof Error
           ? err.message
-          : "No se pudo actualizar el rol.",
+          : "Couldn't update the role.",
       );
     } finally {
       setSavingRole(false);
@@ -549,14 +549,14 @@ export function RolesBuilderDashboard() {
     setSuccess(null);
     try {
       await deleteGuildRole(pendingDelete.id);
-      setSuccess(`Rol «${pendingDelete.name}» borrado de Discord.`);
+      setSuccess(`Role "${pendingDelete.name}" deleted from Discord.`);
       if (editingRoleId === pendingDelete.id) resetForm();
       setPendingDelete(null);
       const list = await fetchRolesBuilderList();
       applyList(list);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "No se pudo borrar el rol.",
+        err instanceof Error ? err.message : "Couldn't delete the role.",
       );
     } finally {
       setDeleting(false);
@@ -578,12 +578,12 @@ export function RolesBuilderDashboard() {
       setOrderedRoles(res.roles);
       setSavedFingerprint(rolesOrderFingerprint(res.roles));
       setData((prev) => (prev ? { ...prev, roles: res.roles } : prev));
-      setSuccess("Jerarquía de roles actualizada en Discord.");
+      setSuccess("Role hierarchy updated in Discord.");
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "No se pudo guardar la nueva jerarquía.",
+          : "Couldn't save the new hierarchy.",
       );
     } finally {
       setSavingHierarchy(false);
@@ -596,7 +596,7 @@ export function RolesBuilderDashboard() {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" />
-        Cargando roles del servidor…
+        Loading server roles…
       </div>
     );
   }
@@ -624,7 +624,7 @@ export function RolesBuilderDashboard() {
             Roles Builder
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Crea, edita y reordena roles debajo del bot.
+            Create, edit, and reorder roles below the bot.
             {data ? ` · ${data.guildName}` : null}
             {data
               ? ` · ${data.roleCount}/${data.roleLimit} roles`
@@ -643,7 +643,7 @@ export function RolesBuilderDashboard() {
           ) : (
             <RefreshCw className="size-4" />
           )}
-          Actualizar
+          Refresh
         </Button>
       </div>
 
@@ -651,8 +651,8 @@ export function RolesBuilderDashboard() {
         <div className="flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
           <p>
-            El bot no tiene el permiso <strong>Gestionar roles</strong>. No
-            podrá crear ni reordenar roles hasta que se lo otorgues en Discord.
+            The bot doesn't have the <strong>Manage Roles</strong> permission. It
+            won't be able to create or reorder roles until you grant it in Discord.
           </p>
         </div>
       ) : null}
@@ -661,9 +661,9 @@ export function RolesBuilderDashboard() {
         <div className="flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
           <p>
-            El rol del bot está muy abajo en la jerarquía
-            {data.botRoleName ? ` («${data.botRoleName}»)` : ""}. Sube el rol
-            del bot en Discord para poder posicionar roles.
+            The bot's role is too low in the hierarchy
+            {data.botRoleName ? ` ("${data.botRoleName}")` : ""}. Move the bot's
+            role up in Discord to be able to position roles.
           </p>
         </div>
       ) : null}
@@ -672,8 +672,8 @@ export function RolesBuilderDashboard() {
         <div className="flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
           <p>
-            Este servidor ya tiene el máximo de {data?.roleLimit} roles de
-            Discord. Borra uno para poder crear otro.
+            This server already has the maximum of {data?.roleLimit} Discord
+            roles. Delete one to create another.
           </p>
         </div>
       ) : null}
@@ -683,22 +683,22 @@ export function RolesBuilderDashboard() {
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <Shield className="size-4 text-primary" />
-              {editingRoleId ? "Editar rol" : "Nuevo rol"}
+              {editingRoleId ? "Edit role" : "New role"}
             </CardTitle>
             <CardDescription>
               {editingRoleId
-                ? "Los cambios se aplican en Discord. Solo roles debajo del bot."
-                : "Nombre, color y permisos. Se crea justo debajo del rol del bot."}
+                ? "Changes apply in Discord. Only roles below the bot."
+                : "Name, color, and permissions. Created just below the bot's role."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="space-y-1.5">
-              <Label htmlFor="roleName">Nombre del rol</Label>
+              <Label htmlFor="roleName">Role name</Label>
               <Input
                 id="roleName"
                 value={name}
                 maxLength={100}
-                placeholder="ej. Moderador"
+                placeholder="e.g. Moderator"
                 onChange={(e) => {
                   setName(e.target.value);
                   setSuccess(null);
@@ -711,7 +711,7 @@ export function RolesBuilderDashboard() {
               <div className="flex flex-wrap items-center gap-2">
                 <input
                   type="color"
-                  aria-label="Color del rol"
+                  aria-label="Role color"
                   className="h-10 w-12 cursor-pointer rounded-md border border-input bg-background p-1"
                   value={color === "#000000" ? "#99AAB5" : color}
                   onChange={(e) => {
@@ -753,12 +753,12 @@ export function RolesBuilderDashboard() {
             <div className="grid gap-2 sm:grid-cols-2">
               <div className="flex items-center justify-between gap-3 rounded-md border border-border/50 px-3 py-2">
                 <Label className="text-sm font-normal">
-                  Mostrar separado (hoist)
+                  Display separately (hoist)
                 </Label>
                 <Switch checked={hoist} onCheckedChange={setHoist} />
               </div>
               <div className="flex items-center justify-between gap-3 rounded-md border border-border/50 px-3 py-2">
-                <Label className="text-sm font-normal">Mencionable</Label>
+                <Label className="text-sm font-normal">Mentionable</Label>
                 <Switch
                   checked={mentionable}
                   onCheckedChange={setMentionable}
@@ -769,8 +769,8 @@ export function RolesBuilderDashboard() {
             <div className="space-y-2">
               {editingRole?.hasAdministrator ? (
                 <p className="text-xs text-muted-foreground">
-                  Este rol tiene Administrator en Discord. El panel no cambia
-                  esos permisos.
+                  This role has Administrator in Discord. The dashboard doesn't
+                  change those permissions.
                 </p>
               ) : (
                 <Accordion>
@@ -780,11 +780,11 @@ export function RolesBuilderDashboard() {
                       onClick={() => setPermissionsOpen((v) => !v)}
                       subtitle={
                         selectedPerms.size > 0
-                          ? `${selectedPerms.size} permiso${selectedPerms.size === 1 ? "" : "s"} seleccionado${selectedPerms.size === 1 ? "" : "s"}`
-                          : "Cerrado por defecto — opcional"
+                          ? `${selectedPerms.size} permission${selectedPerms.size === 1 ? "" : "s"} selected`
+                          : "Closed by default — optional"
                       }
                     >
-                      Permisos
+                      Permissions
                     </AccordionTrigger>
                     <AccordionContent open={permissionsOpen}>
                       <PermissionsTabs
@@ -812,7 +812,7 @@ export function RolesBuilderDashboard() {
                     ) : (
                       <Save className="size-4" />
                     )}
-                    Guardar cambios
+                    Save changes
                   </Button>
                   <Button
                     type="button"
@@ -821,7 +821,7 @@ export function RolesBuilderDashboard() {
                     onClick={() => resetForm()}
                   >
                     <X className="size-4" />
-                    Cancelar
+                    Cancel
                   </Button>
                 </>
               ) : (
@@ -841,7 +841,7 @@ export function RolesBuilderDashboard() {
                   ) : (
                     <Plus className="size-4" />
                   )}
-                  Crear Rol en Discord
+                  Create Role in Discord
                 </Button>
               )}
             </div>
@@ -850,10 +850,10 @@ export function RolesBuilderDashboard() {
 
         <Card className="h-fit lg:sticky lg:top-6">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Roles del servidor</CardTitle>
+            <CardTitle className="text-base">Server roles</CardTitle>
             <CardDescription>
-              Arrastra para reordenar (arriba = mayor prioridad). Edita o borra
-              los que están debajo del bot.
+              Drag to reorder (top = highest priority). Edit or delete the ones
+              below the bot.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -882,13 +882,13 @@ export function RolesBuilderDashboard() {
 
       <AlertDialog
         open={pendingDelete != null}
-        title="Borrar rol"
+        title="Delete role"
         description={
           pendingDelete
-            ? `Se eliminará «${pendingDelete.name}» de Discord. Esta acción no se puede deshacer.`
+            ? `"${pendingDelete.name}" will be deleted from Discord. This action can't be undone.`
             : null
         }
-        confirmLabel="Borrar"
+        confirmLabel="Delete"
         tone="destructive"
         confirming={deleting}
         onCancel={() => {

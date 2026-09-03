@@ -91,10 +91,10 @@ function ChannelSelect({
         disabled={disabled}
       >
         <SelectTrigger id={id}>
-          <SelectValue placeholder="Sin canal" />
+          <SelectValue placeholder="No channel" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="__none__">Sin canal</SelectItem>
+          <SelectItem value="__none__">No channel</SelectItem>
           {channels.map((ch) => (
             <SelectItem key={ch.id} value={ch.id}>
               #{ch.name}
@@ -109,7 +109,7 @@ function ChannelSelect({
 function retentionLabel(days: ActionLogRetentionDays): string {
   return (
     ACTION_LOG_RETENTION_OPTIONS.find((o) => o.value === days)?.label ??
-    `${days} días`
+    `${days} days`
   );
 }
 
@@ -209,14 +209,14 @@ export function ActionLogsConfigTab({
       return [`Simple: ${nameOf(config.globalChannelId)}`];
     }
     return [
-      `Mensajes: ${nameOf(config.channelsMapping.messages)}`,
-      `Miembros: ${nameOf(config.channelsMapping.members)}`,
+      `Messages: ${nameOf(config.channelsMapping.messages)}`,
+      `Members: ${nameOf(config.channelsMapping.members)}`,
       `Roles: ${nameOf(config.channelsMapping.roles)}`,
-      `Canales: ${nameOf(config.channelsMapping.channels)}`,
-      `Invitaciones: ${nameOf(config.channelsMapping.invites)}`,
-      `Voz: ${nameOf(config.channelsMapping.voice)}`,
-      `Recursos: ${nameOf(config.channelsMapping.assets)}`,
-      `Reserva: ${nameOf(config.globalChannelId)}`,
+      `Channels: ${nameOf(config.channelsMapping.channels)}`,
+      `Invites: ${nameOf(config.channelsMapping.invites)}`,
+      `Voice: ${nameOf(config.channelsMapping.voice)}`,
+      `Assets: ${nameOf(config.channelsMapping.assets)}`,
+      `Fallback: ${nameOf(config.globalChannelId)}`,
     ];
   }, [config, textChannels]);
 
@@ -233,9 +233,9 @@ export function ActionLogsConfigTab({
       <div className="space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Enrutamiento de canales</CardTitle>
+            <CardTitle className="text-base">Channel routing</CardTitle>
             <CardDescription>
-              Los embeds salen por webhook con el apodo y avatar del bot en este servidor.
+              Embeds are sent via webhook with the bot's nickname and avatar in this server.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -244,13 +244,13 @@ export function ActionLogsConfigTab({
                 [
                   {
                     mode: "SIMPLE" as const,
-                    title: "Enrutamiento simple",
-                    blurb: "Un solo canal global para todos los eventos.",
+                    title: "Simple routing",
+                    blurb: "A single global channel for all events.",
                   },
                   {
                     mode: "ADVANCED" as const,
-                    title: "Enrutamiento avanzado",
-                    blurb: "7 canales: mensajes, miembros, roles, canales, voz, invitaciones y recursos.",
+                    title: "Advanced routing",
+                    blurb: "7 channels: messages, members, roles, channels, voice, invites, and assets.",
                   },
                 ] as const
               ).map((opt) => (
@@ -276,7 +276,7 @@ export function ActionLogsConfigTab({
             {config.routingMode === "SIMPLE" ? (
               <ChannelSelect
                 id="global-channel"
-                label="Canal global"
+                label="Global channel"
                 value={config.globalChannelId}
                 channels={textChannels}
                 onChange={(globalChannelId) => patch({ globalChannelId })}
@@ -285,14 +285,14 @@ export function ActionLogsConfigTab({
               <div className="grid gap-3 sm:grid-cols-2">
                 <ChannelSelect
                   id="map-messages"
-                  label="Mensajes"
+                  label="Messages"
                   value={config.channelsMapping.messages}
                   channels={textChannels}
                   onChange={(id) => setMapping("messages", id)}
                 />
                 <ChannelSelect
                   id="map-members"
-                  label="Miembros"
+                  label="Members"
                   value={config.channelsMapping.members}
                   channels={textChannels}
                   onChange={(id) => setMapping("members", id)}
@@ -306,28 +306,28 @@ export function ActionLogsConfigTab({
                 />
                 <ChannelSelect
                   id="map-channels"
-                  label="Canales"
+                  label="Channels"
                   value={config.channelsMapping.channels}
                   channels={textChannels}
                   onChange={(id) => setMapping("channels", id)}
                 />
                 <ChannelSelect
                   id="map-invites"
-                  label="Invitaciones"
+                  label="Invites"
                   value={config.channelsMapping.invites}
                   channels={textChannels}
                   onChange={(id) => setMapping("invites", id)}
                 />
                 <ChannelSelect
                   id="map-voice"
-                  label="Voz"
+                  label="Voice"
                   value={config.channelsMapping.voice}
                   channels={textChannels}
                   onChange={(id) => setMapping("voice", id)}
                 />
                 <ChannelSelect
                   id="map-assets"
-                  label="Recursos"
+                  label="Assets"
                   value={config.channelsMapping.assets}
                   channels={textChannels}
                   onChange={(id) => setMapping("assets", id)}
@@ -335,7 +335,7 @@ export function ActionLogsConfigTab({
                 <div className="sm:col-span-2">
                   <ChannelSelect
                     id="fallback-global"
-                    label="Reserva global (si falta categoría)"
+                    label="Global fallback (if a category is missing)"
                     value={config.globalChannelId}
                     channels={textChannels}
                     onChange={(globalChannelId) => patch({ globalChannelId })}
@@ -348,34 +348,34 @@ export function ActionLogsConfigTab({
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Lista de exclusión</CardTitle>
+            <CardTitle className="text-base">Exclusion list</CardTitle>
             <CardDescription>
-              Canales, categorías, roles y bots cuya actividad no generará logs.
+              Channels, categories, roles, and bots whose activity won't generate logs.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <ChannelMultiSelect
               id="ignored-channels"
-              label="Canales / categorías ignorados"
-              placeholder="Buscar canales o categorías…"
+              label="Ignored channels / categories"
+              placeholder="Search channels or categories…"
               channels={ignoreChannels}
               value={config.ignoredChannels}
               onChange={(ignoredChannels) => patch({ ignoredChannels })}
-              emptyHint="Ningún canal ni categoría ignorados."
+              emptyHint="No channels or categories ignored."
             />
             <RoleMultiSelect
               id="ignored-roles"
-              label="Roles ignorados"
+              label="Ignored roles"
               roles={assignableRoles}
               value={config.ignoredRoles}
               onChange={(ignoredRoles) => patch({ ignoredRoles })}
-              emptyHint="Ningún rol ignorado."
+              emptyHint="No roles ignored."
             />
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-4 py-3">
               <div>
-                <p className="text-sm font-medium">Ignorar acciones de bots</p>
+                <p className="text-sm font-medium">Ignore bot actions</p>
                 <p className="text-xs text-muted-foreground">
-                  No registrar eventos cuyo ejecutor sea otro bot.
+                  Don't log events whose executor is another bot.
                 </p>
               </div>
               <Switch
@@ -388,14 +388,14 @@ export function ActionLogsConfigTab({
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Retención de datos</CardTitle>
+            <CardTitle className="text-base">Data retention</CardTitle>
             <CardDescription>
-              Auto-borrado del historial. El plan Gratis conserva 14 días.
+              Auto-deletion of the history. The Free plan keeps 14 days.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-1.5">
-              <Label htmlFor="retention">Conservar registros</Label>
+              <Label htmlFor="retention">Keep logs</Label>
               <Select
                 value={String(config.dataRetentionDays)}
                 onValueChange={(v) =>
@@ -430,9 +430,9 @@ export function ActionLogsConfigTab({
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Eventos activos</CardTitle>
+            <CardTitle className="text-base">Active events</CardTitle>
             <CardDescription>
-              Switches granulares por tipo de evento.
+              Granular switches per event type.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -457,7 +457,7 @@ export function ActionLogsConfigTab({
                           {group.title}
                         </span>
                         <span className="mt-0.5 block text-xs text-muted-foreground">
-                          {on}/{group.events.length} activos
+                          {on}/{group.events.length} active
                         </span>
                       </button>
                       <div className="flex shrink-0 items-center gap-1 pt-0.5">
@@ -472,7 +472,7 @@ export function ActionLogsConfigTab({
                             );
                           }}
                         >
-                          Activar todo
+                          Enable all
                         </button>
                         <span className="text-[11px] text-muted-foreground">
                           |
@@ -488,7 +488,7 @@ export function ActionLogsConfigTab({
                             );
                           }}
                         >
-                          Desactivar todo
+                          Disable all
                         </button>
                       </div>
                     </div>
@@ -532,14 +532,14 @@ export function ActionLogsConfigTab({
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Resumen de configuración</CardTitle>
+            <CardTitle className="text-base">Configuration summary</CardTitle>
             <CardDescription>
-              Vista en vivo del formulario (antes de guardar).
+              Live view of the form (before saving).
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground">Estado general</span>
+              <span className="text-muted-foreground">Overall status</span>
               <Badge
                 className={
                   config.enabled
@@ -547,12 +547,12 @@ export function ActionLogsConfigTab({
                     : undefined
                 }
               >
-                {config.enabled ? "Activo" : "Inactivo"}
+                {config.enabled ? "Enabled" : "Disabled"}
               </Badge>
             </div>
 
             <div className="space-y-1">
-              <p className="text-muted-foreground">Canales de destino</p>
+              <p className="text-muted-foreground">Destination channels</p>
               <ul className="space-y-0.5 text-xs font-medium">
                 {destinationLines.map((line) => (
                   <li key={line} className="truncate">
@@ -563,36 +563,36 @@ export function ActionLogsConfigTab({
             </div>
 
             <div className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground">Eventos en escucha</span>
+              <span className="text-muted-foreground">Events being watched</span>
               <span className="font-medium tabular-nums">
                 {enabledCount} / {TOTAL_EVENT_COUNT}
               </span>
             </div>
 
             <div className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground">Exclusiones</span>
+              <span className="text-muted-foreground">Exclusions</span>
               <span className="text-right font-medium">
-                {config.ignoredChannels.length} canal
-                {config.ignoredChannels.length === 1 ? "" : "es"}
+                {config.ignoredChannels.length} channel
+                {config.ignoredChannels.length === 1 ? "" : "s"}
                 {ignoredCategoryCount > 0
                   ? ` (${ignoredCategoryCount} cat.)`
                   : ""}
-                , {config.ignoredRoles.length} rol
-                {config.ignoredRoles.length === 1 ? "" : "es"}
+                , {config.ignoredRoles.length} role
+                {config.ignoredRoles.length === 1 ? "" : "s"}
               </span>
             </div>
 
             <div className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground">Retención</span>
+              <span className="text-muted-foreground">Retention</span>
               <span className="font-medium">
                 {retentionLabel(config.dataRetentionDays)}
               </span>
             </div>
 
             <div className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground">Ignorar bots</span>
+              <span className="text-muted-foreground">Ignore bots</span>
               <span className="font-medium">
-                {config.ignoreBots ? "Sí" : "No"}
+                {config.ignoreBots ? "Yes" : "No"}
               </span>
             </div>
 
@@ -607,7 +607,7 @@ export function ActionLogsConfigTab({
               ) : (
                 <Save className="size-4" />
               )}
-              {saving ? "Cargando…" : "Guardar configuración"}
+              {saving ? "Loading…" : "Save configuration"}
             </Button>
 
             <Button
@@ -622,12 +622,12 @@ export function ActionLogsConfigTab({
               ) : (
                 <Send className="size-4" />
               )}
-              Enviar embed de prueba
+              Send test embed
             </Button>
 
             {!dirty ? (
               <p className="text-center text-[11px] text-muted-foreground">
-                Sin cambios pendientes.
+                No pending changes.
               </p>
             ) : null}
           </CardContent>
@@ -637,10 +637,10 @@ export function ActionLogsConfigTab({
           <CardContent className="flex gap-3 pt-6 text-sm text-muted-foreground">
             <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
             <p>
-              Los logs se envían por webhook con el nombre «
-              {webhookDisplayName}» y el avatar del perfil del bot en este
-              servidor. Los mensajes fuera de caché de discord.js pueden no
-              incluir el texto «Antes».
+              Logs are sent via webhook with the name "
+              {webhookDisplayName}" and the bot's profile avatar in this
+              server. Messages outside the discord.js cache may not include the
+              "Before" text.
             </p>
           </CardContent>
         </Card>

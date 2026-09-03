@@ -102,7 +102,7 @@ export function TagListInput({
               {value}
               <button
                 type="button"
-                aria-label={`Quitar ${value}`}
+                aria-label={`Remove ${value}`}
                 className="rounded-sm p-0.5 text-muted-foreground transition-colors hover:bg-background/60 hover:text-foreground"
                 onClick={() =>
                   onChange(

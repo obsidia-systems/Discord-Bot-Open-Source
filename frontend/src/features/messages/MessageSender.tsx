@@ -57,7 +57,7 @@ export function MessageSender() {
         setAssetsError(
           error instanceof Error
             ? error.message
-            : "No se pudieron cargar los canales",
+            : "Couldn't load the channels",
         );
       });
     return () => {
@@ -96,16 +96,16 @@ export function MessageSender() {
     >
       <div>
         <h2 className="font-display text-lg font-semibold text-foreground">
-          Enviar mensaje
+          Send message
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Texto plano a un canal de texto o anuncios. El bot necesita permiso
-          para hablar ahí.
+          Plain text to a text or announcement channel. The bot needs
+          permission to speak there.
         </p>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="channelId">Canal destino</Label>
+        <Label htmlFor="channelId">Destination channel</Label>
         {textChannels.length > 0 ? (
           <Select
             value={channelId || undefined}
@@ -113,7 +113,7 @@ export function MessageSender() {
             onValueChange={setChannelId}
           >
             <SelectTrigger id="channelId">
-              <SelectValue placeholder="Selecciona un canal…" />
+              <SelectValue placeholder="Select a channel…" />
             </SelectTrigger>
             <SelectContent>
               {textChannels.map((channel) => (
@@ -130,7 +130,7 @@ export function MessageSender() {
             type="text"
             inputMode="numeric"
             autoComplete="off"
-            placeholder="ej. 123456789012345678"
+            placeholder="e.g. 123456789012345678"
             value={channelId}
             onChange={(event) => setChannelId(event.target.value)}
             disabled={isSubmitting}
@@ -145,13 +145,13 @@ export function MessageSender() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="content">Mensaje</Label>
+        <Label htmlFor="content">Message</Label>
         <Textarea
           id="content"
           name="content"
           rows={5}
           maxLength={MESSAGE_CONTENT_MAX}
-          placeholder="Escribe el mensaje que enviará el bot…"
+          placeholder="Type the message the bot will send…"
           value={content}
           onChange={(event) => setContent(event.target.value)}
           disabled={isSubmitting}
@@ -168,7 +168,7 @@ export function MessageSender() {
         ) : (
           <Send className="size-4" aria-hidden />
         )}
-        {isSubmitting ? "Enviando…" : "Enviar a Discord"}
+        {isSubmitting ? "Sending…" : "Send to Discord"}
       </Button>
 
       {feedback.kind === "ok" && (
@@ -177,7 +177,7 @@ export function MessageSender() {
           role="status"
         >
           <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden />
-          Mensaje enviado (ID: {feedback.messageId})
+          Message sent (ID: {feedback.messageId})
         </p>
       )}
 

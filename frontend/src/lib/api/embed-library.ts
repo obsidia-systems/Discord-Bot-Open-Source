@@ -102,7 +102,7 @@ export async function fetchEmbedLibrary(): Promise<EmbedLibraryResponse> {
     throw new Error(
       await readApiError(
         response,
-        `Error al cargar biblioteca (${response.status})`,
+        `Couldn't load library (${response.status})`,
       ),
     );
   }
@@ -133,7 +133,7 @@ export async function sendEmbedToLibrary(
     throw new Error(
       await readApiError(
         response,
-        `Error al enviar embed (${response.status})`,
+        `Couldn't send embed (${response.status})`,
       ),
     );
   }
@@ -164,7 +164,7 @@ export async function editSentEmbed(
     throw new Error(
       await readApiError(
         response,
-        `Error al editar mensaje (${response.status})`,
+        `Couldn't edit message (${response.status})`,
       ),
     );
   }
@@ -185,7 +185,7 @@ export async function deleteSentEmbed(
     throw new Error(
       await readApiError(
         response,
-        `Error al eliminar mensaje (${response.status})`,
+        `Couldn't delete message (${response.status})`,
       ),
     );
   }

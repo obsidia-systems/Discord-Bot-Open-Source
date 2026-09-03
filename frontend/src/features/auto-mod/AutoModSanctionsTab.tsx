@@ -42,15 +42,15 @@ export function AutoModSanctionsTab({
     <div className="space-y-4">
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Caducidad de Warns</CardTitle>
+          <CardTitle className="text-base">Warn decay</CardTitle>
           <CardDescription>
-            Define cuánto tiempo un Warn cuenta como activo para futuros
-            castigos automáticos.
+            Defines how long a Warn counts as active for future automatic
+            punishments.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor="warn-decay">Periodo de caducidad</Label>
+            <Label htmlFor="warn-decay">Decay period</Label>
             <Select
               value={String(config.warnDecayDays)}
               onValueChange={(value) =>
@@ -71,21 +71,21 @@ export function AutoModSanctionsTab({
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Los Warns más antiguos a este periodo no sumarán para castigos
-              automáticos, pero seguirán en el expediente histórico.
+              Warns older than this period won't count toward automatic
+              punishments, but they stay in the history record.
             </p>
           </div>
           <FilterToggle
             id="warnOnHit"
-            label="Registrar warn al filtrar"
-            description="Si está apagado, Auto-Mod solo bloquea el mensaje. El escalado no avanza."
+            label="Log a warn on filter"
+            description="If off, Auto-Mod only blocks the message. Escalation doesn't advance."
             checked={config.warnOnHit !== false}
             onCheckedChange={(warnOnHit) => onPatch({ warnOnHit })}
           >
             <FilterToggle
               id="dmOnHit"
-              label="Avisar por DM"
-              description="Envía un mensaje privado cuando se registra el warn."
+              label="Notify by DM"
+              description="Sends a private message when the warn is logged."
               checked={config.dmOnHit !== false}
               onCheckedChange={(dmOnHit) => onPatch({ dmOnHit })}
             />
@@ -95,16 +95,16 @@ export function AutoModSanctionsTab({
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Escalado de sanciones</CardTitle>
+          <CardTitle className="text-base">Sanction escalation</CardTitle>
           <CardDescription>
-            Al alcanzar exactamente N warns activos se ejecuta la acción.
-            Integra castigos de Discord y de Levels.
+            When exactly N active warns are reached, the action runs.
+            Integrates Discord and Levels punishments.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {config.punishments.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Sin reglas todavía. Añade una sanción para empezar.
+              No rules yet. Add a sanction to get started.
             </p>
           ) : null}
 
@@ -113,7 +113,7 @@ export function AutoModSanctionsTab({
               key={`${row.actionType}-${row.warnThreshold}-${index}`}
               className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/10 px-3 py-2.5"
             >
-              <span className="text-sm text-muted-foreground">A los</span>
+              <span className="text-sm text-muted-foreground">At</span>
               <Input
                 type="number"
                 min={1}
@@ -238,13 +238,13 @@ export function AutoModSanctionsTab({
             }
           >
             <Plus className="size-4" />
-            Añadir Sanción
+            Add sanction
           </Button>
 
           {!levelsEnabled ? (
             <p className="text-xs text-amber-600 dark:text-amber-400">
-              Las sanciones de XP no tendrán efecto mientras el módulo de Rangos
-              y XP esté apagado.
+              XP sanctions won't take effect while the Levels and XP module is
+              off.
             </p>
           ) : null}
         </CardContent>

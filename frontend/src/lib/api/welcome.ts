@@ -14,7 +14,7 @@ export async function fetchWelcomeSettings(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar bienvenidas (${response.status})`,
+        `Couldn't load welcome (${response.status})`,
       ),
     );
   }
@@ -34,7 +34,7 @@ export async function saveWelcomeSettings(
     throw new Error(
       await readApiError(
         response,
-        `Error al guardar bienvenidas (${response.status})`,
+        `Couldn't save welcome (${response.status})`,
       ),
     );
   }

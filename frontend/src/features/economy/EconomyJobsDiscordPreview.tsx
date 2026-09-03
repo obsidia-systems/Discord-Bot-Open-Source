@@ -3,7 +3,7 @@ import { applyEconomyMessageTemplate } from "@adobos/shared";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-const MOCK_USER = "@UsuarioDePrueba";
+const MOCK_USER = "@SampleUser";
 const MOCK_AVATAR = "https://cdn.discordapp.com/embed/avatars/0.png";
 const BOT_NAME = "Adobos Bot";
 const SUCCESS_COLOR = "#57F287";
@@ -36,7 +36,7 @@ function DiscordMessageShell({
             <span className="rounded bg-[#5865F2] px-1 py-px text-[10px] font-semibold uppercase leading-none text-white">
               App
             </span>
-            <span className="text-[11px] text-[#949ba4]">Hoy a las 12:00</span>
+            <span className="text-[11px] text-[#949ba4]">Today at 12:00</span>
           </div>
           {children}
         </div>
@@ -111,11 +111,11 @@ export function EconomyJobsDiscordPreview({
   activeCrime?: EconomyCrime | null;
   crimeOutcome?: "success" | "fail";
 }) {
-  const currency = currencyName || "monedas";
+  const currency = currencyName || "coins";
 
   if (tab === "fixed") {
     const streakLine = config.streakEnabled
-      ? `\n🔥 Racha x3 → +${config.streakBonusPercent * 3}% bonus`
+      ? `\n🔥 Streak x3 → +${config.streakBonusPercent * 3}% bonus`
       : "";
     const payout = config.dailyPay;
     const bonus = config.streakEnabled
@@ -123,17 +123,17 @@ export function EconomyJobsDiscordPreview({
       : 0;
     const salaryHint =
       config.roleSalaries.length > 0
-        ? `\n\nTambién: \`/collect-income\` para salarios de rol.`
+        ? `\n\nAlso: \`/collect-income\` for role salaries.`
         : "";
     return (
       <DiscordMessageShell>
         <p className="text-[#dbdee1]">
-          {MOCK_USER} usó <span className="text-[#00a8fc]">/daily</span>
+          {MOCK_USER} used <span className="text-[#00a8fc]">/daily</span>
         </p>
         <DiscordEmbed
           color={INFO_COLOR}
-          title="Recompensa diaria"
-          description={`Has reclamado **${payout + bonus}** ${currency} (${currencySymbol}).${streakLine}\n\nTambién disponibles: /weekly (${config.weeklyPay}) · /monthly (${config.monthlyPay})${salaryHint}`}
+          title="Daily reward"
+          description={`You claimed **${payout + bonus}** ${currency} (${currencySymbol}).${streakLine}\n\nAlso available: /weekly (${config.weeklyPay}) · /monthly (${config.monthlyPay})${salaryHint}`}
         />
       </DiscordMessageShell>
     );
@@ -145,11 +145,11 @@ export function EconomyJobsDiscordPreview({
       config.jobs[0] ??
       ({
         id: "preview",
-        name: "Minero",
+        name: "Miner",
         minPay: 50,
         maxPay: 150,
         cooldownMinutes: 60,
-        successMessage: "Trabajaste de {job} y ganaste {payout} {currency}.",
+        successMessage: "You worked as a {job} and earned {payout} {currency}.",
       } satisfies EconomyJob);
     const payout = mid(job.minPay, job.maxPay);
     const text = applyEconomyMessageTemplate(job.successMessage, {
@@ -164,20 +164,20 @@ export function EconomyJobsDiscordPreview({
     return (
       <DiscordMessageShell>
         <p className="text-[#dbdee1]">
-          {MOCK_USER} usó <span className="text-[#00a8fc]">/work</span>
+          {MOCK_USER} used <span className="text-[#00a8fc]">/work</span>
         </p>
         {choose ? (
           <DiscordEmbed
             color={INFO_COLOR}
-            title="Elige un trabajo"
-            description="El cooldown empieza al confirmar."
+            title="Pick a job"
+            description="The cooldown starts when you confirm."
             buttons={choose}
           />
         ) : (
           <DiscordEmbed
             color={SUCCESS_COLOR}
-            title={`Trabajo: ${job.name}`}
-            description={`${text}\n\n⏱️ Próximo trabajo en **${job.cooldownMinutes}** min.`}
+            title={`Job: ${job.name}`}
+            description={`${text}\n\n⏱️ Next job in **${job.cooldownMinutes}** min.`}
           />
         )}
       </DiscordMessageShell>
@@ -189,15 +189,15 @@ export function EconomyJobsDiscordPreview({
     return (
       <DiscordMessageShell>
         <p className="text-[#dbdee1]">
-          {MOCK_USER} usó <span className="text-[#00a8fc]">/rob @Miembro</span>
+          {MOCK_USER} used <span className="text-[#00a8fc]">/rob @Member</span>
         </p>
         <DiscordEmbed
           color={rob.enabled ? SUCCESS_COLOR : FAIL_COLOR}
-          title={rob.enabled ? "Robo exitoso" : "Robo desactivado"}
+          title={rob.enabled ? "Robbery succeeded" : "Robbery disabled"}
           description={
             rob.enabled
-              ? `Le quitaste **${Math.round((500 * (rob.minStealPercent + rob.maxStealPercent)) / 200)}** ${currency} de la cartera.\n\nÉxito ${rob.successChance}% · cooldown ${rob.cooldownMinutes} min.\nEl banco no se puede robar.`
-              : "El robo está desactivado en este servidor."
+              ? `You took **${Math.round((500 * (rob.minStealPercent + rob.maxStealPercent)) / 200)}** ${currency} from the wallet.\n\nSuccess ${rob.successChance}% · cooldown ${rob.cooldownMinutes} min.\nThe bank can't be robbed.`
+              : "Robbery is disabled in this server."
           }
         />
       </DiscordMessageShell>
@@ -209,7 +209,7 @@ export function EconomyJobsDiscordPreview({
     config.crimes[0] ??
     ({
       id: "preview",
-      name: "Robar un banco",
+      name: "Rob a bank",
       successChance: 40,
       minReward: 100,
       maxReward: 400,
@@ -217,9 +217,9 @@ export function EconomyJobsDiscordPreview({
       maxFine: 200,
       cooldownMinutes: 60,
       successMessage:
-        "¡Éxito! Completaste «{crime}» y escapaste con {payout} {currency}.",
+        "Success! You pulled off \"{crime}\" and got away with {payout} {currency}.",
       failMessage:
-        "Te atraparon en «{crime}». Multa de {fine} {currency}.",
+        "You got caught during \"{crime}\". Fine of {fine} {currency}.",
     } satisfies EconomyCrime);
 
   const success = crimeOutcome === "success";
@@ -238,12 +238,12 @@ export function EconomyJobsDiscordPreview({
   return (
     <DiscordMessageShell>
       <p className="text-[#dbdee1]">
-        {MOCK_USER} usó <span className="text-[#00a8fc]">/crime</span>
+        {MOCK_USER} used <span className="text-[#00a8fc]">/crime</span>
       </p>
       <DiscordEmbed
         color={success ? SUCCESS_COLOR : FAIL_COLOR}
-        title={success ? `Crimen exitoso` : `Crimen fallido`}
-        description={`${text}\n\n🎲 Probabilidad de éxito: **${crime.successChance}%**`}
+        title={success ? `Crime succeeded` : `Crime failed`}
+        description={`${text}\n\n🎲 Success chance: **${crime.successChance}%**`}
       />
     </DiscordMessageShell>
   );

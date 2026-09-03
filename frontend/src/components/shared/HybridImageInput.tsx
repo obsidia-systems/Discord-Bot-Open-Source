@@ -77,7 +77,7 @@ export function HybridImageInput({
   async function applyFile(next: File): Promise<void> {
     setError(null);
     if (next.size > maxSizeMb * 1024 * 1024) {
-      setError(`La imagen supera ${maxSizeMb}MB.`);
+      setError(`The image exceeds ${maxSizeMb}MB.`);
       return;
     }
 
@@ -91,7 +91,7 @@ export function HybridImageInput({
       const result = await uploadImageFile(next);
       onChange(result.path);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Error al subir");
+      setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
     }
@@ -143,7 +143,7 @@ export function HybridImageInput({
           size="icon"
           className="size-10 shrink-0"
           disabled={busy}
-          aria-label={`Subir archivo — ${label}`}
+          aria-label={`Upload file — ${label}`}
           onClick={() => fileInputRef.current?.click()}
         >
           {uploading ? (
@@ -160,7 +160,7 @@ export function HybridImageInput({
             size="icon"
             className="size-10 shrink-0"
             disabled={busy}
-            aria-label={`Quitar ${label}`}
+            aria-label={`Remove ${label}`}
             onClick={() => {
               onChange(null);
               setError(null);
@@ -183,7 +183,7 @@ export function HybridImageInput({
         <p className="text-xs text-red-700 dark:text-red-400">{error}</p>
       ) : (
         <p className="text-[11px] text-muted-foreground">
-          Pega una URL o adjunta PNG/JPG/WEBP (máx. {maxSizeMb}MB)
+          Paste a URL or attach PNG/JPG/WEBP (max. {maxSizeMb}MB)
         </p>
       )}
     </div>

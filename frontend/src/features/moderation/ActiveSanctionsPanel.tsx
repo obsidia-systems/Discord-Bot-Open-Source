@@ -80,7 +80,7 @@ export function ActiveSanctionsPanel({
         message:
           error instanceof Error
             ? error.message
-            : "No se pudieron cargar los baneos.",
+            : "Couldn't load the bans.",
       });
       setBans([]);
     } finally {
@@ -99,7 +99,7 @@ export function ActiveSanctionsPanel({
         message:
           error instanceof Error
             ? error.message
-            : "No se pudieron cargar los timeouts.",
+            : "Couldn't load the timeouts.",
       });
       setTimeouts([]);
     } finally {
@@ -121,8 +121,8 @@ export function ActiveSanctionsPanel({
         userId: pending.item.id,
         reason:
           pending.kind === "unban"
-            ? "Desbaneado desde panel (Sanciones Activas)"
-            : "Timeout removido desde panel (Sanciones Activas)",
+            ? "Unbanned from dashboard (Active sanctions)"
+            : "Timeout removed from dashboard (Active sanctions)",
         dmMode: "none",
       });
 
@@ -140,7 +140,7 @@ export function ActiveSanctionsPanel({
       setToast({
         variant: "error",
         message:
-          error instanceof Error ? error.message : "No se pudo revocar.",
+          error instanceof Error ? error.message : "Couldn't revoke.",
       });
     } finally {
       setConfirming(false);
@@ -155,14 +155,14 @@ export function ActiveSanctionsPanel({
             active={subTab === "bans"}
             onClick={() => setSubTab("bans")}
           >
-            Baneos Activos
+            Active bans
             {!loadingBans ? ` (${bans.length})` : ""}
           </TabsTrigger>
           <TabsTrigger
             active={subTab === "timeouts"}
             onClick={() => setSubTab("timeouts")}
           >
-            Timeouts Activos
+            Active timeouts
             {!loadingTimeouts ? ` (${timeouts.length})` : ""}
           </TabsTrigger>
         </TabsList>
@@ -172,11 +172,11 @@ export function ActiveSanctionsPanel({
             {loadingBans ? (
               <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
                 <Loader2 className="size-4 animate-spin" aria-hidden />
-                Cargando baneos…
+                Loading bans…
               </div>
             ) : bans.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
-                No hay baneos activos.
+                No active bans.
               </p>
             ) : (
               <ul className="divide-y divide-border/70 overflow-hidden rounded-lg border border-border">
@@ -213,7 +213,7 @@ export function ActiveSanctionsPanel({
                               {ban.displayName}
                             </p>
                             <p className="truncate text-xs text-muted-foreground">
-                              {ban.reason || "Sin razón registrada"}
+                              {ban.reason || "No reason recorded"}
                             </p>
                           </div>
                         </button>
@@ -227,7 +227,7 @@ export function ActiveSanctionsPanel({
                           }
                         >
                           <ShieldOff className="size-3.5" aria-hidden />
-                          Desbanear
+                          Unban
                         </Button>
                       </div>
                     </li>
@@ -243,11 +243,11 @@ export function ActiveSanctionsPanel({
             {loadingTimeouts ? (
               <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
                 <Loader2 className="size-4 animate-spin" aria-hidden />
-                Cargando timeouts…
+                Loading timeouts…
               </div>
             ) : timeouts.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
-                No hay timeouts activos.
+                No active timeouts.
               </p>
             ) : (
               <ul className="divide-y divide-border/70 overflow-hidden rounded-lg border border-border">
@@ -284,10 +284,10 @@ export function ActiveSanctionsPanel({
                               {item.displayName}
                             </p>
                             <p className="truncate text-xs text-muted-foreground">
-                              Resta: {formatRemaining(item.remainingSeconds)} ·
-                              hasta{" "}
+                              Left: {formatRemaining(item.remainingSeconds)} ·
+                              until{" "}
                               {new Date(item.timedOutUntil).toLocaleString(
-                                "es-MX",
+                                "en-US",
                                 { timeStyle: "short", dateStyle: "short" },
                               )}
                             </p>
@@ -303,7 +303,7 @@ export function ActiveSanctionsPanel({
                           }
                         >
                           <TimerOff className="size-3.5" aria-hidden />
-                          Quitar Timeout
+                          Remove timeout
                         </Button>
                       </div>
                     </li>
@@ -318,21 +318,21 @@ export function ActiveSanctionsPanel({
       <AlertDialog
         open={pending != null}
         title={
-          pending?.kind === "unban" ? "¿Desbanear usuario?" : "¿Quitar timeout?"
+          pending?.kind === "unban" ? "Unban user?" : "Remove timeout?"
         }
         description={
           pending ? (
             <>
-              Vas a{" "}
-              {pending.kind === "unban" ? "desbanear" : "quitar el timeout de"}{" "}
+              You're about to{" "}
+              {pending.kind === "unban" ? "unban" : "remove the timeout from"}{" "}
               <strong>{pending.item.displayName}</strong> (@
-              {pending.item.username}). Esta acción se aplica de inmediato en
+              {pending.item.username}). This action takes effect immediately in
               Discord.
             </>
           ) : null
         }
         confirmLabel={
-          pending?.kind === "unban" ? "Desbanear" : "Quitar Timeout"
+          pending?.kind === "unban" ? "Unban" : "Remove timeout"
         }
         tone="destructive"
         confirming={confirming}

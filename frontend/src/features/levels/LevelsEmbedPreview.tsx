@@ -7,10 +7,10 @@ import {
 
 const MOCK = {
   userId: "1",
-  username: "UsuarioDePrueba",
+  username: "SampleUser",
   level: 5,
   xp: 2500,
-  serverName: "Servidor",
+  serverName: "Server",
   avatar: "https://cdn.discordapp.com/embed/avatars/0.png",
   nextLevel: 10,
   guildIcon: "https://cdn.discordapp.com/embed/avatars/1.png",
@@ -92,18 +92,18 @@ function DiscordEmbedMock({
 function previewRewardsField(rewards: LevelsReward[]): string {
   const current = rewards.find((r) => r.level === MOCK.level);
   if (current) {
-    return `Desbloqueaste el rol: @RolNivel${current.level}`;
+    return `You unlocked the role: @LevelRole${current.level}`;
   }
   const next = rewards
     .filter((r) => r.level > MOCK.level)
     .sort((a, b) => a.level - b.level)[0];
   if (next) {
-    return `Próxima recompensa: @RolNivel${next.level} al Nivel **${next.level}**.`;
+    return `Next reward: @LevelRole${next.level} at Level **${next.level}**.`;
   }
   if (rewards.length === 0) {
-    return `Próxima recompensa: @RolEjemplo al Nivel **${MOCK.nextLevel}**.`;
+    return `Next reward: @ExampleRole at Level **${MOCK.nextLevel}**.`;
   }
-  return "Has alcanzado el máximo nivel de recompensas.";
+  return "You've reached the maximum reward level.";
 }
 
 function mockTokens() {
@@ -128,12 +128,12 @@ export function LevelUpDiscordPreview({
   return (
     <DiscordEmbedMock
       color={config.levelUpEmbedColor || "#34E21D"}
-      title={filled(config.levelUpEmbedTitle) || "¡Subida de Nivel!"}
+      title={filled(config.levelUpEmbedTitle) || "Level Up!"}
       description={filled(config.levelUpMessage)}
       thumbnailUrl={config.levelUpShowThumbnail ? MOCK.avatar : null}
       fields={[
         {
-          name: "Recompensas",
+          name: "Rewards",
           value: previewRewardsField(config.rewards),
         },
       ]}
@@ -149,9 +149,9 @@ export function LeaderboardDiscordPreview({
   guildIconUrl?: string | null;
 }) {
   const ranking = [
-    "1 | @UsuarioDePrueba | UsuarioDePrueba | Nivel **5** | `2,500 XP`",
-    "2 | @OtroUsuario | OtroUsuario | Nivel **4** | `1,800 XP`",
-    "3 | @Tercero | Tercero | Nivel **3** | `1,200 XP`",
+    "1 | @SampleUser | SampleUser | Level **5** | `2,500 XP`",
+    "2 | @OtherUser | OtherUser | Level **4** | `1,800 XP`",
+    "3 | @ThirdUser | ThirdUser | Level **3** | `1,200 XP`",
   ].join("\n");
   const intro = applyLevelsTokens(
     config?.leaderboardEmbedDescription ?? "",
@@ -162,14 +162,14 @@ export function LeaderboardDiscordPreview({
   return (
     <DiscordEmbedMock
       color={config?.leaderboardEmbedColor || "#CA7AFF"}
-      title={config?.leaderboardEmbedTitle || "Tabla de Clasificación"}
+      title={config?.leaderboardEmbedTitle || "Leaderboard"}
       description={description}
       thumbnailUrl={
         config?.leaderboardShowThumbnail
           ? guildIconUrl || MOCK.guildIcon
           : null
       }
-      footer="Actualización automática · Levels"
+      footer="Automatic update · Levels"
     />
   );
 }

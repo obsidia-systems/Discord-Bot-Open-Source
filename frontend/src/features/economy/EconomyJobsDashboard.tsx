@@ -178,7 +178,7 @@ export function EconomyJobsDashboard() {
         message:
           error instanceof Error
             ? error.message
-            : "Error al cargar ingresos y trabajos.",
+            : "Couldn't load income and jobs.",
       });
     } finally {
       setLoading(false);
@@ -208,13 +208,13 @@ export function EconomyJobsDashboard() {
       setSavedFingerprint(configFingerprint(next));
       setToast({
         variant: "success",
-        message: "Configuración de ingresos guardada.",
+        message: "Income configuration saved.",
       });
     } catch (error) {
       setToast({
         variant: "error",
         message:
-          error instanceof Error ? error.message : "No se pudo guardar.",
+          error instanceof Error ? error.message : "Couldn't save.",
       });
     } finally {
       setSaving(false);
@@ -264,7 +264,7 @@ export function EconomyJobsDashboard() {
   }
 
   function addJob(): void {
-    const job = defaultEconomyJob({ id: newLocalId(), name: "Nuevo empleo" });
+    const job = defaultEconomyJob({ id: newLocalId(), name: "New job" });
     setConfig((c) => ({ ...c, jobs: [...c.jobs, job] }));
     setOpenJobId(job.id);
     setTab("jobs");
@@ -287,7 +287,7 @@ export function EconomyJobsDashboard() {
   function addCrime(): void {
     const crime = defaultEconomyCrime({
       id: newLocalId(),
-      name: "Nuevo crimen",
+      name: "New crime",
     });
     setConfig((c) => ({ ...c, crimes: [...c.crimes, crime] }));
     setOpenCrimeId(crime.id);
@@ -306,7 +306,7 @@ export function EconomyJobsDashboard() {
     return (
       <div className="flex items-center justify-center gap-2 py-24 text-muted-foreground">
         <Loader2 className="size-5 animate-spin" />
-        Cargando ingresos y trabajos…
+        Loading income and jobs…
       </div>
     );
   }
@@ -329,25 +329,25 @@ export function EconomyJobsDashboard() {
                 active={tab === "fixed"}
                 onClick={() => setTab("fixed")}
               >
-                Ingresos Base
+                Base Income
               </TabsTrigger>
               <TabsTrigger
                 active={tab === "jobs"}
                 onClick={() => setTab("jobs")}
               >
-                Trabajos
+                Jobs
               </TabsTrigger>
               <TabsTrigger
                 active={tab === "crimes"}
                 onClick={() => setTab("crimes")}
               >
-                Crímenes
+                Crimes
               </TabsTrigger>
               <TabsTrigger
                 active={tab === "rob"}
                 onClick={() => setTab("rob")}
               >
-                Robo
+                Robbery
               </TabsTrigger>
             </TabsList>
 
@@ -357,10 +357,10 @@ export function EconomyJobsDashboard() {
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">
-                        Recompensas de Comandos
+                        Command Rewards
                       </CardTitle>
                       <CardDescription>
-                        Pagos fijos de /daily, /weekly y /monthly.
+                        Fixed payouts for /daily, /weekly, and /monthly.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-4 sm:grid-cols-3">
@@ -418,20 +418,20 @@ export function EconomyJobsDashboard() {
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">
-                        Sistema de Rachas
+                        Streak System
                       </CardTitle>
                       <CardDescription>
-                        Multiplicador por días consecutivos de /daily.
+                        Multiplier for consecutive days of /daily.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-3">
                         <div>
                           <p className="text-sm font-medium">
-                            Activar bonus por racha
+                            Enable streak bonus
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Suma un % extra por cada día seguido.
+                            Adds an extra % for each day in a row.
                           </p>
                         </div>
                         <Switch
@@ -439,12 +439,12 @@ export function EconomyJobsDashboard() {
                           onCheckedChange={(streakEnabled) =>
                             setConfig((c) => ({ ...c, streakEnabled }))
                           }
-                          aria-label="Activar rachas"
+                          aria-label="Enable streaks"
                         />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="streak-bonus">
-                          Bonus por día (%)
+                          Bonus per day (%)
                         </Label>
                         <Input
                           id="streak-bonus"
@@ -468,18 +468,18 @@ export function EconomyJobsDashboard() {
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">
-                        Salarios por Rol
+                        Role Salaries
                       </CardTitle>
                       <CardDescription>
-                        Pagos que el miembro cobra con{" "}
-                        <code className="text-xs">/collect-income</code>. Diario
-                        = 24 h, semanal = 7 días. No se pagan solos.
+                        Payments the member claims with{" "}
+                        <code className="text-xs">/collect-income</code>. Daily
+                        = 24 h, weekly = 7 days. They aren't paid automatically.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
                       {config.roleSalaries.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
-                          Sin salarios configurados.
+                          No salaries configured.
                         </p>
                       ) : (
                         config.roleSalaries.map((salary, index) => {
@@ -508,7 +508,7 @@ export function EconomyJobsDashboard() {
                                       </span>
                                     </span>
                                   ) : (
-                                    <SelectValue placeholder="Seleccionar rol" />
+                                    <SelectValue placeholder="Select role" />
                                   )}
                                 </SelectTrigger>
                                 <SelectContent>
@@ -535,7 +535,7 @@ export function EconomyJobsDashboard() {
                                     amount: Number(e.target.value) || 0,
                                   })
                                 }
-                                aria-label="Monto del salario"
+                                aria-label="Salary amount"
                               />
                               <Select
                                 value={salary.frequency}
@@ -552,9 +552,9 @@ export function EconomyJobsDashboard() {
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="daily">Diario</SelectItem>
+                                  <SelectItem value="daily">Daily</SelectItem>
                                   <SelectItem value="weekly">
-                                    Semanal
+                                    Weekly
                                   </SelectItem>
                                 </SelectContent>
                               </Select>
@@ -563,7 +563,7 @@ export function EconomyJobsDashboard() {
                                 variant="ghost"
                                 size="icon"
                                 className="shrink-0 text-muted-foreground hover:text-destructive"
-                                aria-label="Eliminar salario"
+                                aria-label="Delete salary"
                                 onClick={() => removeSalary(index)}
                               >
                                 <Trash2 className="size-4" />
@@ -579,7 +579,7 @@ export function EconomyJobsDashboard() {
                         onClick={addSalary}
                       >
                         <Plus className="size-4" />
-                        Añadir salario
+                        Add salary
                       </Button>
                     </CardContent>
                   </Card>
@@ -594,18 +594,18 @@ export function EconomyJobsDashboard() {
                     <CardHeader className="pb-3">
                       <CardTitle className="flex items-center gap-2 text-base">
                         <Briefcase className="size-4 text-primary" />
-                        Empleos para /work
+                        Jobs for /work
                       </CardTitle>
                       <CardDescription>
-                        1 empleo → se ejecuta solo. 2–5 → el usuario elige. 6+
-                        → aleatorio. Variables: {"{job}"}, {"{payout}"},{" "}
+                        1 job → runs on its own. 2–5 → the user picks. 6+
+                        → random. Variables: {"{job}"}, {"{payout}"},{" "}
                         {"{currency}"}.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
                       {config.jobs.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
-                          Aún no hay trabajos. Añade el primero.
+                          No jobs yet. Add the first one.
                         </p>
                       ) : (
                         <Accordion>
@@ -620,12 +620,12 @@ export function EconomyJobsDashboard() {
                                     setOpenJobId(open ? null : job.id)
                                   }
                                 >
-                                  {job.name || "Sin nombre"}
+                                  {job.name || "Unnamed"}
                                 </AccordionTrigger>
                                 <AccordionContent open={open}>
                                   <div className="space-y-4">
                                     <div className="space-y-2">
-                                      <Label>Nombre del empleo</Label>
+                                      <Label>Job name</Label>
                                       <Input
                                         value={job.name}
                                         onChange={(e) =>
@@ -633,12 +633,12 @@ export function EconomyJobsDashboard() {
                                             name: e.target.value,
                                           })
                                         }
-                                        placeholder="Minero"
+                                        placeholder="Miner"
                                       />
                                     </div>
                                     <div className="grid gap-4 sm:grid-cols-3">
                                       <div className="space-y-2">
-                                        <Label>Pago mínimo</Label>
+                                        <Label>Minimum pay</Label>
                                         <Input
                                           type="number"
                                           min={0}
@@ -652,7 +652,7 @@ export function EconomyJobsDashboard() {
                                         />
                                       </div>
                                       <div className="space-y-2">
-                                        <Label>Pago máximo</Label>
+                                        <Label>Maximum pay</Label>
                                         <Input
                                           type="number"
                                           min={0}
@@ -681,7 +681,7 @@ export function EconomyJobsDashboard() {
                                       </div>
                                     </div>
                                     <div className="space-y-2">
-                                      <Label>Mensaje de éxito</Label>
+                                      <Label>Success message</Label>
                                       <Textarea
                                         value={job.successMessage}
                                         onChange={(e) =>
@@ -689,7 +689,7 @@ export function EconomyJobsDashboard() {
                                             successMessage: e.target.value,
                                           })
                                         }
-                                        placeholder="Trabajaste de {job} y ganaste {payout} monedas."
+                                        placeholder="You worked as a {job} and earned {payout} coins."
                                         rows={3}
                                       />
                                     </div>
@@ -701,7 +701,7 @@ export function EconomyJobsDashboard() {
                                         onClick={() => removeJob(job.id)}
                                       >
                                         <Trash2 className="size-4" />
-                                        Eliminar trabajo
+                                        Delete job
                                       </Button>
                                     </div>
                                   </div>
@@ -718,7 +718,7 @@ export function EconomyJobsDashboard() {
                         onClick={addJob}
                       >
                         <Plus className="size-4" />
-                        Añadir Trabajo
+                        Add Job
                       </Button>
                     </CardContent>
                   </Card>
@@ -733,18 +733,18 @@ export function EconomyJobsDashboard() {
                     <CardHeader className="pb-3">
                       <CardTitle className="flex items-center gap-2 text-base">
                         <ShieldAlert className="size-4 text-primary" />
-                        Crímenes para /crime
+                        Crimes for /crime
                       </CardTitle>
                       <CardDescription>
-                        1 crimen → se ejecuta solo. 2–5 → el usuario elige. 6+
-                        → aleatorio. Variables: {"{crime}"}, {"{payout}"},{" "}
+                        1 crime → runs on its own. 2–5 → the user picks. 6+
+                        → random. Variables: {"{crime}"}, {"{payout}"},{" "}
                         {"{fine}"}, {"{currency}"}.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
                       {config.crimes.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
-                          Aún no hay crímenes. Añade el primero.
+                          No crimes yet. Add the first one.
                         </p>
                       ) : (
                         <Accordion>
@@ -754,17 +754,17 @@ export function EconomyJobsDashboard() {
                               <AccordionItem key={crime.id}>
                                 <AccordionTrigger
                                   open={open}
-                                  subtitle={`${crime.successChance}% éxito · premio ${crime.minReward}–${crime.maxReward}`}
+                                  subtitle={`${crime.successChance}% success · reward ${crime.minReward}–${crime.maxReward}`}
                                   onClick={() =>
                                     setOpenCrimeId(open ? null : crime.id)
                                   }
                                 >
-                                  {crime.name || "Sin nombre"}
+                                  {crime.name || "Unnamed"}
                                 </AccordionTrigger>
                                 <AccordionContent open={open}>
                                   <div className="space-y-4">
                                     <div className="space-y-2">
-                                      <Label>Nombre del crimen</Label>
+                                      <Label>Crime name</Label>
                                       <Input
                                         value={crime.name}
                                         onChange={(e) =>
@@ -772,12 +772,12 @@ export function EconomyJobsDashboard() {
                                             name: e.target.value,
                                           })
                                         }
-                                        placeholder="Robar un banco"
+                                        placeholder="Rob a bank"
                                       />
                                     </div>
                                     <div className="space-y-2">
                                       <Label>
-                                        Probabilidad de éxito (%)
+                                        Success chance (%)
                                       </Label>
                                       <Input
                                         type="number"
@@ -794,7 +794,7 @@ export function EconomyJobsDashboard() {
                                     </div>
                                     <div className="grid gap-4 sm:grid-cols-2">
                                       <div className="space-y-2">
-                                        <Label>Recompensa mín.</Label>
+                                        <Label>Min. reward</Label>
                                         <Input
                                           type="number"
                                           min={0}
@@ -808,7 +808,7 @@ export function EconomyJobsDashboard() {
                                         />
                                       </div>
                                       <div className="space-y-2">
-                                        <Label>Recompensa máx.</Label>
+                                        <Label>Max. reward</Label>
                                         <Input
                                           type="number"
                                           min={0}
@@ -822,7 +822,7 @@ export function EconomyJobsDashboard() {
                                         />
                                       </div>
                                       <div className="space-y-2">
-                                        <Label>Multa mín.</Label>
+                                        <Label>Min. fine</Label>
                                         <Input
                                           type="number"
                                           min={0}
@@ -836,7 +836,7 @@ export function EconomyJobsDashboard() {
                                         />
                                       </div>
                                       <div className="space-y-2">
-                                        <Label>Multa máx.</Label>
+                                        <Label>Max. fine</Label>
                                         <Input
                                           type="number"
                                           min={0}
@@ -851,7 +851,7 @@ export function EconomyJobsDashboard() {
                                       </div>
                                     </div>
                                     <div className="space-y-2">
-                                      <Label>Mensaje de éxito</Label>
+                                      <Label>Success message</Label>
                                       <Textarea
                                         value={crime.successMessage}
                                         onChange={(e) =>
@@ -863,7 +863,7 @@ export function EconomyJobsDashboard() {
                                       />
                                     </div>
                                     <div className="space-y-2">
-                                      <Label>Mensaje de fallo</Label>
+                                      <Label>Failure message</Label>
                                       <Textarea
                                         value={crime.failMessage}
                                         onChange={(e) =>
@@ -882,7 +882,7 @@ export function EconomyJobsDashboard() {
                                         onClick={() => removeCrime(crime.id)}
                                       >
                                         <Trash2 className="size-4" />
-                                        Eliminar crimen
+                                        Delete crime
                                       </Button>
                                     </div>
                                   </div>
@@ -899,7 +899,7 @@ export function EconomyJobsDashboard() {
                         onClick={addCrime}
                       >
                         <Plus className="size-4" />
-                        Añadir Crimen
+                        Add Crime
                       </Button>
                     </CardContent>
                   </Card>
@@ -914,17 +914,16 @@ export function EconomyJobsDashboard() {
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">/rob</CardTitle>
                       <CardDescription>
-                        Apagado por defecto. Solo roba la cartera; el banco es
-                        zona segura. El cooldown arranca tras el intento.
+                        Off by default. Only steals from the wallet; the bank is
+                        a safe zone. The cooldown starts after the attempt.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="flex items-center justify-between gap-4">
                         <div>
-                          <Label htmlFor="rob-enabled">Activar /rob</Label>
+                          <Label htmlFor="rob-enabled">Enable /rob</Label>
                           <p className="text-xs text-muted-foreground">
-                            Si está apagado, el comando responde que está
-                            desactivado.
+                            If off, the command replies that it's disabled.
                           </p>
                         </div>
                         <Switch
@@ -940,7 +939,7 @@ export function EconomyJobsDashboard() {
                       </div>
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
-                          <Label htmlFor="rob-chance">Éxito (%)</Label>
+                          <Label htmlFor="rob-chance">Success (%)</Label>
                           <Input
                             id="rob-chance"
                             type="number"
@@ -977,7 +976,7 @@ export function EconomyJobsDashboard() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="rob-min">Mín. cartera víctima</Label>
+                          <Label htmlFor="rob-min">Min. victim wallet</Label>
                           <Input
                             id="rob-min"
                             type="number"
@@ -995,7 +994,7 @@ export function EconomyJobsDashboard() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="rob-fine">Multa al fallar (%)</Label>
+                          <Label htmlFor="rob-fine">Fine on failure (%)</Label>
                           <Input
                             id="rob-fine"
                             type="number"
@@ -1014,7 +1013,7 @@ export function EconomyJobsDashboard() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="rob-steal-min">Robo mín. (%)</Label>
+                          <Label htmlFor="rob-steal-min">Min. steal (%)</Label>
                           <Input
                             id="rob-steal-min"
                             type="number"
@@ -1033,7 +1032,7 @@ export function EconomyJobsDashboard() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="rob-steal-max">Robo máx. (%)</Label>
+                          <Label htmlFor="rob-steal-max">Max. steal (%)</Label>
                           <Input
                             id="rob-steal-max"
                             type="number"
@@ -1062,9 +1061,9 @@ export function EconomyJobsDashboard() {
 
         <Card className="sticky top-4 self-start">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Simulador</CardTitle>
+            <CardTitle className="text-base">Simulator</CardTitle>
             <CardDescription>
-              Vista previa del mensaje en Discord según la pestaña activa.
+              Preview of the Discord message based on the active tab.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -1076,7 +1075,7 @@ export function EconomyJobsDashboard() {
                   variant={crimeOutcome === "success" ? "default" : "outline"}
                   onClick={() => setCrimeOutcome("success")}
                 >
-                  Éxito
+                  Success
                 </Button>
                 <Button
                   type="button"
@@ -1084,7 +1083,7 @@ export function EconomyJobsDashboard() {
                   variant={crimeOutcome === "fail" ? "default" : "outline"}
                   onClick={() => setCrimeOutcome("fail")}
                 >
-                  Fallo
+                  Failure
                 </Button>
               </div>
             ) : null}
@@ -1110,11 +1109,11 @@ export function EconomyJobsDashboard() {
               ) : (
                 <Save className="size-4" />
               )}
-              Guardar Configuración de Ingresos
+              Save Income Configuration
             </Button>
             {dirty ? (
               <p className="text-center text-xs text-muted-foreground">
-                Hay cambios sin guardar.
+                You have unsaved changes.
               </p>
             ) : (
               <p
@@ -1123,7 +1122,7 @@ export function EconomyJobsDashboard() {
                   "text-emerald-600 dark:text-emerald-400",
                 )}
               >
-                Todo guardado.
+                All saved.
               </p>
             )}
           </CardContent>

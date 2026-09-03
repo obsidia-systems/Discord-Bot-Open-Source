@@ -4,7 +4,7 @@ import { apiFetch, readApiError } from "./client";
 export async function fetchHealth(): Promise<HealthResponse> {
   const response = await apiFetch(`/api/health`);
   if (!response.ok) {
-    throw new Error(`Health check falló (${response.status})`);
+    throw new Error(`Health check failed (${response.status})`);
   }
   return response.json() as Promise<HealthResponse>;
 }
@@ -15,7 +15,7 @@ export async function fetchGuildAssets(): Promise<GuildAssetsResponse> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudieron cargar assets (${response.status})`,
+        `Couldn't load assets (${response.status})`,
       ),
     );
   }

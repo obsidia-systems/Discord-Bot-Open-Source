@@ -10,7 +10,7 @@ export async function fetchBotGuildProfile(): Promise<BotGuildProfileResponse> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar el perfil del servidor (${response.status})`,
+        `Couldn't load the server profile (${response.status})`,
       ),
     );
   }
@@ -54,7 +54,7 @@ export async function saveBotGuildProfile(
     throw new Error(
       await readApiError(
         response,
-        `Error al guardar perfil del servidor (${response.status})`,
+        `Couldn't save server profile (${response.status})`,
       ),
     );
   }

@@ -82,7 +82,7 @@ export function EmbedFormTemplate({
           <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Label htmlFor={`${idPrefix}-content`}>
-                Mensaje (fuera del embed)
+                Message (outside the embed)
               </Label>
               <div
                 onFocusCapture={() => setEmojiTarget("content")}
@@ -105,7 +105,7 @@ export function EmbedFormTemplate({
               onChange={(event) => update("content", event.target.value)}
               maxLength={2000}
               disabled={disabled}
-              placeholder="Texto opcional encima del embed…"
+              placeholder="Optional text above the embed…"
             />
           </div>
           <Separator />
@@ -114,7 +114,7 @@ export function EmbedFormTemplate({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor={`${idPrefix}-title`}>Título</Label>
+          <Label htmlFor={`${idPrefix}-title`}>Title</Label>
           <Input
             id={`${idPrefix}-title`}
             value={value.title ?? ""}
@@ -125,7 +125,7 @@ export function EmbedFormTemplate({
         </div>
 
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor={`${idPrefix}-url`}>URL del título</Label>
+          <Label htmlFor={`${idPrefix}-url`}>Title URL</Label>
           <Input
             id={`${idPrefix}-url`}
             value={value.url ?? ""}
@@ -137,7 +137,7 @@ export function EmbedFormTemplate({
 
         <div className="space-y-2 sm:col-span-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <Label htmlFor={`${idPrefix}-description`}>Descripción</Label>
+            <Label htmlFor={`${idPrefix}-description`}>Description</Label>
             <div
               onFocusCapture={() => setEmojiTarget("description")}
               onClick={() => setEmojiTarget("description")}
@@ -175,7 +175,7 @@ export function EmbedFormTemplate({
             />
             <input
               type="color"
-              aria-label="Selector de color"
+              aria-label="Color picker"
               className="h-10 w-12 cursor-pointer rounded-md border border-input bg-background p-1"
               value={previewColor}
               onChange={(event) => update("color", event.target.value)}
@@ -191,7 +191,7 @@ export function EmbedFormTemplate({
               className="text-xs font-medium text-primary hover:underline"
               onClick={() => setShowAdvanced((prev) => !prev)}
             >
-              {showAdvanced ? "Ocultar opciones avanzadas" : "Opciones avanzadas"}
+              {showAdvanced ? "Hide advanced options" : "Advanced options"}
             </button>
           </div>
         ) : null}
@@ -199,7 +199,7 @@ export function EmbedFormTemplate({
         {showAdvanced ? (
           <>
             <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-authorName`}>Autor</Label>
+              <Label htmlFor={`${idPrefix}-authorName`}>Author</Label>
               <Input
                 id={`${idPrefix}-authorName`}
                 value={value.authorName ?? ""}
@@ -211,7 +211,7 @@ export function EmbedFormTemplate({
             <div className="space-y-2 sm:col-span-2">
               <HybridImageInput
                 id={`${idPrefix}-authorIconUrl`}
-                label="Icono del autor"
+                label="Author icon"
                 value={value.authorIconUrl?.trim() ? value.authorIconUrl : null}
                 onChange={(next) =>
                   update("authorIconUrl", typeof next === "string" ? next : "")
@@ -240,7 +240,7 @@ export function EmbedFormTemplate({
             <div className="space-y-2 sm:col-span-2">
               <HybridImageInput
                 id={`${idPrefix}-imageUrl`}
-                label="Imagen principal"
+                label="Main image"
                 value={value.imageUrl?.trim() ? value.imageUrl : null}
                 onChange={(next) =>
                   update("imageUrl", typeof next === "string" ? next : "")
@@ -263,7 +263,7 @@ export function EmbedFormTemplate({
             <div className="space-y-2 sm:col-span-2">
               <HybridImageInput
                 id={`${idPrefix}-footerIconUrl`}
-                label="Icono del footer"
+                label="Footer icon"
                 value={value.footerIconUrl?.trim() ? value.footerIconUrl : null}
                 onChange={(next) =>
                   update("footerIconUrl", typeof next === "string" ? next : "")
@@ -281,7 +281,7 @@ export function EmbedFormTemplate({
                   update("timestamp", checked === true)
                 }
               />
-              Mostrar timestamp (hora actual) en el embed
+              Show timestamp (current time) in the embed
             </label>
           </>
         ) : null}

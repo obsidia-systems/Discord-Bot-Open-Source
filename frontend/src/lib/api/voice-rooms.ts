@@ -12,7 +12,7 @@ export async function fetchVoiceRooms(): Promise<VoiceRoomsConfigResponse> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar Voice Rooms (${response.status})`,
+        `Couldn't load Voice Rooms (${response.status})`,
       ),
     );
   }
@@ -34,7 +34,7 @@ export async function createVoiceRoomGenerator(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo crear el generador (${response.status})`,
+        `Couldn't create the generator (${response.status})`,
       ),
     );
   }
@@ -58,7 +58,7 @@ export async function updateVoiceRoomGenerator(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo guardar el generador (${response.status})`,
+        `Couldn't save the generator (${response.status})`,
       ),
     );
   }
@@ -74,7 +74,7 @@ export async function deleteVoiceRoomGenerator(id: number): Promise<void> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo borrar el generador (${response.status})`,
+        `Couldn't delete the generator (${response.status})`,
       ),
     );
   }

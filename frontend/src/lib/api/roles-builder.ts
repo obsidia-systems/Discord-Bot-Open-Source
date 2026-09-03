@@ -16,7 +16,7 @@ export async function fetchRolesBuilderList(): Promise<RolesBuilderListResponse>
   });
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudo cargar la lista de roles."),
+      await readApiError(response, "Couldn't load the role list."),
     );
   }
   return response.json() as Promise<RolesBuilderListResponse>;
@@ -33,7 +33,7 @@ export async function createGuildRole(
   });
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudo crear el rol en Discord."),
+      await readApiError(response, "Couldn't create the role in Discord."),
     );
   }
   return response.json() as Promise<CreateGuildRoleResponse>;
@@ -51,7 +51,7 @@ export async function updateGuildRole(
   });
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudo actualizar el rol."),
+      await readApiError(response, "Couldn't update the role."),
     );
   }
   return response.json() as Promise<UpdateGuildRoleResponse>;
@@ -66,7 +66,7 @@ export async function deleteGuildRole(
   });
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudo borrar el rol."),
+      await readApiError(response, "Couldn't delete the role."),
     );
   }
   return response.json() as Promise<DeleteGuildRoleResponse>;
@@ -85,7 +85,7 @@ export async function updateRolePositions(
     throw new Error(
       await readApiError(
         response,
-        "No se pudo guardar la nueva jerarquía.",
+        "Couldn't save the new hierarchy.",
       ),
     );
   }

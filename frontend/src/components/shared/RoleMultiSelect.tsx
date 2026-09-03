@@ -32,12 +32,12 @@ function roleSwatch(role: Pick<RoleOption, "color" | "hexColor">): string {
 export function RoleMultiSelect({
   id,
   label,
-  placeholder = "Buscar roles…",
+  placeholder = "Search roles…",
   roles,
   value,
   onChange,
   disabled,
-  emptyHint = "Sin roles seleccionados.",
+  emptyHint = "No roles selected.",
 }: RoleMultiSelectProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -139,7 +139,7 @@ export function RoleMultiSelect({
           <ul className="max-h-56 overflow-y-auto p-1">
             {filtered.length === 0 ? (
               <li className="px-2 py-3 text-xs text-muted-foreground">
-                Sin resultados.
+                No results.
               </li>
             ) : null}
             {filtered.map((role) => {

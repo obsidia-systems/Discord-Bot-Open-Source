@@ -10,7 +10,7 @@ export async function fetchStarboard(): Promise<{
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar Starboard (${response.status})`,
+        `Couldn't load Starboard (${response.status})`,
       ),
     );
   }
@@ -37,7 +37,7 @@ export async function saveStarboardSettings(
     throw new Error(
       await readApiError(
         response,
-        `No se pudo guardar Starboard (${response.status})`,
+        `Couldn't save Starboard (${response.status})`,
       ),
     );
   }

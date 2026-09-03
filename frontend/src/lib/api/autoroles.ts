@@ -29,7 +29,7 @@ export async function saveReactionRoles(
     throw new Error(
       await readApiError(
         response,
-        `Error al guardar reaction roles (${response.status})`,
+        `Couldn't save reaction roles (${response.status})`,
       ),
     );
   }
@@ -45,7 +45,7 @@ export async function fetchActiveAutoroles(): Promise<ListActiveAutorolesRespons
     throw new Error(
       await readApiError(
         response,
-        `Error al listar autoroles (${response.status})`,
+        `Couldn't list autoroles (${response.status})`,
       ),
     );
   }
@@ -64,7 +64,7 @@ export async function createAutoroleCompact(
     throw new Error(
       await readApiError(
         response,
-        `Error al crear autorol (${response.status})`,
+        `Couldn't create autorole (${response.status})`,
       ),
     );
   }
@@ -91,7 +91,7 @@ export async function saveInteractiveRoles(
     throw new Error(
       await readApiError(
         response,
-        `Error al crear menú interactivo (${response.status})`,
+        `Couldn't create interactive menu (${response.status})`,
       ),
     );
   }
@@ -118,7 +118,7 @@ export async function updateAutoroleMapping(
     throw new Error(
       await readApiError(
         response,
-        `Error al actualizar mappings (${response.status})`,
+        `Couldn't update mappings (${response.status})`,
       ),
     );
   }
@@ -144,7 +144,7 @@ export async function updateAutoroleContent(
     throw new Error(
       await readApiError(
         response,
-        `Error al editar contenido (${response.status})`,
+        `Couldn't edit content (${response.status})`,
       ),
     );
   }
@@ -162,7 +162,7 @@ export async function deleteAutorole(
     throw new Error(
       await readApiError(
         response,
-        `Error al eliminar autorol (${response.status})`,
+        `Couldn't delete autorole (${response.status})`,
       ),
     );
   }
@@ -178,7 +178,7 @@ export async function fetchAutoJoinRoles(): Promise<GetAutoJoinRolesResponse> {
     throw new Error(
       await readApiError(
         response,
-        `Error al cargar auto-roles (${response.status})`,
+        `Couldn't load auto-roles (${response.status})`,
       ),
     );
   }
@@ -199,7 +199,7 @@ export async function saveAutoJoinRoles(
     throw new Error(
       await readApiError(
         response,
-        `Error al guardar auto-roles (${response.status})`,
+        `Couldn't save auto-roles (${response.status})`,
       ),
     );
   }

@@ -12,7 +12,7 @@ export async function fetchBilling(): Promise<BillingStatusResponse> {
     throw new Error(
       await readApiError(
         response,
-        `No se pudo cargar la facturación (${response.status})`,
+        `Couldn't load billing (${response.status})`,
       ),
     );
   }
@@ -29,7 +29,7 @@ export async function startCheckout(
   });
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudo iniciar el pago."),
+      await readApiError(response, "Couldn't start the payment."),
     );
   }
   return response.json() as Promise<BillingCheckoutResponse>;
@@ -41,7 +41,7 @@ export async function startBillingPortal(): Promise<BillingPortalResponse> {
   });
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudo abrir el portal de Stripe."),
+      await readApiError(response, "Couldn't open the Stripe portal."),
     );
   }
   return response.json() as Promise<BillingPortalResponse>;
@@ -51,7 +51,7 @@ export async function assignGuildToPlan(): Promise<void> {
   const response = await apiFetch("/api/billing/assign", { method: "POST" });
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudo asignar este servidor."),
+      await readApiError(response, "Couldn't assign this server."),
     );
   }
 }
@@ -60,7 +60,7 @@ export async function unassignGuildFromPlan(): Promise<void> {
   const response = await apiFetch("/api/billing/unassign", { method: "POST" });
   if (!response.ok) {
     throw new Error(
-      await readApiError(response, "No se pudo quitar este servidor del plan."),
+      await readApiError(response, "Couldn't remove this server from the plan."),
     );
   }
 }

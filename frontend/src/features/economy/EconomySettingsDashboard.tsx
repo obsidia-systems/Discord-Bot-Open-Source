@@ -155,7 +155,7 @@ function CurrencyMark({
 }
 
 function formatMoneyAmount(value: number): string {
-  return value.toLocaleString("es-MX");
+  return value.toLocaleString("en-US");
 }
 
 export function EconomySettingsDashboard() {
@@ -218,7 +218,7 @@ export function EconomySettingsDashboard() {
         message:
           error instanceof Error
             ? error.message
-            : "Error al cargar la economía.",
+            : "Couldn't load the economy.",
       });
     } finally {
       setLoading(false);
@@ -237,7 +237,7 @@ export function EconomySettingsDashboard() {
         message:
           error instanceof Error
             ? error.message
-            : "Error al cargar la clasificación.",
+            : "Couldn't load the leaderboard.",
       });
     } finally {
       setLeaderboardLoading(false);
@@ -266,7 +266,7 @@ export function EconomySettingsDashboard() {
     if (!Number.isFinite(amount) || amount < 0) {
       setToast({
         variant: "error",
-        message: "Introduce una cantidad válida (≥ 0).",
+        message: "Enter a valid amount (≥ 0).",
       });
       return;
     }
@@ -287,7 +287,7 @@ export function EconomySettingsDashboard() {
         message:
           error instanceof Error
             ? error.message
-            : "No se pudieron ajustar los fondos.",
+            : "Couldn't adjust the funds.",
       });
     } finally {
       setEditSaving(false);
@@ -307,12 +307,12 @@ export function EconomySettingsDashboard() {
       });
       setConfig(next);
       setSavedFingerprint(configFingerprint(next));
-      setToast({ variant: "success", message: "Configuración guardada." });
+      setToast({ variant: "success", message: "Configuration saved." });
     } catch (error) {
       setToast({
         variant: "error",
         message:
-          error instanceof Error ? error.message : "No se pudo guardar.",
+          error instanceof Error ? error.message : "Couldn't save.",
       });
     } finally {
       setSaving(false);
@@ -334,7 +334,7 @@ export function EconomySettingsDashboard() {
         message:
           error instanceof Error
             ? error.message
-            : "No se pudo subir la imagen de la moneda.",
+            : "Couldn't upload the currency image.",
       });
     } finally {
       setUploadingSymbol(false);
@@ -358,7 +358,7 @@ export function EconomySettingsDashboard() {
       },
       {
         id: "user",
-        header: "Usuario",
+        header: "User",
         cell: ({ row }) => {
           const e = row.original;
           return (
@@ -380,7 +380,7 @@ export function EconomySettingsDashboard() {
       },
       {
         accessorKey: "wallet",
-        header: "Cartera",
+        header: "Wallet",
         cell: ({ row }) => (
           <span className="inline-flex items-center gap-1.5 font-mono text-xs">
             <CurrencyMark symbol={config.currencySymbol} />
@@ -391,7 +391,7 @@ export function EconomySettingsDashboard() {
       },
       {
         accessorKey: "bank",
-        header: "Banco",
+        header: "Bank",
         cell: ({ row }) => (
           <span className="inline-flex items-center gap-1.5 font-mono text-xs">
             <CurrencyMark symbol={config.currencySymbol} />
@@ -402,7 +402,7 @@ export function EconomySettingsDashboard() {
       },
       {
         accessorKey: "total",
-        header: "Patrimonio",
+        header: "Net worth",
         cell: ({ row }) => (
           <Badge className="inline-flex items-center gap-1.5 normal-case tracking-normal font-mono text-xs">
             <CurrencyMark symbol={config.currencySymbol} />
@@ -423,7 +423,7 @@ export function EconomySettingsDashboard() {
             onClick={() => openEditFunds(row.original)}
           >
             <Pencil className="size-3.5" />
-            Editar Fondos
+            Edit Funds
           </Button>
         ),
         meta: { className: "w-36" },
@@ -436,7 +436,7 @@ export function EconomySettingsDashboard() {
     return (
       <div className="flex items-center justify-center gap-2 py-24 text-muted-foreground">
         <Loader2 className="size-5 animate-spin" />
-        Cargando economía…
+        Loading economy…
       </div>
     );
   }
@@ -459,13 +459,13 @@ export function EconomySettingsDashboard() {
                 active={tab === "settings"}
                 onClick={() => setTab("settings")}
               >
-                Ajustes Generales
+                General Settings
               </TabsTrigger>
               <TabsTrigger
                 active={tab === "leaderboard"}
                 onClick={() => setTab("leaderboard")}
               >
-                Clasificación
+                Leaderboard
               </TabsTrigger>
             </TabsList>
 
@@ -475,16 +475,16 @@ export function EconomySettingsDashboard() {
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">
-                        Identidad de la Moneda
+                        Currency Identity
                       </CardTitle>
                       <CardDescription>
-                        Nombre y símbolo que verán los miembros en comandos y
+                        Name and symbol members will see in commands and
                         leaderboards.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label htmlFor="currency-name">Nombre</Label>
+                        <Label htmlFor="currency-name">Name</Label>
                         <Input
                           id="currency-name"
                           value={config.currencyName}
@@ -498,7 +498,7 @@ export function EconomySettingsDashboard() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Símbolo o emoji</Label>
+                        <Label>Symbol or emoji</Label>
                         <div className="flex flex-wrap items-center gap-2">
                           <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-border bg-muted/40">
                             <CurrencyMark
@@ -534,7 +534,7 @@ export function EconomySettingsDashboard() {
                             ) : (
                               <ImagePlus className="size-4" />
                             )}
-                            Subir imagen
+                            Upload image
                           </Button>
                           {config.currencySymbol.trim() ? (
                             <Button
@@ -542,7 +542,7 @@ export function EconomySettingsDashboard() {
                               variant="ghost"
                               size="icon"
                               className="size-9"
-                              aria-label="Quitar símbolo"
+                              aria-label="Remove symbol"
                               disabled={uploadingSymbol}
                               onClick={() =>
                                 setConfig((c) => ({
@@ -567,8 +567,8 @@ export function EconomySettingsDashboard() {
                           />
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Elige un emoji nativo o del servidor, o sube una
-                          imagen para representar tu moneda.
+                          Pick a native or server emoji, or upload an
+                          image to represent your currency.
                         </p>
                       </div>
                     </CardContent>
@@ -576,15 +576,15 @@ export function EconomySettingsDashboard() {
 
                   <Card>
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Economía Base</CardTitle>
+                      <CardTitle className="text-base">Base Economy</CardTitle>
                       <CardDescription>
-                        Saldo inicial de usuarios nuevos e impuesto del banco
-                        en transferencias (`/pay`).
+                        Starting balance for new users and the bank's tax
+                        on transfers (`/pay`).
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label htmlFor="start-balance">Saldo inicial</Label>
+                        <Label htmlFor="start-balance">Starting balance</Label>
                         <Input
                           id="start-balance"
                           type="number"
@@ -603,7 +603,7 @@ export function EconomySettingsDashboard() {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="transfer-tax">
-                          Impuesto de transferencia (%)
+                          Transfer tax (%)
                         </Label>
                         <Input
                           id="transfer-tax"
@@ -635,12 +635,12 @@ export function EconomySettingsDashboard() {
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="space-y-1">
                         <CardTitle className="text-base">
-                          Clasificación (Top {LEADERBOARD_LIMIT})
+                          Leaderboard (Top {LEADERBOARD_LIMIT})
                         </CardTitle>
                         <CardDescription>
                           {leaderboardTotal > 0
-                            ? `${Math.min(leaderboard.length, LEADERBOARD_LIMIT)} de ${leaderboardTotal} usuarios con saldo.`
-                            : "Usuarios ordenados por patrimonio total (cartera + banco)."}
+                            ? `${Math.min(leaderboard.length, LEADERBOARD_LIMIT)} of ${leaderboardTotal} users with a balance.`
+                            : "Users sorted by total net worth (wallet + bank)."}
                         </CardDescription>
                       </div>
                       <Button
@@ -655,7 +655,7 @@ export function EconomySettingsDashboard() {
                         ) : (
                           <RefreshCw className="size-4" />
                         )}
-                        Actualizar
+                        Refresh
                       </Button>
                     </div>
                   </CardHeader>
@@ -663,13 +663,13 @@ export function EconomySettingsDashboard() {
                     {leaderboardLoading && leaderboard.length === 0 ? (
                       <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
                         <Loader2 className="size-4 animate-spin" />
-                        Cargando clasificación…
+                        Loading leaderboard…
                       </div>
                     ) : (
                       <DataTable
                         columns={leaderboardColumns}
                         data={leaderboard}
-                        emptyMessage="Nadie tiene saldo todavía."
+                        emptyMessage="Nobody has a balance yet."
                         minWidthClassName="min-w-[720px]"
                       />
                     )}
@@ -684,18 +684,18 @@ export function EconomySettingsDashboard() {
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <CircleDollarSign className="size-4 text-primary" />
-              Monitor de Estado
+              Status Monitor
             </CardTitle>
             <CardDescription>
-              Resumen en vivo de la economía del servidor.
+              Live summary of the server's economy.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-3">
               <div>
-                <p className="text-sm font-medium">Estado general</p>
+                <p className="text-sm font-medium">Overall status</p>
                 <p className="text-xs text-muted-foreground">
-                  {config.isActive ? "Economía activa" : "Economía pausada"}
+                  {config.isActive ? "Economy active" : "Economy paused"}
                 </p>
               </div>
               <Switch
@@ -703,12 +703,12 @@ export function EconomySettingsDashboard() {
                 onCheckedChange={(isActive) =>
                   setConfig((c) => ({ ...c, isActive }))
                 }
-                aria-label="Activar economía"
+                aria-label="Enable economy"
               />
             </div>
 
             <div className="space-y-1 rounded-md border border-border px-3 py-3">
-              <p className="text-xs text-muted-foreground">Moneda</p>
+              <p className="text-xs text-muted-foreground">Currency</p>
               <p className="flex items-center gap-2 text-sm font-medium">
                 <CurrencyMark
                   symbol={config.currencySymbol}
@@ -719,14 +719,14 @@ export function EconomySettingsDashboard() {
             </div>
 
             <div className="space-y-1 rounded-md border border-border px-3 py-3">
-              <p className="text-xs text-muted-foreground">Impuesto actual</p>
+              <p className="text-xs text-muted-foreground">Current tax</p>
               <p className="font-mono text-sm font-medium">
                 {config.transferTax}%
               </p>
             </div>
 
             <div className="space-y-1 rounded-md border border-border px-3 py-3">
-              <p className="text-xs text-muted-foreground">Saldo inicial</p>
+              <p className="text-xs text-muted-foreground">Starting balance</p>
               <p className="inline-flex items-center gap-1.5 font-mono text-sm font-medium">
                 <CurrencyMark symbol={config.currencySymbol} />
                 {formatMoneyAmount(config.startBalance)}
@@ -744,11 +744,11 @@ export function EconomySettingsDashboard() {
               ) : (
                 <Save className="size-4" />
               )}
-              Guardar configuración
+              Save configuration
             </Button>
             {dirty ? (
               <p className="text-center text-xs text-muted-foreground">
-                Hay cambios sin guardar.
+                You have unsaved changes.
               </p>
             ) : (
               <p
@@ -757,7 +757,7 @@ export function EconomySettingsDashboard() {
                   "text-emerald-600 dark:text-emerald-400",
                 )}
               >
-                Todo guardado.
+                All saved.
               </p>
             )}
           </CardContent>
@@ -769,35 +769,35 @@ export function EconomySettingsDashboard() {
         onOpenChange={setEditOpen}
         title={
           editEntry
-            ? `Editar fondos — ${editEntry.displayName}`
-            : "Editar fondos"
+            ? `Edit funds — ${editEntry.displayName}`
+            : "Edit funds"
         }
-        description="Override de administrador sobre cartera o banco."
+        description="Admin override on wallet or bank."
         className="max-w-md"
       >
         <div className="space-y-4 p-4">
           <div className="space-y-2">
-            <Label>Acción</Label>
+            <Label>Action</Label>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {(
                 [
                   {
-                    label: "Añadir a Cartera",
+                    label: "Add to Wallet",
                     target: "wallet" as const,
                     action: "add" as const,
                   },
                   {
-                    label: "Quitar de Cartera",
+                    label: "Remove from Wallet",
                     target: "wallet" as const,
                     action: "remove" as const,
                   },
                   {
-                    label: "Añadir a Banco",
+                    label: "Add to Bank",
                     target: "bank" as const,
                     action: "add" as const,
                   },
                   {
-                    label: "Quitar de Banco",
+                    label: "Remove from Bank",
                     target: "bank" as const,
                     action: "remove" as const,
                   },
@@ -824,7 +824,7 @@ export function EconomySettingsDashboard() {
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="edit-amount">Cantidad</Label>
+            <Label htmlFor="edit-amount">Amount</Label>
             <Input
               id="edit-amount"
               type="number"
@@ -840,7 +840,7 @@ export function EconomySettingsDashboard() {
               variant="outline"
               onClick={() => setEditOpen(false)}
             >
-              Cancelar
+              Cancel
             </Button>
             <Button
               type="button"
@@ -850,7 +850,7 @@ export function EconomySettingsDashboard() {
               {editSaving ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : null}
-              Aplicar
+              Apply
             </Button>
           </div>
         </div>

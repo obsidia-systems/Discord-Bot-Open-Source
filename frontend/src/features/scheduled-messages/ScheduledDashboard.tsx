@@ -73,21 +73,21 @@ type BuilderTab = "list" | "builder";
 const TEXT_CHANNEL_TYPES = new Set([0, 5]);
 
 const FREQUENCY_LABELS: Record<ScheduledFrequencyType, string> = {
-  daily: "Diario",
-  weekly: "Semanal",
-  monthly: "Mensual",
-  interval: "Intervalo",
-  specific_date: "Fecha específica",
+  daily: "Daily",
+  weekly: "Weekly",
+  monthly: "Monthly",
+  interval: "Interval",
+  specific_date: "Specific date",
 };
 
 const WEEKDAY_OPTIONS: { value: ScheduledWeekday; label: string }[] = [
-  { value: 1, label: "Lun" },
-  { value: 2, label: "Mar" },
-  { value: 3, label: "Mié" },
-  { value: 4, label: "Jue" },
-  { value: 5, label: "Vie" },
-  { value: 6, label: "Sáb" },
-  { value: 0, label: "Dom" },
+  { value: 1, label: "Mon" },
+  { value: 2, label: "Tue" },
+  { value: 3, label: "Wed" },
+  { value: 4, label: "Thu" },
+  { value: 5, label: "Fri" },
+  { value: 6, label: "Sat" },
+  { value: 0, label: "Sun" },
 ];
 
 function emptyDraft(): {
@@ -116,7 +116,7 @@ function formatRunAt(
 ): string {
   if (!iso) return "—";
   try {
-    return new Date(iso).toLocaleString("es-MX", {
+    return new Date(iso).toLocaleString("en-US", {
       timeZone: timezone || "UTC",
       dateStyle: "medium",
       timeStyle: "short",
@@ -157,10 +157,10 @@ function ScheduledEmbedPreview({
         />
         <div className="min-w-0 flex-1 space-y-2 p-3">
           <p className="text-sm font-semibold text-white">
-            {embed.title || "Sin título"}
+            {embed.title || "Untitled"}
           </p>
           <p className="whitespace-pre-wrap leading-relaxed text-[#dbdee1]">
-            {embed.description || "Sin descripción"}
+            {embed.description || "No description"}
           </p>
           {previewImage ? (
             <img
@@ -237,7 +237,7 @@ export function ScheduledDashboard() {
       setError(
         err instanceof Error
           ? err.message
-          : "No se pudo cargar Scheduled Messages.",
+          : "Couldn't load Scheduled Messages.",
       );
     } finally {
       setLoading(false);
@@ -251,7 +251,7 @@ export function ScheduledDashboard() {
   const openCreate = () => {
     if (atScheduledLimit) {
       setError(
-        `Has alcanzado el límite de ${scheduledCap} mensajes programados de este plan.`,
+        `You've reached this plan's limit of ${scheduledCap} scheduled messages.`,
       );
       return;
     }
@@ -307,12 +307,12 @@ export function ScheduledDashboard() {
         ...prev,
         embedData: embedPayloadToScheduledEmbedData(detail.embedData),
       }));
-      setSuccess(`Plantilla «${detail.name}» cargada. Puedes editarla libremente.`);
+      setSuccess(`Template "${detail.name}" loaded. You can edit it freely.`);
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "No se pudo cargar la plantilla.",
+          : "Couldn't load the template.",
       );
       setTemplateId("none");
     } finally {
@@ -322,7 +322,7 @@ export function ScheduledDashboard() {
 
   const save = async () => {
     if (!draft.channelId) {
-      setError("Selecciona un canal de destino.");
+      setError("Select a destination channel.");
       return;
     }
     setSaving(true);
@@ -332,7 +332,7 @@ export function ScheduledDashboard() {
       if (editingId == null) {
         if (atScheduledLimit) {
           setError(
-            `Has alcanzado el límite de ${scheduledCap} mensajes programados de este plan.`,
+            `You've reached this plan's limit of ${scheduledCap} scheduled messages.`,
           );
           setSaving(false);
           return;
@@ -347,7 +347,7 @@ export function ScheduledDashboard() {
           isActive: draft.isActive,
         };
         await createScheduledMessage(body);
-        setSuccess("Programación creada.");
+        setSuccess("Schedule created.");
       } else {
         const body: UpdateScheduledMessageRequest = {
           channelId: draft.channelId,
@@ -359,7 +359,7 @@ export function ScheduledDashboard() {
           isActive: draft.isActive,
         };
         await updateScheduledMessage(editingId, body);
-        setSuccess("Programación actualizada.");
+        setSuccess("Schedule updated.");
       }
       await load();
       setTab("list");
@@ -368,7 +368,7 @@ export function ScheduledDashboard() {
       setDraft(emptyDraft());
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "No se pudo guardar.",
+        err instanceof Error ? err.message : "Couldn't save.",
       );
     } finally {
       setSaving(false);
@@ -387,7 +387,7 @@ export function ScheduledDashboard() {
       setError(
         err instanceof Error
           ? err.message
-          : "No se pudo cambiar el estado.",
+          : "Couldn't change the status.",
       );
     } finally {
       setTogglingId(null);
@@ -402,10 +402,10 @@ export function ScheduledDashboard() {
       setMessages((prev) =>
         prev.map((m) => (m.id === message.id ? res.message : m)),
       );
-      setSuccess("Mensaje enviado al canal.");
+      setSuccess("Message sent to the channel.");
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "No se pudo enviar ahora.",
+        err instanceof Error ? err.message : "Couldn't send now.",
       );
     } finally {
       setSendingId(null);
@@ -415,7 +415,7 @@ export function ScheduledDashboard() {
   const onDelete = async (message: ScheduledMessage) => {
     if (
       !window.confirm(
-        `¿Eliminar «${message.label}»? Esta acción no se puede deshacer.`,
+        `Delete "${message.label}"? This action can't be undone.`,
       )
     ) {
       return;
@@ -428,10 +428,10 @@ export function ScheduledDashboard() {
         setEditingId(null);
         setDraft(emptyDraft());
       }
-      setSuccess("Mensaje eliminado.");
+      setSuccess("Message deleted.");
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "No se pudo eliminar.",
+        err instanceof Error ? err.message : "Couldn't delete.",
       );
     }
   };
@@ -440,7 +440,7 @@ export function ScheduledDashboard() {
     return (
       <div className="flex min-h-[40vh] items-center justify-center gap-2 text-muted-foreground">
         <Loader2 className="size-5 animate-spin" aria-hidden />
-        Cargando Scheduled Messages…
+        Loading Scheduled Messages…
       </div>
     );
   }
@@ -467,7 +467,7 @@ export function ScheduledDashboard() {
                 active={tab === "list"}
                 onClick={() => setTab("list")}
               >
-                Mis Mensajes
+                My Messages
               </TabsTrigger>
               <TabsTrigger
                 type="button"
@@ -477,7 +477,7 @@ export function ScheduledDashboard() {
                   else setTab("builder");
                 }}
               >
-                {editingId != null ? "Editar" : "Crear/Editar"}
+                {editingId != null ? "Edit" : "Create/Edit"}
               </TabsTrigger>
             </TabsList>
 
@@ -486,8 +486,8 @@ export function ScheduledDashboard() {
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm text-muted-foreground">
                     {messages.length === 0
-                      ? "Aún no hay programaciones."
-                      : `${messages.length}${isUnlimited("scheduledMessages") ? "" : ` / ${scheduledCap}`} mensaje${messages.length === 1 ? "" : "s"}`}
+                      ? "No schedules yet."
+                      : `${messages.length}${isUnlimited("scheduledMessages") ? "" : ` / ${scheduledCap}`} message${messages.length === 1 ? "" : "s"}`}
                   </p>
                   <Button
                     type="button"
@@ -496,7 +496,7 @@ export function ScheduledDashboard() {
                     disabled={atScheduledLimit}
                   >
                     <Plus className="size-4" aria-hidden />
-                    Nuevo
+                    New
                   </Button>
                 </div>
 
@@ -507,14 +507,14 @@ export function ScheduledDashboard() {
                       aria-hidden
                     />
                     <p className="text-sm font-medium text-foreground">
-                      No hay mensajes programados
+                      No scheduled messages
                     </p>
                     <p className="max-w-sm text-xs text-muted-foreground">
-                      Crea anuncios y recordatorios que el bot enviará
-                      automáticamente según el horario.
+                      Create announcements and reminders the bot will send
+                      automatically on schedule.
                     </p>
                     <Button type="button" onClick={openCreate}>
-                      Crear mensaje
+                      Create message
                     </Button>
                   </div>
                 ) : (
@@ -535,7 +535,7 @@ export function ScheduledDashboard() {
                                       : undefined
                                   }
                                 >
-                                  {message.isActive ? "Activo" : "Pausado"}
+                                  {message.isActive ? "Active" : "Paused"}
                                 </Badge>
                               </div>
                               <p className="text-xs text-muted-foreground">
@@ -548,7 +548,7 @@ export function ScheduledDashboard() {
                                 )}
                               </p>
                               <p className="text-[11px] text-muted-foreground">
-                                Próximo:{" "}
+                                Next:{" "}
                                 {message.isActive
                                   ? formatRunAt(
                                       message.nextRunAt,
@@ -556,7 +556,7 @@ export function ScheduledDashboard() {
                                     )
                                   : "—"}
                                 {" · "}
-                                Último:{" "}
+                                Last:{" "}
                                 {formatRunAt(
                                   message.lastSentAt,
                                   message.timezone,
@@ -573,8 +573,8 @@ export function ScheduledDashboard() {
                                   }
                                   aria-label={
                                     message.isActive
-                                      ? "Desactivar mensaje"
-                                      : "Activar mensaje"
+                                      ? "Disable message"
+                                      : "Enable message"
                                   }
                                 />
                                 <span className="text-xs text-muted-foreground">
@@ -600,7 +600,7 @@ export function ScheduledDashboard() {
                                 ) : (
                                   <Send className="size-3.5" aria-hidden />
                                 )}
-                                Enviar ahora
+                                Send now
                               </Button>
                               <Button
                                 type="button"
@@ -609,7 +609,7 @@ export function ScheduledDashboard() {
                                 onClick={() => openEdit(message)}
                               >
                                 <Pencil className="size-3.5" aria-hidden />
-                                Editar
+                                Edit
                               </Button>
                               <Button
                                 type="button"
@@ -619,7 +619,7 @@ export function ScheduledDashboard() {
                                 onClick={() => void onDelete(message)}
                               >
                                 <Trash2 className="size-3.5" aria-hidden />
-                                Eliminar
+                                Delete
                               </Button>
                             </div>
                           </CardContent>
@@ -634,15 +634,15 @@ export function ScheduledDashboard() {
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base">
-                      Destino y Horario
+                      Destination and Schedule
                     </CardTitle>
                     <CardDescription>
-                      Canal y frecuencia de envío automático.
+                      Channel and automatic sending frequency.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-1.5">
-                      <Label>Canal</Label>
+                      <Label>Channel</Label>
                       <Select
                         value={draft.channelId || undefined}
                         onValueChange={(value) =>
@@ -653,7 +653,7 @@ export function ScheduledDashboard() {
                         }
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecciona un canal" />
+                          <SelectValue placeholder="Select a channel" />
                         </SelectTrigger>
                         <SelectContent>
                           {textChannels.map((ch) => (
@@ -667,7 +667,7 @@ export function ScheduledDashboard() {
 
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-1.5">
-                        <Label>Tipo de frecuencia</Label>
+                        <Label>Frequency type</Label>
                         <Select
                           value={draft.frequency.type}
                           onValueChange={(value) =>
@@ -693,10 +693,10 @@ export function ScheduledDashboard() {
                         </Select>
                       </div>
                       <div className="space-y-1.5">
-                        <Label>Hora</Label>
+                        <Label>Time</Label>
                         {draft.frequency.type === "interval" ? (
                           <p className="text-xs text-muted-foreground pt-2">
-                            El intervalo no usa hora fija.
+                            The interval doesn't use a fixed time.
                           </p>
                         ) : (
                           <Input
@@ -716,7 +716,7 @@ export function ScheduledDashboard() {
                     {draft.frequency.type === "interval" ? (
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-1.5">
-                          <Label>Cada</Label>
+                          <Label>Every</Label>
                           <Input
                             type="number"
                             min={1}
@@ -741,7 +741,7 @@ export function ScheduledDashboard() {
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <Label>Unidad</Label>
+                          <Label>Unit</Label>
                           <Select
                             value={
                               draft.frequency.everyMinutes % 60 === 0 &&
@@ -775,23 +775,23 @@ export function ScheduledDashboard() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="minutes">Minutos</SelectItem>
-                              <SelectItem value="hours">Horas</SelectItem>
+                              <SelectItem value="minutes">Minutes</SelectItem>
+                              <SelectItem value="hours">Hours</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                         <p className="text-[11px] text-muted-foreground sm:col-span-2">
-                          Mínimo {SCHEDULED_MIN_INTERVAL_MINUTES} minutos
-                          (por defecto{" "}
-                          {DEFAULT_SCHEDULED_INTERVAL_MINUTES / 60} h). Al
-                          activar se envía en el próximo tick y luego cada N.
+                          Minimum {SCHEDULED_MIN_INTERVAL_MINUTES} minutes
+                          (default{" "}
+                          {DEFAULT_SCHEDULED_INTERVAL_MINUTES / 60} h). On
+                          enabling it sends on the next tick and then every N.
                         </p>
                       </div>
                     ) : null}
 
                     {draft.frequency.type === "weekly" ? (
                       <div className="space-y-1.5">
-                        <Label>Días de la semana</Label>
+                        <Label>Days of the week</Label>
                         <div className="flex flex-wrap gap-1.5">
                           {WEEKDAY_OPTIONS.map((day) => {
                             const active = draft.frequency.days.includes(
@@ -824,8 +824,8 @@ export function ScheduledDashboard() {
                         </div>
                         <p className="text-[11px] text-muted-foreground">
                           {draft.frequency.days.length === 0
-                            ? "Sin selección = todos los días."
-                            : "Solo se enviará en los días marcados."}
+                            ? "No selection = every day."
+                            : "It will only send on the checked days."}
                         </p>
                       </div>
                     ) : null}
@@ -838,11 +838,11 @@ export function ScheduledDashboard() {
                               htmlFor="scheduled-last-day"
                               className="text-sm font-medium"
                             >
-                              Último día del mes
+                              Last day of the month
                             </Label>
                             <p className="text-[11px] text-muted-foreground">
-                              Si está apagado, el día 31 se ajusta al último
-                              día civil (abril → 30, febrero → 28/29).
+                              If off, day 31 adjusts to the last calendar day
+                              (April → 30, February → 28/29).
                             </p>
                           </div>
                           <Switch
@@ -855,7 +855,7 @@ export function ScheduledDashboard() {
                         </div>
                         {draft.frequency.lastDayOfMonth ? null : (
                           <div className="space-y-1.5">
-                            <Label>Día del mes</Label>
+                            <Label>Day of the month</Label>
                             <Input
                               type="number"
                               min={1}
@@ -882,7 +882,7 @@ export function ScheduledDashboard() {
                     {draft.frequency.type === "specific_date" ? (
                       <div className="space-y-4">
                         <div className="space-y-1.5">
-                          <Label>Fecha</Label>
+                          <Label>Date</Label>
                           <Input
                             type="date"
                             value={draft.frequency.date}
@@ -899,12 +899,11 @@ export function ScheduledDashboard() {
                               htmlFor="scheduled-repeat-yearly"
                               className="text-sm font-medium"
                             >
-                              Repetir anualmente
+                              Repeat yearly
                             </Label>
                             <p className="text-[11px] text-muted-foreground">
-                              Si está activo, el mensaje se enviará cada año en
-                              esta fecha. Si está apagado, se enviará una sola
-                              vez y se desactivará.
+                              If on, the message is sent every year on this
+                              date. If off, it's sent once and then disabled.
                             </p>
                           </div>
                           <Switch
@@ -927,17 +926,17 @@ export function ScheduledDashboard() {
                           }
                         />
                         <p className="text-[11px] text-muted-foreground">
-                          La hora se interpreta en la zona elegida para este
-                          mensaje (por defecto, la de tu navegador).
+                          The time is interpreted in the zone chosen for this
+                          message (by default, your browser's).
                         </p>
                       </>
                     )}
 
                     <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
                       <div>
-                        <p className="text-sm font-medium">Activo al guardar</p>
+                        <p className="text-sm font-medium">Active on save</p>
                         <p className="text-xs text-muted-foreground">
-                          Si está OFF, se guarda pausado (sin envíos).
+                          If OFF, it's saved paused (no sends).
                         </p>
                       </div>
                       <Switch
@@ -956,15 +955,15 @@ export function ScheduledDashboard() {
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base">
-                      Contenido del Mensaje
+                      Message Content
                     </CardTitle>
                     <CardDescription>
-                      Mini embed que se enviará al canal.
+                      Mini embed that will be sent to the channel.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-1.5">
-                      <Label>Cargar desde plantilla (Opcional)</Label>
+                      <Label>Load from template (Optional)</Label>
                       <Select
                         value={templateId}
                         onValueChange={(value) => void loadTemplate(value)}
@@ -974,13 +973,13 @@ export function ScheduledDashboard() {
                           <SelectValue
                             placeholder={
                               templates.length === 0
-                                ? "No hay plantillas guardadas"
-                                : "Selecciona una plantilla"
+                                ? "No saved templates"
+                                : "Select a template"
                             }
                           />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">Sin plantilla</SelectItem>
+                          <SelectItem value="none">No template</SelectItem>
                           {templates.map((tpl) => (
                             <SelectItem key={tpl.id} value={String(tpl.id)}>
                               {tpl.name}
@@ -990,8 +989,8 @@ export function ScheduledDashboard() {
                       </Select>
                       <p className="text-[11px] text-muted-foreground">
                         {loadingTemplate
-                          ? "Cargando plantilla…"
-                          : "Rellena color, título, descripción e imagen; luego puedes editarlos."}
+                          ? "Loading template…"
+                          : "Fills in color, title, description, and image; then you can edit them."}
                       </p>
                     </div>
                     <div className="grid gap-4 sm:grid-cols-[auto_1fr]">
@@ -1007,7 +1006,7 @@ export function ScheduledDashboard() {
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label>Título</Label>
+                        <Label>Title</Label>
                         <Input
                           value={draft.embedData.title}
                           maxLength={256}
@@ -1018,7 +1017,7 @@ export function ScheduledDashboard() {
                       </div>
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Descripción</Label>
+                      <Label>Description</Label>
                       <Textarea
                         rows={5}
                         value={draft.embedData.description}
@@ -1029,7 +1028,7 @@ export function ScheduledDashboard() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Imagen URL (opcional)</Label>
+                      <Label>Image URL (optional)</Label>
                       <Input
                         type="url"
                         placeholder="https://…"
@@ -1042,12 +1041,12 @@ export function ScheduledDashboard() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Texto plano (opcional)</Label>
+                      <Label>Plain text (optional)</Label>
                       <Textarea
                         rows={3}
                         value={draft.content}
                         maxLength={2000}
-                        placeholder="Mensaje encima del embed"
+                        placeholder="Message above the embed"
                         onChange={(e) =>
                           setDraft((prev) => ({
                             ...prev,
@@ -1057,7 +1056,7 @@ export function ScheduledDashboard() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Ping de rol (opcional)</Label>
+                      <Label>Role ping (optional)</Label>
                       <Select
                         value={draft.pingRoleId || "none"}
                         onValueChange={(value) =>
@@ -1068,10 +1067,10 @@ export function ScheduledDashboard() {
                         }
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Sin ping" />
+                          <SelectValue placeholder="No ping" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">Sin ping</SelectItem>
+                          <SelectItem value="none">No ping</SelectItem>
                           {roles.map((role) => (
                             <SelectItem key={role.id} value={role.id}>
                               @{role.name}
@@ -1094,7 +1093,7 @@ export function ScheduledDashboard() {
                     ) : (
                       <Save className="size-4" aria-hidden />
                     )}
-                    Guardar Programación
+                    Save Schedule
                   </Button>
                   <Button
                     type="button"
@@ -1106,7 +1105,7 @@ export function ScheduledDashboard() {
                       setDraft(emptyDraft());
                     }}
                   >
-                    Cancelar
+                    Cancel
                   </Button>
                 </div>
               </TabsContent>
@@ -1116,11 +1115,11 @@ export function ScheduledDashboard() {
 
         <Card className="sticky top-4 self-start">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Vista previa</CardTitle>
+            <CardTitle className="text-base">Preview</CardTitle>
             <CardDescription>
-              Embed en tiempo real
+              Real-time embed
               {tab === "list" && messages[0]
-                ? " (último mensaje de la lista)"
+                ? " (last message in the list)"
                 : ""}
             </CardDescription>
           </CardHeader>

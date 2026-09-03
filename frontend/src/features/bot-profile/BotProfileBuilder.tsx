@@ -76,7 +76,7 @@ export function BotProfileBuilder() {
           message:
             error instanceof Error
               ? error.message
-              : "No se pudo cargar el perfil del servidor",
+              : "Couldn't load the server profile",
         });
       } finally {
         if (!cancelled) setLoading(false);
@@ -148,7 +148,7 @@ export function BotProfileBuilder() {
       setFeedback({
         kind: "ok",
         message:
-          result.message || "Perfil del bot actualizado para este servidor",
+          result.message || "Bot profile updated for this server",
       });
     } catch (error: unknown) {
       setFeedback({
@@ -156,7 +156,7 @@ export function BotProfileBuilder() {
         message:
           error instanceof Error
             ? error.message
-            : "Error al guardar el perfil del servidor",
+            : "Couldn't save the server profile",
       });
     }
   }
@@ -173,7 +173,7 @@ export function BotProfileBuilder() {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin text-primary" />
-        Cargando perfil del bot en el servidor…
+        Loading the bot's profile in the server…
       </div>
     );
   }
@@ -184,32 +184,32 @@ export function BotProfileBuilder() {
         <div className="space-y-6 lg:col-span-2">
           <Card>
             <CardHeader>
-              <CardTitle>Perfil de Miembro en este Servidor</CardTitle>
+              <CardTitle>Member Profile in this Server</CardTitle>
               <CardDescription>
-                Solo apodo y avatar locales. La identidad global del bot no se
-                modifica desde aquí (multi-servidor / SaaS).
+                Local nickname and avatar only. The bot's global identity isn't
+                changed here (multi-server / SaaS).
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {!brandingUnlocked && !entitlementsLoading ? (
                 <p className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-muted-foreground">
-                  El branding por servidor (apodo y avatar) forma parte del plan
-                  Pro.
+                  Per-server branding (nickname and avatar) is part of the Pro
+                  plan.
                 </p>
               ) : null}
               <div className="space-y-2">
-                <Label htmlFor="bot-guild-nickname">Apodo en el Servidor</Label>
+                <Label htmlFor="bot-guild-nickname">Server Nickname</Label>
                 <Input
                   id="bot-guild-nickname"
                   value={nickname}
                   maxLength={BOT_GUILD_NICKNAME_MAX}
                   disabled={isSubmitting || !brandingUnlocked}
                   onChange={(event) => setNickname(event.target.value)}
-                  placeholder={profile?.username ?? "Apodo visible en el servidor"}
+                  placeholder={profile?.username ?? "Nickname shown in the server"}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Así aparece el bot en la lista de miembros. Vacío = username
-                  global.
+                  This is how the bot appears in the member list. Empty = global
+                  username.
                 </p>
                 <Button
                   type="button"
@@ -219,24 +219,24 @@ export function BotProfileBuilder() {
                   onClick={resetNickname}
                 >
                   <RotateCcw className="size-3.5" aria-hidden />
-                  Restablecer apodo
+                  Reset nickname
                 </Button>
               </div>
 
               <div className="space-y-3 border-t border-border/70 pt-6">
                 <HybridImageInput
                   id="bot-guild-avatar"
-                  label="Avatar del Servidor"
+                  label="Server Avatar"
                   value={avatarValue}
                   onChange={setAvatarValue}
                   disabled={isSubmitting || !brandingUnlocked}
                   uploadImmediately
-                  placeholder="https://… o sube una imagen"
+                  placeholder="https://… or upload an image"
                   maxSizeMb={8}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Avatar exclusivo de este servidor. Si lo eliminas, se usa el
-                  avatar global por defecto.
+                  Avatar exclusive to this server. If you delete it, the default
+                  global avatar is used.
                 </p>
                 <Button
                   type="button"
@@ -246,7 +246,7 @@ export function BotProfileBuilder() {
                   onClick={clearServerAvatar}
                 >
                   <Trash2 className="size-3.5" aria-hidden />
-                  Eliminar avatar del servidor
+                  Delete server avatar
                 </Button>
               </div>
             </CardContent>
@@ -257,12 +257,12 @@ export function BotProfileBuilder() {
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 size-4 animate-spin" />
-                  Aplicando…
+                  Applying…
                 </>
               ) : (
                 <>
                   <Save className="mr-2 size-4" />
-                  Guardar cambios
+                  Save changes
                 </>
               )}
             </Button>

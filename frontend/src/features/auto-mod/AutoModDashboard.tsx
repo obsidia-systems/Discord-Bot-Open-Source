@@ -59,7 +59,7 @@ function configFingerprint(config: AutoModConfig): string {
 function warnDecayLabel(days: AutoModWarnDecayDays): string {
   return (
     AUTO_MOD_WARN_DECAY_OPTIONS.find((o) => o.value === days)?.label ??
-    `${days} días`
+    `${days} days`
   );
 }
 
@@ -129,7 +129,7 @@ export function AutoModDashboard() {
       setLevelsEnabled(Boolean(levelsRes?.config.enabled));
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "No se pudo cargar Auto-Mod",
+        err instanceof Error ? err.message : "Couldn't load Auto-Mod",
       );
     } finally {
       setLoading(false);
@@ -171,18 +171,18 @@ export function AutoModDashboard() {
       setConfig(res.config);
       setSavedFingerprint(configFingerprint(res.config));
       if (res.nativeSync && !res.nativeSync.ok) {
-        setSuccess("Configuración de Auto-Mod guardada.");
+        setSuccess("Auto-Mod configuration saved.");
         setError(res.nativeSync.message);
       } else {
         setSuccess(
           res.nativeSync?.message
-            ? `Configuración guardada. ${res.nativeSync.message}`
-            : "Configuración de Auto-Mod guardada.",
+            ? `Configuration saved. ${res.nativeSync.message}`
+            : "Auto-Mod configuration saved.",
         );
       }
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "No se pudo guardar Auto-Mod",
+        err instanceof Error ? err.message : "Couldn't save Auto-Mod",
       );
     } finally {
       setSaving(false);
@@ -193,7 +193,7 @@ export function AutoModDashboard() {
     return (
       <div className="flex min-h-[40vh] items-center justify-center gap-2 text-muted-foreground">
         <Loader2 className="size-5 animate-spin" aria-hidden />
-        Cargando Auto-Mod…
+        Loading Auto-Mod…
       </div>
     );
   }
@@ -226,19 +226,19 @@ export function AutoModDashboard() {
                 active={tab === "filters"}
                 onClick={() => setTab("filters")}
               >
-                Filtros y Reglas
+                Filters and Rules
               </TabsTrigger>
               <TabsTrigger
                 active={tab === "sanctions"}
                 onClick={() => setTab("sanctions")}
               >
-                Sistema de Sanciones
+                Sanction System
               </TabsTrigger>
               <TabsTrigger
                 active={tab === "exclusions"}
                 onClick={() => setTab("exclusions")}
               >
-                Exclusiones y Logs
+                Exclusions and Logs
               </TabsTrigger>
             </TabsList>
 
@@ -280,15 +280,15 @@ export function AutoModDashboard() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <ShieldAlert className="size-4 text-primary" aria-hidden />
-                Monitor de estado
+                Status monitor
               </CardTitle>
               <CardDescription>
-                Resumen en vivo antes de guardar.
+                Live summary before saving.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">Estado general</span>
+                <span className="text-muted-foreground">Overall status</span>
                 <Badge
                   className={
                     config.enabled
@@ -296,54 +296,54 @@ export function AutoModDashboard() {
                       : undefined
                   }
                 >
-                  {config.enabled ? "Activo" : "Inactivo"}
+                  {config.enabled ? "Enabled" : "Disabled"}
                 </Badge>
               </div>
 
               <div className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">Filtros activos</span>
+                <span className="text-muted-foreground">Active filters</span>
                 <span className="font-mono text-xs">
                   {activeFilterCount} / {AUTO_MOD_TOGGLE_FILTER_COUNT}
                 </span>
               </div>
 
               <div className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">Al filtrar</span>
+                <span className="text-muted-foreground">On filter</span>
                 <span className="text-xs">
                   {config.warnOnHit
                     ? config.dmOnHit
-                      ? "Bloquear + warn + DM"
-                      : "Bloquear + warn"
-                    : "Solo bloquear"}
+                      ? "Block + warn + DM"
+                      : "Block + warn"
+                    : "Block only"}
                 </span>
               </div>
 
               <div className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">Exclusiones</span>
+                <span className="text-muted-foreground">Exclusions</span>
                 <span className="text-xs">
-                  {config.ignoredChannels.length} canales ·{" "}
+                  {config.ignoredChannels.length} channels ·{" "}
                   {config.ignoredRoles.length} roles
                 </span>
               </div>
 
               <div className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">Alertas</span>
+                <span className="text-muted-foreground">Alerts</span>
                 <span className="truncate text-xs">
                   {config.logChannelId
                     ? `#${textChannels.find((c) => c.id === config.logChannelId)?.name ?? config.logChannelId}`
-                    : "Fallback Action Logs"}
+                    : "Action Logs fallback"}
                 </span>
               </div>
 
               <div className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">Caducidad</span>
+                <span className="text-muted-foreground">Decay</span>
                 <span className="text-xs">
                   {warnDecayLabel(config.warnDecayDays)}
                 </span>
               </div>
 
               <div className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">Sanciones</span>
+                <span className="text-muted-foreground">Sanctions</span>
                 <span className="font-mono text-xs">
                   {config.punishments.length}
                 </span>
@@ -357,19 +357,19 @@ export function AutoModDashboard() {
                 {saving ? (
                   <>
                     <Loader2 className="size-4 animate-spin" aria-hidden />
-                    Guardando…
+                    Saving…
                   </>
                 ) : (
                   <>
                     <Save className="size-4" aria-hidden />
-                    Guardar configuración
+                    Save configuration
                   </>
                 )}
               </Button>
 
               {!dirty ? (
                 <p className="text-center text-[11px] text-muted-foreground">
-                  Sin cambios pendientes.
+                  No pending changes.
                 </p>
               ) : null}
             </CardContent>
@@ -382,9 +382,9 @@ export function AutoModDashboard() {
                 aria-hidden
               />
               <p className={cn("leading-relaxed")}>
-                Al guardar, Adobos escribe reglas AutoMod nativas (palabras,
-                invitaciones, menciones) para que Discord bloquee antes de que
-                el mensaje se vea. Warns y escalado siguen en el bot.
+                On save, Adobos writes native AutoMod rules (words, invites,
+                mentions) so Discord blocks before the message is seen. Warns
+                and escalation stay in the bot.
               </p>
             </CardContent>
           </Card>

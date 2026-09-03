@@ -53,7 +53,7 @@ export function ToastBanner({
           className="text-xs text-muted-foreground hover:text-foreground"
           onClick={onDismiss}
         >
-          Cerrar
+          Close
         </button>
       </div>
     </div>

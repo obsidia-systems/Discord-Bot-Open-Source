@@ -50,22 +50,22 @@ import { AuditEventDetails } from "@/features/moderation/AuditEventDetails";
 import { cn } from "@/lib/utils";
 
 const TONE_OPTIONS: Array<{ value: DiscordAuditToneFilter; label: string }> = [
-  { value: "all", label: "Todas" },
-  { value: "create", label: "Creación" },
-  { value: "update", label: "Actualización" },
-  { value: "delete", label: "Eliminación" },
+  { value: "all", label: "All" },
+  { value: "create", label: "Create" },
+  { value: "update", label: "Update" },
+  { value: "delete", label: "Delete" },
 ];
 
 const ENTITY_OPTIONS: Array<{
   value: DiscordAuditEntityFilter;
   label: string;
 }> = [
-  { value: "all", label: "Todas" },
-  { value: "users", label: "Usuarios" },
-  { value: "channels", label: "Canales" },
+  { value: "all", label: "All" },
+  { value: "users", label: "Users" },
+  { value: "channels", label: "Channels" },
   { value: "roles", label: "Roles" },
-  { value: "server", label: "Servidor" },
-  { value: "emojis", label: "Emojis / Stickers" },
+  { value: "server", label: "Server" },
+  { value: "emojis", label: "Emoji / Stickers" },
   { value: "webhooks", label: "Webhooks" },
 ];
 
@@ -128,7 +128,7 @@ function TruncateWithTooltip({
 
 function formatWhen(iso: string): string {
   try {
-    return new Date(iso).toLocaleString("es-MX", {
+    return new Date(iso).toLocaleString("en-US", {
       dateStyle: "short",
       timeStyle: "medium",
     });
@@ -186,7 +186,7 @@ export function ServerAuditLog() {
       const message =
         error instanceof Error
           ? error.message
-          : "No se pudo cargar la auditoría.";
+          : "Couldn't load the audit log.";
       setToast(message);
       setEntries([]);
     } finally {
@@ -227,7 +227,7 @@ export function ServerAuditLog() {
     () => [
       {
         accessorKey: "createdAt",
-        header: "Fecha",
+        header: "Date",
         meta: { className: "w-[160px]" },
         cell: ({ row }) => (
           <TruncateWithTooltip
@@ -238,13 +238,13 @@ export function ServerAuditLog() {
       },
       {
         id: "executor",
-        header: "Ejecutor",
+        header: "Executor",
         meta: { className: "w-[200px]" },
         cell: ({ row }) => {
           const user = row.original.executor;
           if (!user) {
             return (
-              <span className="text-sm text-muted-foreground">Desconocido</span>
+              <span className="text-sm text-muted-foreground">Unknown</span>
             );
           }
           const full = `${user.displayName} (@${user.username})`;
@@ -271,7 +271,7 @@ export function ServerAuditLog() {
       },
       {
         accessorKey: "actionLabel",
-        header: "Acción",
+        header: "Action",
         meta: { className: "w-[180px]" },
         cell: ({ row }) => (
           <Tooltip content={row.original.actionLabel}>
@@ -288,7 +288,7 @@ export function ServerAuditLog() {
       },
       {
         id: "target",
-        header: "Objetivo",
+        header: "Target",
         meta: { className: "w-[200px]" },
         cell: ({ row }) => (
           <Tooltip
@@ -305,7 +305,7 @@ export function ServerAuditLog() {
       },
       {
         id: "actions",
-        header: "Detalles",
+        header: "Details",
         meta: { className: "w-[100px]" },
         cell: ({ row }) => (
           <Button
@@ -316,7 +316,7 @@ export function ServerAuditLog() {
             onClick={() => setSelected(row.original)}
           >
             <Eye className="size-3.5" aria-hidden />
-            Ver
+            View
           </Button>
         ),
       },
@@ -329,11 +329,11 @@ export function ServerAuditLog() {
       <Card>
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <CardTitle>Auditoría General</CardTitle>
+            <CardTitle>Server Audit</CardTitle>
             <CardDescription>
-              Espejo de solo lectura del Audit Log nativo (
-              {filtered.length}/{entries.length || 0} visibles).
-              {fetchedAt ? ` Actualizado ${formatWhen(fetchedAt)}.` : null}
+              Read-only mirror of the native Audit Log (
+              {filtered.length}/{entries.length || 0} visible).
+              {fetchedAt ? ` Updated ${formatWhen(fetchedAt)}.` : null}
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -345,7 +345,7 @@ export function ServerAuditLog() {
               onClick={clearFilters}
             >
               <FilterX className="size-4" aria-hidden />
-              Limpiar
+              Clear
             </Button>
             <Button
               type="button"
@@ -361,15 +361,15 @@ export function ServerAuditLog() {
               ) : (
                 <RefreshCw className="size-4" aria-hidden />
               )}
-              Actualizar
+              Refresh
             </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 gap-3 rounded-lg border border-border/80 bg-muted/10 p-3 md:grid-cols-2 xl:grid-cols-4">
             <AsyncSearchSelect
-              label="Ejecutor"
-              placeholder="Nombre o ID…"
+              label="Executor"
+              placeholder="Name or ID…"
               value={executor}
               onChange={setExecutor}
               onSearch={searchExecutors}
@@ -377,7 +377,7 @@ export function ServerAuditLog() {
             />
 
             <div className="space-y-2">
-              <Label>Categoría de acción</Label>
+              <Label>Action category</Label>
               <Select
                 value={toneFilter}
                 disabled={loading}
@@ -386,7 +386,7 @@ export function ServerAuditLog() {
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Categoría…" />
+                  <SelectValue placeholder="Category…" />
                 </SelectTrigger>
                 <SelectContent>
                   {TONE_OPTIONS.map((option) => (
@@ -399,7 +399,7 @@ export function ServerAuditLog() {
             </div>
 
             <div className="space-y-2">
-              <Label>Entidad afectada</Label>
+              <Label>Affected entity</Label>
               <Select
                 value={entityFilter}
                 disabled={loading}
@@ -408,7 +408,7 @@ export function ServerAuditLog() {
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Entidad…" />
+                  <SelectValue placeholder="Entity…" />
                 </SelectTrigger>
                 <SelectContent>
                   {ENTITY_OPTIONS.map((option) => (
@@ -423,21 +423,21 @@ export function ServerAuditLog() {
             <div className="space-y-2">
               <Label className="flex items-center gap-1.5">
                 <CalendarRange className="size-3.5" aria-hidden />
-                Rango de fechas
+                Date range
               </Label>
               <div className="grid grid-cols-2 gap-2">
                 <Input
                   type="date"
                   value={dateFrom}
                   disabled={loading}
-                  aria-label="Desde"
+                  aria-label="From"
                   onChange={(event) => setDateFrom(event.target.value)}
                 />
                 <Input
                   type="date"
                   value={dateTo}
                   disabled={loading}
-                  aria-label="Hasta"
+                  aria-label="To"
                   onChange={(event) => setDateTo(event.target.value)}
                 />
               </div>
@@ -447,7 +447,7 @@ export function ServerAuditLog() {
           {loading && entries.length === 0 ? (
             <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" aria-hidden />
-              Cargando registro de auditoría…
+              Loading audit log…
             </div>
           ) : (
             <DataTable
@@ -455,7 +455,7 @@ export function ServerAuditLog() {
               data={filtered}
               tableFixed
               minWidthClassName="min-w-[840px]"
-              emptyMessage="No hay entradas con esos filtros."
+              emptyMessage="No entries match those filters."
             />
           )}
         </CardContent>
@@ -466,7 +466,7 @@ export function ServerAuditLog() {
         onOpenChange={(open) => {
           if (!open) setSelected(null);
         }}
-        title={selected?.actionLabel ?? "Detalle del evento"}
+        title={selected?.actionLabel ?? "Event detail"}
         description={
           selected
             ? formatWhen(selected.createdAt)
@@ -477,28 +477,28 @@ export function ServerAuditLog() {
           <div className="space-y-6">
             <section className="space-y-3">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Resumen
+                Summary
               </h3>
               <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3 text-sm">
                 <div className="flex items-center gap-3">
                   <UserAvatar
                     src={selected.executor?.avatarUrl}
-                    name={selected.executor?.displayName ?? "Desconocido"}
+                    name={selected.executor?.displayName ?? "Unknown"}
                     className="size-10"
                   />
                   <div className="min-w-0">
                     <p className="font-medium">
-                      {selected.executor?.displayName ?? "Desconocido"}
+                      {selected.executor?.displayName ?? "Unknown"}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {selected.executor
                         ? `@${selected.executor.username}`
-                        : "Ejecutor no disponible"}
+                        : "Executor unavailable"}
                     </p>
                   </div>
                 </div>
                 <p>
-                  <span className="text-muted-foreground">Acción: </span>
+                  <span className="text-muted-foreground">Action: </span>
                   <Badge
                     className={cn(
                       "align-middle normal-case tracking-normal",
@@ -509,12 +509,12 @@ export function ServerAuditLog() {
                   </Badge>
                   {selected.consolidatedCount && selected.consolidatedCount > 1 ? (
                     <span className="ml-2 text-xs text-muted-foreground">
-                      ({selected.consolidatedCount} eventos agrupados)
+                      ({selected.consolidatedCount} grouped events)
                     </span>
                   ) : null}
                 </p>
                 <p>
-                  <span className="text-muted-foreground">Objetivo: </span>
+                  <span className="text-muted-foreground">Target: </span>
                   <span className="font-medium">{selected.target.label}</span>
                   <span className="ml-1 text-xs uppercase text-muted-foreground">
                     ({selected.target.kind})
@@ -530,16 +530,16 @@ export function ServerAuditLog() {
 
             <section className="space-y-2">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Razón
+                Reason
               </h3>
               <p className="rounded-lg border border-border bg-muted/20 px-3 py-2 text-sm">
-                {selected.reason?.trim() || "Sin razón registrada."}
+                {selected.reason?.trim() || "No reason recorded."}
               </p>
             </section>
 
             <section className="space-y-2">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {selected.roleKind ? "Cambios de roles" : "Cambios"}
+                {selected.roleKind ? "Role changes" : "Changes"}
               </h3>
               <AuditEventDetails entry={selected} />
             </section>

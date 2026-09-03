@@ -19,8 +19,8 @@ export function AlertDialog({
   open,
   title,
   description,
-  confirmLabel = "Confirmar",
-  cancelLabel = "Cancelar",
+  confirmLabel = "Confirm",
+  cancelLabel = "Cancel",
   confirming = false,
   tone = "default",
   onConfirm,
@@ -32,7 +32,7 @@ export function AlertDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
         type="button"
-        aria-label="Cerrar"
+        aria-label="Close"
         className="absolute inset-0 bg-black/60"
         disabled={confirming}
         onClick={onCancel}

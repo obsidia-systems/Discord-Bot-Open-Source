@@ -25,18 +25,18 @@ function DiffBlock({
     <div className="grid gap-3 sm:grid-cols-2">
       <div className="rounded-md border border-red-500/30 bg-red-500/5 p-3">
         <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-red-600 dark:text-red-400">
-          Antes
+          Before
         </p>
         <pre className="whitespace-pre-wrap break-words font-mono text-xs text-red-700/90 line-through dark:text-red-300/90">
-          {oldValue || "*(vacío)*"}
+          {oldValue || "*(empty)*"}
         </pre>
       </div>
       <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3">
         <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
-          Después
+          After
         </p>
         <pre className="whitespace-pre-wrap break-words font-mono text-xs text-emerald-800 dark:text-emerald-300">
-          {newValue || "*(vacío)*"}
+          {newValue || "*(empty)*"}
         </pre>
       </div>
     </div>
@@ -68,7 +68,7 @@ export function ActionLogDetailsSheet({
       open={open}
       onOpenChange={onOpenChange}
       side="right"
-      title={entry ? EVENT_TYPE_LABELS[entry.eventType] ?? entry.eventType : "Detalle"}
+      title={entry ? EVENT_TYPE_LABELS[entry.eventType] ?? entry.eventType : "Detail"}
       description={entry?.summary}
       className="sm:max-w-lg"
     >
@@ -85,25 +85,25 @@ export function ActionLogDetailsSheet({
 
           <dl className="grid gap-3 text-sm">
             <div>
-              <dt className="text-xs text-muted-foreground">Fecha</dt>
+              <dt className="text-xs text-muted-foreground">Date</dt>
               <dd className="font-medium">
-                {new Date(entry.createdAt).toLocaleString("es-MX")}
+                {new Date(entry.createdAt).toLocaleString("en-US")}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-muted-foreground">Ejecutor</dt>
+              <dt className="text-xs text-muted-foreground">Executor</dt>
               <dd className="font-medium">
                 {entry.executorTag ?? entry.executorId ?? "—"}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-muted-foreground">Objetivo</dt>
+              <dt className="text-xs text-muted-foreground">Target</dt>
               <dd className="font-medium">
                 {entry.targetTag ?? entry.targetId ?? "—"}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-muted-foreground">Canal</dt>
+              <dt className="text-xs text-muted-foreground">Channel</dt>
               <dd className="font-medium">
                 {entry.channelId ? `#${entry.channelId}` : "—"}
               </dd>
@@ -114,15 +114,15 @@ export function ActionLogDetailsSheet({
             <>
               <Separator />
               <div className="space-y-2">
-                <h3 className="text-sm font-semibold">Comparación (Diff)</h3>
+                <h3 className="text-sm font-semibold">Comparison (Diff)</h3>
                 <DiffBlock
                   oldValue={oldContent ?? ""}
                   newValue={newContent ?? ""}
                 />
                 {cachedFlag === false ? (
                   <p className="text-xs text-muted-foreground">
-                    El contenido anterior no estaba en caché de discord.js
-                    (mensajes antiguos o previos al arranque del bot).
+                    The previous content wasn't in the discord.js cache (old
+                    messages or from before the bot started).
                   </p>
                 ) : null}
               </div>
@@ -132,7 +132,7 @@ export function ActionLogDetailsSheet({
           {Array.isArray(entry.details.attachments) &&
           (entry.details.attachments as unknown[]).length > 0 ? (
             <div className="space-y-2">
-              <h3 className="text-sm font-semibold">Adjuntos</h3>
+              <h3 className="text-sm font-semibold">Attachments</h3>
               <ul className="space-y-1 text-xs break-all text-muted-foreground">
                 {(entry.details.attachments as string[]).map((url) => (
                   <li key={url}>

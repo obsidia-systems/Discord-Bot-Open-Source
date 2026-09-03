@@ -31,10 +31,10 @@ export function BotProfilePreview({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Vista previa</CardTitle>
+        <CardTitle>Preview</CardTitle>
         <CardDescription>
-          Perfil del bot como miembro
-          {guildName ? ` en #${guildName}` : " en este servidor"}.
+          Bot profile as a member
+          {guildName ? ` in #${guildName}` : " in this server"}.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -56,7 +56,7 @@ export function BotProfilePreview({
                 <span
                   className="absolute bottom-1 right-1 size-4 rounded-full border-[3px] border-[#111214] bg-[#23a55a]"
                   title="online"
-                  aria-label="Estado: online"
+                  aria-label="Status: online"
                 />
               </div>
             </div>
@@ -79,11 +79,11 @@ export function BotProfilePreview({
               <div className="border-t border-white/10 pt-3">
                 {usingGlobalAvatar ? (
                   <Badge className="border-white/10 bg-white/5 text-[10px] font-medium normal-case tracking-normal text-[#b5bac1]">
-                    Avatar Global por Defecto
+                    Default global avatar
                   </Badge>
                 ) : (
                   <Badge className="border-emerald-500/30 bg-emerald-500/10 text-[10px] font-medium normal-case tracking-normal text-emerald-300">
-                    Avatar de este servidor
+                    This server's avatar
                   </Badge>
                 )}
               </div>
