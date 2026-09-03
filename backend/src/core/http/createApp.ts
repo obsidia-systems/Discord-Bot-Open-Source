@@ -165,7 +165,9 @@ export function createApp(options: CreateAppOptions): Express {
     });
 
     app.use(express.static(options.staticDir));
-    app.get("*", (req, res, next) => {
+    // Fallback SPA. Express 5 (path-to-regexp v8) exige el comodín nombrado:
+    // "*" a secas ya no es una ruta válida.
+    app.get("/*splat", (req, res, next) => {
       if (
         req.path.startsWith("/api") ||
         req.path.startsWith("/uploads") ||

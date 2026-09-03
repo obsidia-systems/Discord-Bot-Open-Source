@@ -94,28 +94,24 @@ export function defineRoute<S extends RouteSchemas>(
     next: NextFunction,
   ) => unknown | Promise<unknown>,
 ): RequestHandler {
-  return (req, res, next) => {
-    let valid: ValidatedInput<S>;
-    try {
-      // No se reescribe `req.body/query/params`: la fuente de verdad es `valid`
-      // (tipado y coaccionado). Mutar `req.body` borraría el `guildId` que
-      // canoniza `requireGuildAccess` cuando el schema no lo incluye, y
-      // `req.query` es getter de solo lectura en Express 5.
-      valid = {
-        body: (schemas.body
-          ? parse(schemas.body, req.body ?? {})
-          : undefined) as ValidatedInput<S>["body"],
-        query: (schemas.query
-          ? parseQuery(schemas.query, req.query as Record<string, unknown>)
-          : undefined) as ValidatedInput<S>["query"],
-        params: (schemas.params
-          ? parse(schemas.params, req.params)
-          : undefined) as ValidatedInput<S>["params"],
-      };
-    } catch (error) {
-      next(error);
-      return;
-    }
-    Promise.resolve(handler(req, res, valid, next)).catch(next);
+  // Handler async: en Express 5 el `ValidationError` síncrono de `parse()` y
+  // cualquier promesa rechazada del handler llegan solos al errorHandler.
+  // No se reescribe `req.body/query/params`: la fuente de verdad es `valid`
+  // (tipado y coaccionado). Mutar `req.body` borraría el `guildId` que canoniza
+  // `requireGuildAccess` cuando el schema no lo incluye, y `req.query` es getter
+  // de solo lectura en Express 5.
+  return async (req, res, next) => {
+    const valid: ValidatedInput<S> = {
+      body: (schemas.body
+        ? parse(schemas.body, req.body ?? {})
+        : undefined) as ValidatedInput<S>["body"],
+      query: (schemas.query
+        ? parseQuery(schemas.query, req.query as Record<string, unknown>)
+        : undefined) as ValidatedInput<S>["query"],
+      params: (schemas.params
+        ? parse(schemas.params, req.params)
+        : undefined) as ValidatedInput<S>["params"],
+    };
+    await handler(req, res, valid, next);
   };
 }

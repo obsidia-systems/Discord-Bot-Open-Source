@@ -18,18 +18,15 @@ export function extractGuildId(req: Request): unknown {
 
 /** Sesión obligatoria. 401 JSON en /api, redirect a /login en HTML. */
 export function requireAuth(): RequestHandler {
+  // Express 5 enruta la promesa rechazada de un middleware async al errorHandler.
   return async (req, res, next) => {
-    try {
-      const session = await readSessionFromRequest(req);
-      if (!session) {
-        redirectToLogin(req, res);
-        return;
-      }
-      req.panelSession = session;
-      next();
-    } catch (error: unknown) {
-      next(error);
+    const session = await readSessionFromRequest(req);
+    if (!session) {
+      redirectToLogin(req, res);
+      return;
     }
+    req.panelSession = session;
+    next();
   };
 }
 
@@ -77,8 +74,11 @@ export function requireGuildAccess(): RequestHandler {
         limit: access.limit,
       };
       req.guild = guild;
-      // Canonizar: los servicios no deben leer un guildId distinto del autorizado.
-      req.query.guildId = raw;
+      // Canonizar: los servicios no deben leer un guildId distinto del
+      // autorizado. `req.query` es un getter de solo lectura en Express 5 y
+      // ningún consumidor real lo lee canonizado (todos usan `req.guild.guildId`
+      // vía `guildIdOf`, o `valid.query` ya parseado). Solo se canoniza el body,
+      // que sí es mutable, para las rutas que lo reenvían sin schema propio.
       if (
         req.body &&
         typeof req.body === "object" &&

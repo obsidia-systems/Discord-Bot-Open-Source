@@ -6,12 +6,8 @@ import { getGuildEntitlements } from "./service.js";
 export function entitlementsRoutes(): Router {
   const router = Router();
 
-  router.get("/", async (req, res, next) => {
-    try {
-      res.json(await getGuildEntitlements(guildIdOf(req)));
-    } catch (error: unknown) {
-      next(error);
-    }
+  router.get("/", async (req, res) => {
+    res.json(await getGuildEntitlements(guildIdOf(req)));
   });
 
   return router;

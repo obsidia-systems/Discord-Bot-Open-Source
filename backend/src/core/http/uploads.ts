@@ -88,34 +88,18 @@ function handleUpload(
 export function uploadRoutes(): Router {
   const router = Router();
 
+  // Multer va como middleware directo: propaga sus errores con `next(err)`.
+  // El throw síncrono de `handleUpload` (HttpError) lo enruta Express al
+  // errorHandler — sin envoltorio try/catch.
+
   /** POST /api/uploads/background — fondos de bienvenida → /uploads/backgrounds/ */
-  router.post("/background", (req, res, next) => {
-    uploadBackground.single("file")(req, res, (err: unknown) => {
-      if (err) {
-        next(err);
-        return;
-      }
-      try {
-        handleUpload(req, res, "backgrounds");
-      } catch (error: unknown) {
-        next(error);
-      }
-    });
+  router.post("/background", uploadBackground.single("file"), (req, res) => {
+    handleUpload(req, res, "backgrounds");
   });
 
   /** POST /api/uploads/image — embeds / iconos / genérico → /uploads/images/ */
-  router.post("/image", (req, res, next) => {
-    uploadImage.single("file")(req, res, (err: unknown) => {
-      if (err) {
-        next(err);
-        return;
-      }
-      try {
-        handleUpload(req, res, "images");
-      } catch (error: unknown) {
-        next(error);
-      }
-    });
+  router.post("/image", uploadImage.single("file"), (req, res) => {
+    handleUpload(req, res, "images");
   });
 
   return router;

@@ -58,11 +58,6 @@ export function optionalEmbedUpload(
     next();
     return;
   }
-  embedUpload(req, res, (err: unknown) => {
-    if (err) {
-      next(err);
-      return;
-    }
-    next();
-  });
+  // multer llama `next(err)` en fallo o `next()` al terminar — Express lo enruta.
+  embedUpload(req, res, next);
 }

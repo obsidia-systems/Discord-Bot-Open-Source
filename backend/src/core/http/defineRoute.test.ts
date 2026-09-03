@@ -36,33 +36,30 @@ describe("defineRoute", () => {
     expect(handler).toHaveBeenCalledOnce();
   });
 
-  it("llama next(ValidationError) y NO al handler con body inválido", async () => {
+  it("rechaza con ValidationError y NO llama al handler con body inválido", async () => {
     const handler = vi.fn();
-    const next = vi.fn();
     const mw = defineRoute({ body: z.object({ n: z.number() }) }, handler);
 
-    await mw(
-      fakeReq({ body: { n: "no-num" } }),
-      fakeRes(),
-      next as NextFunction,
-    );
+    // Express 5 await-ea el middleware y enruta el rechazo al errorHandler.
+    await expect(
+      mw(
+        fakeReq({ body: { n: "no-num" } }),
+        fakeRes(),
+        vi.fn() as unknown as NextFunction,
+      ),
+    ).rejects.toBeInstanceOf(ValidationError);
 
     expect(handler).not.toHaveBeenCalled();
-    expect(next).toHaveBeenCalledOnce();
-    expect(next.mock.calls[0]?.[0]).toBeInstanceOf(ValidationError);
   });
 
-  it("reenvía el rechazo async del handler a next", async () => {
+  it("propaga el rechazo async del handler (Express 5 lo enruta a errorHandler)", async () => {
     const boom = new Error("boom");
-    const next = vi.fn();
     const mw = defineRoute({}, async () => {
       throw boom;
     });
 
-    await mw(fakeReq(), fakeRes(), next as NextFunction);
-    // microtask del .catch(next)
-    await Promise.resolve();
-
-    expect(next).toHaveBeenCalledWith(boom);
+    await expect(
+      mw(fakeReq(), fakeRes(), vi.fn() as unknown as NextFunction),
+    ).rejects.toBe(boom);
   });
 });

@@ -52,57 +52,57 @@ async function processStripeEvent(event: Stripe.Event): Promise<void> {
   }
 }
 
-/** POST /api/billing/webhook — público, body crudo, firma verificada. */
-export const stripeWebhookHandler: RequestHandler = async (req, res, next) => {
-  try {
-    if (!Buffer.isBuffer(req.body)) {
-      throw new HttpError(
-        "The Stripe webhook requires the raw body.",
-        500,
-        "WEBHOOK_BODY_PARSED",
-      );
-    }
-
-    const signature = req.headers["stripe-signature"];
-    if (!signature || Array.isArray(signature)) {
-      throw new HttpError(
-        "Missing the Stripe-Signature header.",
-        400,
-        "STRIPE_SIGNATURE_MISSING",
-      );
-    }
-
-    const stripe = requireStripe();
-    const secret = requireWebhookSecret();
-
-    let event: Stripe.Event;
-    try {
-      event = stripe.webhooks.constructEvent(req.body, signature, secret);
-    } catch (error: unknown) {
-      if (
-        error instanceof Stripe.errors.StripeSignatureVerificationError ||
-        (error instanceof Error &&
-          error.name === "StripeSignatureVerificationError")
-      ) {
-        throw new HttpError(
-          "Invalid webhook signature.",
-          400,
-          "STRIPE_SIGNATURE_INVALID",
-        );
-      }
-      throw error;
-    }
-
-    if (await alreadyProcessed(event.id)) {
-      res.json({ received: true, duplicate: true });
-      return;
-    }
-
-    await processStripeEvent(event);
-    await markProcessed(event.id, event.type);
-    logger.info({ eventId: event.id, type: event.type }, "webhook stripe");
-    res.json({ received: true });
-  } catch (error: unknown) {
-    next(error);
+/**
+ * POST /api/billing/webhook — público, body crudo, firma verificada.
+ * Express 5 enruta el throw síncrono y la promesa rechazada al errorHandler;
+ * el `try/catch` interno se queda porque traduce el error de firma de Stripe.
+ */
+export const stripeWebhookHandler: RequestHandler = async (req, res) => {
+  if (!Buffer.isBuffer(req.body)) {
+    throw new HttpError(
+      "The Stripe webhook requires the raw body.",
+      500,
+      "WEBHOOK_BODY_PARSED",
+    );
   }
+
+  const signature = req.headers["stripe-signature"];
+  if (!signature || Array.isArray(signature)) {
+    throw new HttpError(
+      "Missing the Stripe-Signature header.",
+      400,
+      "STRIPE_SIGNATURE_MISSING",
+    );
+  }
+
+  const stripe = requireStripe();
+  const secret = requireWebhookSecret();
+
+  let event: Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, signature, secret);
+  } catch (error: unknown) {
+    if (
+      error instanceof Stripe.errors.StripeSignatureVerificationError ||
+      (error instanceof Error &&
+        error.name === "StripeSignatureVerificationError")
+    ) {
+      throw new HttpError(
+        "Invalid webhook signature.",
+        400,
+        "STRIPE_SIGNATURE_INVALID",
+      );
+    }
+    throw error;
+  }
+
+  if (await alreadyProcessed(event.id)) {
+    res.json({ received: true, duplicate: true });
+    return;
+  }
+
+  await processStripeEvent(event);
+  await markProcessed(event.id, event.type);
+  logger.info({ eventId: event.id, type: event.type }, "webhook stripe");
+  res.json({ received: true });
 };
