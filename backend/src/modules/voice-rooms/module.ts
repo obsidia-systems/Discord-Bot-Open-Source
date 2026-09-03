@@ -15,7 +15,7 @@ export const voiceRoomsModule: AdobosModule = {
   name: "Voice Rooms",
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
   register(ctx) {
-    ctx.route("/api/voice-rooms", voiceRoomsRoutes(ctx.client), {
+    ctx.route("/api/voice-rooms", voiceRoomsRoutes(ctx.botGateway), {
       feature: "voice-rooms",
     });
     ctx.command({

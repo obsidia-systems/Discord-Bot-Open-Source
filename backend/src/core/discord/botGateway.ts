@@ -58,4 +58,15 @@ export interface BotGateway {
   listRoles(guildId: string): Promise<RoleSummary[]>;
   listEmojis(guildId: string): Promise<EmojiSummary[]>;
   listStickers(guildId: string): Promise<StickerSummary[]>;
+  /** Un canal del guild. `null` si no existe o no pertenece a ese guild. */
+  getChannel(
+    guildId: string,
+    channelId: string,
+  ): Promise<ChannelSummary | null>;
+  /** Borra un canal del guild. No-op si ya no existe. */
+  deleteChannel(
+    guildId: string,
+    channelId: string,
+    reason?: string,
+  ): Promise<void>;
 }

@@ -100,4 +100,37 @@ export class LocalClientGateway implements BotGateway {
       url: sticker.url,
     }));
   }
+
+  async getChannel(
+    guildId: string,
+    channelId: string,
+  ): Promise<ChannelSummary | null> {
+    const guild = this.guild(guildId);
+    if (!guild) return null;
+    const channel =
+      guild.channels.cache.get(channelId) ??
+      (await guild.channels.fetch(channelId).catch(() => null));
+    if (!channel || channel.guildId !== guildId) return null;
+    return {
+      id: channel.id,
+      name: channel.name,
+      type: channel.type,
+      parentId: "parentId" in channel ? channel.parentId : null,
+      position: "rawPosition" in channel ? channel.rawPosition : 0,
+    };
+  }
+
+  async deleteChannel(
+    guildId: string,
+    channelId: string,
+    reason?: string,
+  ): Promise<void> {
+    const guild = this.guild(guildId);
+    if (!guild) return;
+    const channel =
+      guild.channels.cache.get(channelId) ??
+      (await guild.channels.fetch(channelId).catch(() => null));
+    if (!channel || channel.guildId !== guildId) return;
+    await channel.delete(reason).catch(() => null);
+  }
 }

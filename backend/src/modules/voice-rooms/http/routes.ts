@@ -1,5 +1,6 @@
-import { ChannelType, type Client } from "discord.js";
+import { ChannelType } from "discord.js";
 import { Router } from "express";
+import type { BotGateway } from "#core/discord/botGateway.js";
 import { guildIdOf } from "#core/http/guildContext.js";
 import { idParams } from "#core/http/schemas.js";
 import { defineRoute } from "#core/http/validate.js";
@@ -9,16 +10,18 @@ import {
   listVoiceRoomsConfig,
   updateGenerator,
 } from "../domain/voice-rooms.js";
-import { destroyVoicePair } from "../rooms.js";
 import {
   createVoiceRoomGeneratorSchema,
   updateVoiceRoomGeneratorSchema,
 } from "./schema.js";
 
-function assertHubVoice(bot: Client, guildId: string, hubId: string): void {
-  if (!bot.isReady()) return;
-  const guild = bot.guilds.cache.get(guildId);
-  const channel = guild?.channels.cache.get(hubId);
+async function assertHubVoice(
+  gateway: BotGateway,
+  guildId: string,
+  hubId: string,
+): Promise<void> {
+  if (!gateway.isReady()) return;
+  const channel = await gateway.getChannel(guildId, hubId);
   if (!channel) return;
   if (channel.type !== ChannelType.GuildVoice) {
     throw Object.assign(new Error("The hub has to be a voice channel."), {
@@ -28,14 +31,13 @@ function assertHubVoice(bot: Client, guildId: string, hubId: string): void {
   }
 }
 
-function assertCategory(
-  bot: Client,
+async function assertCategory(
+  gateway: BotGateway,
   guildId: string,
   categoryId: string | null | undefined,
-): void {
-  if (!categoryId || !bot.isReady()) return;
-  const guild = bot.guilds.cache.get(guildId);
-  const channel = guild?.channels.cache.get(categoryId);
+): Promise<void> {
+  if (!categoryId || !gateway.isReady()) return;
+  const channel = await gateway.getChannel(guildId, categoryId);
   if (!channel) return;
   if (channel.type !== ChannelType.GuildCategory) {
     throw Object.assign(new Error("The destination has to be a category."), {
@@ -45,7 +47,7 @@ function assertCategory(
   }
 }
 
-export function voiceRoomsRoutes(bot: Client): Router {
+export function voiceRoomsRoutes(gateway: BotGateway): Router {
   const router = Router();
 
   router.get(
@@ -61,8 +63,8 @@ export function voiceRoomsRoutes(bot: Client): Router {
       { body: createVoiceRoomGeneratorSchema },
       async (req, res, valid) => {
         const guildId = guildIdOf(req);
-        assertHubVoice(bot, guildId, valid.body.hubChannelId);
-        assertCategory(bot, guildId, valid.body.categoryId);
+        await assertHubVoice(gateway, guildId, valid.body.hubChannelId);
+        await assertCategory(gateway, guildId, valid.body.categoryId);
         const generator = await createGenerator(valid.body, guildId);
         res.status(201).json({ generator });
       },
@@ -76,10 +78,10 @@ export function voiceRoomsRoutes(bot: Client): Router {
       async (req, res, valid) => {
         const guildId = guildIdOf(req);
         if (valid.body.hubChannelId) {
-          assertHubVoice(bot, guildId, valid.body.hubChannelId);
+          await assertHubVoice(gateway, guildId, valid.body.hubChannelId);
         }
         if (valid.body.categoryId !== undefined) {
-          assertCategory(bot, guildId, valid.body.categoryId);
+          await assertCategory(gateway, guildId, valid.body.categoryId);
         }
         const generator = await updateGenerator(
           valid.params.id,
@@ -96,13 +98,19 @@ export function voiceRoomsRoutes(bot: Client): Router {
     defineRoute({ params: idParams }, async (req, res, valid) => {
       const guildId = guildIdOf(req);
       const rooms = await deleteGenerator(valid.params.id, guildId);
-      if (bot.isReady()) {
-        const guild = bot.guilds.cache.get(guildId);
-        if (guild) {
-          for (const room of rooms) {
-            await destroyVoicePair(guild, room).catch(() => null);
-          }
+      for (const room of rooms) {
+        if (room.textChannelId) {
+          await gateway.deleteChannel(
+            guildId,
+            room.textChannelId,
+            "Voice Rooms: generator removed",
+          );
         }
+        await gateway.deleteChannel(
+          guildId,
+          room.channelId,
+          "Voice Rooms: generator removed",
+        );
       }
       res.status(204).send();
     }),
