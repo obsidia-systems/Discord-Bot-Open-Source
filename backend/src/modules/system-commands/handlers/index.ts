@@ -1,5 +1,5 @@
 import { getSystemCommandDefinition } from "@adobos/shared";
-import type { ChatInputCommandInteraction } from "discord.js";
+import { type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { handleBuyCommand } from "#modules/economy/commands/buy.js";
 import {
   handleBlackjackCommand,
@@ -137,7 +137,7 @@ export async function dispatchDefaultCommand(
     if (!economy.isActive) {
       await interaction.reply({
         content: "⛔ The economy is disabled in this server.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return true;
     }

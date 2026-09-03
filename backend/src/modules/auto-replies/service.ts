@@ -12,7 +12,7 @@ import {
   normalizeAutoReplyTrigger,
 } from "@adobos/shared";
 import { and, count, eq } from "drizzle-orm";
-import { BoundedTtlMap } from "#core/cache/boundedTtlMap.js";
+import { cache } from "#core/cache/store.js";
 import { assertWithinLimit } from "#core/entitlements/service.js";
 import { getDb, one } from "#db/client.js";
 import { type AutoReplyRow, autoReplies, guildSettings } from "#db/schema.js";
@@ -28,7 +28,8 @@ export class AutoRepliesError extends Error {
   }
 }
 
-const listCache = new BoundedTtlMap<string, AutoReply[]>(2_000, 60_000);
+const LIST_TTL_MS = 60_000;
+const listKey = (guildId: string) => `auto-replies:list:${guildId}`;
 
 function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
@@ -85,20 +86,21 @@ function mapReply(row: AutoReplyRow): AutoReply {
 }
 
 function invalidate(guildId: string): void {
-  listCache.delete(guildId);
+  // Fire-and-forget; con RedisStore (P2.16) publica la invalidación entre réplicas.
+  void cache().del(listKey(guildId));
 }
 
 export async function listAutoRepliesCached(
   guildId: string,
 ): Promise<AutoReply[]> {
-  const hit = listCache.get(guildId);
+  const hit = await cache().get<AutoReply[]>(listKey(guildId));
   if (hit) return hit;
   const rows = await getDb()
     .select()
     .from(autoReplies)
     .where(eq(autoReplies.guildId, guildId));
   const list = rows.map(mapReply);
-  listCache.set(guildId, list);
+  await cache().set(listKey(guildId), list, LIST_TTL_MS);
   return list;
 }
 

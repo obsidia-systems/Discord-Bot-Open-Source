@@ -14,7 +14,7 @@ import {
   normalizeWarnDecayDays,
 } from "@adobos/shared";
 import { and, eq, gte, sql } from "drizzle-orm";
-import { BoundedTtlMap } from "#core/cache/boundedTtlMap.js";
+import { cache } from "#core/cache/store.js";
 import { getDb, one } from "#db/client.js";
 import {
   actionLogsConfig,
@@ -34,7 +34,8 @@ export class AutoModError extends Error {
   }
 }
 
-const configCache = new BoundedTtlMap<string, AutoModConfig>(5_000, 60_000);
+const CONFIG_TTL_MS = 60_000;
+const configKey = (guildId: string) => `auto-mod:cfg:${guildId}`;
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   if (!raw) return fallback;
@@ -171,23 +172,20 @@ function rowToConfig(
 }
 
 export function invalidateAutoModConfigCache(guildId?: string): void {
-  if (guildId) {
-    configCache.delete(guildId);
-    return;
-  }
-  configCache.clear();
+  // Fire-and-forget; con RedisStore (P2.16) publica la invalidación entre réplicas.
+  if (guildId) void cache().del(configKey(guildId));
 }
 
-/** Lectura con caché en memoria; se invalida al guardar desde el Dashboard. */
+/** Lectura con caché; se invalida al guardar desde el Dashboard. */
 export async function getAutoModConfigCached(
   guildId?: string,
 ): Promise<AutoModConfig> {
   const id = resolveGuildId(guildId);
-  const cached = configCache.get(id);
+  const cached = await cache().get<AutoModConfig>(configKey(id));
   if (cached) return cached;
 
   const config = await getAutoModConfig(id);
-  configCache.set(id, config);
+  await cache().set(configKey(id), config, CONFIG_TTL_MS);
   return config;
 }
 
@@ -277,7 +275,7 @@ export async function updateAutoModConfig(
   invalidateAutoModConfigCache(id);
   // Recalentar caché con la config ya mergeada (evita race en messageCreate).
   const saved = await getAutoModConfig(id);
-  configCache.set(id, saved);
+  await cache().set(configKey(id), saved, CONFIG_TTL_MS);
   return saved;
 }
 

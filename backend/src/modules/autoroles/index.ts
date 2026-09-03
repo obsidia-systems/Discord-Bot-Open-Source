@@ -2,6 +2,7 @@ import { exclusiveSelectRoleIds } from "@adobos/shared";
 import {
   type ButtonInteraction,
   GatewayIntentBits,
+  MessageFlags,
   type StringSelectMenuInteraction,
 } from "discord.js";
 import type { AdobosModule } from "#core/modules/types.js";
@@ -21,11 +22,13 @@ async function replyEphemeral(
 ): Promise<void> {
   if (interaction.replied || interaction.deferred) {
     await interaction
-      .followUp({ content, ephemeral: true })
+      .followUp({ content, flags: MessageFlags.Ephemeral })
       .catch(() => undefined);
     return;
   }
-  await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+  await interaction
+    .reply({ content, flags: MessageFlags.Ephemeral })
+    .catch(() => undefined);
 }
 
 async function toggleRole(

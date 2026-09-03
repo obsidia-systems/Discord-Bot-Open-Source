@@ -1,4 +1,4 @@
-import { BoundedTtlMap } from "../cache/boundedTtlMap.js";
+import { cache } from "../cache/store.js";
 import { DiscordHttpError } from "../discord/discordHttpError.js";
 import { fetchDiscordAsUser } from "./discordUser.js";
 import {
@@ -17,12 +17,7 @@ interface DiscordGuildPayload {
   permissions: string;
 }
 
-interface CacheEntry {
-  fetchedAt: number;
-  guilds: ManagedGuild[];
-}
-
-const cache = new BoundedTtlMap<string, CacheEntry>(2_000, GUILD_CACHE_TTL_MS);
+const managedKey = (userId: string) => `guilds:managed:${userId}`;
 
 function iconUrl(guildId: string, icon: string | null): string | null {
   if (!icon) return null;
@@ -56,10 +51,8 @@ export function toManagedGuild(guild: DiscordGuildPayload): ManagedGuild {
 export async function listManagedGuilds(
   session: StoredSession,
 ): Promise<ManagedGuild[]> {
-  const cached = cache.get(session.userId);
-  if (cached) {
-    return cached.guilds;
-  }
+  const cached = await cache().get<ManagedGuild[]>(managedKey(session.userId));
+  if (cached) return cached;
 
   const res = await fetchDiscordAsUser(session, "/users/@me/guilds");
   if (!res.ok) {
@@ -67,7 +60,7 @@ export async function listManagedGuilds(
   }
   const payload = (await res.json()) as DiscordGuildPayload[];
   const guilds = payload.filter(hasManageGuild).map(toManagedGuild);
-  cache.set(session.userId, { fetchedAt: Date.now(), guilds });
+  await cache().set(managedKey(session.userId), guilds, GUILD_CACHE_TTL_MS);
   return guilds;
 }
 
@@ -80,5 +73,5 @@ export async function userManagesGuild(
 }
 
 export function invalidateGuildCache(userId: string): void {
-  cache.delete(userId);
+  void cache().del(managedKey(userId));
 }

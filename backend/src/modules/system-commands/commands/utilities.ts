@@ -1,5 +1,5 @@
 import type { ChatInputCommandInteraction } from "discord.js";
-import { EmbedBuilder } from "discord.js";
+import { EmbedBuilder, MessageFlags } from "discord.js";
 import { consumeInteractionEphemeral } from "../ephemeral.js";
 
 export async function handlePingCommand(
@@ -26,7 +26,7 @@ export async function handleServerInfoCommand(
   if (!guild) {
     await interaction.reply({
       content: "This command only works in a server.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }

@@ -1,6 +1,6 @@
 import { SYSTEM_COMMAND_CATALOG } from "@adobos/shared";
 import type { ChatInputCommandInteraction, GuildMember } from "discord.js";
-import { EmbedBuilder, PermissionFlagsBits } from "discord.js";
+import { EmbedBuilder, MessageFlags, PermissionFlagsBits } from "discord.js";
 import { consumeInteractionEphemeral } from "../ephemeral.js";
 import { getCommandPermission } from "../service.js";
 
@@ -83,7 +83,7 @@ export async function handleHelpCommand(
   if (!guildId) {
     await interaction.reply({
       content: "This command only works in a server.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }

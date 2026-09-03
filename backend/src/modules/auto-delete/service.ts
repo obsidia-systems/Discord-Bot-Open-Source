@@ -15,7 +15,7 @@ import {
   normalizeScheduledTimezone,
 } from "@adobos/shared";
 import { eq } from "drizzle-orm";
-import { BoundedTtlMap } from "#core/cache/boundedTtlMap.js";
+import { cache } from "#core/cache/store.js";
 import { logger } from "#core/log.js";
 import { getDb, one } from "#db/client.js";
 import { autoDeleteConfig, guildSettings } from "#db/schema.js";
@@ -32,7 +32,8 @@ export class AutoDeleteError extends Error {
   }
 }
 
-const configCache = new BoundedTtlMap<string, AutoDeleteConfig>(5_000, 60_000);
+const CONFIG_TTL_MS = 60_000;
+const configKey = (guildId: string) => `auto-delete:cfg:${guildId}`;
 
 /** Callback opcional para reprogramar crons tras guardar. */
 let onConfigChanged: ((config: AutoDeleteConfig) => void) | null = null;
@@ -128,8 +129,8 @@ function rowToConfig(
 }
 
 export function invalidateAutoDeleteConfigCache(guildId?: string): void {
-  if (guildId) configCache.delete(guildId);
-  else configCache.clear();
+  // Fire-and-forget; con RedisStore (P2.16) publica la invalidación entre réplicas.
+  if (guildId) void cache().del(configKey(guildId));
 }
 
 export async function getAutoDeleteConfig(
@@ -144,8 +145,8 @@ export async function getAutoDeleteConfig(
       .where(eq(autoDeleteConfig.guildId, id))
       .limit(1),
   );
-  const config = await rowToConfig(id, row);
-  configCache.set(id, config);
+  const config = rowToConfig(id, row);
+  await cache().set(configKey(id), config, CONFIG_TTL_MS);
   return config;
 }
 
@@ -153,7 +154,7 @@ export async function getAutoDeleteConfig(
 export async function getAutoDeleteConfigCached(
   guildId: string,
 ): Promise<AutoDeleteConfig> {
-  const cached = configCache.get(guildId);
+  const cached = await cache().get<AutoDeleteConfig>(configKey(guildId));
   if (cached) return cached;
   try {
     return await getAutoDeleteConfig(guildId);
@@ -167,7 +168,7 @@ export async function listAllAutoDeleteConfigs(): Promise<AutoDeleteConfig[]> {
   const rows = await getDb().select().from(autoDeleteConfig);
   return rows.map((row) => {
     const config = rowToConfig(row.guildId, row);
-    configCache.set(row.guildId, config);
+    void cache().set(configKey(row.guildId), config, CONFIG_TTL_MS);
     return config;
   });
 }
@@ -210,7 +211,7 @@ export async function updateAutoDeleteConfig(
       },
     });
 
-  configCache.set(id, next);
+  await cache().set(configKey(id), next, CONFIG_TTL_MS);
   try {
     onConfigChanged?.(next);
   } catch (error) {

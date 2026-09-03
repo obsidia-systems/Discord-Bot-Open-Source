@@ -23,7 +23,7 @@ import {
   resolveXpMultiplier,
 } from "@adobos/shared";
 import { and, asc, count, desc, eq, gt } from "drizzle-orm";
-import { BoundedTtlMap } from "#core/cache/boundedTtlMap.js";
+import { cache } from "#core/cache/store.js";
 import { getDb, one } from "#db/client.js";
 import { guildSettings, userXp, xpConfig, xpRewards } from "#db/schema.js";
 
@@ -38,7 +38,8 @@ export class LevelsError extends Error {
   }
 }
 
-const configCache = new BoundedTtlMap<string, LevelsConfig>(5_000, 60_000);
+const CONFIG_TTL_MS = 60_000;
+const configKey = (guildId: string) => `levels:cfg:${guildId}`;
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   if (!raw) return fallback;
@@ -231,21 +232,19 @@ function normalizeRewards(input: LevelsReward[] | undefined): LevelsReward[] {
 }
 
 export function invalidateLevelsConfigCache(guildId?: string): void {
-  if (guildId) {
-    configCache.delete(guildId);
-    return;
-  }
-  configCache.clear();
+  // Fire-and-forget: con RedisStore (P2.16) además publica la invalidación
+  // al resto de réplicas. Sin guildId (clear-all) ya no lo usa nadie.
+  if (guildId) void cache().del(configKey(guildId));
 }
 
 export async function getLevelsConfigCached(
   guildId?: string,
 ): Promise<LevelsConfig> {
   const id = resolveGuildId(guildId);
-  const cached = configCache.get(id);
+  const cached = await cache().get<LevelsConfig>(configKey(id));
   if (cached) return cached;
   const config = await getLevelsConfig(id);
-  configCache.set(id, config);
+  await cache().set(configKey(id), config, CONFIG_TTL_MS);
   return config;
 }
 
@@ -463,7 +462,7 @@ export async function updateLevelsConfig(
 
   invalidateLevelsConfigCache(id);
   const saved = await getLevelsConfig(id);
-  configCache.set(id, saved);
+  await cache().set(configKey(id), saved, CONFIG_TTL_MS);
   return saved;
 }
 
@@ -482,7 +481,7 @@ export async function setLiveLeaderboardMessageId(
     .where(eq(xpConfig.guildId, id));
   invalidateLevelsConfigCache(id);
   const refreshed = await getLevelsConfig(id);
-  configCache.set(id, refreshed);
+  await cache().set(configKey(id), refreshed, CONFIG_TTL_MS);
 }
 
 export interface AddXpResult {
