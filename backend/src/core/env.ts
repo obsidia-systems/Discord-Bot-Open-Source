@@ -15,6 +15,13 @@ const envSchema = z.object({
         value.startsWith("postgres://") || value.startsWith("postgresql://"),
       "DATABASE_URL debe ser postgresql://…",
     ),
+  REDIS_URL: z
+    .string()
+    .optional()
+    .refine(
+      (v) => !v || v.startsWith("redis://") || v.startsWith("rediss://"),
+      "REDIS_URL debe ser redis://… o rediss://…",
+    ),
   SESSION_SECRET: z.string().min(16),
   PUBLIC_APP_URL: z.string().min(1),
   DISCORD_CLIENT_ID: z.string().min(1),
@@ -45,6 +52,7 @@ export interface AppEnv {
   DISCORD_CLIENT_SECRET: string;
   DISCORD_TOKEN?: string;
   CORS_ORIGIN?: string;
+  REDIS_URL?: string;
   ADOBO_ROLE: AdobosRole;
   SERVE_STATIC: boolean;
   STATIC_DIR?: string;
@@ -99,6 +107,7 @@ export function loadEnv(): AppEnv {
     DISCORD_CLIENT_SECRET: raw.DISCORD_CLIENT_SECRET,
     DISCORD_TOKEN: token || undefined,
     CORS_ORIGIN: raw.CORS_ORIGIN,
+    REDIS_URL: raw.REDIS_URL?.trim() || undefined,
     ADOBO_ROLE: raw.ADOBO_ROLE,
     SERVE_STATIC: parseServeStatic(raw.SERVE_STATIC),
     STATIC_DIR: raw.STATIC_DIR,

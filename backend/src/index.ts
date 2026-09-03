@@ -6,6 +6,9 @@ import {
   startSessionPruneJob,
   stopSessionPruneJob,
 } from "#core/auth/sessionStore.js";
+import { initRedis } from "#core/cache/redis.js";
+import { RedisStore } from "#core/cache/redisStore.js";
+import { setCacheStore } from "#core/cache/store.js";
 import { createBotClient } from "#core/discord/createClient.js";
 import { loadEnv } from "#core/env.js";
 import { createApp, createHealthApp } from "#core/http/createApp.js";
@@ -38,6 +41,14 @@ async function main(): Promise<void> {
 
   const cfg = loadEnv();
   setRuntimeRole(cfg.ADOBO_ROLE);
+
+  // Redis (opcional). Sin REDIS_URL todo sigue con MemoryStore + rate-limit
+  // en memoria — el rol `all` y dev no lo necesitan.
+  if (cfg.REDIS_URL) {
+    const { client, subscriber } = initRedis(cfg.REDIS_URL);
+    setCacheStore(new RedisStore(client, subscriber));
+    logger.info("cache: RedisStore (L1 + L2 + pub/sub) activo");
+  }
 
   await initDatabase();
   onShutdown("db", () => closeDatabase());

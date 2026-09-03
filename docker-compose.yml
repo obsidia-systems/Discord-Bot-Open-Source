@@ -34,6 +34,20 @@ services:
     networks:
       - adobos
 
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+    networks:
+      - adobos
+
   install:
     build:
       context: .
@@ -58,6 +72,7 @@ services:
       PORT: 3000
       SERVE_STATIC: "false"
       DATABASE_URL: postgresql://adobos:adobos@postgres:5432/adobos
+      REDIS_URL: redis://redis:6379
       DATA_DIR: /data
       PUBLIC_APP_URL: http://localhost:4321
       CORS_ORIGIN: http://localhost:4321
@@ -76,6 +91,8 @@ services:
       install:
         condition: service_completed_successfully
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test:

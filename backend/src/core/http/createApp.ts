@@ -133,10 +133,10 @@ export function createApp(options: CreateAppOptions): Express {
   }
   app.use(express.json({ limit: "1mb" }));
 
-  app.use("/auth", authRateLimiter, authRouter());
+  app.use("/auth", authRateLimiter(), authRouter());
   app.use("/api/health", healthRouter(options.bot));
 
-  app.use("/api", apiRateLimiter, (req, res, next) => {
+  app.use("/api", apiRateLimiter(), (req, res, next) => {
     if (isPublicApiPath(req, registry)) return next();
     return requireAuth()(req, res, next);
   });
@@ -144,7 +144,7 @@ export function createApp(options: CreateAppOptions): Express {
   app.use("/api/entitlements", requireGuildAccess(), entitlementsRoutes());
   app.use(
     "/api/uploads",
-    uploadRateLimiter,
+    uploadRateLimiter(),
     requireGuildAccess(),
     uploadRoutes(),
   );

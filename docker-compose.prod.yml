@@ -27,6 +27,20 @@ services:
       - adobos
     # Sin ports: sólo la red interna de Compose.
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "no"]
+    volumes:
+      - adobos_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks:
+      - adobos
+
   backend:
     build:
       context: .
@@ -41,12 +55,15 @@ services:
       PORT: 3000
       SERVE_STATIC: "false"
       DATABASE_URL: postgresql://adobos:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/adobos
+      REDIS_URL: redis://redis:6379
       DATA_DIR: /data
       NODE_OPTIONS: --dns-result-order=ipv4first
     volumes:
       - ./data:/data
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test:
@@ -82,6 +99,7 @@ services:
 
 volumes:
   adobos_pgdata:
+  adobos_redisdata:
 
 networks:
   adobos:
