@@ -1,14 +1,14 @@
-import type { GuildMember } from "discord.js";
 import {
+  type AntiRaidSettings,
   accountAgeTooNew,
   decideNewMemberAction,
   isAntiRaidImmune,
-  recordAndCount,
-  type AntiRaidSettings,
   type NewMemberVerdict,
+  recordAndCount,
 } from "@adobos/shared";
-import { applyGuildLockdown } from "./lockdown.js";
+import type { GuildMember } from "discord.js";
 import { resolveAlertChannel, sendAntiRaidAlert } from "./alerts.js";
+import { applyGuildLockdown } from "./lockdown.js";
 
 const joinWindows = new Map<string, number[]>();
 
@@ -37,13 +37,13 @@ async function applyVerdict(
     return;
   }
   if (verdict === "ban" && member.bannable) {
-    await member.ban({ reason, deleteMessageSeconds: 0 }).catch(() => undefined);
+    await member
+      .ban({ reason, deleteMessageSeconds: 0 })
+      .catch(() => undefined);
     return;
   }
   if (verdict === "timeout" && member.moderatable) {
-    await member
-      .timeout(timeoutMs(settings), reason)
-      .catch(() => undefined);
+    await member.timeout(timeoutMs(settings), reason).catch(() => undefined);
   }
 }
 
@@ -90,7 +90,8 @@ export async function onAntiRaidMemberAdd(
   if (verdict === "allow") return verdict;
 
   const reason =
-    verdict === "lockdown" || (settings.joinFloodEnabled && recorded.count >= settings.joinCount)
+    verdict === "lockdown" ||
+    (settings.joinFloodEnabled && recorded.count >= settings.joinCount)
       ? `Anti-Raid: flood de joins (${recorded.count}/${settings.joinCount})`
       : settings.lockdownActive
         ? "Anti-Raid: lockdown active"

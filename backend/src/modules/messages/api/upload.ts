@@ -1,5 +1,5 @@
-import multer from "multer";
 import type { NextFunction, Request, Response } from "express";
+import multer from "multer";
 import type { EmbedUploadedFiles } from "./controller.js";
 
 const ALLOWED_MIME = new Set([
@@ -33,7 +33,9 @@ function firstFile(
   return files?.[0];
 }
 
-export function uploadedFromRequest(req: { files?: unknown }): EmbedUploadedFiles {
+export function uploadedFromRequest(req: {
+  files?: unknown;
+}): EmbedUploadedFiles {
   const uploadedMap = req.files as
     | { [fieldname: string]: Express.Multer.File[] }
     | undefined;

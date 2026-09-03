@@ -1,27 +1,27 @@
 import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  MessageFlags,
-  PermissionFlagsBits,
-  type ButtonInteraction,
-  type ChatInputCommandInteraction,
-} from "discord.js";
-import {
-  REMIND_BUTTON_CANCEL_PREFIX,
   assertRemindDueInRange,
   dueFromDurationSeconds,
   formatRemindDiscordStamp,
   parseRemindDurationSeconds,
   parseRemindWhen,
+  REMIND_BUTTON_CANCEL_PREFIX,
   type Reminder,
 } from "@adobos/shared";
 import {
-  RemindersError,
+  ActionRowBuilder,
+  ButtonBuilder,
+  type ButtonInteraction,
+  ButtonStyle,
+  type ChatInputCommandInteraction,
+  MessageFlags,
+  PermissionFlagsBits,
+} from "discord.js";
+import {
   createReminder,
   deleteReminder,
   getReminderSettings,
   listUserReminders,
+  RemindersError,
 } from "./service.js";
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral } as const;
@@ -51,7 +51,9 @@ async function replyError(
   await interaction.reply(payload).catch(() => null);
 }
 
-function isStaff(interaction: ChatInputCommandInteraction | ButtonInteraction): boolean {
+function isStaff(
+  interaction: ChatInputCommandInteraction | ButtonInteraction,
+): boolean {
   const member = interaction.member;
   if (!member || typeof member === "string") return false;
   const perms = "permissions" in member ? member.permissions : null;
@@ -71,21 +73,17 @@ async function createFromDue(
   const now = new Date();
   const range = assertRemindDueInRange(due, now);
   if (range === "too_soon") {
-    throw new RemindersError(
-      "Minimum 1 minute.",
-      400,
-      "TOO_SOON",
-    );
+    throw new RemindersError("Minimum 1 minute.", 400, "TOO_SOON");
   }
   if (range === "too_far") {
-    throw new RemindersError(
-      "Maximum 365 days.",
-      400,
-      "TOO_FAR",
-    );
+    throw new RemindersError("Maximum 365 days.", 400, "TOO_FAR");
   }
   if (!interaction.guildId || !interaction.channelId) {
-    throw new RemindersError("Use this command in a server channel.", 400, "NO_CHANNEL");
+    throw new RemindersError(
+      "Use this command in a server channel.",
+      400,
+      "NO_CHANNEL",
+    );
   }
   const row = await createReminder({
     guildId: interaction.guildId,
@@ -125,12 +123,8 @@ export async function handleRemindCommand(
         });
         return;
       }
-      const body = rows
-        .slice(0, 10)
-        .map(formatLine)
-        .join("\n");
-      const extra =
-        rows.length > 10 ? `\n…and ${rows.length - 10} more.` : "";
+      const body = rows.slice(0, 10).map(formatLine).join("\n");
+      const extra = rows.length > 10 ? `\n…and ${rows.length - 10} more.` : "";
       await interaction.reply({
         content: body + extra,
         ...EPHEMERAL,

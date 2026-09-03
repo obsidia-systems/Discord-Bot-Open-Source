@@ -1,11 +1,11 @@
-import { GatewayIntentBits } from "discord.js";
 import { listSystemCommandNames } from "@adobos/shared";
+import { GatewayIntentBits } from "discord.js";
+import { logger } from "../../core/log.js";
 import type { AdobosModule } from "../../core/modules/types.js";
 import { customCommandsRoutes } from "./api/routes.js";
 import { handleCustomChatCommand } from "./handler.js";
 import { setReservedSlashCommandNames } from "./service.js";
 import { syncGuildSlashCommands } from "./sync.js";
-import { logger } from "../../core/log.js";
 
 export const customCommandsModule: AdobosModule = {
   id: "custom-commands",
@@ -41,6 +41,7 @@ export function wireCustomCommandsBuiltinSync(
   setReservedSlashCommandNames(listSystemCommandNames());
 }
 
+export { handleCustomChatCommand } from "./handler.js";
 export {
   CustomCommandsError,
   createCustomCommand,
@@ -52,6 +53,5 @@ export {
   setCustomCommandActive,
   updateCustomCommand,
 } from "./service.js";
-export { handleCustomChatCommand } from "./handler.js";
 export { syncGuildSlashCommands } from "./sync.js";
 export { parseCustomCommandVariables } from "./variables.js";

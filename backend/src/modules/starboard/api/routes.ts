@@ -1,15 +1,15 @@
+import { isStarboardDestinationChannelType } from "@adobos/shared";
 import { ChannelType, type Client } from "discord.js";
 import { Router } from "express";
-import { isStarboardDestinationChannelType } from "@adobos/shared";
 import { fetchChannelInGuild } from "../../../core/http/channelScope.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { parse } from "../../../core/http/validate.js";
-import { updateStarboardSettingsSchema } from "./schema.js";
 import {
   getStarboardConfig,
   StarboardError,
   updateStarboardSettings,
 } from "../service.js";
+import { updateStarboardSettingsSchema } from "./schema.js";
 
 async function assertDestinationChannel(
   bot: Client,

@@ -11,10 +11,7 @@ import { onGuildMemberUpdate } from "./events/guildMemberUpdate.js";
 export const canvasEventsModule: AdobosModule = {
   id: "canvas-events",
   name: "Canvas Events",
-  intents: [
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildModeration,
-  ],
+  intents: [GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildModeration],
   register(ctx) {
     ctx.on("guildMemberRemove", (member) => {
       void onGuildMemberRemove(member);
@@ -26,14 +23,22 @@ export const canvasEventsModule: AdobosModule = {
       void onGuildMemberUpdate(oldMember, newMember);
     });
 
-    ctx.route("/api/bot/leave", canvasEventSettingsRoutes("leave", ctx.client), {
-      feature: "welcome",
-    });
+    ctx.route(
+      "/api/bot/leave",
+      canvasEventSettingsRoutes("leave", ctx.client),
+      {
+        feature: "welcome",
+      },
+    );
     ctx.route("/api/bot/ban", canvasEventSettingsRoutes("ban", ctx.client), {
       feature: "welcome",
     });
-    ctx.route("/api/bot/boost", canvasEventSettingsRoutes("boost", ctx.client), {
-      feature: "welcome",
-    });
+    ctx.route(
+      "/api/bot/boost",
+      canvasEventSettingsRoutes("boost", ctx.client),
+      {
+        feature: "welcome",
+      },
+    );
   },
 };

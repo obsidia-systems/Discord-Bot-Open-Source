@@ -33,10 +33,7 @@ export function normalizeIanaTimezone(
 }
 
 /** Normaliza `HH:mm` (24h). Fallback 12:00. */
-export function normalizeClockTime(
-  value: unknown,
-  fallback = "12:00",
-): string {
+export function normalizeClockTime(value: unknown, fallback = "12:00"): string {
   const raw = String(value ?? "").trim();
   const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(raw);
   if (!match) return fallback;

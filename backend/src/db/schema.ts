@@ -19,9 +19,7 @@ export const guildSettings = pgTable("guild_settings", {
   prefix: text("prefix").notNull().default("!"),
   /** Canal principal de Action Logs (null = sin logs configurados). */
   logChannelId: text("log_channel_id"),
-  welcomeEnabled: boolean("welcome_enabled")
-    .notNull()
-    .default(false),
+  welcomeEnabled: boolean("welcome_enabled").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
@@ -43,9 +41,7 @@ export const pluginsEnabled = pgTable(
       .notNull()
       .$defaultFn(() => new Date()),
   },
-  (table) => [
-    primaryKey({ columns: [table.guildId, table.pluginName] }),
-  ],
+  (table) => [primaryKey({ columns: [table.guildId, table.pluginName] })],
 );
 
 /**
@@ -66,9 +62,7 @@ export const reactionRoles = pgTable(
       .notNull()
       .$defaultFn(() => new Date()),
   },
-  (table) => [
-    primaryKey({ columns: [table.messageId, table.emojiKey] }),
-  ],
+  (table) => [primaryKey({ columns: [table.messageId, table.emojiKey] })],
 );
 
 /**
@@ -140,9 +134,7 @@ export const welcomeSettings = pgTable("welcome_settings", {
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
   channelId: text("channel_id"),
-  isEnabled: boolean("is_enabled")
-    .notNull()
-    .default(false),
+  isEnabled: boolean("is_enabled").notNull().default(false),
   /** Legacy: el módulo siempre opera como canvas (`card`). */
   welcomeMode: text("welcome_mode").notNull().default("card"),
   /** URL remota — opcional si hay bg_filepath. */
@@ -192,9 +184,7 @@ export const canvasEventSettings = pgTable(
     /** `leave` | `ban` | `boost` */
     eventType: text("event_type").notNull(),
     channelId: text("channel_id"),
-    isEnabled: boolean("is_enabled")
-      .notNull()
-      .default(false),
+    isEnabled: boolean("is_enabled").notNull().default(false),
     backgroundUrl: text("background_url"),
     bgFilepath: text("bg_filepath"),
     blurAmount: integer("blur_amount").notNull().default(4),
@@ -215,9 +205,7 @@ export const canvasEventSettings = pgTable(
       .notNull()
       .$defaultFn(() => new Date()),
   },
-  (table) => [
-    primaryKey({ columns: [table.guildId, table.eventType] }),
-  ],
+  (table) => [primaryKey({ columns: [table.guildId, table.eventType] })],
 );
 
 /**
@@ -323,9 +311,7 @@ export const modLogs = pgTable(
       .notNull()
       .$defaultFn(() => new Date()),
   },
-  (table) => [
-    index("idx_mod_logs_guild").on(table.guildId, table.createdAt),
-  ],
+  (table) => [index("idx_mod_logs_guild").on(table.guildId, table.createdAt)],
 );
 
 /**
@@ -345,9 +331,7 @@ export const actionLogsConfig = pgTable("action_logs_config", {
   ignoredChannels: text("ignored_channels").notNull().default("[]"),
   /** JSON: string[] */
   ignoredRoles: text("ignored_roles").notNull().default("[]"),
-  ignoreBots: boolean("ignore_bots")
-    .notNull()
-    .default(true),
+  ignoreBots: boolean("ignore_bots").notNull().default(true),
   /** JSON: Record<eventKey, boolean> */
   enabledEvents: text("enabled_events").notNull().default("{}"),
   /** Días de retención del historial; 0 = sin límite. */
@@ -480,8 +464,10 @@ export const autoDeletePending = pgTable(
     channelId: text("channel_id").notNull(),
     messageId: text("message_id").notNull(),
     ruleChannelId: text("rule_channel_id").notNull(),
-    deleteAt: timestamp("delete_at", { withTimezone: true, mode: "date" })
-      .notNull(),
+    deleteAt: timestamp("delete_at", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.guildId, table.messageId] }),
@@ -504,9 +490,7 @@ export const xpConfig = pgTable("xp_config", {
   textXpMin: integer("text_xp_min").notNull().default(15),
   textXpMax: integer("text_xp_max").notNull().default(25),
   cooldownSeconds: integer("cooldown_seconds").notNull().default(60),
-  voiceEnabled: boolean("voice_enabled")
-    .notNull()
-    .default(false),
+  voiceEnabled: boolean("voice_enabled").notNull().default(false),
   voiceXpPerMinute: integer("voice_xp_per_minute").notNull().default(10),
   /** Multiplicador al transmitir pantalla (1.0 = sin bonus). */
   streamMultiplier: real("stream_multiplier").notNull().default(1),
@@ -530,9 +514,7 @@ export const xpConfig = pgTable("xp_config", {
   levelUpEmbedTitle: text("level_up_embed_title")
     .notNull()
     .default("Level Up!"),
-  levelUpEmbedColor: text("level_up_embed_color")
-    .notNull()
-    .default("#34E21D"),
+  levelUpEmbedColor: text("level_up_embed_color").notNull().default("#34E21D"),
   levelUpShowThumbnail: boolean("level_up_show_thumbnail")
     .notNull()
     .default(true),
@@ -583,11 +565,12 @@ export const userXp = pgTable(
     xp: integer("xp").notNull().default(0),
     level: integer("level").notNull().default(0),
     /** Si está en el futuro, el usuario no gana XP (Auto Mod XP_FREEZE). */
-    xpFrozenUntil: timestamp("xp_frozen_until", { withTimezone: true, mode: "date" }),
+    xpFrozenUntil: timestamp("xp_frozen_until", {
+      withTimezone: true,
+      mode: "date",
+    }),
   },
-  (table) => [
-    primaryKey({ columns: [table.guildId, table.userId] }),
-  ],
+  (table) => [primaryKey({ columns: [table.guildId, table.userId] })],
 );
 
 export type XpConfigRow = typeof xpConfig.$inferSelect;
@@ -800,9 +783,7 @@ export const defaultCommandPermissions = pgTable(
       .notNull()
       .$defaultFn(() => new Date()),
   },
-  (table) => [
-    primaryKey({ columns: [table.guildId, table.commandName] }),
-  ],
+  (table) => [primaryKey({ columns: [table.guildId, table.commandName] })],
 );
 
 export type DefaultCommandPermissionRow =
@@ -845,18 +826,25 @@ export const userEconomy = pgTable(
     /** Racha de /daily. */
     dailyStreak: integer("daily_streak").notNull().default(0),
     /** Última reclamación de /daily (ms). null = nunca. */
-    lastDailyAt: timestamp("last_daily_at", { withTimezone: true, mode: "date" }),
+    lastDailyAt: timestamp("last_daily_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
     /** Última reclamación de /weekly. */
-    lastWeeklyAt: timestamp("last_weekly_at", { withTimezone: true, mode: "date" }),
+    lastWeeklyAt: timestamp("last_weekly_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
     /** Última reclamación de /monthly. */
-    lastMonthlyAt: timestamp("last_monthly_at", { withTimezone: true, mode: "date" }),
+    lastMonthlyAt: timestamp("last_monthly_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
-  (table) => [
-    primaryKey({ columns: [table.guildId, table.userId] }),
-  ],
+  (table) => [primaryKey({ columns: [table.guildId, table.userId] })],
 );
 
 export type UserEconomyRow = typeof userEconomy.$inferSelect;
@@ -895,7 +883,10 @@ export const economyCooldowns = pgTable(
     userId: text("user_id").notNull(),
     /** Clave: `work` | `crime` | … */
     commandKey: text("command_key").notNull(),
-    availableAt: timestamp("available_at", { withTimezone: true, mode: "date" }).notNull(),
+    availableAt: timestamp("available_at", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull(),
   },
   (table) => [
     primaryKey({
@@ -917,9 +908,7 @@ export const economyIncome = pgTable("economy_income", {
   dailyPay: integer("daily_pay").notNull().default(100),
   weeklyPay: integer("weekly_pay").notNull().default(500),
   monthlyPay: integer("monthly_pay").notNull().default(2000),
-  streakEnabled: boolean("streak_enabled")
-    .notNull()
-    .default(false),
+  streakEnabled: boolean("streak_enabled").notNull().default(false),
   streakBonusPercent: integer("streak_bonus_percent").notNull().default(5),
   /** EconomyRoleSalary[] */
   roleSalaries: text("role_salaries").notNull().default("[]"),
@@ -1150,7 +1139,10 @@ export const panelSessions = pgTable(
       withTimezone: true,
       mode: "date",
     }),
-    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    expiresAt: timestamp("expires_at", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
@@ -1162,7 +1154,10 @@ export const panelSessions = pgTable(
 export const oauthStates = pgTable("oauth_states", {
   state: text("state").primaryKey(),
   codeVerifier: text("code_verifier").notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+  expiresAt: timestamp("expires_at", {
+    withTimezone: true,
+    mode: "date",
+  }).notNull(),
 });
 
 /**
@@ -1679,9 +1674,14 @@ export const giveaways = pgTable(
     description: text("description").notNull().default(""),
     winnerCount: integer("winner_count").notNull().default(1),
     status: text("status").notNull().default("scheduled"),
-    startsAt: timestamp("starts_at", { withTimezone: true, mode: "date" })
-      .notNull(),
-    endsAt: timestamp("ends_at", { withTimezone: true, mode: "date" }).notNull(),
+    startsAt: timestamp("starts_at", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull(),
+    endsAt: timestamp("ends_at", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull(),
     endedAt: timestamp("ended_at", { withTimezone: true, mode: "date" }),
     createdBy: text("created_by").notNull(),
     requiredRoleIds: text("required_role_ids").notNull().default("[]"),

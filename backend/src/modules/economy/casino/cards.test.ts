@@ -4,11 +4,14 @@ import {
   dealerShouldHit,
   evaluateHand,
   isSplitPair,
-  shoeNeedsReshuffle,
   type PlayingCard,
+  shoeNeedsReshuffle,
 } from "./cards.js";
 
-function card(rank: PlayingCard["rank"], suit: PlayingCard["suit"] = "spades"): PlayingCard {
+function card(
+  rank: PlayingCard["rank"],
+  suit: PlayingCard["suit"] = "spades",
+): PlayingCard {
   return { rank, suit };
 }
 

@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { HttpError } from "../../../core/http/httpError.js";
-import { billingCheckoutSchema } from "./schema.js";
 import { parse } from "../../../core/http/validate.js";
 import {
   assignCurrentGuild,
@@ -10,6 +9,7 @@ import {
   getBillingStatus,
   unassignGuildFromUser,
 } from "../service.js";
+import { billingCheckoutSchema } from "./schema.js";
 
 function userIdOf(req: Parameters<typeof guildIdOf>[0]): string {
   const id = req.guild?.userId ?? req.panelSession?.userId;

@@ -1,11 +1,11 @@
 /** @deprecated Shim — usa `modules/welcome/card`. */
 export {
-  buildWelcomeCard,
-  CARD_WIDTH,
-  CARD_HEIGHT,
-  AVATAR_SIZE_MIN,
   AVATAR_SIZE_MAX,
-  WELCOME_CARD_DEFAULT_BACKGROUND,
+  AVATAR_SIZE_MIN,
   type BuildWelcomeCardOptions,
+  buildWelcomeCard,
+  CARD_HEIGHT,
+  CARD_WIDTH,
+  WELCOME_CARD_DEFAULT_BACKGROUND,
   type WelcomeCardUser,
 } from "../../modules/welcome/card/WelcomeCardBuilder.js";

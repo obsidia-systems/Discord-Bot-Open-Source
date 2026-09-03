@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
 import {
   embedCharacterCount,
   persistEmbedMediaUrl,
   sanitizeLinkActionRows,
 } from "@adobos/shared";
+import { describe, expect, it } from "vitest";
 import { messagesModule } from "./index.js";
 
 describe("messages module", () => {

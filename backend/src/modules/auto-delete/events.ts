@@ -1,13 +1,13 @@
-import type { Message } from "discord.js";
 import {
-  delayToMs,
   AUTO_DELETE_MAX_COUNTDOWN_MS,
+  delayToMs,
   findAutoDeleteRule,
   messageMatchesAutoDeleteFilter,
 } from "@adobos/shared";
-import { getAutoDeleteConfigCached } from "./service.js";
-import { enqueueCountdownDelete } from "./pending.js";
+import type { Message } from "discord.js";
 import { logger } from "../../core/log.js";
+import { enqueueCountdownDelete } from "./pending.js";
+import { getAutoDeleteConfigCached } from "./service.js";
 
 export async function onAutoDeleteMessageCreate(
   message: Message,
@@ -22,11 +22,7 @@ export async function onAutoDeleteMessageCreate(
 
     const parentId =
       "parentId" in message.channel ? message.channel.parentId : null;
-    const rule = findAutoDeleteRule(
-      config.rules,
-      message.channelId,
-      parentId,
-    );
+    const rule = findAutoDeleteRule(config.rules, message.channelId, parentId);
     if (!rule || rule.mode !== "COUNTDOWN") return;
 
     if (

@@ -1,14 +1,10 @@
+import { isStreamAlertDestinationChannelType } from "@adobos/shared";
 import { ChannelType, type Client } from "discord.js";
 import { Router } from "express";
-import { isStreamAlertDestinationChannelType } from "@adobos/shared";
 import { fetchChannelInGuild } from "../../../core/http/channelScope.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
-import { parse } from "../../../core/http/validate.js";
 import { recordId } from "../../../core/http/schemas.js";
-import {
-  createStreamAlertSchema,
-  updateStreamAlertSchema,
-} from "./schema.js";
+import { parse } from "../../../core/http/validate.js";
 import {
   createStreamAlert,
   deleteStreamAlert,
@@ -16,6 +12,7 @@ import {
   StreamAlertsError,
   updateStreamAlert,
 } from "../service.js";
+import { createStreamAlertSchema, updateStreamAlertSchema } from "./schema.js";
 
 async function assertDestinationChannel(
   bot: Client,

@@ -3,8 +3,7 @@ import { streamAlertWatchUrl } from "@adobos/shared";
 import { logger } from "../../core/log.js";
 
 const FETCH_MS = 8_000;
-const UA =
-  "Mozilla/5.0 (compatible; AdobosBot/0.1; +https://github.com)";
+const UA = "Mozilla/5.0 (compatible; AdobosBot/0.1; +https://github.com)";
 
 let twitchToken: { value: string; expiresAt: number } | null = null;
 let twitchWarnAt = 0;
@@ -105,8 +104,7 @@ export function parseKickChannelPayload(
   const live = asRecord(root.livestream);
   if (!live) return { ...offline, displayName };
   const liveId =
-    asString(live.id) ??
-    (typeof live.id === "number" ? String(live.id) : null);
+    asString(live.id) ?? (typeof live.id === "number" ? String(live.id) : null);
   if (!liveId) return { ...offline, displayName };
   const categories = live.categories;
   let game: string | null = null;
@@ -294,7 +292,10 @@ export async function fetchYouTubeLive(
     const now = Date.now();
     if (now - youtubeWarnAt > 3_600_000) {
       youtubeWarnAt = now;
-      logger.warn({ err: error, handle }, "stream-alerts: YouTube Data API failed");
+      logger.warn(
+        { err: error, handle },
+        "stream-alerts: YouTube Data API failed",
+      );
     }
     return null;
   }

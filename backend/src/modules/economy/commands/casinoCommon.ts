@@ -1,14 +1,14 @@
+import type { EconomyCasinoConfig } from "@adobos/shared";
+import type { ChatInputCommandInteraction } from "discord.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
   type Client,
 } from "discord.js";
-import type { EconomyCasinoConfig } from "@adobos/shared";
-import { EconomyError, getEconomyConfig } from "../service.js";
 import { assertCasinoBetAllowed } from "../casinoService.js";
+import { EconomyError, getEconomyConfig } from "../service.js";
 import { EPHEMERAL } from "./visibility.js";
-import type { ChatInputCommandInteraction } from "discord.js";
 
 export const WIN = 0x57f287;
 export const LOSE = 0xed4245;

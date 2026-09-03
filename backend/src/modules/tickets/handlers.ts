@@ -1,16 +1,10 @@
 import {
-  LabelBuilder,
-  MessageFlags,
-  ModalBuilder,
-  PermissionFlagsBits,
-  TextInputBuilder,
-  TextInputStyle,
-  type ButtonInteraction,
-  type GuildMember,
-  type ModalSubmitInteraction,
-  type TextChannel,
-} from "discord.js";
-import {
+  canCloseTicket,
+  isTicketStaff,
+  normalizeTicketCloseReason,
+  parseTicketOpenCustomId,
+  parseTicketRecordId,
+  parseTicketUserMention,
   TICKET_ADD_MODAL_PREFIX,
   TICKET_ADD_PREFIX,
   TICKET_CLAIM_PREFIX,
@@ -22,14 +16,19 @@ import {
   TICKET_UNCLAIM_PREFIX,
   TICKET_UNWAIT_PREFIX,
   TICKET_WAIT_PREFIX,
-  canCloseTicket,
-  isTicketStaff,
-  normalizeTicketCloseReason,
-  parseTicketOpenCustomId,
-  parseTicketRecordId,
-  parseTicketUserMention,
 } from "@adobos/shared";
-import { TicketsError, getTicketById, getTicketPanel, getTicketSettings } from "./service.js";
+import {
+  type ButtonInteraction,
+  type GuildMember,
+  LabelBuilder,
+  MessageFlags,
+  ModalBuilder,
+  type ModalSubmitInteraction,
+  PermissionFlagsBits,
+  type TextChannel,
+  TextInputBuilder,
+  TextInputStyle,
+} from "discord.js";
 import {
   addUserToTicket,
   claimTicket,
@@ -42,6 +41,12 @@ import {
   unwaitTicket,
   waitTicket,
 } from "./actions.js";
+import {
+  getTicketById,
+  getTicketPanel,
+  getTicketSettings,
+  TicketsError,
+} from "./service.js";
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral } as const;
 
@@ -125,21 +130,25 @@ function userModal(ticketId: number, kind: "add" | "remove"): ModalBuilder {
     .setCustomId(`${prefix}${ticketId}`.slice(0, 100))
     .setTitle(kind === "add" ? "Add user" : "Remove user")
     .addLabelComponents(
-      new LabelBuilder()
-        .setLabel("User")
-        .setTextInputComponent(input),
+      new LabelBuilder().setLabel("User").setTextInputComponent(input),
     );
 }
 
 export async function onTicketOpenButton(
   interaction: ButtonInteraction,
 ): Promise<void> {
-  if (!interaction.guild || !interaction.customId.startsWith(TICKET_OPEN_PREFIX)) {
+  if (
+    !interaction.guild ||
+    !interaction.customId.startsWith(TICKET_OPEN_PREFIX)
+  ) {
     return;
   }
   const parsed = parseTicketOpenCustomId(interaction.customId);
   if (!parsed) {
-    await reject(interaction, "This panel is no longer valid. Publish it again.");
+    await reject(
+      interaction,
+      "This panel is no longer valid. Publish it again.",
+    );
     return;
   }
   const panel = await getTicketPanel(parsed.panelId).catch(() => null);
@@ -178,7 +187,10 @@ export async function onTicketClaimButton(
   interaction: ButtonInteraction,
 ): Promise<void> {
   if (!interaction.guild) return;
-  const ticketId = parseTicketRecordId(interaction.customId, TICKET_CLAIM_PREFIX);
+  const ticketId = parseTicketRecordId(
+    interaction.customId,
+    TICKET_CLAIM_PREFIX,
+  );
   if (ticketId == null) return;
   const member = await staffOrReject(interaction, interaction.guild.id);
   if (!member) return;
@@ -227,7 +239,10 @@ export async function onTicketWaitButton(
   interaction: ButtonInteraction,
 ): Promise<void> {
   if (!interaction.guild) return;
-  const ticketId = parseTicketRecordId(interaction.customId, TICKET_WAIT_PREFIX);
+  const ticketId = parseTicketRecordId(
+    interaction.customId,
+    TICKET_WAIT_PREFIX,
+  );
   if (ticketId == null) return;
   const member = await staffOrReject(interaction, interaction.guild.id);
   if (!member) return;
@@ -248,7 +263,10 @@ export async function onTicketUnwaitButton(
   interaction: ButtonInteraction,
 ): Promise<void> {
   if (!interaction.guild) return;
-  const ticketId = parseTicketRecordId(interaction.customId, TICKET_UNWAIT_PREFIX);
+  const ticketId = parseTicketRecordId(
+    interaction.customId,
+    TICKET_UNWAIT_PREFIX,
+  );
   if (ticketId == null) return;
   const member = await staffOrReject(interaction, interaction.guild.id);
   if (!member) return;
@@ -269,7 +287,10 @@ export async function onTicketCloseButton(
   interaction: ButtonInteraction,
 ): Promise<void> {
   if (!interaction.guild) return;
-  const ticketId = parseTicketRecordId(interaction.customId, TICKET_CLOSE_PREFIX);
+  const ticketId = parseTicketRecordId(
+    interaction.customId,
+    TICKET_CLOSE_PREFIX,
+  );
   if (ticketId == null) return;
   const member = asGuildMember(interaction.member);
   if (!member) {
@@ -386,7 +407,9 @@ export async function onTicketAddModal(
       actorId: member.id,
       userId,
     });
-    await interaction.editReply({ content: `<@${userId}> added to the ticket.` });
+    await interaction.editReply({
+      content: `<@${userId}> added to the ticket.`,
+    });
   } catch (error: unknown) {
     await interaction.editReply({ content: mapError(error) });
   }
@@ -418,15 +441,15 @@ export async function onTicketRemoveModal(
       actorId: member.id,
       userId,
     });
-    await interaction.editReply({ content: `<@${userId}> quitado del ticket.` });
+    await interaction.editReply({
+      content: `<@${userId}> quitado del ticket.`,
+    });
   } catch (error: unknown) {
     await interaction.editReply({ content: mapError(error) });
   }
 }
 
-export async function onTicketsChannelDelete(
-  channelId: string,
-): Promise<void> {
+export async function onTicketsChannelDelete(channelId: string): Promise<void> {
   await onTicketChannelDeleted(channelId);
 }
 

@@ -1,16 +1,16 @@
-import {
-  ChannelType,
-  DiscordAPIError,
-  EmbedBuilder,
-  type AttachmentBuilder,
-  type Channel,
-  type Client,
-  type TextChannel,
-} from "discord.js";
 import type { ScheduledEmbedData, ScheduledMessage } from "@adobos/shared";
 import { computeNextRunAt, isScheduledOneShot } from "@adobos/shared";
-import { resolveEmbedMedia } from "../../lib/embedMedia.js";
+import {
+  type AttachmentBuilder,
+  type Channel,
+  ChannelType,
+  type Client,
+  DiscordAPIError,
+  EmbedBuilder,
+  type TextChannel,
+} from "discord.js";
 import { logger } from "../../core/log.js";
+import { resolveEmbedMedia } from "../../lib/embedMedia.js";
 import {
   applyScheduledMessageTick,
   backfillScheduledNextRuns,
@@ -143,9 +143,7 @@ async function deliverScheduledMessage(
   }
 }
 
-async function deactivateInvalid(
-  message: ScheduledMessage,
-): Promise<void> {
+async function deactivateInvalid(message: ScheduledMessage): Promise<void> {
   await applyScheduledMessageTick(message.id, message.guildId, {
     isActive: false,
     nextRunAt: null,
@@ -243,7 +241,9 @@ export async function processDueScheduledMessages(): Promise<number> {
         nextRunAt: after.nextRunAt,
       });
       if (isScheduledOneShot(fresh.frequency)) {
-        logger.info(`scheduled-messages: one-shot enviado y pausado (id=${fresh.id})`);
+        logger.info(
+          `scheduled-messages: one-shot enviado y pausado (id=${fresh.id})`,
+        );
       }
     } catch (error) {
       logger.warn(
@@ -262,6 +262,9 @@ export async function rehydrateScheduledMessages(): Promise<void> {
   try {
     await backfillScheduledNextRuns();
   } catch (error) {
-    logger.warn({ err: error }, "scheduled-messages: backfill next_run_at failed");
+    logger.warn(
+      { err: error },
+      "scheduled-messages: backfill next_run_at failed",
+    );
   }
 }

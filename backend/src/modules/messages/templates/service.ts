@@ -1,13 +1,13 @@
-import { and, desc, eq } from "drizzle-orm";
 import {
-  sanitizeEmbedFields,
-  sanitizeLinkActionRows,
   type EmbedPayload,
   type EmbedTemplateDetail,
   type EmbedTemplateListResponse,
   type SaveEmbedTemplateRequest,
   type SaveEmbedTemplateResponse,
+  sanitizeEmbedFields,
+  sanitizeLinkActionRows,
 } from "@adobos/shared";
+import { and, desc, eq } from "drizzle-orm";
 import { getDb, one } from "../../../db/client.js";
 import { embedTemplates, guildSettings } from "../../../db/schema.js";
 
@@ -25,40 +25,31 @@ export class EmbedTemplateError extends Error {
 function assertSnowflake(value: string, field: string): string {
   const trimmed = value.trim();
   if (!/^\d{17,20}$/.test(trimmed)) {
-    throw new EmbedTemplateError(
-      `Invalid ${field}.`,
-      400,
-      "INVALID_IDS",
-    );
+    throw new EmbedTemplateError(`Invalid ${field}.`, 400, "INVALID_IDS");
   }
   return trimmed;
 }
 
 function resolveGuildId(guildIdRaw?: string): string {
-  return assertSnowflake(
-    guildIdRaw?.trim() || "",
-    "guildId",
-  );
+  return assertSnowflake(guildIdRaw?.trim() || "", "guildId");
 }
 
 async function ensureGuildRow(guildId: string): Promise<void> {
   const db = getDb();
   const existing = await one(
     db
-    .select()
-    .from(guildSettings)
-    .where(eq(guildSettings.guildId, guildId))
-    .limit(1)
+      .select()
+      .from(guildSettings)
+      .where(eq(guildSettings.guildId, guildId))
+      .limit(1),
   );
   if (!existing) {
-    await db.insert(guildSettings)
-      .values({
-        guildId,
-        prefix: "!",
-        welcomeEnabled: false,
-        updatedAt: new Date(),
-      })
-      ;
+    await db.insert(guildSettings).values({
+      guildId,
+      prefix: "!",
+      welcomeEnabled: false,
+      updatedAt: new Date(),
+    });
   }
 }
 
@@ -173,8 +164,7 @@ export async function listEmbedTemplates(
     .select()
     .from(embedTemplates)
     .where(eq(embedTemplates.guildId, guildId))
-    .orderBy(desc(embedTemplates.updatedAt))
-    ;
+    .orderBy(desc(embedTemplates.updatedAt));
 
   return {
     templates: rows.map((row) => {
@@ -195,13 +185,15 @@ export async function getEmbedTemplate(
   guildIdRaw?: string,
 ): Promise<EmbedTemplateDetail> {
   const guildId = resolveGuildId(guildIdRaw);
-  const row = await one(getDb()
-    .select()
-    .from(embedTemplates)
-    .where(
-      and(eq(embedTemplates.id, id), eq(embedTemplates.guildId, guildId)),
-    )
-    .limit(1));
+  const row = await one(
+    getDb()
+      .select()
+      .from(embedTemplates)
+      .where(
+        and(eq(embedTemplates.id, id), eq(embedTemplates.guildId, guildId)),
+      )
+      .limit(1),
+  );
 
   if (!row) {
     throw new EmbedTemplateError(
@@ -235,9 +227,7 @@ export async function saveEmbedTemplate(
 
   const merged: EmbedPayload = {
     ...(input.embedData ?? {}),
-    ...(uploadedPaths?.imageUrl
-      ? { imageUrl: uploadedPaths.imageUrl }
-      : {}),
+    ...(uploadedPaths?.imageUrl ? { imageUrl: uploadedPaths.imageUrl } : {}),
     ...(uploadedPaths?.thumbnailUrl
       ? { thumbnailUrl: uploadedPaths.thumbnailUrl }
       : {}),
@@ -334,13 +324,15 @@ export async function deleteEmbedTemplate(
     throw new EmbedTemplateError("Invalid id.", 400, "INVALID_ID");
   }
 
-  const existing = await one(getDb()
-    .select()
-    .from(embedTemplates)
-    .where(
-      and(eq(embedTemplates.id, id), eq(embedTemplates.guildId, guildId)),
-    )
-    .limit(1));
+  const existing = await one(
+    getDb()
+      .select()
+      .from(embedTemplates)
+      .where(
+        and(eq(embedTemplates.id, id), eq(embedTemplates.guildId, guildId)),
+      )
+      .limit(1),
+  );
 
   if (!existing) {
     throw new EmbedTemplateError(
@@ -352,8 +344,6 @@ export async function deleteEmbedTemplate(
 
   await getDb()
     .delete(embedTemplates)
-    .where(
-      and(eq(embedTemplates.id, id), eq(embedTemplates.guildId, guildId)),
-    );
+    .where(and(eq(embedTemplates.id, id), eq(embedTemplates.guildId, guildId)));
   return { ok: true };
 }

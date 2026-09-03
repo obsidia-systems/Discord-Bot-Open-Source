@@ -1,9 +1,9 @@
-import type { Message } from "discord.js";
 import {
   applyAutoReplyTokens,
   isAutoReplyOnCooldown,
   pickMatchingAutoReply,
 } from "@adobos/shared";
+import type { Message } from "discord.js";
 import { logger } from "../../core/log.js";
 import { listAutoRepliesCached } from "./service.js";
 
@@ -29,7 +29,9 @@ function pruneLastFired(now: number): void {
   }
 }
 
-export async function onAutoReplyMessageCreate(message: Message): Promise<void> {
+export async function onAutoReplyMessageCreate(
+  message: Message,
+): Promise<void> {
   try {
     await handleAutoReply(message);
   } catch (error: unknown) {
@@ -52,7 +54,13 @@ async function handleAutoReply(message: Message): Promise<void> {
 
   const now = Date.now();
   const key = cooldownKey(message.guild.id, match.id, message.author.id);
-  if (isAutoReplyOnCooldown(lastFired.get(key) ?? null, match.cooldownSeconds, now)) {
+  if (
+    isAutoReplyOnCooldown(
+      lastFired.get(key) ?? null,
+      match.cooldownSeconds,
+      now,
+    )
+  ) {
     return;
   }
 

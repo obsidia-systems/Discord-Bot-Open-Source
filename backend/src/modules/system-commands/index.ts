@@ -1,5 +1,6 @@
-import { GatewayIntentBits, MessageFlags } from "discord.js";
 import { SYSTEM_COMMAND_CATALOG } from "@adobos/shared";
+import { GatewayIntentBits, MessageFlags } from "discord.js";
+import { logger } from "../../core/log.js";
 import type { AdobosModule } from "../../core/modules/types.js";
 import { handleBuyAutocomplete } from "../economy/commands/buy.js";
 import { handleUseAutocomplete } from "../economy/commands/inventory.js";
@@ -7,7 +8,6 @@ import { systemCommandsRoutes } from "./api/routes.js";
 import { assertSystemCommandAllowed } from "./guard.js";
 import { dispatchDefaultCommand } from "./handlers/index.js";
 import { syncGlobalCommands } from "./sync.js";
-import { logger } from "../../core/log.js";
 
 export const systemCommandsModule: AdobosModule = {
   id: "system-commands",
@@ -40,24 +40,28 @@ export const systemCommandsModule: AdobosModule = {
       try {
         await syncGlobalCommands(ctx.client);
       } catch (error) {
-        logger.warn({ err: error }, "system-commands: global slash sync failed");
+        logger.warn(
+          { err: error },
+          "system-commands: global slash sync failed",
+        );
       }
     });
   },
 };
 
 export {
-  SystemCommandsError,
-  getCommandPermission,
-  listSystemCommandConfigs,
-  updateSystemCommandPermissions,
-} from "./service.js";
-export { assertSystemCommandAllowed } from "./guard.js";
-export {
   consumeInteractionEphemeral,
   peekInteractionEphemeral,
   setInteractionEphemeral,
 } from "./ephemeral.js";
+export { assertSystemCommandAllowed } from "./guard.js";
+export { dispatchDefaultCommand } from "./handlers/index.js";
+export {
+  getCommandPermission,
+  listSystemCommandConfigs,
+  SystemCommandsError,
+  updateSystemCommandPermissions,
+} from "./service.js";
 export {
   buildEnabledDefaultSlashBodies,
   buildGlobalDefaultSlashBodies,
@@ -65,4 +69,3 @@ export {
   syncDefaultCommands,
   syncGlobalCommands,
 } from "./sync.js";
-export { dispatchDefaultCommand } from "./handlers/index.js";

@@ -1,5 +1,5 @@
-import type { Channel, Client, SendableChannels } from "discord.js";
 import { isWelcomeSendChannelType } from "@adobos/shared";
+import type { Channel, Client, SendableChannels } from "discord.js";
 import { HttpError } from "../../core/http/httpError.js";
 
 export function isWelcomeSendChannel(

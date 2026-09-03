@@ -15,9 +15,9 @@ import {
   normalizeScheduledTimezone,
 } from "@adobos/shared";
 import { and, asc, count, desc, eq, isNotNull, lte } from "drizzle-orm";
+import { assertWithinLimit } from "../../core/entitlements/service.js";
 import { getDb, one } from "../../db/client.js";
 import { guildSettings, scheduledMessages } from "../../db/schema.js";
-import { assertWithinLimit } from "../../core/entitlements/service.js";
 
 export class ScheduledMessagesError extends Error {
   constructor(
@@ -121,9 +121,7 @@ function rowToMessage(
   };
 }
 
-function lastSentDate(message: {
-  lastSentAt: string | null;
-}): Date | null {
+function lastSentDate(message: { lastSentAt: string | null }): Date | null {
   return message.lastSentAt ? new Date(message.lastSentAt) : null;
 }
 

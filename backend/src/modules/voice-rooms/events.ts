@@ -1,7 +1,7 @@
-import { type Guild, type GuildMember, type VoiceState } from "discord.js";
 import { VOICE_ROOM_EMPTY_GRACE_MS } from "@adobos/shared";
-import type { ModuleContext } from "../../core/modules/types.js";
+import type { Guild, GuildMember, VoiceState } from "discord.js";
 import { logger } from "../../core/log.js";
+import type { ModuleContext } from "../../core/modules/types.js";
 import {
   createOwnedRoom,
   destroyVoicePair,
@@ -128,7 +128,9 @@ async function handleVoiceState(
   }
 }
 
-export async function reconcileVoiceRooms(bot: import("discord.js").Client): Promise<void> {
+export async function reconcileVoiceRooms(
+  bot: import("discord.js").Client,
+): Promise<void> {
   if (!bot.isReady()) return;
   for (const guild of bot.guilds.cache.values()) {
     const rooms = await listGuildRooms(guild.id);

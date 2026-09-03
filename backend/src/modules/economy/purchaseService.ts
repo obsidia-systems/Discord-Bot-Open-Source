@@ -7,11 +7,12 @@ import { applyShopNameTemplate, durationToMinutes } from "@adobos/shared";
 import {
   ChannelType,
   EmbedBuilder,
-  PermissionFlagsBits,
   type Guild,
   type GuildMember,
+  PermissionFlagsBits,
   type TextChannel,
 } from "discord.js";
+import { logger } from "../../core/log.js";
 import { getDb } from "../../db/client.js";
 import {
   economyOwnedChannels,
@@ -20,10 +21,9 @@ import {
   economyUserBoosts,
 } from "../../db/schema.js";
 import { getLevelsConfig } from "../levels/service.js";
-import { EconomyError, getEconomyConfig } from "./service.js";
 import { debitShopPurchase, refundShopPurchase } from "./funds.js";
+import { EconomyError, getEconomyConfig } from "./service.js";
 import { getShopItem } from "./shopService.js";
-import { logger } from "../../core/log.js";
 
 const PRIVATE_CATEGORY_NAME = "Private Zones";
 
@@ -69,20 +69,17 @@ async function fulfillRole(
     );
   }
 
-  await getDb()
-    .insert(economyOwnedRoles)
-    .values({
-      id: crypto.randomUUID(),
-      guildId: guild.id,
-      userId: member.id,
-      roleId: role.id,
-      itemId: item.id,
-      purchaseId,
-      expiresAt,
-      deleteRoleOnExpire: false,
-      createdAt: new Date(),
-    })
-    ;
+  await getDb().insert(economyOwnedRoles).values({
+    id: crypto.randomUUID(),
+    guildId: guild.id,
+    userId: member.id,
+    roleId: role.id,
+    itemId: item.id,
+    purchaseId,
+    expiresAt,
+    deleteRoleOnExpire: false,
+    createdAt: new Date(),
+  });
 
   return {
     meta: {
@@ -142,19 +139,16 @@ async function fulfillChannel(
     );
   }
 
-  await getDb()
-    .insert(economyOwnedChannels)
-    .values({
-      id: crypto.randomUUID(),
-      guildId: guild.id,
-      userId: member.id,
-      channelId: channel.id,
-      itemId: item.id,
-      purchaseId,
-      expiresAt,
-      createdAt: new Date(),
-    })
-    ;
+  await getDb().insert(economyOwnedChannels).values({
+    id: crypto.randomUUID(),
+    guildId: guild.id,
+    userId: member.id,
+    channelId: channel.id,
+    itemId: item.id,
+    purchaseId,
+    expiresAt,
+    createdAt: new Date(),
+  });
 
   return {
     meta: {
@@ -204,8 +198,7 @@ async function fulfillBoost(
       expiresAt,
       purchaseId,
       createdAt: new Date(),
-    })
-    ;
+    });
 
   return {
     meta: {
@@ -299,7 +292,10 @@ async function fulfillManual(
   };
 }
 
-async function preflightRewards(guildId: string, rewards: EconomyShopRewards): Promise<void> {
+async function preflightRewards(
+  guildId: string,
+  rewards: EconomyShopRewards,
+): Promise<void> {
   if (rewards.hasBoost && rewards.boostConfig.module === "xp") {
     const levels = await getLevelsConfig(guildId);
     if (!levels.enabled) {
@@ -404,8 +400,7 @@ export async function purchaseShopItem(
           results,
         }),
         createdAt: new Date(),
-      })
-      ;
+      });
 
     throw error;
   }
@@ -425,8 +420,7 @@ export async function purchaseShopItem(
       status,
       metadata: JSON.stringify(metadata),
       createdAt: new Date(),
-    })
-    ;
+    });
 
   return {
     purchaseId,

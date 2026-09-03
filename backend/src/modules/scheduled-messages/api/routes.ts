@@ -1,14 +1,13 @@
 import { ChannelType, type Client } from "discord.js";
 import { Router } from "express";
-import { guildIdOf } from "../../../core/http/guildContext.js";
 import { fetchChannelInGuild } from "../../../core/http/channelScope.js";
-import { parse } from "../../../core/http/validate.js";
+import { guildIdOf } from "../../../core/http/guildContext.js";
 import { recordId } from "../../../core/http/schemas.js";
+import { parse } from "../../../core/http/validate.js";
 import {
-  createScheduledMessageSchema,
-  toggleScheduledSchema,
-  updateScheduledMessageSchema,
-} from "./schema.js";
+  isScheduledDestinationChannel,
+  sendScheduledMessageNow,
+} from "../scheduler.js";
 import {
   createScheduledMessage,
   deleteScheduledMessage,
@@ -19,9 +18,10 @@ import {
   updateScheduledMessage,
 } from "../service.js";
 import {
-  isScheduledDestinationChannel,
-  sendScheduledMessageNow,
-} from "../scheduler.js";
+  createScheduledMessageSchema,
+  toggleScheduledSchema,
+  updateScheduledMessageSchema,
+} from "./schema.js";
 
 function parseMessageId(raw: string): number {
   return parse(recordId, raw);
@@ -119,10 +119,7 @@ export function scheduledMessagesRoutes(bot: Client): Router {
   router.post("/:id/send-now", async (req, res, next) => {
     try {
       const messageId = parseMessageId(req.params.id);
-      const message = await sendScheduledMessageNow(
-        messageId,
-        guildIdOf(req),
-      );
+      const message = await sendScheduledMessageNow(messageId, guildIdOf(req));
       res.json({ message });
     } catch (error) {
       next(error);

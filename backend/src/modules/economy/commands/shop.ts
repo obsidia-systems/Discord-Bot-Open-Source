@@ -1,3 +1,5 @@
+import type { EconomyShopItem } from "@adobos/shared";
+import { summarizeShopRewards } from "@adobos/shared";
 import type {
   ButtonInteraction,
   ChatInputCommandInteraction,
@@ -8,8 +10,6 @@ import {
   ButtonStyle,
   EmbedBuilder,
 } from "discord.js";
-import type { EconomyShopItem } from "@adobos/shared";
-import { summarizeShopRewards } from "@adobos/shared";
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
 import { getEconomyConfig } from "../service.js";
 import { listShopItems } from "../shopService.js";
@@ -34,8 +34,7 @@ function formatItemBlock(item: EconomyShopItem, currency: string): string {
   const icon = (item.icon || "").trim();
   const namePrefix = icon && !isImageIcon(icon) ? `${icon} ` : "🛒 ";
   const benefits = summarizeShopRewards(item.rewards);
-  const benefitsLabel =
-    benefits.length > 0 ? benefits.join(", ") : "None";
+  const benefitsLabel = benefits.length > 0 ? benefits.join(", ") : "None";
 
   let desc = (item.description || "No description.")
     .replace(/\s+/g, " ")

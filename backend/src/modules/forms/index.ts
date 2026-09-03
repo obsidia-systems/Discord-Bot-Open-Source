@@ -1,11 +1,11 @@
-import { GatewayIntentBits } from "discord.js";
-import type { AdobosModule } from "../../core/modules/types.js";
 import {
   FORM_ACCEPT_PREFIX,
   FORM_DENY_PREFIX,
   FORM_OPEN_PREFIX,
   FORM_SUBMIT_PREFIX,
 } from "@adobos/shared";
+import { GatewayIntentBits } from "discord.js";
+import type { AdobosModule } from "../../core/modules/types.js";
 import { formsRoutes } from "./api/routes.js";
 import {
   onFormsModalSubmit,
@@ -38,10 +38,11 @@ export const formsModule: AdobosModule = {
   },
 };
 
+export { publishFormMessage } from "./publish.js";
 export {
-  FormsError,
   createForm,
   deleteForm,
+  FormsError,
   getForm,
   getFormById,
   invalidateFormsCache,
@@ -50,4 +51,3 @@ export {
   listForms,
   updateForm,
 } from "./service.js";
-export { publishFormMessage } from "./publish.js";

@@ -1,6 +1,6 @@
+import { SYSTEM_COMMAND_CATALOG } from "@adobos/shared";
 import type { ChatInputCommandInteraction, GuildMember } from "discord.js";
 import { EmbedBuilder, PermissionFlagsBits } from "discord.js";
-import { SYSTEM_COMMAND_CATALOG } from "@adobos/shared";
 import { consumeInteractionEphemeral } from "../ephemeral.js";
 import { getCommandPermission } from "../service.js";
 
@@ -117,10 +117,7 @@ export async function handleHelpCommand(
         : "No commands are enabled.",
     )
     .setFooter({
-      text:
-        lines.length > 40
-          ? `Showing 40 of ${lines.length}`
-          : "Adobos Bot",
+      text: lines.length > 40 ? `Showing 40 of ${lines.length}` : "Adobos Bot",
     });
 
   await interaction.reply({ embeds: [embed], ephemeral });

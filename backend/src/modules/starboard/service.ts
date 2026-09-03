@@ -1,4 +1,3 @@
-import { and, count, eq } from "drizzle-orm";
 import type {
   StarboardConfigResponse,
   StarboardPost,
@@ -11,13 +10,14 @@ import {
   normalizeIgnoreChannelIds,
   normalizeStarboardEmojis,
 } from "@adobos/shared";
+import { and, count, eq } from "drizzle-orm";
 import { getDb, one } from "../../db/client.js";
 import {
   guildSettings,
-  starboardPosts,
-  starboardSettings,
   type StarboardPostRow,
   type StarboardSettingsRow,
+  starboardPosts,
+  starboardSettings,
 } from "../../db/schema.js";
 
 export class StarboardError extends Error {
@@ -141,8 +141,7 @@ export async function updateStarboardSettings(
     input.threshold === undefined
       ? current.threshold
       : clampStarboardThreshold(input.threshold);
-  const enabled =
-    input.enabled === undefined ? current.enabled : input.enabled;
+  const enabled = input.enabled === undefined ? current.enabled : input.enabled;
   const allowSelfStar =
     input.allowSelfStar === undefined
       ? current.allowSelfStar

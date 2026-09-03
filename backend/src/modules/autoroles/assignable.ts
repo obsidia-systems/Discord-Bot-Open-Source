@@ -1,10 +1,10 @@
-import type { Client, Guild, Role } from "discord.js";
 import {
-  autoroleAssignDenyReason,
-  canAssignAutorole,
   type AutoroleAssignDenyReason,
   type AutoroleRoleSnapshot,
+  autoroleAssignDenyReason,
+  canAssignAutorole,
 } from "@adobos/shared";
+import type { Client, Guild, Role } from "discord.js";
 import { AutoRoleError } from "./errors.js";
 
 function snapshot(role: Role): AutoroleRoleSnapshot {

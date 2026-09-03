@@ -1,6 +1,6 @@
 import type { ChatInputCommandInteraction } from "discord.js";
-import { consumeInteractionEphemeral } from "../ephemeral.js";
 import { logger } from "../../../core/log.js";
+import { consumeInteractionEphemeral } from "../ephemeral.js";
 
 /** Stub genérico mientras se implementa la lógica de negocio. */
 export async function stubCommand(

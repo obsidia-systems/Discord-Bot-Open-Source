@@ -1,13 +1,10 @@
-import { Router } from "express";
+import type { CanvasEventType } from "@adobos/shared";
 import type { Client } from "discord.js";
+import { Router } from "express";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { parse } from "../../../core/http/validate.js";
+import { getCanvasEventSettings, saveCanvasEventSettings } from "../service.js";
 import { saveCanvasEventSettingsSchema } from "./schema.js";
-import type { CanvasEventType } from "@adobos/shared";
-import {
-  getCanvasEventSettings,
-  saveCanvasEventSettings,
-} from "../service.js";
 
 export function canvasEventSettingsRoutes(
   eventType: CanvasEventType,

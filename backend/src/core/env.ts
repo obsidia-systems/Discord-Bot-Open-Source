@@ -24,6 +24,7 @@ const envSchema = z.object({
   ADOBO_ROLE: z.string().default("all"),
   SERVE_STATIC: z.string().optional(),
   STATIC_DIR: z.string().optional(),
+  CSP_REPORT_ONLY: z.string().optional(),
   LOG_LEVEL: z.string().optional(),
   LOG_PRETTY: z.string().optional(),
   SHARD_COUNT: z.string().optional(),
@@ -47,6 +48,7 @@ export interface AppEnv {
   ADOBO_ROLE: AdobosRole;
   SERVE_STATIC: boolean;
   STATIC_DIR?: string;
+  CSP_REPORT_ONLY?: string;
   LOG_LEVEL?: string;
   LOG_PRETTY?: string;
   SHARD_COUNT?: string;
@@ -100,6 +102,7 @@ export function loadEnv(): AppEnv {
     ADOBO_ROLE: raw.ADOBO_ROLE,
     SERVE_STATIC: parseServeStatic(raw.SERVE_STATIC),
     STATIC_DIR: raw.STATIC_DIR,
+    CSP_REPORT_ONLY: raw.CSP_REPORT_ONLY,
     LOG_LEVEL: raw.LOG_LEVEL,
     LOG_PRETTY: raw.LOG_PRETTY,
     SHARD_COUNT: raw.SHARD_COUNT,

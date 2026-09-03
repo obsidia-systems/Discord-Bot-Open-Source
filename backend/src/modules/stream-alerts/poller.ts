@@ -1,30 +1,30 @@
-import {
-  ChannelType,
-  EmbedBuilder,
-  type Client,
-  type TextBasedChannel,
-} from "discord.js";
 import type { StreamAlert, StreamLiveSnapshot } from "@adobos/shared";
 import {
   renderStreamAlertTemplate,
-  shouldAnnounceLive,
-  shouldPollStreamAlert,
   STREAM_ALERT_EMBED_COLOR,
   STREAM_ALERT_PLATFORM_LABEL,
+  shouldAnnounceLive,
+  shouldPollStreamAlert,
   streamAlertMentionPrefix,
 } from "@adobos/shared";
-import { logger } from "../../core/log.js";
 import {
-  applyStreamLiveState,
-  listEnabledStreamAlerts,
-  touchStreamAlertChecked,
-} from "./service.js";
+  ChannelType,
+  type Client,
+  EmbedBuilder,
+  type TextBasedChannel,
+} from "discord.js";
+import { logger } from "../../core/log.js";
 import {
   fetchKickLive,
   fetchTwitchLiveMap,
   fetchYouTubeLive,
   offlineSnapshot,
 } from "./providers.js";
+import {
+  applyStreamLiveState,
+  listEnabledStreamAlerts,
+  touchStreamAlertChecked,
+} from "./service.js";
 
 let botClient: Client | null = null;
 const inFlight = new Set<number>();
@@ -128,9 +128,7 @@ async function applySnapshot(
   return announced;
 }
 
-export async function processStreamAlerts(
-  nowMs = Date.now(),
-): Promise<number> {
+export async function processStreamAlerts(nowMs = Date.now()): Promise<number> {
   const client = botClient;
   if (!client?.isReady()) return 0;
 

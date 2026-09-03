@@ -1,14 +1,11 @@
-import multer from "multer";
-import { Router } from "express";
 import type { Client } from "discord.js";
-import { guildIdOf } from "../../../core/http/guildContext.js";
+import { Router } from "express";
+import multer from "multer";
 import { requireFeature } from "../../../core/entitlements/service.js";
+import { guildIdOf } from "../../../core/http/guildContext.js";
 import { parse } from "../../../core/http/validate.js";
+import { getGuildBotProfile, updateGuildBotProfile } from "../service.js";
 import { updateBotGuildProfileSchema } from "./schema.js";
-import {
-  getGuildBotProfile,
-  updateGuildBotProfile,
-} from "../service.js";
 
 const ALLOWED_MIME = new Set([
   "image/png",
@@ -36,8 +33,7 @@ export function botProfileRoutes(bot: Client): Router {
   const router = Router();
 
   router.get("/", async (req, res, next) => {
-    const guildId =
-      guildIdOf(req);
+    const guildId = guildIdOf(req);
     try {
       res.json(await getGuildBotProfile(bot, guildId));
     } catch (error: unknown) {

@@ -1,13 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  createCanvas,
-  loadImage,
-  GlobalFonts,
-  type Image,
-  type SKRSContext2D,
-} from "@napi-rs/canvas";
 import type { WelcomeTextLayer } from "@adobos/shared";
 import {
   isWelcomeRemoteBackground,
@@ -18,8 +11,15 @@ import {
   WELCOME_FONT_SIZE_MAX,
   WELCOME_FONT_SIZE_MIN,
 } from "@adobos/shared";
-import { resolvePublicUploadPath } from "../../../lib/dataPaths.js";
+import {
+  createCanvas,
+  GlobalFonts,
+  type Image,
+  loadImage,
+  type SKRSContext2D,
+} from "@napi-rs/canvas";
 import { logger } from "../../../core/log.js";
+import { resolvePublicUploadPath } from "../../../lib/dataPaths.js";
 
 /** Lienzo fijo 1920×1080 (coincide con sliders del panel). */
 export const CARD_WIDTH = WELCOME_CARD_WIDTH;
@@ -151,7 +151,11 @@ function normalizeHexColor(raw?: string): string {
 function legacyLayersFromOptions(
   options: BuildWelcomeCardOptions,
 ): WelcomeTextLayer[] {
-  const fontSize = clamp(toInt(options.fontSize, 64), WELCOME_FONT_SIZE_MIN, WELCOME_FONT_SIZE_MAX);
+  const fontSize = clamp(
+    toInt(options.fontSize, 64),
+    WELCOME_FONT_SIZE_MIN,
+    WELCOME_FONT_SIZE_MAX,
+  );
   const textX = clamp(toInt(options.textX, CARD_WIDTH / 2), 0, CARD_WIDTH);
   const textY = clamp(toInt(options.textY, 560), 0, CARD_HEIGHT);
   const color = normalizeHexColor(options.textColor);
@@ -263,10 +267,7 @@ function drawCircularAvatar(
   }
 }
 
-function drawTextLayers(
-  ctx: SKRSContext2D,
-  layers: WelcomeTextLayer[],
-): void {
+function drawTextLayers(ctx: SKRSContext2D, layers: WelcomeTextLayer[]): void {
   for (const layer of layers) {
     const text = layer.text.trim();
     if (!text) continue;

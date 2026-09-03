@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { evaluateHand, type PlayingCard } from "./cards.js";
-import { blackjackCredit, coinflipPayout, resolveRouletteBet } from "./payouts.js";
+import {
+  blackjackCredit,
+  coinflipPayout,
+  resolveRouletteBet,
+} from "./payouts.js";
 
 function card(rank: PlayingCard["rank"]): PlayingCard {
   return { rank, suit: "hearts" };
@@ -15,24 +19,24 @@ describe("coinflipPayout", () => {
 
 describe("resolveRouletteBet", () => {
   it("green and number 0 land in the same pocket", () => {
-    expect(resolveRouletteBet({ type: "green", numberValue: null, spun: 0 }).won).toBe(
-      true,
-    );
-    expect(resolveRouletteBet({ type: "number", numberValue: 0, spun: 0 }).won).toBe(
-      true,
-    );
-    expect(resolveRouletteBet({ type: "red", numberValue: null, spun: 0 }).won).toBe(
-      false,
-    );
+    expect(
+      resolveRouletteBet({ type: "green", numberValue: null, spun: 0 }).won,
+    ).toBe(true);
+    expect(
+      resolveRouletteBet({ type: "number", numberValue: 0, spun: 0 }).won,
+    ).toBe(true);
+    expect(
+      resolveRouletteBet({ type: "red", numberValue: null, spun: 0 }).won,
+    ).toBe(false);
   });
 
   it("red 1 wins color and loses straight 2", () => {
-    expect(resolveRouletteBet({ type: "red", numberValue: null, spun: 1 }).won).toBe(
-      true,
-    );
-    expect(resolveRouletteBet({ type: "number", numberValue: 2, spun: 1 }).won).toBe(
-      false,
-    );
+    expect(
+      resolveRouletteBet({ type: "red", numberValue: null, spun: 1 }).won,
+    ).toBe(true);
+    expect(
+      resolveRouletteBet({ type: "number", numberValue: 2, spun: 1 }).won,
+    ).toBe(false);
   });
 });
 

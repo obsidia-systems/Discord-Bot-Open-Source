@@ -14,10 +14,14 @@ import {
   normalizeWarnDecayDays,
 } from "@adobos/shared";
 import { and, eq, gte, sql } from "drizzle-orm";
-import { getDb, one } from "../../db/client.js";
-import { autoModConfig, guildSettings, warnings } from "../../db/schema.js";
-import { actionLogsConfig } from "../../db/schema.js";
 import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
+import { getDb, one } from "../../db/client.js";
+import {
+  actionLogsConfig,
+  autoModConfig,
+  guildSettings,
+  warnings,
+} from "../../db/schema.js";
 
 export class AutoModError extends Error {
   constructor(
@@ -44,31 +48,26 @@ function parseJson<T>(raw: string | null | undefined, fallback: T): T {
 function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new AutoModError(
-      "Missing guildId.",
-      400,
-      "MISSING_GUILD_ID",
-    );
+    throw new AutoModError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
   return id;
 }
 
 async function ensureGuildRow(guildId: string): Promise<void> {
-  const existing = await one(getDb()
-    .select({ guildId: guildSettings.guildId })
-    .from(guildSettings)
-    .where(eq(guildSettings.guildId, guildId))
-    .limit(1));
+  const existing = await one(
+    getDb()
+      .select({ guildId: guildSettings.guildId })
+      .from(guildSettings)
+      .where(eq(guildSettings.guildId, guildId))
+      .limit(1),
+  );
   if (!existing) {
-    await getDb()
-      .insert(guildSettings)
-      .values({
-        guildId,
-        prefix: "!",
-        welcomeEnabled: false,
-        updatedAt: new Date(),
-      })
-      ;
+    await getDb().insert(guildSettings).values({
+      guildId,
+      prefix: "!",
+      welcomeEnabled: false,
+      updatedAt: new Date(),
+    });
   }
 }
 
@@ -166,9 +165,7 @@ function rowToConfig(
     warnOnHit: row.warnOnHit !== false,
     dmOnHit: row.dmOnHit !== false,
     skipStaff: Boolean(row.skipStaff),
-    punishments: normalizeAutoModPunishments(
-      parseJson(row.punishments, []),
-    ),
+    punishments: normalizeAutoModPunishments(parseJson(row.punishments, [])),
     updatedAt: new Date(row.updatedAt).toISOString(),
   };
 }
@@ -182,7 +179,9 @@ export function invalidateAutoModConfigCache(guildId?: string): void {
 }
 
 /** Lectura con caché en memoria; se invalida al guardar desde el Dashboard. */
-export async function getAutoModConfigCached(guildId?: string): Promise<AutoModConfig> {
+export async function getAutoModConfigCached(
+  guildId?: string,
+): Promise<AutoModConfig> {
   const id = resolveGuildId(guildId);
   const cached = configCache.get(id);
   if (cached) return cached;
@@ -192,13 +191,17 @@ export async function getAutoModConfigCached(guildId?: string): Promise<AutoModC
   return config;
 }
 
-export async function getAutoModConfig(guildId?: string): Promise<AutoModConfig> {
+export async function getAutoModConfig(
+  guildId?: string,
+): Promise<AutoModConfig> {
   const id = resolveGuildId(guildId);
-  const row = await one(getDb()
-    .select()
-    .from(autoModConfig)
-    .where(eq(autoModConfig.guildId, id))
-    .limit(1));
+  const row = await one(
+    getDb()
+      .select()
+      .from(autoModConfig)
+      .where(eq(autoModConfig.guildId, id))
+      .limit(1),
+  );
   return await rowToConfig(id, row);
 }
 
@@ -269,8 +272,7 @@ export async function updateAutoModConfig(
         punishments: JSON.stringify(next.punishments),
         updatedAt: new Date(),
       },
-    })
-    ;
+    });
 
   invalidateAutoModConfigCache(id);
   // Recalentar caché con la config ya mergeada (evita race en messageCreate).
@@ -280,15 +282,19 @@ export async function updateAutoModConfig(
 }
 
 /** Cascada: Auto Mod log → Action Logs global → null. */
-export async function resolveAutoModLogChannelId(guildId: string): Promise<string | null> {
+export async function resolveAutoModLogChannelId(
+  guildId: string,
+): Promise<string | null> {
   const auto = await getAutoModConfigCached(guildId);
   if (auto.logChannelId?.trim()) return auto.logChannelId.trim();
 
-  const actionRow = await one(getDb()
-    .select({ globalChannelId: actionLogsConfig.globalChannelId })
-    .from(actionLogsConfig)
-    .where(eq(actionLogsConfig.guildId, guildId))
-    .limit(1));
+  const actionRow = await one(
+    getDb()
+      .select({ globalChannelId: actionLogsConfig.globalChannelId })
+      .from(actionLogsConfig)
+      .where(eq(actionLogsConfig.guildId, guildId))
+      .limit(1),
+  );
   const fallback = actionRow?.globalChannelId?.trim();
   return fallback || null;
 }
@@ -307,10 +313,12 @@ export async function countActiveWarns(
     const cutoff = new Date(Date.now() - warnDecayDays * 24 * 60 * 60 * 1000);
     conditions.push(gte(warnings.createdAt, cutoff));
   }
-  const row = await one(getDb()
-    .select({ count: sql<number>`count(*)` })
-    .from(warnings)
-    .where(and(...conditions))
-    .limit(1));
+  const row = await one(
+    getDb()
+      .select({ count: sql<number>`count(*)` })
+      .from(warnings)
+      .where(and(...conditions))
+      .limit(1),
+  );
   return Number(row?.count ?? 0);
 }

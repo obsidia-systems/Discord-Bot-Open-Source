@@ -1,32 +1,32 @@
+import { applyEconomyMessageTemplate } from "@adobos/shared";
 import {
   ActionRowBuilder,
   ButtonBuilder,
-  ButtonStyle,
-  EmbedBuilder,
   type ButtonInteraction,
+  ButtonStyle,
   type ChatInputCommandInteraction,
   type Client,
+  EmbedBuilder,
 } from "discord.js";
-import { applyEconomyMessageTemplate } from "@adobos/shared";
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
-import { assertCooldownAvailable, setCooldownMs } from "../cooldowns.js";
 import { coinflipPayout } from "../casino/payouts.js";
 import { flipCoin } from "../casino/rng.js";
+import { assertCooldownAvailable, setCooldownMs } from "../cooldowns.js";
 import { creditWallet, debitWalletStrict } from "../funds.js";
 import { EconomyError, getUserEconomyBalance } from "../service.js";
-import { EPHEMERAL, visibility } from "./visibility.js";
 import {
-  LOSE,
-  TABLE_IDLE_MS,
-  WIN,
   assertEconomyAndCasino,
   clearMessageComponents,
   currencyOf,
+  LOSE,
   parseOwnerCustomId,
   playAgainRow,
   replyCasinoError,
+  TABLE_IDLE_MS,
   tableKey,
+  WIN,
 } from "./casinoCommon.js";
+import { EPHEMERAL, visibility } from "./visibility.js";
 
 export const CF_BUTTON_PREFIX = "cf_";
 
@@ -89,7 +89,10 @@ async function resolveFlip(input: {
 }): Promise<{
   embed: EmbedBuilder;
 }> {
-  const { economy, casino } = await assertEconomyAndCasino(input.guildId, input.bet);
+  const { economy, casino } = await assertEconomyAndCasino(
+    input.guildId,
+    input.bet,
+  );
   await assertCooldownAvailable(input.guildId, input.userId, "coinflip");
   await debitWalletStrict(input.guildId, input.userId, input.bet);
 
@@ -99,7 +102,8 @@ async function resolveFlip(input: {
   const sideLabel = result === "heads" ? "Heads" : "Tails";
 
   let payout = 0;
-  let wallet = (await getUserEconomyBalance(input.guildId, input.userId)).wallet;
+  let wallet = (await getUserEconomyBalance(input.guildId, input.userId))
+    .wallet;
   if (won) {
     payout = coinflipPayout(input.bet, casino.coinflip.multiplier, true);
     wallet = (await creditWallet(input.guildId, input.userId, payout)).wallet;
@@ -271,7 +275,8 @@ export async function handleCoinflipButton(
       return;
     }
 
-    const side = action === CF_HEADS ? "heads" : action === CF_TAILS ? "tails" : null;
+    const side =
+      action === CF_HEADS ? "heads" : action === CF_TAILS ? "tails" : null;
     if (!side) {
       await interaction.reply({
         content: "❌ Unknown action.",

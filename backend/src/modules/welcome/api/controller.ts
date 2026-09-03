@@ -3,10 +3,10 @@
  * Re-exporta el servicio de dominio para las rutas Express.
  */
 export {
-  WelcomeSettingsError,
-  FONT_SIZE_MIN,
+  disableWelcomeSettings,
   FONT_SIZE_MAX,
+  FONT_SIZE_MIN,
   getWelcomeSettings,
   saveWelcomeSettings,
-  disableWelcomeSettings,
+  WelcomeSettingsError,
 } from "../service.js";

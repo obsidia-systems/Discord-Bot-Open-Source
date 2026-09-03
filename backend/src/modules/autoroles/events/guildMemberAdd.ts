@@ -1,7 +1,7 @@
 import type { GuildMember } from "discord.js";
-import { getAutoJoinRoles } from "../autoJoin.js";
-import { isRoleAssignableInGuild } from "../assignable.js";
 import { logger } from "../../../core/log.js";
+import { isRoleAssignableInGuild } from "../assignable.js";
+import { getAutoJoinRoles } from "../autoJoin.js";
 
 /** Asigna roles automáticos al unirse (humanos vs bots). */
 export async function onGuildMemberAddAutoRoles(
@@ -26,6 +26,9 @@ export async function onGuildMemberAddAutoRoles(
 
     await member.roles.add(assignable, "Adobos auto-roles on join");
   } catch (error: unknown) {
-    logger.warn({ err: error instanceof Error ? error.message : error }, "Auto-roles on join failed:");
+    logger.warn(
+      { err: error instanceof Error ? error.message : error },
+      "Auto-roles on join failed:",
+    );
   }
 }

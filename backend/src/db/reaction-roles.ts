@@ -1,7 +1,7 @@
-import { and, eq } from "drizzle-orm";
 import type { EmojiIdentifierResolvable } from "discord.js";
+import { and, eq } from "drizzle-orm";
 import { getDb, one } from "./client.js";
-import { reactionRoles, type ReactionRole } from "./schema.js";
+import { type ReactionRole, reactionRoles } from "./schema.js";
 
 /** Normaliza un emoji de reacción a la clave usada en la tabla. */
 export function toEmojiKey(emoji: {
@@ -14,7 +14,9 @@ export function toEmojiKey(emoji: {
 }
 
 /** Convierte emojiKey de vuelta a algo usable en message.react(). */
-export function emojiKeyToResolvable(emojiKey: string): EmojiIdentifierResolvable | null {
+export function emojiKeyToResolvable(
+  emojiKey: string,
+): EmojiIdentifierResolvable | null {
   if (emojiKey.startsWith("custom:")) {
     return emojiKey.slice("custom:".length);
   }

@@ -1,14 +1,14 @@
+import type { AutoModConfig, AutoModFilterKey } from "@adobos/shared";
 import {
   AutoModerationActionType,
+  type AutoModerationRule,
   AutoModerationRuleEventType,
   AutoModerationRuleTriggerType,
-  DiscordAPIError,
-  PermissionFlagsBits,
-  type AutoModerationRule,
   type Client,
+  DiscordAPIError,
   type Guild,
+  PermissionFlagsBits,
 } from "discord.js";
-import type { AutoModConfig, AutoModFilterKey } from "@adobos/shared";
 import { logger } from "../../core/log.js";
 import {
   ADOBOS_NATIVE_RULE_NAMES,
@@ -27,8 +27,7 @@ export interface NativeSyncResult {
 }
 
 const AUDIT = "Adobos Auto-Mod";
-const BLOCK_MESSAGE =
-  "Your message was blocked by Auto-Mod (Adobos).";
+const BLOCK_MESSAGE = "Your message was blocked by Auto-Mod (Adobos).";
 
 /**
  * Espeja palabras / invitaciones / menciones en AutoMod nativo de Discord.
@@ -44,7 +43,8 @@ export async function syncNativeAutoMod(
   if (!guild) {
     return {
       ok: false,
-      message: "The bot is not in that server; native AutoMod couldn't be synced.",
+      message:
+        "The bot is not in that server; native AutoMod couldn't be synced.",
     };
   }
 
@@ -71,9 +71,7 @@ export async function syncNativeAutoMod(
       // A rule already under the canonical English name always wins over a
       // leftover Spanish-named one for the same filter.
       const canonicalName =
-        ADOBOS_NATIVE_RULE_NAMES[
-          key as keyof typeof ADOBOS_NATIVE_RULE_NAMES
-        ];
+        ADOBOS_NATIVE_RULE_NAMES[key as keyof typeof ADOBOS_NATIVE_RULE_NAMES];
       if (canonicalName === rule.name || !byKey.has(key)) byKey.set(key, rule);
     }
     const exemptRoles = sliceExemptIds(
@@ -113,7 +111,10 @@ export async function syncNativeAutoMod(
 
     return { ok: true, message: "Discord native AutoMod synced." };
   } catch (error) {
-    if (error instanceof DiscordAPIError && (error.code === 50013 || error.status === 403)) {
+    if (
+      error instanceof DiscordAPIError &&
+      (error.code === 50013 || error.status === 403)
+    ) {
       return {
         ok: false,
         message:
@@ -123,8 +124,7 @@ export async function syncNativeAutoMod(
     logger.warn({ err: error, guildId }, "auto-mod: native sync failed:");
     return {
       ok: false,
-      message:
-        "Couldn't sync native AutoMod. The bot filter is still active.",
+      message: "Couldn't sync native AutoMod. The bot filter is still active.",
     };
   }
 }
@@ -163,7 +163,10 @@ async function upsertKeywordRule(
     exemptChannels: input.exemptChannels,
     reason: AUDIT,
   };
-  if (existing && existing.triggerType === AutoModerationRuleTriggerType.Keyword) {
+  if (
+    existing &&
+    existing.triggerType === AutoModerationRuleTriggerType.Keyword
+  ) {
     await existing.edit(body);
     return;
   }
@@ -200,7 +203,10 @@ async function upsertInviteRule(
     exemptChannels: input.exemptChannels,
     reason: AUDIT,
   };
-  if (existing && existing.triggerType === AutoModerationRuleTriggerType.Keyword) {
+  if (
+    existing &&
+    existing.triggerType === AutoModerationRuleTriggerType.Keyword
+  ) {
     await existing.edit(body);
     return;
   }
@@ -225,7 +231,10 @@ async function upsertMentionRule(
     if (existing) await existing.delete(AUDIT);
     return;
   }
-  const limit = Math.max(1, Math.min(50, Math.round(input.mentionTotalLimit || 5)));
+  const limit = Math.max(
+    1,
+    Math.min(50, Math.round(input.mentionTotalLimit || 5)),
+  );
   const body = {
     name: ADOBOS_NATIVE_RULE_NAMES.mentionSpam,
     enabled: true,

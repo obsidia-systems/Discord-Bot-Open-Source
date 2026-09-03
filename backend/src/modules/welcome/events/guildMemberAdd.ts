@@ -1,21 +1,15 @@
-import {
-  AttachmentBuilder,
-  type GuildMember,
-} from "discord.js";
+import { AttachmentBuilder, type GuildMember } from "discord.js";
 import { eq } from "drizzle-orm";
+import { logger } from "../../../core/log.js";
 import { getDb, one } from "../../../db/client.js";
 import { welcomeSettings } from "../../../db/schema.js";
-import {
-  disableWelcomeSettings,
-  parseTextLayersJson,
-} from "../service.js";
 import { buildWelcomeCard } from "../card/WelcomeCardBuilder.js";
-import { logger } from "../../../core/log.js";
+import { isWelcomeSendChannel } from "../channel.js";
+import { disableWelcomeSettings, parseTextLayersJson } from "../service.js";
 import {
   applyWelcomeVariables,
   contextFromMember,
 } from "../text/welcomeEmbed.js";
-import { isWelcomeSendChannel } from "../channel.js";
 
 /**
  * Envía la tarjeta PNG de bienvenida (canvas).
@@ -25,11 +19,13 @@ export async function onGuildMemberAdd(member: GuildMember): Promise<void> {
   try {
     if (member.user.bot) return;
 
-    const row = await one(getDb()
-      .select()
-      .from(welcomeSettings)
-      .where(eq(welcomeSettings.guildId, member.guild.id))
-      .limit(1));
+    const row = await one(
+      getDb()
+        .select()
+        .from(welcomeSettings)
+        .where(eq(welcomeSettings.guildId, member.guild.id))
+        .limit(1),
+    );
 
     if (!row?.isEnabled || !row.channelId) return;
 
@@ -39,9 +35,7 @@ export async function onGuildMemberAdd(member: GuildMember): Promise<void> {
 
     if (!channel) {
       await disableWelcomeSettings(member.guild.id);
-      logger.warn(
-        `Welcome disabled in ${member.guild.id}: channel deleted.`,
-      );
+      logger.warn(`Welcome disabled in ${member.guild.id}: channel deleted.`);
       return;
     }
     if (!isWelcomeSendChannel(channel)) {
@@ -98,6 +92,9 @@ export async function onGuildMemberAdd(member: GuildMember): Promise<void> {
       files: [attachment],
     });
   } catch (error: unknown) {
-    logger.warn({ err: error instanceof Error ? error.message : error }, "Silent error in guildMemberAdd (welcome):");
+    logger.warn(
+      { err: error instanceof Error ? error.message : error },
+      "Silent error in guildMemberAdd (welcome):",
+    );
   }
 }

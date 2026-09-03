@@ -1,14 +1,3 @@
-import {
-  ChannelType,
-  DiscordAPIError,
-  type Client,
-  type Embed,
-  type Guild,
-  type GuildMember,
-  type Message,
-  type TextChannel,
-} from "discord.js";
-import { and, desc, eq } from "drizzle-orm";
 import type {
   ModActionRequest,
   ModActionResponse,
@@ -24,20 +13,31 @@ import type {
   ModMemberSearchResponse,
 } from "@adobos/shared";
 import { MOD_ACTION_TYPES } from "@adobos/shared";
-import { getDb, one } from "../../db/client.js";
 import {
-  safeMemberAvatarURL,
-  safeUserAvatarURL,
-} from "../../lib/discordMember.js";
+  ChannelType,
+  type Client,
+  DiscordAPIError,
+  type Embed,
+  type Guild,
+  type GuildBasedChannel,
+  type GuildMember,
+  type Message,
+  type TextChannel,
+} from "discord.js";
+import { and, desc, eq } from "drizzle-orm";
+import { logger } from "../../core/log.js";
+import { getDb, one } from "../../db/client.js";
 import {
   autorolesRegistry,
   guildSettings,
   modLogs,
   warnings,
 } from "../../db/schema.js";
+import {
+  safeMemberAvatarURL,
+  safeUserAvatarURL,
+} from "../../lib/discordMember.js";
 import { getEmbedTemplate } from "../messages/templates/service.js";
-import { logger } from "../../core/log.js";
-import { clampTimeoutSeconds, everyoneSendMessagesOverwrite } from "./duration.js";
 import {
   applySanctionTextVars,
   buildEmbedFromPayload,
@@ -45,6 +45,10 @@ import {
   interpolateEmbedPayload,
   type SanctionDmContext,
 } from "./dm.js";
+import {
+  clampTimeoutSeconds,
+  everyoneSendMessagesOverwrite,
+} from "./duration.js";
 
 export class ModerationError extends Error {
   constructor(
@@ -68,11 +72,7 @@ function resolveGuild(bot: Client, guildId?: string): Guild {
 
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new ModerationError(
-      "Missing guildId.",
-      400,
-      "MISSING_GUILD_ID",
-    );
+    throw new ModerationError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
 
   const guild = bot.guilds.cache.get(id);
@@ -90,11 +90,7 @@ function resolveGuild(bot: Client, guildId?: string): Guild {
 function assertSnowflake(value: string, field: string): string {
   const trimmed = value.trim();
   if (!/^\d{17,20}$/.test(trimmed)) {
-    throw new ModerationError(
-      `Invalid ${field}.`,
-      400,
-      "INVALID_IDS",
-    );
+    throw new ModerationError(`Invalid ${field}.`, 400, "INVALID_IDS");
   }
   return trimmed;
 }
@@ -103,20 +99,18 @@ async function ensureGuildRow(guildId: string): Promise<void> {
   const db = getDb();
   const existing = await one(
     db
-    .select()
-    .from(guildSettings)
-    .where(eq(guildSettings.guildId, guildId))
-    .limit(1)
+      .select()
+      .from(guildSettings)
+      .where(eq(guildSettings.guildId, guildId))
+      .limit(1),
   );
   if (!existing) {
-    await db.insert(guildSettings)
-      .values({
-        guildId,
-        prefix: "!",
-        welcomeEnabled: false,
-        updatedAt: new Date(),
-      })
-      ;
+    await db.insert(guildSettings).values({
+      guildId,
+      prefix: "!",
+      welcomeEnabled: false,
+      updatedAt: new Date(),
+    });
   }
 }
 
@@ -190,10 +184,7 @@ function assertBotCanAct(
       "MEMBER_NOT_KICKABLE",
     );
   }
-  if (
-    (action === "timeout" || action === "untimeout") &&
-    !member.moderatable
-  ) {
+  if ((action === "timeout" || action === "untimeout") && !member.moderatable) {
     throw new ModerationError(
       "Role hierarchy: I can't time out that member.",
       403,
@@ -340,9 +331,7 @@ export async function getMemberInfo(
     await getDb()
       .select()
       .from(warnings)
-      .where(
-        and(eq(warnings.guildId, guild.id), eq(warnings.userId, userId)),
-      )
+      .where(and(eq(warnings.guildId, guild.id), eq(warnings.userId, userId)))
       .orderBy(desc(warnings.createdAt))
   ).map((row) => ({
     id: row.id,
@@ -520,8 +509,7 @@ async function writeModLog(input: {
       reason: input.reason,
       meta: input.meta ? JSON.stringify(input.meta) : null,
       createdAt: new Date(),
-    })
-    ;
+    });
 }
 
 async function sendSanctionDm(options: {
@@ -580,11 +568,7 @@ async function sendSanctionDm(options: {
     // template
     const templateId = Number(options.templateId);
     if (!Number.isFinite(templateId)) {
-      throw new ModerationError(
-        "Invalid templateId.",
-        400,
-        "INVALID_TEMPLATE",
-      );
+      throw new ModerationError("Invalid templateId.", 400, "INVALID_TEMPLATE");
     }
     const template = await getEmbedTemplate(templateId, guild.id);
     const interpolated = interpolateEmbedPayload(template.embedData, vars);
@@ -605,7 +589,10 @@ async function sendSanctionDm(options: {
     return { dmSent: true, dmSkipped: false, dmFailed: false };
   } catch (error: unknown) {
     if (error instanceof ModerationError) throw error;
-    logger.warn({ err: error instanceof Error ? error.message : error }, "Sanction DM not sent:");
+    logger.warn(
+      { err: error instanceof Error ? error.message : error },
+      "Sanction DM not sent:",
+    );
     return { dmSent: false, dmSkipped: false, dmFailed: true };
   }
 }
@@ -629,11 +616,7 @@ export async function executeModAction(
     action !== "unlock" &&
     action !== "clearwarns"
   ) {
-    throw new ModerationError(
-      "A reason is required.",
-      400,
-      "MISSING_REASON",
-    );
+    throw new ModerationError("A reason is required.", 400, "MISSING_REASON");
   }
 
   const auditReason = reason.slice(0, 400) || "Action from Adobos panel";
@@ -689,16 +672,13 @@ export async function executeModAction(
             "MEMBER_NOT_FOUND",
           );
         });
-        await getDb()
-          .insert(warnings)
-          .values({
-            guildId: guild.id,
-            userId,
-            moderatorId,
-            reason: auditReason,
-            createdAt: new Date(),
-          })
-          ;
+        await getDb().insert(warnings).values({
+          guildId: guild.id,
+          userId,
+          moderatorId,
+          reason: auditReason,
+          createdAt: new Date(),
+        });
         message = `Warning recorded for <@${userId}>.`;
         break;
       }
@@ -887,7 +867,11 @@ export async function executeModAction(
       }
 
       default:
-        throw new ModerationError("Action not implemented.", 400, "INVALID_ACTION");
+        throw new ModerationError(
+          "Action not implemented.",
+          400,
+          "INVALID_ACTION",
+        );
     }
 
     await writeModLog({
@@ -981,7 +965,7 @@ export async function fetchDiscordMessage(
   const channelId = assertSnowflake(channelIdRaw, "channelId");
   const messageId = assertSnowflake(messageIdRaw, "messageId");
 
-  let channel;
+  let channel: GuildBasedChannel | null;
   try {
     channel = await guild.channels.fetch(channelId);
   } catch (error: unknown) {

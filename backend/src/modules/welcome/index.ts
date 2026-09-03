@@ -18,16 +18,16 @@ export const welcomeModule: AdobosModule = {
 };
 
 export {
-  getWelcomeSettings,
-  saveWelcomeSettings,
-  disableWelcomeSettings,
-  WelcomeSettingsError,
-} from "./service.js";
-export {
-  buildWelcomeCard,
-  CARD_WIDTH,
-  CARD_HEIGHT,
-  AVATAR_SIZE_MIN,
   AVATAR_SIZE_MAX,
+  AVATAR_SIZE_MIN,
+  buildWelcomeCard,
+  CARD_HEIGHT,
+  CARD_WIDTH,
   WELCOME_CARD_DEFAULT_BACKGROUND,
 } from "./card/WelcomeCardBuilder.js";
+export {
+  disableWelcomeSettings,
+  getWelcomeSettings,
+  saveWelcomeSettings,
+  WelcomeSettingsError,
+} from "./service.js";

@@ -1,11 +1,11 @@
-import { Router } from "express";
 import type { Client } from "discord.js";
+import { Router } from "express";
+import { guildIdOf } from "../../../core/http/guildContext.js";
+import { parse } from "../../../core/http/validate.js";
 import {
   listSystemCommandConfigs,
   updateSystemCommandPermissions,
 } from "../service.js";
-import { guildIdOf } from "../../../core/http/guildContext.js";
-import { parse } from "../../../core/http/validate.js";
 import { updateSystemCommandsSchema } from "./schema.js";
 
 export function systemCommandsRoutes(_bot: Client): Router {

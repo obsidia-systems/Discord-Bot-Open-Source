@@ -4,16 +4,13 @@ import type {
   UpdateSystemCommandsRequest,
 } from "@adobos/shared";
 import {
-  SYSTEM_COMMAND_CATALOG,
   defaultSystemCommandPermission,
   getSystemCommandDefinition,
+  SYSTEM_COMMAND_CATALOG,
 } from "@adobos/shared";
 import { and, eq } from "drizzle-orm";
 import { getDb, one } from "../../db/client.js";
-import {
-  defaultCommandPermissions,
-  guildSettings,
-} from "../../db/schema.js";
+import { defaultCommandPermissions, guildSettings } from "../../db/schema.js";
 
 export class SystemCommandsError extends Error {
   constructor(
@@ -42,31 +39,26 @@ function parseIdArray(raw: string | null | undefined): string[] {
 function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new SystemCommandsError(
-      "Missing guildId.",
-      400,
-      "MISSING_GUILD_ID",
-    );
+    throw new SystemCommandsError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
   return id;
 }
 
 async function ensureGuildRow(guildId: string): Promise<void> {
-  const existing = await one(getDb()
-    .select({ guildId: guildSettings.guildId })
-    .from(guildSettings)
-    .where(eq(guildSettings.guildId, guildId))
-    .limit(1));
+  const existing = await one(
+    getDb()
+      .select({ guildId: guildSettings.guildId })
+      .from(guildSettings)
+      .where(eq(guildSettings.guildId, guildId))
+      .limit(1),
+  );
   if (!existing) {
-    await getDb()
-      .insert(guildSettings)
-      .values({
-        guildId,
-        prefix: "!",
-        welcomeEnabled: false,
-        updatedAt: new Date(),
-      })
-      ;
+    await getDb().insert(guildSettings).values({
+      guildId,
+      prefix: "!",
+      welcomeEnabled: false,
+      updatedAt: new Date(),
+    });
   }
 }
 
@@ -109,16 +101,18 @@ export async function getCommandPermission(
   guildId: string,
   commandName: string,
 ): Promise<SystemCommandPermission> {
-  const row = await one(getDb()
-    .select()
-    .from(defaultCommandPermissions)
-    .where(
-      and(
-        eq(defaultCommandPermissions.guildId, guildId),
-        eq(defaultCommandPermissions.commandName, commandName),
-      ),
-    )
-    .limit(1));
+  const row = await one(
+    getDb()
+      .select()
+      .from(defaultCommandPermissions)
+      .where(
+        and(
+          eq(defaultCommandPermissions.guildId, guildId),
+          eq(defaultCommandPermissions.commandName, commandName),
+        ),
+      )
+      .limit(1),
+  );
 
   return rowToPermission(guildId, commandName, row);
 }
@@ -131,8 +125,7 @@ export async function listSystemCommandConfigs(
   const rows = await getDb()
     .select()
     .from(defaultCommandPermissions)
-    .where(eq(defaultCommandPermissions.guildId, id))
-    ;
+    .where(eq(defaultCommandPermissions.guildId, id));
 
   const byName = new Map(rows.map((r) => [r.commandName, r]));
 
@@ -180,13 +173,17 @@ export async function updateSystemCommandPermissions(
 
     const allowedRoles = Array.isArray(item.allowedRoles)
       ? item.allowedRoles
-          .filter((r): r is string => typeof r === "string" && r.trim().length > 0)
+          .filter(
+            (r): r is string => typeof r === "string" && r.trim().length > 0,
+          )
           .map((r) => r.trim())
       : [];
 
     const ignoredChannels = Array.isArray(item.ignoredChannels)
       ? item.ignoredChannels
-          .filter((r): r is string => typeof r === "string" && r.trim().length > 0)
+          .filter(
+            (r): r is string => typeof r === "string" && r.trim().length > 0,
+          )
           .map((r) => r.trim())
       : [];
 
@@ -217,8 +214,7 @@ export async function updateSystemCommandPermissions(
           ephemeral: def.supportsEphemeral ? ephemeral : def.defaultEphemeral,
           updatedAt: now,
         },
-      })
-      ;
+      });
   }
 
   return await listSystemCommandConfigs(id);

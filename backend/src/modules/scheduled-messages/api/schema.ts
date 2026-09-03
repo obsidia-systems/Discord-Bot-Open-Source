@@ -1,14 +1,13 @@
 import { z } from "zod";
-import { boolish, snowflake, snowflakeNull, weekday } from "../../../core/http/schemas.js";
+import {
+  boolish,
+  snowflake,
+  snowflakeNull,
+  weekday,
+} from "../../../core/http/schemas.js";
 
 const scheduledFrequencySchema = z.object({
-  type: z.enum([
-    "daily",
-    "weekly",
-    "monthly",
-    "specific_date",
-    "interval",
-  ]),
+  type: z.enum(["daily", "weekly", "monthly", "specific_date", "interval"]),
   time: z.string().min(1),
   days: z.array(weekday),
   dayOfMonth: z.number().int().min(1).max(31),

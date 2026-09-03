@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
 import {
+  ACTION_LOG_EVENT_KEYS,
+  type ActionLogsConfig,
   defaultActionLogChannelsMapping,
   defaultActionLogEnabledEvents,
-  type ActionLogsConfig,
 } from "@adobos/shared";
-import { ACTION_LOG_EVENT_KEYS } from "@adobos/shared";
+import { describe, expect, it } from "vitest";
 import {
   configPassesFilters,
   getEventMeta,

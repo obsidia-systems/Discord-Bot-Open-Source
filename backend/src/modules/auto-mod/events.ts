@@ -1,17 +1,17 @@
 import {
-  PermissionFlagsBits,
   type AutoModerationActionExecution,
   type Client,
   type GuildMember,
   type Message,
   type OmitPartialGroupDMChannel,
   type PartialMessage,
+  PermissionFlagsBits,
 } from "discord.js";
-import { evaluateAutoModFilters } from "./filters.js";
+import { logger } from "../../core/log.js";
 import { enforceAutoModHit } from "./enforce.js";
+import { evaluateAutoModFilters } from "./filters.js";
 import { nativeRuleKeyFromName } from "./nativeRules.js";
 import { getAutoModConfigCached } from "./service.js";
-import { logger } from "../../core/log.js";
 
 type GuildMessage = OmitPartialGroupDMChannel<Message<true>>;
 

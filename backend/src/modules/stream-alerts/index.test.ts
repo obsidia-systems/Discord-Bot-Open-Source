@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { STREAM_ALERT_POLL_MS } from "@adobos/shared";
+import { describe, expect, it } from "vitest";
 import { streamAlertsModule } from "./index.js";
 import {
   parseKickChannelPayload,

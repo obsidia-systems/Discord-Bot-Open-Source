@@ -1,4 +1,3 @@
-import { ChannelType, MessageFlags, type GuildMember, type VoiceChannel } from "discord.js";
 import {
   canClaimVoiceRoom,
   clampVoiceBitrateKbps,
@@ -9,14 +8,20 @@ import {
   type VoiceRoomLive,
 } from "@adobos/shared";
 import {
+  ChannelType,
+  type GuildMember,
+  MessageFlags,
+  type VoiceChannel,
+} from "discord.js";
+import {
   applyGhost,
   applyLock,
   assertCanControl,
   createInviteUrl,
   ensureTextChannel,
   fetchVoiceChannel,
-  rejectTarget,
   permitTarget,
+  rejectTarget,
   setRoomBitrate,
   setRoomLimit,
   setRoomName,
@@ -24,11 +29,11 @@ import {
   transferOwnerOverwrites,
 } from "./rooms.js";
 import {
-  VoiceRoomsError,
   getGeneratorById,
   getRoomByChannel,
   getRoomByOwner,
   patchRoom,
+  VoiceRoomsError,
 } from "./service.js";
 
 export interface VoiceActionInput {
@@ -46,9 +51,7 @@ export interface VoiceActionInput {
   inviteMessage?: string;
 }
 
-function mappedAction(
-  action: VoiceActionInput["action"],
-): VoiceRoomAction {
+function mappedAction(action: VoiceActionInput["action"]): VoiceRoomAction {
   if (action === "unlock") return "lock";
   if (action === "unghost") return "ghost";
   return action;
@@ -97,9 +100,7 @@ export async function runVoiceRoomAction(
     case "limit": {
       const limit = clampVoiceUserLimit(input.limit ?? 0);
       await setRoomLimit(channel, limit);
-      return limit === 0
-        ? "No user limit."
-        : `Limit: **${limit}**.`;
+      return limit === 0 ? "No user limit." : `Limit: **${limit}**.`;
     }
     case "lock": {
       await applyLock(channel, true);
@@ -176,10 +177,18 @@ export async function runVoiceRoomAction(
     case "transfer": {
       const toId = input.targetUserId;
       if (!toId) {
-        throw new VoiceRoomsError("Choose the new owner.", 400, "MISSING_TARGET");
+        throw new VoiceRoomsError(
+          "Choose the new owner.",
+          400,
+          "MISSING_TARGET",
+        );
       }
       if (toId === room.ownerId) {
-        throw new VoiceRoomsError("They are already the owner.", 400, "ALREADY_OWNER");
+        throw new VoiceRoomsError(
+          "They are already the owner.",
+          400,
+          "ALREADY_OWNER",
+        );
       }
       if (!channel.members.has(toId)) {
         throw new VoiceRoomsError(
@@ -203,7 +212,11 @@ export async function runVoiceRoomAction(
     case "invite": {
       const toId = input.targetUserId;
       if (!toId) {
-        throw new VoiceRoomsError("Choose who to invite.", 400, "MISSING_TARGET");
+        throw new VoiceRoomsError(
+          "Choose who to invite.",
+          400,
+          "MISSING_TARGET",
+        );
       }
       const url = await createInviteUrl(channel);
       const note = input.inviteMessage?.trim();

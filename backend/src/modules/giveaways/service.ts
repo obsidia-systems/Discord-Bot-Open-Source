@@ -1,4 +1,3 @@
-import { and, count, desc, eq, inArray, lte } from "drizzle-orm";
 import type {
   CreateGiveawayRequest,
   Giveaway,
@@ -13,6 +12,7 @@ import {
   clampGiveawayWinnerCount,
   durationMsFromMinutes,
   GIVEAWAYS_LIST_MAX,
+  type GiveawayAction,
   giveawayRunningBlocked,
   giveawayStatusAfter,
   isGiveawayStatus,
@@ -22,19 +22,19 @@ import {
   normalizeGiveawaySnowflakeList,
   parseGiveawayWinnerIds,
   pickGiveawayWinners,
-  type GiveawayAction,
 } from "@adobos/shared";
+import { and, count, desc, eq, inArray, lte } from "drizzle-orm";
+import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
 import { getDb, one } from "../../db/client.js";
 import {
+  type GiveawayEntryRow,
+  type GiveawayRow,
+  type GiveawaySettingsRow,
   giveawayEntries,
   giveawaySettings,
   giveaways,
   guildSettings,
-  type GiveawayEntryRow,
-  type GiveawayRow,
-  type GiveawaySettingsRow,
 } from "../../db/schema.js";
-import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
 
 export class GiveawaysError extends Error {
   constructor(
@@ -47,7 +47,10 @@ export class GiveawaysError extends Error {
   }
 }
 
-const settingsCache = new BoundedTtlMap<string, GiveawaySettings>(2_000, 60_000);
+const settingsCache = new BoundedTtlMap<string, GiveawaySettings>(
+  2_000,
+  60_000,
+);
 
 function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
@@ -228,7 +231,11 @@ export async function getGiveawayById(
   guildId?: string,
 ): Promise<Giveaway> {
   const row = await one(
-    getDb().select().from(giveaways).where(eq(giveaways.id, giveawayId)).limit(1),
+    getDb()
+      .select()
+      .from(giveaways)
+      .where(eq(giveaways.id, giveawayId))
+      .limit(1),
   );
   if (!row) {
     throw new GiveawaysError("Giveaway not found.", 404, "NOT_FOUND");
@@ -279,13 +286,17 @@ export async function insertGiveaway(input: {
   let startsAt = now;
   if (input.body.startsAt) {
     const parsed = new Date(input.body.startsAt);
-    if (!Number.isNaN(parsed.getTime()) && parsed.getTime() > now.getTime() + 5_000) {
+    if (
+      !Number.isNaN(parsed.getTime()) &&
+      parsed.getTime() > now.getTime() + 5_000
+    ) {
       startsAt = parsed;
     }
   }
   const durationMs = durationMsFromMinutes(input.body.durationMinutes);
   const endsAt = new Date(startsAt.getTime() + durationMs);
-  const status = startsAt.getTime() > now.getTime() + 5_000 ? "scheduled" : "running";
+  const status =
+    startsAt.getTime() > now.getTime() + 5_000 ? "scheduled" : "running";
   if (status === "running") {
     const running = await countRunningGiveaways(guildId);
     if (giveawayRunningBlocked(running)) {
@@ -322,7 +333,11 @@ export async function insertGiveaway(input: {
     })
     .returning();
   if (!row) {
-    throw new GiveawaysError("Couldn't create the giveaway.", 500, "INSERT_FAILED");
+    throw new GiveawaysError(
+      "Couldn't create the giveaway.",
+      500,
+      "INSERT_FAILED",
+    );
   }
   return mapGiveaway(row, 0);
 }
@@ -437,9 +452,9 @@ export async function applyGiveawayAction(input: {
       );
     }
     patch.winnerIds = JSON.stringify(picked);
-    patch.pastWinnerIds = JSON.stringify(
-      [...new Set([...current.pastWinnerIds, ...picked])],
-    );
+    patch.pastWinnerIds = JSON.stringify([
+      ...new Set([...current.pastWinnerIds, ...picked]),
+    ]);
   } else if (input.action === "cancel") {
     patch.endedAt = now;
   } else if (input.action === "start") {
@@ -452,7 +467,10 @@ export async function applyGiveawayAction(input: {
       );
     }
   }
-  await getDb().update(giveaways).set(patch).where(eq(giveaways.id, current.id));
+  await getDb()
+    .update(giveaways)
+    .set(patch)
+    .where(eq(giveaways.id, current.id));
   return getGiveawayById(current.id, input.guildId);
 }
 
@@ -460,9 +478,7 @@ export async function listDueToStart(now = new Date()): Promise<Giveaway[]> {
   const rows = await getDb()
     .select()
     .from(giveaways)
-    .where(
-      and(eq(giveaways.status, "scheduled"), lte(giveaways.startsAt, now)),
-    )
+    .where(and(eq(giveaways.status, "scheduled"), lte(giveaways.startsAt, now)))
     .limit(50);
   return rows.map((row) => mapGiveaway(row, 0));
 }

@@ -1,5 +1,5 @@
-import { ChannelType, type Client, type TextBasedChannel } from "discord.js";
 import type { Reminder } from "@adobos/shared";
+import { ChannelType, type Client, type TextBasedChannel } from "discord.js";
 import { logger } from "../../core/log.js";
 import {
   bumpReminderAttempt,
@@ -45,13 +45,18 @@ function asSendable(channel: unknown): TextBasedChannel | null {
   return channel as TextBasedChannel;
 }
 
-async function tryChannel(client: Client, reminder: Reminder): Promise<boolean> {
+async function tryChannel(
+  client: Client,
+  reminder: Reminder,
+): Promise<boolean> {
   try {
     const guild =
       client.guilds.cache.get(reminder.guildId) ??
       (await client.guilds.fetch(reminder.guildId).catch(() => null));
     if (!guild) return false;
-    const channel = await guild.channels.fetch(reminder.channelId).catch(() => null);
+    const channel = await guild.channels
+      .fetch(reminder.channelId)
+      .catch(() => null);
     const text = asSendable(channel);
     if (!text || !("send" in text)) return false;
     await text.send({
@@ -60,7 +65,10 @@ async function tryChannel(client: Client, reminder: Reminder): Promise<boolean> 
     });
     return true;
   } catch (error: unknown) {
-    logger.warn({ err: error }, `reminders: channel failed (id=${reminder.id})`);
+    logger.warn(
+      { err: error },
+      `reminders: channel failed (id=${reminder.id})`,
+    );
     return false;
   }
 }

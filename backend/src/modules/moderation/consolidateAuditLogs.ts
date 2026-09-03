@@ -110,10 +110,7 @@ function buildRoleChanges(
   return changes;
 }
 
-function canMergeRolePair(
-  a: DiscordAuditEntry,
-  b: DiscordAuditEntry,
-): boolean {
+function canMergeRolePair(a: DiscordAuditEntry, b: DiscordAuditEntry): boolean {
   if (!isMemberRoleUpdate(b)) return false;
   if ((a.executor?.id ?? "") !== (b.executor?.id ?? "")) return false;
   if ((a.target.id ?? "") !== (b.target.id ?? "")) return false;
@@ -165,8 +162,7 @@ function mergeRoleGroup(group: DiscordAuditEntry[]): DiscordAuditEntry {
     category: "members",
     reason: reasons[0] ?? null,
     changes,
-    changesSummary:
-      summaryParts.length > 0 ? summaryParts.join(" · ") : "—",
+    changesSummary: summaryParts.length > 0 ? summaryParts.join(" · ") : "—",
   };
 }
 

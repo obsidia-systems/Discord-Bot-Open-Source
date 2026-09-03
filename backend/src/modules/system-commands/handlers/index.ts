@@ -1,25 +1,5 @@
-import type { ChatInputCommandInteraction } from "discord.js";
 import { getSystemCommandDefinition } from "@adobos/shared";
-import { handleRankCommand } from "../../levels/commands/rank.js";
-import { handleLeaderboardCommand } from "../../levels/commands/leaderboard.js";
-import {
-  handleGiveXpCommand,
-  handleRemoveXpCommand,
-  handleSetLevelCommand,
-} from "../../levels/commands/admin.js";
-import {
-  handleBanCommand,
-  handleClearWarnsCommand,
-  handleKickCommand,
-  handleLockCommand,
-  handlePurgeCommand,
-  handleSlowmodeCommand,
-  handleTimeoutCommand,
-  handleUnlockCommand,
-  handleUntimeoutCommand,
-  handleWarnCommand,
-  handleWarnsCommand,
-} from "../../moderation/commands/slash.js";
+import type { ChatInputCommandInteraction } from "discord.js";
 import { handleBuyCommand } from "../../economy/commands/buy.js";
 import {
   handleBlackjackCommand,
@@ -50,6 +30,26 @@ import {
 } from "../../economy/commands/inventory.js";
 import { handleShopCommand } from "../../economy/commands/shop.js";
 import { getEconomyConfig } from "../../economy/service.js";
+import {
+  handleGiveXpCommand,
+  handleRemoveXpCommand,
+  handleSetLevelCommand,
+} from "../../levels/commands/admin.js";
+import { handleLeaderboardCommand } from "../../levels/commands/leaderboard.js";
+import { handleRankCommand } from "../../levels/commands/rank.js";
+import {
+  handleBanCommand,
+  handleClearWarnsCommand,
+  handleKickCommand,
+  handleLockCommand,
+  handlePurgeCommand,
+  handleSlowmodeCommand,
+  handleTimeoutCommand,
+  handleUnlockCommand,
+  handleUntimeoutCommand,
+  handleWarnCommand,
+  handleWarnsCommand,
+} from "../../moderation/commands/slash.js";
 import {
   handlePingCommand,
   handleServerInfoCommand,

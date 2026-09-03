@@ -1,7 +1,6 @@
-import { and, count, eq } from "drizzle-orm";
 import type {
-  AutoReply,
   AutoRepliesConfigResponse,
+  AutoReply,
   CreateAutoReplyRequest,
   UpdateAutoReplyRequest,
 } from "@adobos/shared";
@@ -12,14 +11,15 @@ import {
   normalizeAutoReplyChannelIds,
   normalizeAutoReplyTrigger,
 } from "@adobos/shared";
-import { getDb, one } from "../../db/client.js";
-import {
-  autoReplies,
-  guildSettings,
-  type AutoReplyRow,
-} from "../../db/schema.js";
+import { and, count, eq } from "drizzle-orm";
 import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
 import { assertWithinLimit } from "../../core/entitlements/service.js";
+import { getDb, one } from "../../db/client.js";
+import {
+  type AutoReplyRow,
+  autoReplies,
+  guildSettings,
+} from "../../db/schema.js";
 
 export class AutoRepliesError extends Error {
   constructor(
@@ -92,7 +92,9 @@ function invalidate(guildId: string): void {
   listCache.delete(guildId);
 }
 
-export async function listAutoRepliesCached(guildId: string): Promise<AutoReply[]> {
+export async function listAutoRepliesCached(
+  guildId: string,
+): Promise<AutoReply[]> {
   const hit = listCache.get(guildId);
   if (hit) return hit;
   const rows = await getDb()
@@ -134,8 +136,7 @@ async function assertUniqueTrigger(
   const existing = await listAutoRepliesCached(guildId);
   const needle = trigger.toLowerCase();
   const clash = existing.find(
-    (row) =>
-      row.id !== exceptId && row.trigger.toLowerCase() === needle,
+    (row) => row.id !== exceptId && row.trigger.toLowerCase() === needle,
   );
   if (clash) {
     throw new AutoRepliesError(
@@ -204,7 +205,11 @@ export async function createAutoReply(
     })
     .returning();
   if (!inserted) {
-    throw new AutoRepliesError("Couldn't create the Auto-Reply.", 500, "INSERT_FAILED");
+    throw new AutoRepliesError(
+      "Couldn't create the Auto-Reply.",
+      500,
+      "INSERT_FAILED",
+    );
   }
   invalidate(id);
   return mapReply(inserted);

@@ -1,4 +1,3 @@
-import { and, asc, count, desc, eq, gt } from "drizzle-orm";
 import type {
   LevelsChannelMultiplier,
   LevelsConfig,
@@ -9,28 +8,24 @@ import type {
   UpdateLevelsConfigRequest,
 } from "@adobos/shared";
 import {
+  calculateBaseXPForLevel,
+  calculateLevel,
+  clampLevelsLevel,
+  clampLevelsXp,
   DEFAULT_LEADERBOARD_EMBED_COLOR,
   DEFAULT_LEADERBOARD_EMBED_TITLE,
   DEFAULT_LEVEL_UP_EMBED_COLOR,
   DEFAULT_LEVEL_UP_EMBED_TITLE,
   DEFAULT_LEVEL_UP_MESSAGE,
-  calculateBaseXPForLevel,
-  calculateLevel,
-  clampLevelsLevel,
-  clampLevelsXp,
   defaultLevelsConfig,
   normalizeEmbedColor,
   normalizeLevelUpFormat,
   resolveXpMultiplier,
 } from "@adobos/shared";
-import { getDb, one } from "../../db/client.js";
+import { and, asc, count, desc, eq, gt } from "drizzle-orm";
 import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
-import {
-  guildSettings,
-  userXp,
-  xpConfig,
-  xpRewards,
-} from "../../db/schema.js";
+import { getDb, one } from "../../db/client.js";
+import { guildSettings, userXp, xpConfig, xpRewards } from "../../db/schema.js";
 
 export class LevelsError extends Error {
   constructor(
@@ -57,31 +52,26 @@ function parseJson<T>(raw: string | null | undefined, fallback: T): T {
 function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new LevelsError(
-      "Missing guildId.",
-      400,
-      "MISSING_GUILD_ID",
-    );
+    throw new LevelsError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
   return id;
 }
 
 async function ensureGuildRow(guildId: string): Promise<void> {
-  const existing = await one(getDb()
-    .select({ guildId: guildSettings.guildId })
-    .from(guildSettings)
-    .where(eq(guildSettings.guildId, guildId))
-    .limit(1));
+  const existing = await one(
+    getDb()
+      .select({ guildId: guildSettings.guildId })
+      .from(guildSettings)
+      .where(eq(guildSettings.guildId, guildId))
+      .limit(1),
+  );
   if (!existing) {
-    await getDb()
-      .insert(guildSettings)
-      .values({
-        guildId,
-        prefix: "!",
-        welcomeEnabled: false,
-        updatedAt: new Date(),
-      })
-      ;
+    await getDb().insert(guildSettings).values({
+      guildId,
+      prefix: "!",
+      welcomeEnabled: false,
+      updatedAt: new Date(),
+    });
   }
 }
 
@@ -134,7 +124,10 @@ function normalizeCustomMultipliers(
     seen.add(roleId);
     out.push({
       roleId,
-      multiplier: Math.max(0.1, Math.min(20, Math.round(multiplier * 100) / 100)),
+      multiplier: Math.max(
+        0.1,
+        Math.min(20, Math.round(multiplier * 100) / 100),
+      ),
     });
   }
   return out;
@@ -154,7 +147,10 @@ function normalizeChannelMultipliers(
     seen.add(channelId);
     out.push({
       channelId,
-      multiplier: Math.max(0.1, Math.min(20, Math.round(multiplier * 100) / 100)),
+      multiplier: Math.max(
+        0.1,
+        Math.min(20, Math.round(multiplier * 100) / 100),
+      ),
     });
   }
   return out;
@@ -242,7 +238,9 @@ export function invalidateLevelsConfigCache(guildId?: string): void {
   configCache.clear();
 }
 
-export async function getLevelsConfigCached(guildId?: string): Promise<LevelsConfig> {
+export async function getLevelsConfigCached(
+  guildId?: string,
+): Promise<LevelsConfig> {
   const id = resolveGuildId(guildId);
   const cached = configCache.get(id);
   if (cached) return cached;
@@ -253,11 +251,9 @@ export async function getLevelsConfigCached(guildId?: string): Promise<LevelsCon
 
 export async function getLevelsConfig(guildId?: string): Promise<LevelsConfig> {
   const id = resolveGuildId(guildId);
-  const row = await one(getDb()
-    .select()
-    .from(xpConfig)
-    .where(eq(xpConfig.guildId, id))
-    .limit(1));
+  const row = await one(
+    getDb().select().from(xpConfig).where(eq(xpConfig.guildId, id)).limit(1),
+  );
   return await rowToConfig(id, row);
 }
 
@@ -269,18 +265,8 @@ export async function updateLevelsConfig(
   await ensureGuildRow(id);
   const current = await getLevelsConfig(id);
 
-  let textXpMin = clampInt(
-    input.textXpMin ?? current.textXpMin,
-    1,
-    10_000,
-    15,
-  );
-  let textXpMax = clampInt(
-    input.textXpMax ?? current.textXpMax,
-    1,
-    10_000,
-    25,
-  );
+  let textXpMin = clampInt(input.textXpMin ?? current.textXpMin, 1, 10_000, 15);
+  let textXpMax = clampInt(input.textXpMax ?? current.textXpMax, 1, 10_000, 25);
   if (textXpMin > textXpMax) {
     const tmp = textXpMin;
     textXpMin = textXpMax;
@@ -462,20 +448,16 @@ export async function updateLevelsConfig(
         leaderboardShowThumbnail: next.leaderboardShowThumbnail,
         updatedAt: new Date(),
       },
-    })
-    ;
+    });
 
   if (input.rewards !== undefined) {
     await getDb().delete(xpRewards).where(eq(xpRewards.guildId, id));
     for (const reward of nextRewards) {
-      await getDb()
-        .insert(xpRewards)
-        .values({
-          guildId: id,
-          level: reward.level,
-          roleId: reward.roleId,
-        })
-        ;
+      await getDb().insert(xpRewards).values({
+        guildId: id,
+        level: reward.level,
+        roleId: reward.roleId,
+      });
     }
   }
 
@@ -497,8 +479,7 @@ export async function setLiveLeaderboardMessageId(
       liveLeaderboardMessageId: messageId,
       updatedAt: new Date(),
     })
-    .where(eq(xpConfig.guildId, id))
-    ;
+    .where(eq(xpConfig.guildId, id));
   invalidateLevelsConfigCache(id);
   const refreshed = await getLevelsConfig(id);
   configCache.set(id, refreshed);
@@ -656,12 +637,17 @@ export async function setUserLevel(
 }
 
 /** ¿El usuario tiene XP congelada ahora? */
-export async function isUserXpFrozen(guildId: string, userId: string): Promise<boolean> {
-  const row = await one(getDb()
-    .select({ xpFrozenUntil: userXp.xpFrozenUntil })
-    .from(userXp)
-    .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)))
-    .limit(1));
+export async function isUserXpFrozen(
+  guildId: string,
+  userId: string,
+): Promise<boolean> {
+  const row = await one(
+    getDb()
+      .select({ xpFrozenUntil: userXp.xpFrozenUntil })
+      .from(userXp)
+      .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)))
+      .limit(1),
+  );
   if (!row?.xpFrozenUntil) return false;
   return row.xpFrozenUntil.getTime() > Date.now();
 }
@@ -672,11 +658,13 @@ export async function freezeUserXp(
   userId: string,
   until: Date,
 ): Promise<void> {
-  const existing = await one(getDb()
-    .select()
-    .from(userXp)
-    .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)))
-    .limit(1));
+  const existing = await one(
+    getDb()
+      .select()
+      .from(userXp)
+      .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)))
+      .limit(1),
+  );
 
   if (existing) {
     const currentMs = existing.xpFrozenUntil?.getTime() ?? 0;
@@ -685,21 +673,17 @@ export async function freezeUserXp(
     await getDb()
       .update(userXp)
       .set({ xpFrozenUntil: nextUntil })
-      .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)))
-      ;
+      .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)));
     return;
   }
 
-  await getDb()
-    .insert(userXp)
-    .values({
-      guildId,
-      userId,
-      xp: 0,
-      level: 0,
-      xpFrozenUntil: until,
-    })
-    ;
+  await getDb().insert(userXp).values({
+    guildId,
+    userId,
+    xp: 0,
+    level: 0,
+    xpFrozenUntil: until,
+  });
 }
 
 /** Roles a otorgar al subir de `fromLevel` (exclusivo) a `toLevel` (inclusivo). */
@@ -773,16 +757,17 @@ export async function getTopUserXpRows(
     .from(userXp)
     .where(eq(userXp.guildId, guildId))
     .orderBy(desc(userXp.xp), asc(userXp.userId))
-    .limit(safeLimit)
-    ;
+    .limit(safeLimit);
 }
 
 export async function getLeaderboardTotal(guildId: string): Promise<number> {
-  const row = await one(getDb()
-    .select({ n: count() })
-    .from(userXp)
-    .where(eq(userXp.guildId, guildId))
-    .limit(1));
+  const row = await one(
+    getDb()
+      .select({ n: count() })
+      .from(userXp)
+      .where(eq(userXp.guildId, guildId))
+      .limit(1),
+  );
   return row?.n ?? 0;
 }
 
@@ -797,19 +782,23 @@ export async function getUserRankStats(
   guildId: string,
   userId: string,
 ): Promise<LevelsUserRankStats | null> {
-  const row = await one(getDb()
-    .select()
-    .from(userXp)
-    .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)))
-    .limit(1));
+  const row = await one(
+    getDb()
+      .select()
+      .from(userXp)
+      .where(and(eq(userXp.guildId, guildId), eq(userXp.userId, userId)))
+      .limit(1),
+  );
 
   if (!row) return null;
 
-  const ahead = await one(getDb()
-    .select({ n: count() })
-    .from(userXp)
-    .where(and(eq(userXp.guildId, guildId), gt(userXp.xp, row.xp)))
-    .limit(1));
+  const ahead = await one(
+    getDb()
+      .select({ n: count() })
+      .from(userXp)
+      .where(and(eq(userXp.guildId, guildId), gt(userXp.xp, row.xp)))
+      .limit(1),
+  );
 
   const total = await getLeaderboardTotal(guildId);
   const level = row.level;

@@ -1,17 +1,17 @@
 import {
+  type AntiRaidSettings,
+  isAntiRaidImmune,
+  type NukeAction,
+  nukeThresholdExceeded,
+  recordAndCount,
+} from "@adobos/shared";
+import {
   AuditLogEvent,
-  PermissionFlagsBits,
   type Guild,
   type GuildAuditLogsEntry,
   type GuildMember,
+  PermissionFlagsBits,
 } from "discord.js";
-import {
-  isAntiRaidImmune,
-  nukeThresholdExceeded,
-  recordAndCount,
-  type AntiRaidSettings,
-  type NukeAction,
-} from "@adobos/shared";
 import { can } from "../../core/entitlements/service.js";
 import { logger } from "../../core/log.js";
 import { resolveAlertChannel, sendAntiRaidAlert } from "./alerts.js";
@@ -38,7 +38,11 @@ const DANGEROUS =
 
 const windows = new Map<string, number[]>();
 
-function windowKey(guildId: string, userId: string, action: NukeAction): string {
+function windowKey(
+  guildId: string,
+  userId: string,
+  action: NukeAction,
+): string {
   return `${guildId}:${userId}:${action}`;
 }
 
@@ -55,7 +59,10 @@ async function stripDangerousRoles(member: GuildMember): Promise<number> {
       await member.roles.remove(role, "Anti-Nuke strip");
       removed += 1;
     } catch (error: unknown) {
-      logger.warn({ err: error, roleId: role.id }, "anti-nuke: role not removed");
+      logger.warn(
+        { err: error, roleId: role.id },
+        "anti-nuke: role not removed",
+      );
     }
   }
   if (member.moderatable) {
@@ -71,7 +78,9 @@ async function punish(
 ): Promise<void> {
   const reason = `Anti-Nuke: ${action}`;
   if (settings.nukePunishment === "ban" && member.bannable) {
-    await member.ban({ reason, deleteMessageSeconds: 0 }).catch(() => undefined);
+    await member
+      .ban({ reason, deleteMessageSeconds: 0 })
+      .catch(() => undefined);
     return;
   }
   if (settings.nukePunishment === "kick" && member.kickable) {

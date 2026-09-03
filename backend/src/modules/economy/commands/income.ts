@@ -1,3 +1,10 @@
+import {
+  applyEconomyMessageTemplate,
+  type EconomyCrime,
+  type EconomyJob,
+  incomeChoiceMode,
+  normalizeMinMax,
+} from "@adobos/shared";
 import type {
   ChatInputCommandInteraction,
   StringSelectMenuInteraction,
@@ -7,15 +14,20 @@ import {
   EmbedBuilder,
   StringSelectMenuBuilder,
 } from "discord.js";
-import {
-  applyEconomyMessageTemplate,
-  incomeChoiceMode,
-  normalizeMinMax,
-  type EconomyCrime,
-  type EconomyJob,
-} from "@adobos/shared";
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
+import { pickRandom, randomBelow, randomInclusive } from "../casino/rng.js";
 import { assertCooldownAvailable, setCooldownMinutes } from "../cooldowns.js";
+import {
+  adjustEconomyFunds,
+  claimFixedIncome,
+  creditWallet,
+  debitWallet,
+  depositToBank,
+  type FixedIncomeType,
+  robWallet,
+  transferWalletPay,
+  withdrawFromBank,
+} from "../funds.js";
 import { getEconomyIncomeConfig } from "../incomeService.js";
 import {
   EconomyError,
@@ -25,24 +37,12 @@ import {
   parseBankAmountInput,
 } from "../service.js";
 import {
-  adjustEconomyFunds,
-  claimFixedIncome,
-  creditWallet,
-  debitWallet,
-  depositToBank,
-  robWallet,
-  transferWalletPay,
-  withdrawFromBank,
-  type FixedIncomeType,
-} from "../funds.js";
-import { pickRandom, randomBelow, randomInclusive } from "../casino/rng.js";
-import { EPHEMERAL, visibility } from "./visibility.js";
-import {
-  TABLE_IDLE_MS,
   clearMessageComponents,
   parseOwnerCustomId,
+  TABLE_IDLE_MS,
   tableKey,
 } from "./casinoCommon.js";
+import { EPHEMERAL, visibility } from "./visibility.js";
 
 function randomInt(min: number, max: number): number {
   const { min: a, max: b } = normalizeMinMax(min, max);
@@ -434,7 +434,11 @@ export async function handleWorkCommand(
   await interaction.deferReply(visibility(ephemeral));
 
   try {
-    await assertCooldownAvailable(interaction.guildId, interaction.user.id, "work");
+    await assertCooldownAvailable(
+      interaction.guildId,
+      interaction.user.id,
+      "work",
+    );
 
     const income = await getEconomyIncomeConfig(interaction.guildId);
     if (income.jobs.length === 0) {
@@ -451,8 +455,7 @@ export async function handleWorkCommand(
       return;
     }
 
-    const job =
-      mode === "auto" ? income.jobs[0]! : pickRandom(income.jobs);
+    const job = mode === "auto" ? income.jobs[0]! : pickRandom(income.jobs);
     await settleWork(interaction, job);
   } catch (error) {
     await replyEconomyError(interaction, error, true);
@@ -477,7 +480,11 @@ export async function handleCrimeCommand(
   await interaction.deferReply(visibility(ephemeral));
 
   try {
-    await assertCooldownAvailable(interaction.guildId, interaction.user.id, "crime");
+    await assertCooldownAvailable(
+      interaction.guildId,
+      interaction.user.id,
+      "crime",
+    );
 
     const income = await getEconomyIncomeConfig(interaction.guildId);
     if (income.crimes.length === 0) {
@@ -561,7 +568,12 @@ async function settleWork(
   const economy = await getEconomyConfig(guildId);
   const payout = randomInt(job.minPay, job.maxPay);
   const bal = await creditWallet(guildId, interaction.user.id, payout);
-  await setCooldownMinutes(guildId, interaction.user.id, "work", job.cooldownMinutes);
+  await setCooldownMinutes(
+    guildId,
+    interaction.user.id,
+    "work",
+    job.cooldownMinutes,
+  );
 
   const currency = economy.currencyName || "coins";
   const text = applyEconomyMessageTemplate(job.successMessage, {
@@ -584,9 +596,17 @@ async function settleWork(
     });
 
   if (interaction.isStringSelectMenu()) {
-    await interaction.update({ embeds: [embed], components: [], content: null });
+    await interaction.update({
+      embeds: [embed],
+      components: [],
+      content: null,
+    });
   } else if (interaction.deferred || interaction.replied) {
-    await interaction.editReply({ embeds: [embed], components: [], content: null });
+    await interaction.editReply({
+      embeds: [embed],
+      components: [],
+      content: null,
+    });
   }
 }
 
@@ -656,9 +676,17 @@ async function settleCrime(
     });
 
   if (interaction.isStringSelectMenu()) {
-    await interaction.update({ embeds: [embed], components: [], content: null });
+    await interaction.update({
+      embeds: [embed],
+      components: [],
+      content: null,
+    });
   } else if (interaction.deferred || interaction.replied) {
-    await interaction.editReply({ embeds: [embed], components: [], content: null });
+    await interaction.editReply({
+      embeds: [embed],
+      components: [],
+      content: null,
+    });
   }
 }
 
@@ -707,19 +735,31 @@ async function handleIncomeSelect(
   clearJobPending(key);
 
   try {
-    await assertCooldownAvailable(interaction.guildId, interaction.user.id, kind);
+    await assertCooldownAvailable(
+      interaction.guildId,
+      interaction.user.id,
+      kind,
+    );
     const income = await getEconomyIncomeConfig(interaction.guildId);
     const id = interaction.values[0] ?? "";
     if (kind === "work") {
       const job = income.jobs.find((j) => j.id === id);
       if (!job) {
-        throw new EconomyError("That job no longer exists.", 400, "JOB_MISSING");
+        throw new EconomyError(
+          "That job no longer exists.",
+          400,
+          "JOB_MISSING",
+        );
       }
       await settleWork(interaction, job);
     } else {
       const crime = income.crimes.find((c) => c.id === id);
       if (!crime) {
-        throw new EconomyError("That crime no longer exists.", 400, "CRIME_MISSING");
+        throw new EconomyError(
+          "That crime no longer exists.",
+          400,
+          "CRIME_MISSING",
+        );
       }
       await settleCrime(interaction, crime);
     }
@@ -775,7 +815,13 @@ export async function handleBaltopCommand(
       member?.user.username ??
       `User ${row.userId.slice(-4)}`;
     const medal =
-      row.rank === 1 ? "🥇" : row.rank === 2 ? "🥈" : row.rank === 3 ? "🥉" : `**${row.rank}.**`;
+      row.rank === 1
+        ? "🥇"
+        : row.rank === 2
+          ? "🥈"
+          : row.rank === 3
+            ? "🥉"
+            : `**${row.rank}.**`;
     lines.push(
       `${medal} **${name}** — \`${row.total.toLocaleString("es-MX")}\` ${currency}`,
     );
@@ -930,7 +976,9 @@ export async function handleCollectIncomeCommand(
       );
     }
 
-    const mine = income.roleSalaries.filter((s) => member.roles.cache.has(s.roleId));
+    const mine = income.roleSalaries.filter((s) =>
+      member.roles.cache.has(s.roleId),
+    );
     if (mine.length === 0) {
       throw new EconomyError(
         "You don't have any salaried role in this server.",
@@ -941,8 +989,9 @@ export async function handleCollectIncomeCommand(
 
     const lines: string[] = [];
     let total = 0;
-    let wallet = (await getUserEconomyBalance(interaction.guildId, interaction.user.id))
-      .wallet;
+    let wallet = (
+      await getUserEconomyBalance(interaction.guildId, interaction.user.id)
+    ).wallet;
 
     for (const salary of mine) {
       const key = `salary:${salary.id}`;
@@ -1046,9 +1095,16 @@ export async function handleRobCommand(
       );
     }
 
-    await assertCooldownAvailable(interaction.guildId, interaction.user.id, "rob");
+    await assertCooldownAvailable(
+      interaction.guildId,
+      interaction.user.id,
+      "rob",
+    );
 
-    const victimBal = await getUserEconomyBalance(interaction.guildId, target.id);
+    const victimBal = await getUserEconomyBalance(
+      interaction.guildId,
+      target.id,
+    );
     if (victimBal.wallet < rob.minTargetWallet) {
       throw new EconomyError(
         `That wallet is below the minimum (${rob.minTargetWallet.toLocaleString("es-MX")}). The bank can't be robbed.`,
@@ -1069,7 +1125,9 @@ export async function handleRobCommand(
       interaction.guildId,
       interaction.user.id,
     );
-    const fineAmount = Math.floor((robberBal.wallet * rob.failFinePercent) / 100);
+    const fineAmount = Math.floor(
+      (robberBal.wallet * rob.failFinePercent) / 100,
+    );
 
     const result = await robWallet({
       guildId: interaction.guildId,

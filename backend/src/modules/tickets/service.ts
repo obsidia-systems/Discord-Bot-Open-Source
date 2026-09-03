@@ -1,23 +1,19 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
 import type {
   CreateTicketPanelRequest,
+  TicketAction,
   TicketDetail,
   TicketEvent,
+  TicketEventType,
   TicketListResponse,
   TicketPanel,
   TicketParticipant,
   TicketSettings,
-  TicketSummary,
   TicketStatus,
-  TicketAction,
-  TicketEventType,
+  TicketSummary,
   UpdateTicketPanelRequest,
   UpdateTicketSettingsRequest,
 } from "@adobos/shared";
 import {
-  TICKET_LIVE_STATUSES,
-  TICKETS_LIST_MAX,
-  TICKETS_MAX_PANELS,
   canApplyTicketAction,
   clampTicketOpenPerUser,
   isTicketEventType,
@@ -27,24 +23,28 @@ import {
   normalizeTicketPanelButtons,
   normalizeTicketSnowflake,
   normalizeTicketSnowflakeList,
+  TICKET_LIVE_STATUSES,
+  TICKETS_LIST_MAX,
+  TICKETS_MAX_PANELS,
   ticketOpenBlocked,
   ticketStatusAfter,
 } from "@adobos/shared";
+import { and, desc, eq, inArray } from "drizzle-orm";
+import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
 import { getDb, one } from "../../db/client.js";
 import {
   guildSettings,
-  ticketEvents,
-  ticketPanels,
-  ticketParticipants,
-  ticketSettings,
-  tickets,
   type TicketEventRow,
   type TicketPanelRow,
   type TicketParticipantRow,
   type TicketRow,
   type TicketSettingsRow,
+  ticketEvents,
+  ticketPanels,
+  ticketParticipants,
+  ticketSettings,
+  tickets,
 } from "../../db/schema.js";
-import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
 
 export class TicketsError extends Error {
   constructor(
@@ -272,7 +272,11 @@ export async function getTicketPanel(
   guildId?: string,
 ): Promise<TicketPanel> {
   const row = await one(
-    getDb().select().from(ticketPanels).where(eq(ticketPanels.id, panelId)).limit(1),
+    getDb()
+      .select()
+      .from(ticketPanels)
+      .where(eq(ticketPanels.id, panelId))
+      .limit(1),
   );
   if (!row) {
     throw new TicketsError("Panel not found.", 404, "PANEL_NOT_FOUND");
@@ -308,7 +312,8 @@ export async function createTicketPanel(
       channelId: input.channelId
         ? normalizeTicketSnowflake(input.channelId)
         : null,
-      embedTitle: (input.embedTitle ?? "Tickets").trim().slice(0, 256) || "Tickets",
+      embedTitle:
+        (input.embedTitle ?? "Tickets").trim().slice(0, 256) || "Tickets",
       embedDescription:
         (input.embedDescription ?? "Press a button to open a ticket.")
           .trim()
@@ -320,7 +325,11 @@ export async function createTicketPanel(
     })
     .returning();
   if (!row) {
-    throw new TicketsError("Couldn't create the panel.", 500, "PANEL_INSERT_FAILED");
+    throw new TicketsError(
+      "Couldn't create the panel.",
+      500,
+      "PANEL_INSERT_FAILED",
+    );
   }
   invalidate(id);
   return mapPanel(row);
@@ -488,7 +497,11 @@ export async function insertOpenedTicket(input: {
       })
       .returning();
     if (!row) {
-      throw new TicketsError("Couldn't create the ticket.", 500, "INSERT_FAILED");
+      throw new TicketsError(
+        "Couldn't create the ticket.",
+        500,
+        "INSERT_FAILED",
+      );
     }
     await tx.insert(ticketEvents).values({
       ticketId: row.id,
@@ -621,14 +634,16 @@ async function appendEvent(input: {
   payload?: Record<string, unknown>;
   createdAt?: Date;
 }): Promise<void> {
-  await getDb().insert(ticketEvents).values({
-    ticketId: input.ticketId,
-    guildId: input.guildId,
-    type: input.type,
-    actorId: input.actorId,
-    payload: JSON.stringify(input.payload ?? {}),
-    createdAt: input.createdAt ?? new Date(),
-  });
+  await getDb()
+    .insert(ticketEvents)
+    .values({
+      ticketId: input.ticketId,
+      guildId: input.guildId,
+      type: input.type,
+      actorId: input.actorId,
+      payload: JSON.stringify(input.payload ?? {}),
+      createdAt: input.createdAt ?? new Date(),
+    });
 }
 
 export async function applyTicketAction(input: {

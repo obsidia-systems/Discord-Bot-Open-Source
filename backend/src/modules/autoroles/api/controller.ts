@@ -1,15 +1,3 @@
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  EmbedBuilder,
-  type AttachmentBuilder,
-  type Client,
-  type ColorResolvable,
-  type Message,
-  type SendableChannels,
-  type TextChannel,
-} from "discord.js";
 import type {
   ButtonRoleMappingInput,
   CreateAutoRoleRequest,
@@ -25,33 +13,41 @@ import {
   isAutoroleSendChannelType,
   normalizeAutoroleEmojiKey,
 } from "@adobos/shared";
+import {
+  ActionRowBuilder,
+  type AttachmentBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  type Client,
+  type ColorResolvable,
+  EmbedBuilder,
+  type Message,
+  type SendableChannels,
+  type TextChannel,
+} from "discord.js";
 import { eq } from "drizzle-orm";
+import {
+  fetchChannelInGuild,
+  rethrowAsChannelError,
+} from "../../../core/http/channelScope.js";
 import { getDb, one } from "../../../db/client.js";
-import { guildSettings, reactionRolesMenus } from "../../../db/schema.js";
 import {
   deleteReactionRolesForMessage,
   emojiKeyToResolvable,
   upsertReactionRoles,
 } from "../../../db/reaction-roles.js";
-import {
-  fetchChannelInGuild,
-  rethrowAsChannelError,
-} from "../../../core/http/channelScope.js";
+import { guildSettings, reactionRolesMenus } from "../../../db/schema.js";
 import {
   EmbedMediaError,
   requireHttpUrl,
   resolveEmbedMedia,
 } from "../../../lib/embedMedia.js";
-
-import { AutoRoleError } from "../errors.js";
 import { assertAssignableRoleIds } from "../assignable.js";
+import { AutoRoleError } from "../errors.js";
 
 export { AutoRoleError };
 
-const BUTTON_STYLE_MAP: Record<
-  ButtonRoleMappingInput["style"],
-  ButtonStyle
-> = {
+const BUTTON_STYLE_MAP: Record<ButtonRoleMappingInput["style"], ButtonStyle> = {
   Primary: ButtonStyle.Primary,
   Secondary: ButtonStyle.Secondary,
   Success: ButtonStyle.Success,
@@ -62,21 +58,19 @@ async function ensureGuildRow(guildId: string): Promise<void> {
   const db = getDb();
   const existing = await one(
     db
-    .select()
-    .from(guildSettings)
-    .where(eq(guildSettings.guildId, guildId))
-    .limit(1)
+      .select()
+      .from(guildSettings)
+      .where(eq(guildSettings.guildId, guildId))
+      .limit(1),
   );
 
   if (!existing) {
-    await db.insert(guildSettings)
-      .values({
-        guildId,
-        prefix: "!",
-        welcomeEnabled: false,
-        updatedAt: new Date(),
-      })
-      ;
+    await db.insert(guildSettings).values({
+      guildId,
+      prefix: "!",
+      welcomeEnabled: false,
+      updatedAt: new Date(),
+    });
   }
 }
 
@@ -194,10 +188,12 @@ function buildEmbedFromPayload(embed: EmbedPayload): {
   if (url) builder.setURL(url);
   if (description) builder.setDescription(description);
   if (color !== undefined) builder.setColor(color);
-  if (authorName) builder.setAuthor({ name: authorName, iconURL: authorIconUrl });
+  if (authorName)
+    builder.setAuthor({ name: authorName, iconURL: authorIconUrl });
   if (thumbnailUrl) builder.setThumbnail(thumbnailUrl);
   if (imageUrl) builder.setImage(imageUrl);
-  if (footerText) builder.setFooter({ text: footerText, iconURL: footerIconUrl });
+  if (footerText)
+    builder.setFooter({ text: footerText, iconURL: footerIconUrl });
   if (embed.timestamp) builder.setTimestamp(new Date());
   return { builder, files };
 }
@@ -206,7 +202,11 @@ function buildButtonRows(
   mappings: ButtonRoleMappingInput[],
 ): ActionRowBuilder<ButtonBuilder>[] {
   if (mappings.length === 0) {
-    throw new AutoRoleError("Add at least one button → role.", 400, "EMPTY_BUTTONS");
+    throw new AutoRoleError(
+      "Add at least one button → role.",
+      400,
+      "EMPTY_BUTTONS",
+    );
   }
   if (mappings.length > AUTOROLE_BUTTONS_MAX) {
     throw new AutoRoleError(
@@ -224,8 +224,7 @@ function buildButtonRows(
       chunk.map((mapping) => {
         const roleId = assertSnowflake(mapping.roleId, "roleId");
         const label = mapping.label.trim() || "Role";
-        const customId =
-          mapping.customId.trim() || `autorole_${roleId}`;
+        const customId = mapping.customId.trim() || `autorole_${roleId}`;
         const button = new ButtonBuilder()
           .setCustomId(customId.slice(0, 100))
           .setLabel(label.slice(0, 80))
@@ -253,7 +252,7 @@ async function resolveSendableChannel(
   channelId: string,
   expectedGuildId: string,
 ): Promise<SendableChannels & TextChannel> {
-  let channel;
+  let channel: Awaited<ReturnType<typeof fetchChannelInGuild>>;
   try {
     channel = await fetchChannelInGuild(bot, channelId, expectedGuildId);
   } catch (error: unknown) {
@@ -349,36 +348,34 @@ async function saveInteractiveMenu(input: {
   const json = JSON.stringify(input.rolesMapping);
   const existing = await one(
     db
-    .select()
-    .from(reactionRolesMenus)
-    .where(eq(reactionRolesMenus.messageId, input.messageId))
-    .limit(1)
+      .select()
+      .from(reactionRolesMenus)
+      .where(eq(reactionRolesMenus.messageId, input.messageId))
+      .limit(1),
   );
 
   if (existing) {
-    await db.update(reactionRolesMenus)
+    await db
+      .update(reactionRolesMenus)
       .set({
         channelId: input.channelId,
         mode: input.mode,
         rolesMapping: json,
         updatedAt: now,
       })
-      .where(eq(reactionRolesMenus.id, existing.id))
-      ;
+      .where(eq(reactionRolesMenus.id, existing.id));
     return;
   }
 
-  await db.insert(reactionRolesMenus)
-    .values({
-      guildId: input.guildId,
-      channelId: input.channelId,
-      messageId: input.messageId,
-      mode: input.mode,
-      rolesMapping: json,
-      createdAt: now,
-      updatedAt: now,
-    })
-    ;
+  await db.insert(reactionRolesMenus).values({
+    guildId: input.guildId,
+    channelId: input.channelId,
+    messageId: input.messageId,
+    mode: input.mode,
+    rolesMapping: json,
+    createdAt: now,
+    updatedAt: now,
+  });
 }
 
 /** Endpoint todo-en-uno: crea mensaje (opcional) + guarda mappings. */

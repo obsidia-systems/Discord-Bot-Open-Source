@@ -1,10 +1,10 @@
-import { Router } from "express";
 import type { Client } from "discord.js";
-import { sendTextMessage } from "./controller.js";
+import { Router } from "express";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { parse } from "../../../core/http/validate.js";
-import { sendEmbedSchema, sendMessageSchema } from "./schema.js";
 import { sendAndRegisterEmbed } from "../library.js";
+import { sendTextMessage } from "./controller.js";
+import { sendEmbedSchema, sendMessageSchema } from "./schema.js";
 import { optionalEmbedUpload, uploadedFromRequest } from "./upload.js";
 
 export function messageRoutes(bot: Client): Router {

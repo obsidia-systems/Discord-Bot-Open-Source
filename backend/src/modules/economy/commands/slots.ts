@@ -1,27 +1,31 @@
 import {
-  EmbedBuilder,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
   type Client,
+  EmbedBuilder,
 } from "discord.js";
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
+import {
+  SLOT_PAIR_MULTIPLIER,
+  slotsCredit,
+  spinSlots,
+} from "../casino/slots.js";
 import { assertCooldownAvailable, setCooldownMs } from "../cooldowns.js";
-import { SLOT_PAIR_MULTIPLIER, slotsCredit, spinSlots } from "../casino/slots.js";
 import { creditWallet, debitWalletStrict } from "../funds.js";
 import { EconomyError, getUserEconomyBalance } from "../service.js";
-import { EPHEMERAL, visibility } from "./visibility.js";
 import {
-  LOSE,
-  TABLE_IDLE_MS,
-  WIN,
   assertEconomyAndCasino,
   clearMessageComponents,
   currencyOf,
+  LOSE,
   parseOwnerCustomId,
   playAgainRow,
   replyCasinoError,
+  TABLE_IDLE_MS,
   tableKey,
+  WIN,
 } from "./casinoCommon.js";
+import { EPHEMERAL, visibility } from "./visibility.js";
 
 export const SL_BUTTON_PREFIX = "sl_";
 const SL_AGAIN = "sl_again";
@@ -63,14 +67,18 @@ async function resolveSpin(input: {
   userId: string;
   bet: number;
 }): Promise<EmbedBuilder> {
-  const { economy, casino } = await assertEconomyAndCasino(input.guildId, input.bet);
+  const { economy, casino } = await assertEconomyAndCasino(
+    input.guildId,
+    input.bet,
+  );
   await assertCooldownAvailable(input.guildId, input.userId, "slots");
   await debitWalletStrict(input.guildId, input.userId, input.bet);
 
   const spun = spinSlots();
   const payout = slotsCredit(input.bet, spun.multiplier);
   const currency = currencyOf(economy);
-  let wallet = (await getUserEconomyBalance(input.guildId, input.userId)).wallet;
+  let wallet = (await getUserEconomyBalance(input.guildId, input.userId))
+    .wallet;
   if (payout > 0) {
     wallet = (await creditWallet(input.guildId, input.userId, payout)).wallet;
   }
@@ -209,9 +217,7 @@ export async function handleSlotsButton(
     armIdle(row);
   } catch (error) {
     const msg =
-      error instanceof EconomyError
-        ? error.message
-        : "Couldn't spin.";
+      error instanceof EconomyError ? error.message : "Couldn't spin.";
     if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({ content: `❌ ${msg}`, ...EPHEMERAL });
     }

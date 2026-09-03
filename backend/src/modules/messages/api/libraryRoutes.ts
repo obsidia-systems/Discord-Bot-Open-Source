@@ -1,15 +1,15 @@
-import { Router } from "express";
 import type { Client } from "discord.js";
+import { Router } from "express";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { stringId } from "../../../core/http/schemas.js";
 import { parse } from "../../../core/http/validate.js";
-import { editSentEmbedSchema, sendEmbedSchema } from "./schema.js";
 import {
   deleteSentEmbed,
   editSentEmbed,
   getEmbedLibrary,
   sendAndRegisterEmbed,
 } from "../library.js";
+import { editSentEmbedSchema, sendEmbedSchema } from "./schema.js";
 import { optionalEmbedUpload, uploadedFromRequest } from "./upload.js";
 
 export function embedLibraryRoutes(bot: Client): Router {

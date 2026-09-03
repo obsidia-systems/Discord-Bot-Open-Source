@@ -12,17 +12,19 @@ export async function assertCooldownAvailable(
   userId: string,
   commandKey: string,
 ): Promise<void> {
-  const row = await one(getDb()
-    .select()
-    .from(economyCooldowns)
-    .where(
-      and(
-        eq(economyCooldowns.guildId, guildId),
-        eq(economyCooldowns.userId, userId),
-        eq(economyCooldowns.commandKey, commandKey),
-      ),
-    )
-    .limit(1));
+  const row = await one(
+    getDb()
+      .select()
+      .from(economyCooldowns)
+      .where(
+        and(
+          eq(economyCooldowns.guildId, guildId),
+          eq(economyCooldowns.userId, userId),
+          eq(economyCooldowns.commandKey, commandKey),
+        ),
+      )
+      .limit(1),
+  );
 
   if (!row) return;
   const remaining = row.availableAt.getTime() - Date.now();
@@ -70,6 +72,5 @@ export async function setCooldownMs(
         economyCooldowns.commandKey,
       ],
       set: { availableAt },
-    })
-    ;
+    });
 }

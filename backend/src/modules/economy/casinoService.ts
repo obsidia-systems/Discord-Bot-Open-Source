@@ -25,35 +25,32 @@ import { EconomyError } from "./service.js";
 function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new EconomyError(
-      "Missing guildId.",
-      400,
-      "MISSING_GUILD_ID",
-    );
+    throw new EconomyError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
   return id;
 }
 
 async function ensureGuildRow(guildId: string): Promise<void> {
-  const existing = await one(getDb()
-    .select({ guildId: guildSettings.guildId })
-    .from(guildSettings)
-    .where(eq(guildSettings.guildId, guildId))
-    .limit(1));
+  const existing = await one(
+    getDb()
+      .select({ guildId: guildSettings.guildId })
+      .from(guildSettings)
+      .where(eq(guildSettings.guildId, guildId))
+      .limit(1),
+  );
   if (!existing) {
-    await getDb()
-      .insert(guildSettings)
-      .values({
-        guildId,
-        prefix: "!",
-        welcomeEnabled: false,
-        updatedAt: new Date(),
-      })
-      ;
+    await getDb().insert(guildSettings).values({
+      guildId,
+      prefix: "!",
+      welcomeEnabled: false,
+      updatedAt: new Date(),
+    });
   }
 }
 
-function parseJsonObject(raw: string | null | undefined): Record<string, unknown> {
+function parseJsonObject(
+  raw: string | null | undefined,
+): Record<string, unknown> {
   if (!raw) return {};
   try {
     const parsed = JSON.parse(raw) as unknown;
@@ -170,13 +167,17 @@ function rowToConfig(
   };
 }
 
-export async function getEconomyCasinoConfig(guildId?: string): Promise<EconomyCasinoConfig> {
+export async function getEconomyCasinoConfig(
+  guildId?: string,
+): Promise<EconomyCasinoConfig> {
   const id = resolveGuildId(guildId);
-  const row = await one(getDb()
-    .select()
-    .from(economyCasino)
-    .where(eq(economyCasino.guildId, id))
-    .limit(1));
+  const row = await one(
+    getDb()
+      .select()
+      .from(economyCasino)
+      .where(eq(economyCasino.guildId, id))
+      .limit(1),
+  );
   return await rowToConfig(id, row);
 }
 
@@ -251,8 +252,7 @@ export async function updateEconomyCasinoConfig(
         slots: JSON.stringify(next.slots),
         updatedAt: now,
       },
-    })
-    ;
+    });
 
   return next;
 }

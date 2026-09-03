@@ -1,36 +1,36 @@
 import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ChannelType,
-  EmbedBuilder,
-  FileUploadBuilder,
-  LabelBuilder,
-  MessageFlags,
-  ModalBuilder,
-  PermissionFlagsBits,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  type ButtonInteraction,
-  type Client,
-  type GuildMember,
-  type ModalSubmitInteraction,
-  type TextBasedChannel,
-} from "discord.js";
-import {
   FORM_ACCEPT_PREFIX,
   FORM_DENY_PREFIX,
   FORM_OPEN_PREFIX,
   FORM_QUESTION_PREFIX,
   FORM_SUBMIT_PREFIX,
-  formMemberGateReason,
-  parseFormNumericId,
   type FormAnswerEntry,
   type FormQuestion,
+  formMemberGateReason,
   type InteractiveForm,
+  parseFormNumericId,
 } from "@adobos/shared";
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  type ButtonInteraction,
+  ButtonStyle,
+  ChannelType,
+  type Client,
+  EmbedBuilder,
+  FileUploadBuilder,
+  type GuildMember,
+  LabelBuilder,
+  MessageFlags,
+  ModalBuilder,
+  type ModalSubmitInteraction,
+  PermissionFlagsBits,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
+  type TextBasedChannel,
+  TextInputBuilder,
+  TextInputStyle,
+} from "discord.js";
 import {
   FormsError,
   getFormById,
@@ -98,11 +98,13 @@ function buildQuestionLabel(question: FormQuestion): LabelBuilder {
       .setMinValues(question.required ? 1 : 0)
       .setMaxValues(1)
       .addOptions(
-        question.options.slice(0, 25).map((opt) =>
-          new StringSelectMenuOptionBuilder()
-            .setLabel(opt.label.slice(0, 100))
-            .setValue(opt.value.slice(0, 100)),
-        ),
+        question.options
+          .slice(0, 25)
+          .map((opt) =>
+            new StringSelectMenuOptionBuilder()
+              .setLabel(opt.label.slice(0, 100))
+              .setValue(opt.value.slice(0, 100)),
+          ),
       );
     label.setStringSelectMenuComponent(menu);
     return label;
@@ -203,7 +205,10 @@ async function assertCanSubmit(
 export async function onFormsOpenButton(
   interaction: ButtonInteraction,
 ): Promise<void> {
-  if (!interaction.guildId || !interaction.customId.startsWith(FORM_OPEN_PREFIX)) {
+  if (
+    !interaction.guildId ||
+    !interaction.customId.startsWith(FORM_OPEN_PREFIX)
+  ) {
     return;
   }
 
@@ -223,10 +228,7 @@ export async function onFormsOpenButton(
   }
 
   if (form.questions.length === 0) {
-    await reject(
-      interaction,
-      "This form has no questions configured yet.",
-    );
+    await reject(interaction, "This form has no questions configured yet.");
     return;
   }
 
@@ -256,7 +258,9 @@ export async function onFormsOpenButton(
 
 function isSendableTextChannel(
   channel: unknown,
-): channel is TextBasedChannel & { send: (...args: unknown[]) => Promise<unknown> } {
+): channel is TextBasedChannel & {
+  send: (...args: unknown[]) => Promise<unknown>;
+} {
   if (!channel || typeof channel !== "object") return false;
   if (!("isTextBased" in channel)) return false;
   const typed = channel as {
@@ -333,7 +337,7 @@ export async function onFormsModalSubmit(
     forceStatic: true,
   });
 
-  let saved;
+  let saved: Awaited<ReturnType<typeof insertFormResponse>>;
   try {
     saved = await insertFormResponse({
       formId: form.id,
@@ -439,7 +443,10 @@ export async function onFormsReviewButton(
 ): Promise<void> {
   const accept = interaction.customId.startsWith(FORM_ACCEPT_PREFIX);
   const prefix = accept ? FORM_ACCEPT_PREFIX : FORM_DENY_PREFIX;
-  if (!interaction.guildId || (!accept && !interaction.customId.startsWith(FORM_DENY_PREFIX))) {
+  if (
+    !interaction.guildId ||
+    (!accept && !interaction.customId.startsWith(FORM_DENY_PREFIX))
+  ) {
     return;
   }
   const responseId = parseFormNumericId(interaction.customId, prefix);
@@ -469,7 +476,7 @@ export async function onFormsReviewButton(
     return;
   }
 
-  let reviewed;
+  let reviewed: Awaited<ReturnType<typeof reviewFormResponse>>;
   try {
     reviewed = await reviewFormResponse({
       responseId,

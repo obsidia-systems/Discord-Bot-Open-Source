@@ -1,7 +1,4 @@
-import {
-  MessageFlags,
-  type ChatInputCommandInteraction,
-} from "discord.js";
+import { type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
 import { clampTimeoutSeconds, parseDurationToSeconds } from "../duration.js";
 import {

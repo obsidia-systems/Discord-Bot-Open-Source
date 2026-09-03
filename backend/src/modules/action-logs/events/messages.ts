@@ -21,11 +21,11 @@ export async function onMessageDelete(
   const author = message.author;
 
   if (
-    !await passesActionLogFilters(message.guild.id, "messageDelete", {
+    !(await passesActionLogFilters(message.guild.id, "messageDelete", {
       channelId,
       parentId,
       actorIsBot: author?.bot,
-    })
+    }))
   ) {
     return;
   }
@@ -61,7 +61,7 @@ export async function onMessageDelete(
     executorTag: executor?.tag ?? null,
     executorAvatarURL: executor
       ? executor.avatarURL
-      : author?.displayAvatarURL?.({ size: 128 }) ?? null,
+      : (author?.displayAvatarURL?.({ size: 128 }) ?? null),
     targetId: author?.id ?? null,
     targetTag: author ? userTag(author) : null,
     channelId,
@@ -75,7 +75,8 @@ export async function onMessageDelete(
       newContent: null,
       attachments,
       messageId: message.id,
-      cached: !message.partial && Boolean(message.content || attachments.length),
+      cached:
+        !message.partial && Boolean(message.content || attachments.length),
       channelLabel: channelPlain,
       channelPlain: true,
       targetKind: "user",
@@ -135,11 +136,15 @@ export async function onMessageUpdate(
     if (removed.length === 0) return;
 
     if (
-      !await passesActionLogFilters(newMessage.guild.id, "messageAttachmentDelete", {
-        channelId: newMessage.channelId,
-        parentId,
-        actorIsBot: author?.bot,
-      })
+      !(await passesActionLogFilters(
+        newMessage.guild.id,
+        "messageAttachmentDelete",
+        {
+          channelId: newMessage.channelId,
+          parentId,
+          actorIsBot: author?.bot,
+        },
+      ))
     ) {
       return;
     }
@@ -167,11 +172,11 @@ export async function onMessageUpdate(
   }
 
   if (
-    !await passesActionLogFilters(newMessage.guild.id, "messageUpdate", {
+    !(await passesActionLogFilters(newMessage.guild.id, "messageUpdate", {
       channelId: newMessage.channelId,
       parentId,
       actorIsBot: author?.bot,
-    })
+    }))
   ) {
     return;
   }
@@ -218,10 +223,10 @@ export async function onMessageDeleteBulk(
       : null;
 
   if (
-    !await passesActionLogFilters(guild.id, "messageDeleteBulk", {
+    !(await passesActionLogFilters(guild.id, "messageDeleteBulk", {
       channelId,
       parentId,
-    })
+    }))
   ) {
     return;
   }

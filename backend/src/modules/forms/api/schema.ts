@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { nonNegInt, snowflakeList, snowflakeNull } from "../../../core/http/schemas.js";
+import {
+  nonNegInt,
+  snowflakeList,
+  snowflakeNull,
+} from "../../../core/http/schemas.js";
 
 const formSelectOptionSchema = z.object({
   label: z.string().min(1).max(100),

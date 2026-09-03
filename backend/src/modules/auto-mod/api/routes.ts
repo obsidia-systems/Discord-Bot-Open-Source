@@ -1,13 +1,10 @@
-import { Router } from "express";
 import type { Client } from "discord.js";
+import { Router } from "express";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { parse } from "../../../core/http/validate.js";
-import { updateAutoModConfigSchema } from "./schema.js";
-import {
-  getAutoModConfig,
-  updateAutoModConfig,
-} from "../service.js";
 import { syncNativeAutoMod } from "../nativeSync.js";
+import { getAutoModConfig, updateAutoModConfig } from "../service.js";
+import { updateAutoModConfigSchema } from "./schema.js";
 
 export function autoModRoutes(bot: Client): Router {
   const router = Router();

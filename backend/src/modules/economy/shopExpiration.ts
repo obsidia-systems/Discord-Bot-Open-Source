@@ -1,8 +1,8 @@
 import type { Client } from "discord.js";
 import { and, eq, isNotNull, lte } from "drizzle-orm";
-import { getDb } from "../../db/client.js";
-import { logger } from "../../core/log.js";
 import { registerJob } from "../../core/lifecycle.js";
+import { logger } from "../../core/log.js";
+import { getDb } from "../../db/client.js";
 import {
   economyOwnedChannels,
   economyOwnedRoles,
@@ -29,8 +29,7 @@ export async function sweepExpiredShopGrants(bot: Client): Promise<void> {
         isNotNull(economyOwnedRoles.expiresAt),
         lte(economyOwnedRoles.expiresAt, now),
       ),
-    )
-    ;
+    );
 
   for (const row of expiredRoles) {
     try {
@@ -58,8 +57,7 @@ export async function sweepExpiredShopGrants(bot: Client): Promise<void> {
     }
     await getDb()
       .delete(economyOwnedRoles)
-      .where(eq(economyOwnedRoles.id, row.id))
-      ;
+      .where(eq(economyOwnedRoles.id, row.id));
   }
 
   const expiredChannels = await getDb()
@@ -70,8 +68,7 @@ export async function sweepExpiredShopGrants(bot: Client): Promise<void> {
         isNotNull(economyOwnedChannels.expiresAt),
         lte(economyOwnedChannels.expiresAt, now),
       ),
-    )
-    ;
+    );
 
   for (const row of expiredChannels) {
     try {
@@ -91,8 +88,7 @@ export async function sweepExpiredShopGrants(bot: Client): Promise<void> {
     }
     await getDb()
       .delete(economyOwnedChannels)
-      .where(eq(economyOwnedChannels.id, row.id))
-      ;
+      .where(eq(economyOwnedChannels.id, row.id));
   }
 
   const expiredBoosts = await getDb()
@@ -103,14 +99,12 @@ export async function sweepExpiredShopGrants(bot: Client): Promise<void> {
         isNotNull(economyUserBoosts.expiresAt),
         lte(economyUserBoosts.expiresAt, now),
       ),
-    )
-    ;
+    );
 
   for (const row of expiredBoosts) {
     await getDb()
       .delete(economyUserBoosts)
-      .where(eq(economyUserBoosts.id, row.id))
-      ;
+      .where(eq(economyUserBoosts.id, row.id));
   }
 }
 

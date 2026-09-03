@@ -2,19 +2,20 @@ import "zod/compile";
 import "dotenv/config";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { initDatabase, closeDatabase } from "./db/client.js";
-import { loadModules } from "./core/modules/index.js";
+import {
+  startSessionPruneJob,
+  stopSessionPruneJob,
+} from "./core/auth/sessionStore.js";
 import { createBotClient } from "./core/bot/createClient.js";
-import { createApp, createHealthApp } from "./core/http/createApp.js";
-import { ENABLED_MODULES } from "./modules/index.js";
-import { wireCustomCommandsBuiltinSync } from "./modules/custom-commands/index.js";
-import { logger } from "./core/log.js";
 import { loadEnv } from "./core/env.js";
+import { createApp, createHealthApp } from "./core/http/createApp.js";
 import {
   installProcessGuards,
   onShutdown,
   runShutdown,
 } from "./core/lifecycle.js";
+import { logger } from "./core/log.js";
+import { loadModules } from "./core/modules/index.js";
 import {
   roleRunsGateway,
   roleRunsHttp,
@@ -22,8 +23,13 @@ import {
   setRuntimeRole,
   setWorkerLeader,
 } from "./core/runtime/index.js";
-import { acquireWorkerLock, releaseWorkerLock } from "./core/runtime/workerLock.js";
-import { startSessionPruneJob, stopSessionPruneJob } from "./core/auth/sessionStore.js";
+import {
+  acquireWorkerLock,
+  releaseWorkerLock,
+} from "./core/runtime/workerLock.js";
+import { closeDatabase, initDatabase } from "./db/client.js";
+import { wireCustomCommandsBuiltinSync } from "./modules/custom-commands/index.js";
+import { ENABLED_MODULES } from "./modules/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

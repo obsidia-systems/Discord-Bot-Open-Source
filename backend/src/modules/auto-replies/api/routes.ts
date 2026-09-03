@@ -1,17 +1,14 @@
 import { Router } from "express";
 import { guildIdOf } from "../../../core/http/guildContext.js";
-import { parse } from "../../../core/http/validate.js";
 import { recordId } from "../../../core/http/schemas.js";
-import {
-  createAutoReplySchema,
-  updateAutoReplySchema,
-} from "./schema.js";
+import { parse } from "../../../core/http/validate.js";
 import {
   createAutoReply,
   deleteAutoReply,
   listAutoRepliesConfig,
   updateAutoReply,
 } from "../service.js";
+import { createAutoReplySchema, updateAutoReplySchema } from "./schema.js";
 
 export function autoRepliesRoutes(): Router {
   const router = Router();
@@ -26,7 +23,10 @@ export function autoRepliesRoutes(): Router {
 
   router.post("/", async (req, res, next) => {
     try {
-      const reply = await createAutoReply(parse(createAutoReplySchema, req.body ?? {}), guildIdOf(req));
+      const reply = await createAutoReply(
+        parse(createAutoReplySchema, req.body ?? {}),
+        guildIdOf(req),
+      );
       res.status(201).json({ reply });
     } catch (error: unknown) {
       next(error);

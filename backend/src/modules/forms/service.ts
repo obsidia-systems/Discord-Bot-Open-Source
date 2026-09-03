@@ -7,12 +7,12 @@ import type {
   UpdateFormRequest,
 } from "@adobos/shared";
 import {
+  clampFormCooldownMinutes,
   DEFAULT_FORMS_EMBED_COLOR,
   DEFAULT_FORMS_THANK_YOU,
+  defaultInteractiveForm,
   FORMS_MAX_PER_GUILD,
   FORMS_RESPONSES_LIST_MAX,
-  clampFormCooldownMinutes,
-  defaultInteractiveForm,
   normalizeFormQuestions,
   normalizeFormResponseStatus,
   normalizeFormSubmitMode,
@@ -20,9 +20,9 @@ import {
   normalizeSnowflakeIdList,
 } from "@adobos/shared";
 import { and, count, desc, eq } from "drizzle-orm";
+import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
 import { getDb, one } from "../../db/client.js";
 import { formResponses, guildForms, guildSettings } from "../../db/schema.js";
-import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
 
 export class FormsError extends Error {
   constructor(
@@ -35,7 +35,10 @@ export class FormsError extends Error {
   }
 }
 
-const formCache = new BoundedTtlMap<number, InteractiveForm>(2_000, 10 * 60_000);
+const formCache = new BoundedTtlMap<number, InteractiveForm>(
+  2_000,
+  10 * 60_000,
+);
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   if (!raw) return fallback;
@@ -63,14 +66,12 @@ async function ensureGuildRow(guildId: string): Promise<void> {
       .limit(1),
   );
   if (!existing) {
-    await getDb()
-      .insert(guildSettings)
-      .values({
-        guildId,
-        prefix: "!",
-        welcomeEnabled: false,
-        updatedAt: new Date(),
-      });
+    await getDb().insert(guildSettings).values({
+      guildId,
+      prefix: "!",
+      welcomeEnabled: false,
+      updatedAt: new Date(),
+    });
   }
 }
 
@@ -90,8 +91,13 @@ function normalizeMediaRef(value: unknown): string | null {
   return null;
 }
 
-function thankYouOf(value: unknown, fallback = DEFAULT_FORMS_THANK_YOU): string {
-  const raw = String(value ?? "").trim().slice(0, 500);
+function thankYouOf(
+  value: unknown,
+  fallback = DEFAULT_FORMS_THANK_YOU,
+): string {
+  const raw = String(value ?? "")
+    .trim()
+    .slice(0, 500);
   return raw || fallback;
 }
 
@@ -104,10 +110,8 @@ function rowToForm(
     guildId: row.guildId,
     enabled: row.enabled !== false,
     modalTitle: (row.modalTitle ?? "").trim().slice(0, 45) || "Form",
-    buttonLabel:
-      (row.buttonLabel ?? "").trim().slice(0, 80) || "Open form",
-    embedTitle:
-      (row.embedTitle ?? "").trim().slice(0, 256) || "Server form",
+    buttonLabel: (row.buttonLabel ?? "").trim().slice(0, 80) || "Open form",
+    embedTitle: (row.embedTitle ?? "").trim().slice(0, 256) || "Server form",
     embedDescription: (row.embedDescription ?? "").trim().slice(0, 4000),
     embedColor: normalizeColor(row.embedColor),
     embedImageUrl: normalizeMediaRef(row.embedImageUrl),
@@ -268,7 +272,8 @@ function applyInput(
   input: CreateFormRequest | UpdateFormRequest,
 ): FormMutable {
   return {
-    enabled: input.enabled !== undefined ? Boolean(input.enabled) : base.enabled,
+    enabled:
+      input.enabled !== undefined ? Boolean(input.enabled) : base.enabled,
     modalTitle:
       input.modalTitle !== undefined
         ? String(input.modalTitle).trim().slice(0, 45) || "Formulario"
@@ -279,8 +284,7 @@ function applyInput(
         : base.buttonLabel,
     embedTitle:
       input.embedTitle !== undefined
-        ? String(input.embedTitle).trim().slice(0, 256) ||
-          "Server form"
+        ? String(input.embedTitle).trim().slice(0, 256) || "Server form"
         : base.embedTitle,
     embedDescription:
       input.embedDescription !== undefined
@@ -395,11 +399,7 @@ export async function createForm(
     })
     .returning({ id: guildForms.id });
   if (!inserted) {
-    throw new FormsError(
-      "Couldn't create the form.",
-      500,
-      "INSERT_FAILED",
-    );
+    throw new FormsError("Couldn't create the form.", 500, "INSERT_FAILED");
   }
 
   return await getForm(inserted.id, id);
@@ -494,7 +494,11 @@ export async function getUserCooldownRemainingMs(
       .orderBy(desc(formResponses.createdAt))
       .limit(1),
   );
-  return remainingMsFromLast(last?.createdAt ?? null, submitMode, cooldownMinutes);
+  return remainingMsFromLast(
+    last?.createdAt ?? null,
+    submitMode,
+    cooldownMinutes,
+  );
 }
 
 export async function insertFormResponse(input: {
@@ -570,11 +574,7 @@ export async function insertFormResponse(input: {
   });
 
   if (!inserted) {
-    throw new FormsError(
-      "Couldn't save the response.",
-      500,
-      "INSERT_FAILED",
-    );
+    throw new FormsError("Couldn't save the response.", 500, "INSERT_FAILED");
   }
 
   invalidateFormsCache(input.formId);
@@ -605,7 +605,11 @@ export async function reviewFormResponse(input: {
     throw new FormsError("Response not found.", 404, "NOT_FOUND");
   }
   if (current.status !== "pending") {
-    throw new FormsError("This response was already reviewed.", 409, "ALREADY_REVIEWED");
+    throw new FormsError(
+      "This response was already reviewed.",
+      409,
+      "ALREADY_REVIEWED",
+    );
   }
   const now = new Date();
   await getDb()

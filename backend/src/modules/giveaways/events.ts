@@ -1,4 +1,9 @@
-import type { DMChannel, Message, NonThreadGuildBasedChannel, PartialMessage } from "discord.js";
+import type {
+  DMChannel,
+  Message,
+  NonThreadGuildBasedChannel,
+  PartialMessage,
+} from "discord.js";
 import { logger } from "../../core/log.js";
 import { clearGiveawayMessageByDiscordId } from "./service.js";
 

@@ -1,4 +1,3 @@
-import { and, count, eq } from "drizzle-orm";
 import type {
   CreateStreamAlertRequest,
   StreamAlert,
@@ -12,13 +11,14 @@ import {
   isStreamAlertPlatform,
   normalizeStreamHandle,
 } from "@adobos/shared";
+import { and, count, eq } from "drizzle-orm";
+import { assertWithinLimit } from "../../core/entitlements/service.js";
 import { getDb, one } from "../../db/client.js";
 import {
   guildSettings,
-  streamAlerts,
   type StreamAlertRow,
+  streamAlerts,
 } from "../../db/schema.js";
-import { assertWithinLimit } from "../../core/entitlements/service.js";
 
 const SNOWFLAKE_RE = /^\d{17,20}$/;
 
@@ -80,7 +80,9 @@ export function streamAlertCredentials(): StreamAlertCredentials {
 }
 
 function mapAlert(row: StreamAlertRow): StreamAlert {
-  const platform = isStreamAlertPlatform(row.platform) ? row.platform : "twitch";
+  const platform = isStreamAlertPlatform(row.platform)
+    ? row.platform
+    : "twitch";
   return {
     id: row.id,
     guildId: row.guildId,
@@ -177,7 +179,11 @@ export async function createStreamAlert(
   await ensureGuildRow(id);
 
   if (!isStreamAlertPlatform(input.platform)) {
-    throw new StreamAlertsError("Plataforma no soportada.", 400, "INVALID_PLATFORM");
+    throw new StreamAlertsError(
+      "Plataforma no soportada.",
+      400,
+      "INVALID_PLATFORM",
+    );
   }
 
   const [usage] = await getDb()
@@ -238,7 +244,11 @@ export async function updateStreamAlert(
 
   const platform = input.platform ?? current.platform;
   if (!isStreamAlertPlatform(platform)) {
-    throw new StreamAlertsError("Plataforma no soportada.", 400, "INVALID_PLATFORM");
+    throw new StreamAlertsError(
+      "Plataforma no soportada.",
+      400,
+      "INVALID_PLATFORM",
+    );
   }
 
   const parsed =

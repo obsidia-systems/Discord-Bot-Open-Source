@@ -63,12 +63,11 @@ describe("detectAntiInvites", () => {
 
 describe("detectAntiLinks", () => {
   it("allows Discord CDN and allowlist; blocks the rest", () => {
-    const cdn =
-      "https://cdn.discordapp.com/attachments/1/2/foto.png";
+    const cdn = "https://cdn.discordapp.com/attachments/1/2/foto.png";
     expect(detectAntiLinks(cdn, [], [cdn])).toBe(false);
-    expect(detectAntiLinks("https://youtube.com/watch?v=1", ["youtube.com"])).toBe(
-      false,
-    );
+    expect(
+      detectAntiLinks("https://youtube.com/watch?v=1", ["youtube.com"]),
+    ).toBe(false);
     expect(detectAntiLinks("https://evil.example/x", ["youtube.com"])).toBe(
       true,
     );

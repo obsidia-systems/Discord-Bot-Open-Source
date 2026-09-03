@@ -4,9 +4,9 @@ import type {
   PartialUser,
   User,
 } from "discord.js";
+import { logger } from "../../../core/log.js";
 import { findReactionRole, toEmojiKey } from "../../../db/reaction-roles.js";
 import { isRoleAssignableInGuild } from "../assignable.js";
-import { logger } from "../../../core/log.js";
 
 type ReactionLike = MessageReaction | PartialMessageReaction;
 type UserLike = User | PartialUser;
@@ -101,6 +101,9 @@ export async function applyReactionRoleChange(
       await member.roles.remove(mapping.roleId, "Adobos reaction role");
     }
   } catch (error: unknown) {
-    logger.error({ err: error }, `Error ${action === "add" ? "assigning" : "removing"} role ${mapping.roleId}:`);
+    logger.error(
+      { err: error },
+      `Error ${action === "add" ? "assigning" : "removing"} role ${mapping.roleId}:`,
+    );
   }
 }

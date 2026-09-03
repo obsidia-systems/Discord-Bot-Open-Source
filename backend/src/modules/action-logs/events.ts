@@ -1,7 +1,6 @@
 import type { NonThreadGuildBasedChannel } from "discord.js";
-import { onGuildAuditLogEntryCreate } from "./audit.js";
 import { logger } from "../../core/log.js";
-import { passesActionLogFilters, recordActionLog } from "./service.js";
+import { onGuildAuditLogEntryCreate } from "./audit.js";
 import {
   onEmojiCreate,
   onEmojiDelete,
@@ -38,6 +37,7 @@ import {
   onThreadUpdate,
 } from "./events/threads.js";
 import { onVoiceStateUpdate } from "./events/voice.js";
+import { passesActionLogFilters, recordActionLog } from "./service.js";
 
 /** Registra todos los listeners de Action Logs en el ModuleContext. */
 export function registerActionLogListeners(ctx: {
@@ -83,7 +83,11 @@ export function registerActionLogListeners(ctx: {
     void onRoleUpdate(oldRole, newRole);
   });
   ctx.on("channelCreate", (channel) => {
-    if ("isThread" in channel && typeof channel.isThread === "function" && channel.isThread()) {
+    if (
+      "isThread" in channel &&
+      typeof channel.isThread === "function" &&
+      channel.isThread()
+    ) {
       return;
     }
     if ("guild" in channel && channel.guild) {
@@ -141,7 +145,10 @@ export function registerActionLogListeners(ctx: {
     void onInviteDelete(invite);
   });
 
-  const onAny = ctx.on as (event: string, handler: (...args: unknown[]) => void) => void;
+  const onAny = ctx.on as (
+    event: string,
+    handler: (...args: unknown[]) => void,
+  ) => void;
   onAny("guildSoundboardSoundCreate", async (sound) => {
     const s = sound as {
       guildId?: string | null;
@@ -152,7 +159,7 @@ export function registerActionLogListeners(ctx: {
     };
     const guildId = s.guildId ?? s.guild?.id;
     if (!guildId) return;
-    if (!await passesActionLogFilters(guildId, "soundboardCreate")) return;
+    if (!(await passesActionLogFilters(guildId, "soundboardCreate"))) return;
     void recordActionLog(s.client, {
       guildId,
       eventKey: "soundboardCreate",
@@ -173,7 +180,7 @@ export function registerActionLogListeners(ctx: {
     };
     const guildId = s.guildId ?? s.guild?.id;
     if (!guildId) return;
-    if (!await passesActionLogFilters(guildId, "soundboardDelete")) return;
+    if (!(await passesActionLogFilters(guildId, "soundboardDelete"))) return;
     void recordActionLog(s.client, {
       guildId,
       eventKey: "soundboardDelete",
@@ -194,7 +201,7 @@ export function registerActionLogListeners(ctx: {
     };
     const guildId = s.guildId ?? s.guild?.id;
     if (!guildId) return;
-    if (!await passesActionLogFilters(guildId, "soundboardUpdate")) return;
+    if (!(await passesActionLogFilters(guildId, "soundboardUpdate"))) return;
     void recordActionLog(s.client, {
       guildId,
       eventKey: "soundboardUpdate",

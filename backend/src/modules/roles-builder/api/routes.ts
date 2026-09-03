@@ -1,13 +1,8 @@
-import { Router } from "express";
 import type { Client } from "discord.js";
+import { Router } from "express";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { snowflake } from "../../../core/http/schemas.js";
 import { parse } from "../../../core/http/validate.js";
-import {
-  createGuildRoleSchema,
-  updateGuildRoleSchema,
-  updateRolePositionsSchema,
-} from "./schema.js";
 import {
   createGuildRole,
   deleteGuildRole,
@@ -15,6 +10,11 @@ import {
   updateGuildRole,
   updateRolePositions,
 } from "../service.js";
+import {
+  createGuildRoleSchema,
+  updateGuildRoleSchema,
+  updateRolePositionsSchema,
+} from "./schema.js";
 
 /** Rutas: GET /list · POST /create · PATCH /positions · PATCH|DELETE /:roleId. */
 export function rolesBuilderRoutes(client: Client): Router {
@@ -53,12 +53,7 @@ export function rolesBuilderRoutes(client: Client): Router {
     try {
       const roleId = parse(snowflake, req.params.roleId);
       const input = parse(updateGuildRoleSchema, req.body ?? {});
-      const data = await updateGuildRole(
-        client,
-        roleId,
-        input,
-        guildIdOf(req),
-      );
+      const data = await updateGuildRole(client, roleId, input, guildIdOf(req));
       res.json(data);
     } catch (error) {
       next(error);

@@ -1,11 +1,11 @@
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { type Request, type Response, Router } from "express";
 import multer from "multer";
-import { Router, type Request, type Response } from "express";
+import { HttpError } from "../../core/http/httpError.js";
 import { getBackgroundsDir, getImagesDir } from "../../lib/dataPaths.js";
 import { sniffImageFile } from "../../lib/imageMagic.js";
-import { HttpError } from "../../core/http/httpError.js";
 
 const ALLOWED_MIME = new Set([
   "image/png",
@@ -45,11 +45,7 @@ function createUploader(destination: () => string) {
     limits: { fileSize: MAX_BYTES, files: 1 },
     fileFilter: (_req, file, cb) => {
       if (!ALLOWED_MIME.has(file.mimetype)) {
-        cb(
-          new Error(
-            "Only PNG, JPG or WEBP images are allowed (max 5MB).",
-          ),
-        );
+        cb(new Error("Only PNG, JPG or WEBP images are allowed (max 5MB)."));
         return;
       }
       cb(null, true);
@@ -66,11 +62,7 @@ function handleUpload(
   publicDir: "backgrounds" | "images",
 ): void {
   if (!req.file) {
-    throw new HttpError(
-      "No file received (field `file`).",
-      400,
-      "NO_FILE",
-    );
+    throw new HttpError("No file received (field `file`).", 400, "NO_FILE");
   }
 
   const sniffed = sniffImageFile(req.file.path);

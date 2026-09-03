@@ -1,39 +1,39 @@
 import {
   ActionRowBuilder,
   ButtonBuilder,
-  ButtonStyle,
-  EmbedBuilder,
-  StringSelectMenuBuilder,
   type ButtonInteraction,
+  ButtonStyle,
   type ChatInputCommandInteraction,
   type Client,
+  EmbedBuilder,
+  StringSelectMenuBuilder,
   type StringSelectMenuInteraction,
 } from "discord.js";
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
-import { assertCooldownAvailable, setCooldownMs } from "../cooldowns.js";
-import { resolveRouletteBet, type RouletteBetType } from "../casino/payouts.js";
+import { type RouletteBetType, resolveRouletteBet } from "../casino/payouts.js";
 import {
   pushRouletteHistory,
   rouletteColor,
   rouletteColorEmoji,
   spinEuropeanRoulette,
 } from "../casino/roulette.js";
+import { assertCooldownAvailable, setCooldownMs } from "../cooldowns.js";
 import { creditWallet, debitWalletStrict } from "../funds.js";
 import { EconomyError, getUserEconomyBalance } from "../service.js";
-import { EPHEMERAL, visibility } from "./visibility.js";
 import {
-  INFO,
-  LOSE,
-  TABLE_IDLE_MS,
-  WIN,
   assertEconomyAndCasino,
   clearMessageComponents,
   currencyOf,
+  INFO,
+  LOSE,
   parseOwnerCustomId,
   playAgainRow,
   replyCasinoError,
+  TABLE_IDLE_MS,
   tableKey,
+  WIN,
 } from "./casinoCommon.js";
+import { EPHEMERAL, visibility } from "./visibility.js";
 
 export const RL_BUTTON_PREFIX = "rl_";
 export const RL_SELECT_PREFIX = "rl_";
@@ -74,7 +74,9 @@ function colorButtons(userId: string): ActionRowBuilder<ButtonBuilder> {
   );
 }
 
-function numberSelects(userId: string): ActionRowBuilder<StringSelectMenuBuilder>[] {
+function numberSelects(
+  userId: string,
+): ActionRowBuilder<StringSelectMenuBuilder>[] {
   const lo = new StringSelectMenuBuilder()
     .setCustomId(`${RL_LO}:${userId}`)
     .setPlaceholder("Number 0–17")
@@ -139,7 +141,10 @@ async function resolveSpin(input: {
   type: RouletteBetType;
   numberValue: number | null;
 }): Promise<EmbedBuilder> {
-  const { economy, casino } = await assertEconomyAndCasino(input.guildId, input.bet);
+  const { economy, casino } = await assertEconomyAndCasino(
+    input.guildId,
+    input.bet,
+  );
   await assertCooldownAvailable(input.guildId, input.userId, "roulette");
   await debitWalletStrict(input.guildId, input.userId, input.bet);
 
@@ -160,7 +165,8 @@ async function resolveSpin(input: {
         : casino.roulette.colorMultiplier;
 
   let payout = 0;
-  let wallet = (await getUserEconomyBalance(input.guildId, input.userId)).wallet;
+  let wallet = (await getUserEconomyBalance(input.guildId, input.userId))
+    .wallet;
   if (won) {
     payout = Math.floor(input.bet * multiplier);
     wallet = (await creditWallet(input.guildId, input.userId, payout)).wallet;

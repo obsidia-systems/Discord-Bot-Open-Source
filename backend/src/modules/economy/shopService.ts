@@ -19,31 +19,26 @@ import { EconomyError } from "./service.js";
 function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new EconomyError(
-      "Missing guildId.",
-      400,
-      "MISSING_GUILD_ID",
-    );
+    throw new EconomyError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
   return id;
 }
 
 async function ensureGuildRow(guildId: string): Promise<void> {
-  const existing = await one(getDb()
-    .select({ guildId: guildSettings.guildId })
-    .from(guildSettings)
-    .where(eq(guildSettings.guildId, guildId))
-    .limit(1));
+  const existing = await one(
+    getDb()
+      .select({ guildId: guildSettings.guildId })
+      .from(guildSettings)
+      .where(eq(guildSettings.guildId, guildId))
+      .limit(1),
+  );
   if (!existing) {
-    await getDb()
-      .insert(guildSettings)
-      .values({
-        guildId,
-        prefix: "!",
-        welcomeEnabled: false,
-        updatedAt: new Date(),
-      })
-      ;
+    await getDb().insert(guildSettings).values({
+      guildId,
+      prefix: "!",
+      welcomeEnabled: false,
+      updatedAt: new Date(),
+    });
   }
 }
 
@@ -82,8 +77,7 @@ function legacySingleToRewards(
       break;
     case "MULTIPLIER_BOOST":
       rewards.hasBoost = true;
-      rewards.boostConfig.module =
-        cfg.module === "economy" ? "economy" : "xp";
+      rewards.boostConfig.module = cfg.module === "economy" ? "economy" : "xp";
       rewards.boostConfig.multiplier = clampShopMultiplier(
         Number(cfg.multiplier ?? 2),
       );
@@ -189,7 +183,10 @@ function validateRewards(rewards: EconomyShopRewards): void {
     );
   }
   if (rewards.hasManual) {
-    if (!rewards.manualConfig.logChannelId || !rewards.manualConfig.pingRoleId) {
+    if (
+      !rewards.manualConfig.logChannelId ||
+      !rewards.manualConfig.pingRoleId
+    ) {
       throw new EconomyError(
         "Manual Delivery: log channel and staff role are required.",
         400,
@@ -203,11 +200,7 @@ function validateRewards(rewards: EconomyShopRewards): void {
     rewards.hasBoost ||
     rewards.hasManual;
   if (!any) {
-    throw new EconomyError(
-      "Enable at least one reward.",
-      400,
-      "NO_REWARDS",
-    );
+    throw new EconomyError("Enable at least one reward.", 400, "NO_REWARDS");
   }
 }
 
@@ -274,8 +267,7 @@ export async function listShopItems(
           )
         : eq(economyShopItems.guildId, id),
     )
-    .orderBy(asc(economyShopItems.sortOrder), asc(economyShopItems.name))
-    ;
+    .orderBy(asc(economyShopItems.sortOrder), asc(economyShopItems.name));
   return rows.map(rowToItem);
 }
 
@@ -284,13 +276,15 @@ export async function getShopItem(
   guildId?: string,
 ): Promise<EconomyShopItem | null> {
   const id = resolveGuildId(guildId);
-  const row = await one(getDb()
-    .select()
-    .from(economyShopItems)
-    .where(
-      and(eq(economyShopItems.id, itemId), eq(economyShopItems.guildId, id)),
-    )
-    .limit(1));
+  const row = await one(
+    getDb()
+      .select()
+      .from(economyShopItems)
+      .where(
+        and(eq(economyShopItems.id, itemId), eq(economyShopItems.guildId, id)),
+      )
+      .limit(1),
+  );
   return row ? rowToItem(row) : null;
 }
 
@@ -361,8 +355,7 @@ export async function createShopItem(
       sortOrder: clampNonNegInt(Number(input.sortOrder ?? 0)),
       createdAt: now,
       updatedAt: now,
-    })
-    ;
+    });
 
   const created = await getShopItem(id, guildId);
   if (!created) {
@@ -403,8 +396,7 @@ export async function updateShopItem(
 
   let stock = current.stock;
   if (input.stock !== undefined) {
-    stock =
-      input.stock === null ? null : clampNonNegInt(Number(input.stock));
+    stock = input.stock === null ? null : clampNonNegInt(Number(input.stock));
   }
 
   const now = new Date();
@@ -441,8 +433,7 @@ export async function updateShopItem(
         eq(economyShopItems.id, itemId),
         eq(economyShopItems.guildId, guildId),
       ),
-    )
-    ;
+    );
 
   const updated = await getShopItem(itemId, guildId);
   if (!updated) {
@@ -451,7 +442,10 @@ export async function updateShopItem(
   return updated;
 }
 
-export async function deleteShopItem(itemId: string, guildId?: string): Promise<void> {
+export async function deleteShopItem(
+  itemId: string,
+  guildId?: string,
+): Promise<void> {
   const id = resolveGuildId(guildId);
   const current = await getShopItem(itemId, id);
   if (!current) {
@@ -461,21 +455,25 @@ export async function deleteShopItem(itemId: string, guildId?: string): Promise<
     .delete(economyShopItems)
     .where(
       and(eq(economyShopItems.id, itemId), eq(economyShopItems.guildId, id)),
-    )
-    ;
+    );
 }
 
-export async function decrementShopStock(itemId: string, guildId: string): Promise<void> {
-  const row = await one(getDb()
-    .select()
-    .from(economyShopItems)
-    .where(
-      and(
-        eq(economyShopItems.id, itemId),
-        eq(economyShopItems.guildId, guildId),
-      ),
-    )
-    .limit(1));
+export async function decrementShopStock(
+  itemId: string,
+  guildId: string,
+): Promise<void> {
+  const row = await one(
+    getDb()
+      .select()
+      .from(economyShopItems)
+      .where(
+        and(
+          eq(economyShopItems.id, itemId),
+          eq(economyShopItems.guildId, guildId),
+        ),
+      )
+      .limit(1),
+  );
   if (!row || row.stock === null) return;
   if (row.stock <= 0) {
     throw new EconomyError("Sin stock disponible.", 400, "OUT_OF_STOCK");
@@ -483,6 +481,5 @@ export async function decrementShopStock(itemId: string, guildId: string): Promi
   await getDb()
     .update(economyShopItems)
     .set({ stock: row.stock - 1, updatedAt: new Date() })
-    .where(eq(economyShopItems.id, itemId))
-    ;
+    .where(eq(economyShopItems.id, itemId));
 }

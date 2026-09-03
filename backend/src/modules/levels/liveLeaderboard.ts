@@ -1,14 +1,7 @@
-import { logger } from "../../core/log.js";
+import { applyLevelsTokens, embedColorToInt } from "@adobos/shared";
+import { type Client, EmbedBuilder, type TextChannel } from "discord.js";
 import { registerJob } from "../../core/lifecycle.js";
-import {
-  EmbedBuilder,
-  type Client,
-  type TextChannel,
-} from "discord.js";
-import {
-  applyLevelsTokens,
-  embedColorToInt,
-} from "@adobos/shared";
+import { logger } from "../../core/log.js";
 import {
   getLeaderboardTotal,
   getLevelsConfigCached,
@@ -69,16 +62,15 @@ export async function buildLiveLeaderboardEmbed(
     "{total}": String(total),
   }).trim();
   const ranking =
-    lines.length > 0
-      ? lines.join("\n")
-      : "_No users with XP yet._";
-  const description = [intro, ranking].filter(Boolean).join("\n\n").slice(0, 4096);
+    lines.length > 0 ? lines.join("\n") : "_No users with XP yet._";
+  const description = [intro, ranking]
+    .filter(Boolean)
+    .join("\n\n")
+    .slice(0, 4096);
 
   const embed = new EmbedBuilder()
     .setColor(embedColorToInt(config.leaderboardEmbedColor, 0xca7aff))
-    .setTitle(
-      (config.leaderboardEmbedTitle || "Leaderboard").slice(0, 256),
-    )
+    .setTitle((config.leaderboardEmbedTitle || "Leaderboard").slice(0, 256))
     .setDescription(description)
     .setFooter({ text: "Auto-updated · Levels" })
     .setTimestamp(new Date());
@@ -151,7 +143,10 @@ async function flushLiveLeaderboard(
     lastEditAt.set(guildId, Date.now());
     dirtyGuilds.delete(guildId);
   } catch (error) {
-    logger.warn({ err: error }, `levels: couldn't update the live leaderboard (${guildId}):`);
+    logger.warn(
+      { err: error },
+      `levels: couldn't update the live leaderboard (${guildId}):`,
+    );
   }
 }
 

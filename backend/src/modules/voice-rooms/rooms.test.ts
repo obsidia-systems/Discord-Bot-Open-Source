@@ -1,8 +1,8 @@
-import { PermissionFlagsBits, type GuildMember } from "discord.js";
-import { describe, expect, it } from "vitest";
 import { defaultVoiceRoomActions } from "@adobos/shared";
-import { VoiceRoomsError } from "./service.js";
+import { type GuildMember, PermissionFlagsBits } from "discord.js";
+import { describe, expect, it } from "vitest";
 import { assertCanControl } from "./rooms.js";
+import { VoiceRoomsError } from "./service.js";
 
 function member(id: string, staff: boolean): GuildMember {
   return {

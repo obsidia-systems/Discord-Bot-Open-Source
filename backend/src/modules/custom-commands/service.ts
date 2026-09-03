@@ -15,9 +15,9 @@ import {
   normalizeCustomCommandResponseData,
 } from "@adobos/shared";
 import { and, count, desc, eq } from "drizzle-orm";
+import { assertWithinLimit } from "../../core/entitlements/service.js";
 import { getDb, one } from "../../db/client.js";
 import { customCommands, guildSettings } from "../../db/schema.js";
-import { assertWithinLimit } from "../../core/entitlements/service.js";
 
 export class CustomCommandsError extends Error {
   constructor(
@@ -55,42 +55,36 @@ function parseJson<T>(raw: string | null | undefined, fallback: T): T {
 function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new CustomCommandsError(
-      "Missing guildId.",
-      400,
-      "MISSING_GUILD_ID",
-    );
+    throw new CustomCommandsError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
   return id;
 }
 
 async function ensureGuildRow(guildId: string): Promise<void> {
-  const existing = await one(getDb()
-    .select({ guildId: guildSettings.guildId })
-    .from(guildSettings)
-    .where(eq(guildSettings.guildId, guildId))
-    .limit(1));
+  const existing = await one(
+    getDb()
+      .select({ guildId: guildSettings.guildId })
+      .from(guildSettings)
+      .where(eq(guildSettings.guildId, guildId))
+      .limit(1),
+  );
   if (!existing) {
-    await getDb()
-      .insert(guildSettings)
-      .values({
-        guildId,
-        prefix: "!",
-        welcomeEnabled: false,
-        updatedAt: new Date(),
-      })
-      ;
+    await getDb().insert(guildSettings).values({
+      guildId,
+      prefix: "!",
+      welcomeEnabled: false,
+      updatedAt: new Date(),
+    });
   }
 }
 
-function rowToCommand(
-  row: typeof customCommands.$inferSelect,
-): CustomCommand {
+function rowToCommand(row: typeof customCommands.$inferSelect): CustomCommand {
   return {
     id: row.id,
     guildId: row.guildId,
     name: row.name,
-    description: (row.description ?? "").trim().slice(0, 100) || "Custom command",
+    description:
+      (row.description ?? "").trim().slice(0, 100) || "Custom command",
     responseData: normalizeCustomCommandResponseData(
       parseJson<Partial<CustomCommandResponseData>>(row.responseData, {}),
     ),
@@ -123,15 +117,16 @@ function assertValidName(name: string): void {
   }
 }
 
-export async function listCustomCommands(guildId?: string): Promise<CustomCommand[]> {
+export async function listCustomCommands(
+  guildId?: string,
+): Promise<CustomCommand[]> {
   const id = resolveGuildId(guildId);
   await ensureGuildRow(id);
   const rows = await getDb()
     .select()
     .from(customCommands)
     .where(eq(customCommands.guildId, id))
-    .orderBy(desc(customCommands.updatedAt))
-    ;
+    .orderBy(desc(customCommands.updatedAt));
   return rows.map(rowToCommand);
 }
 
@@ -143,10 +138,7 @@ export async function listActiveCustomCommands(
     .select()
     .from(customCommands)
     .where(
-      and(
-        eq(customCommands.guildId, id),
-        eq(customCommands.isActive, true),
-      ),
+      and(eq(customCommands.guildId, id), eq(customCommands.isActive, true)),
     );
   return rows.map(rowToCommand);
 }
@@ -186,19 +178,17 @@ export async function getCustomCommand(
   guildId?: string,
 ): Promise<CustomCommand> {
   const id = resolveGuildId(guildId);
-  const row = await one(getDb()
-    .select()
-    .from(customCommands)
-    .where(
-      and(eq(customCommands.id, commandId), eq(customCommands.guildId, id)),
-    )
-    .limit(1));
+  const row = await one(
+    getDb()
+      .select()
+      .from(customCommands)
+      .where(
+        and(eq(customCommands.id, commandId), eq(customCommands.guildId, id)),
+      )
+      .limit(1),
+  );
   if (!row) {
-    throw new CustomCommandsError(
-      "Command not found.",
-      404,
-      "NOT_FOUND",
-    );
+    throw new CustomCommandsError("Command not found.", 404, "NOT_FOUND");
   }
   return rowToCommand(row);
 }
@@ -207,16 +197,18 @@ export async function getCustomCommandByName(
   guildId: string,
   name: string,
 ): Promise<CustomCommand | null> {
-  const row = await one(getDb()
-    .select()
-    .from(customCommands)
-    .where(
-      and(
-        eq(customCommands.guildId, guildId),
-        eq(customCommands.name, name.toLowerCase()),
-      ),
-    )
-    .limit(1));
+  const row = await one(
+    getDb()
+      .select()
+      .from(customCommands)
+      .where(
+        and(
+          eq(customCommands.guildId, guildId),
+          eq(customCommands.name, name.toLowerCase()),
+        ),
+      )
+      .limit(1),
+  );
   return row ? rowToCommand(row) : null;
 }
 
@@ -331,8 +323,7 @@ export async function updateCustomCommand(
 
   const nextDescription =
     input.description !== undefined
-      ? String(input.description).trim().slice(0, 100) ||
-        "Custom command"
+      ? String(input.description).trim().slice(0, 100) || "Custom command"
       : current.description;
 
   const nextResponse =
@@ -423,6 +414,5 @@ export async function deleteCustomCommand(
     .delete(customCommands)
     .where(
       and(eq(customCommands.id, commandId), eq(customCommands.guildId, id)),
-    )
-    ;
+    );
 }

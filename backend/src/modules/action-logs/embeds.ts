@@ -1,9 +1,6 @@
-import { EmbedBuilder } from "discord.js";
-import type {
-  ActionLogEmbedTone,
-  ActionLogEntry,
-} from "@adobos/shared";
+import type { ActionLogEmbedTone, ActionLogEntry } from "@adobos/shared";
 import { ACTION_LOG_EMBED_COLORS } from "@adobos/shared";
+import { EmbedBuilder } from "discord.js";
 
 /** Límite duro de Discord para el valor de un Field. */
 const FIELD_VALUE_MAX = 1024;
@@ -91,7 +88,10 @@ export function buildActionLogEmbed(
   if (channelField) fields.push(channelField);
 
   // Solo menciones de usuario reales en "Afectado"
-  if (targetKind === "user" && isSnowflake(input.affectedUserId ?? entry.targetId)) {
+  if (
+    targetKind === "user" &&
+    isSnowflake(input.affectedUserId ?? entry.targetId)
+  ) {
     const uid = (input.affectedUserId ?? entry.targetId)!;
     fields.push({
       name: "Afectado",
@@ -126,7 +126,10 @@ export function buildActionLogEmbed(
     });
   }
 
-  if (typeof details.channelTypeName === "string" && details.channelTypeName.trim()) {
+  if (
+    typeof details.channelTypeName === "string" &&
+    details.channelTypeName.trim()
+  ) {
     fields.push({
       name: "Type",
       value: details.channelTypeName.trim(),
@@ -186,14 +189,19 @@ export function buildActionLogEmbed(
   const contentFields = fields.filter((f) => !f.inline);
   // Diffs de canal: hasta 20; mensajes: 2 (Antes/Después)
   const contentLimit = hasDiffFields ? 20 : 2;
-  for (const field of [...metaFields, ...contentFields.slice(0, contentLimit)]) {
+  for (const field of [
+    ...metaFields,
+    ...contentFields.slice(0, contentLimit),
+  ]) {
     embed.addFields(field);
   }
 
   return embed;
 }
 
-function resolveTargetKind(input: BuildActionLogEmbedInput): ActionLogTargetKind {
+function resolveTargetKind(
+  input: BuildActionLogEmbedInput,
+): ActionLogTargetKind {
   if (input.targetKind) return input.targetKind;
   const raw = input.entry.details?.targetKind;
   if (

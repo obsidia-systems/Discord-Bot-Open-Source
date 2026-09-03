@@ -1,10 +1,10 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
-import * as schema from "./schema.js";
+import postgres from "postgres";
 import { logger } from "../core/log.js";
+import * as schema from "./schema.js";
 
 export type AppDatabase = ReturnType<typeof drizzle<typeof schema>>;
 

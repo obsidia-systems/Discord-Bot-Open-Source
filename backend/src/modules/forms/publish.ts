@@ -1,17 +1,17 @@
+import type { PublishFormResponse, UpdateFormRequest } from "@adobos/shared";
+import { FORM_OPEN_PREFIX } from "@adobos/shared";
 import {
   ActionRowBuilder,
+  type AttachmentBuilder,
   ButtonBuilder,
   ButtonStyle,
   ChannelType,
-  EmbedBuilder,
-  type AttachmentBuilder,
   type Client,
+  EmbedBuilder,
   type TextChannel,
 } from "discord.js";
-import type { PublishFormResponse, UpdateFormRequest } from "@adobos/shared";
-import { FORM_OPEN_PREFIX } from "@adobos/shared";
-import { resolveEmbedMedia } from "../../lib/embedMedia.js";
 import { channelBelongsToGuild } from "../../core/http/channelScope.js";
+import { resolveEmbedMedia } from "../../lib/embedMedia.js";
 import {
   FormsError,
   getForm,
@@ -115,9 +115,7 @@ export async function publishFormMessage(
       imageUrl = resolved.url;
     } catch (error) {
       throw new FormsError(
-        error instanceof Error
-          ? error.message
-          : "Invalid main image.",
+        error instanceof Error ? error.message : "Invalid main image.",
         400,
         "INVALID_IMAGE",
       );

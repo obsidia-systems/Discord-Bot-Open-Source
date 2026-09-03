@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { VOICE_ROOM_SELECT_PREFIX } from "@adobos/shared";
+import { describe, expect, it } from "vitest";
 import { voiceRoomsModule } from "./index.js";
 
 describe("voice-rooms module", () => {

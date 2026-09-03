@@ -1,7 +1,7 @@
 import { AuditLogEvent, type VoiceState } from "discord.js";
+import { logger } from "../../../core/log.js";
 import { resolveAuditExecutor } from "../audit.js";
 import { userTag } from "../helpers.js";
-import { logger } from "../../../core/log.js";
 import { passesActionLogFilters, recordActionLog } from "../service.js";
 
 export async function onVoiceStateUpdate(
@@ -37,12 +37,12 @@ async function handleVoiceStateUpdate(
 
   if (!oldCh && newCh) {
     if (
-      !await passesActionLogFilters(guild.id, "voiceJoin", {
+      !(await passesActionLogFilters(guild.id, "voiceJoin", {
         channelId: newCh,
         parentId: newParent,
         actorIsBot: user.bot,
         actorRoleIds: roleIds,
-      })
+      }))
     ) {
       return;
     }
@@ -146,12 +146,12 @@ async function handleVoiceStateUpdate(
 
   if (oldCh && newCh) {
     if (
-      !await passesActionLogFilters(guild.id, "voiceMove", {
+      !(await passesActionLogFilters(guild.id, "voiceMove", {
         channelId: newCh,
         parentId: newParent,
         actorIsBot: user.bot,
         actorRoleIds: roleIds,
-      })
+      }))
     ) {
       return;
     }

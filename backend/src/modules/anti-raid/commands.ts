@@ -1,11 +1,11 @@
 import {
+  type ChatInputCommandInteraction,
   MessageFlags,
   PermissionFlagsBits,
-  type ChatInputCommandInteraction,
 } from "discord.js";
-import { getAntiRaidSettings } from "./service.js";
-import { applyGuildLockdown, liftGuildLockdown } from "./lockdown.js";
 import { resolveAlertChannel, sendAntiRaidAlert } from "./alerts.js";
+import { applyGuildLockdown, liftGuildLockdown } from "./lockdown.js";
+import { getAntiRaidSettings } from "./service.js";
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral } as const;
 

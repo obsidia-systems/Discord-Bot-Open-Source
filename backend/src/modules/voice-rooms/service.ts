@@ -1,4 +1,3 @@
-import { and, eq } from "drizzle-orm";
 import type {
   UpdateVoiceRoomGeneratorRequest,
   UpsertVoiceRoomGeneratorRequest,
@@ -8,21 +7,22 @@ import type {
   VoiceRoomsConfigResponse,
 } from "@adobos/shared";
 import {
-  VOICE_ROOM_DEFAULT_TEMPLATE,
-  VOICE_ROOM_GENERATORS_MAX,
   applyVoiceRoomNameTemplate,
   clampVoiceUserLimit,
   defaultVoiceRoomActions,
   normalizeVoiceRoomActions,
   sanitizeVoiceRoomName,
+  VOICE_ROOM_DEFAULT_TEMPLATE,
+  VOICE_ROOM_GENERATORS_MAX,
 } from "@adobos/shared";
+import { and, eq } from "drizzle-orm";
 import { getDb, one } from "../../db/client.js";
 import {
   guildSettings,
-  voiceRoomGenerators,
-  voiceRooms,
   type VoiceRoomGeneratorRow,
   type VoiceRoomRow,
+  voiceRoomGenerators,
+  voiceRooms,
 } from "../../db/schema.js";
 
 export class VoiceRoomsError extends Error {
@@ -81,7 +81,9 @@ function mapGenerator(row: VoiceRoomGeneratorRow): VoiceRoomGenerator {
     defaultBitrate: row.defaultBitrate,
     autoText: row.autoText,
     enabled: row.enabled,
-    allowedActions: normalizeVoiceRoomActions(parseJsonObject(row.allowedActions)),
+    allowedActions: normalizeVoiceRoomActions(
+      parseJsonObject(row.allowedActions),
+    ),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -211,7 +213,9 @@ export async function getRoomByOwner(
   return row ? mapRoom(row) : null;
 }
 
-export async function listGuildRooms(guildId: string): Promise<VoiceRoomLive[]> {
+export async function listGuildRooms(
+  guildId: string,
+): Promise<VoiceRoomLive[]> {
   const rows = await getDb()
     .select()
     .from(voiceRooms)
@@ -274,7 +278,11 @@ export async function createGenerator(
       })
       .returning();
     if (!row) {
-      throw new VoiceRoomsError("Couldn't create the generator.", 500, "INSERT_FAILED");
+      throw new VoiceRoomsError(
+        "Couldn't create the generator.",
+        500,
+        "INSERT_FAILED",
+      );
     }
     return mapGenerator(row);
   } catch (error: unknown) {
@@ -393,7 +401,11 @@ export async function insertRoom(input: {
     })
     .returning();
   if (!row) {
-    throw new VoiceRoomsError("Couldn't register the room.", 500, "INSERT_FAILED");
+    throw new VoiceRoomsError(
+      "Couldn't register the room.",
+      500,
+      "INSERT_FAILED",
+    );
   }
   return mapRoom(row);
 }

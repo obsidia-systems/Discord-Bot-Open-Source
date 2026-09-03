@@ -1,15 +1,12 @@
+import type { EmbedPayload } from "@adobos/shared";
 import {
+  type AttachmentBuilder,
   ChannelType,
   EmbedBuilder,
-  type AttachmentBuilder,
   type Guild,
   type GuildTextBasedChannel,
 } from "discord.js";
-import type { EmbedPayload } from "@adobos/shared";
-import {
-  requireHttpUrl,
-  resolveEmbedMedia,
-} from "../../lib/embedMedia.js";
+import { requireHttpUrl, resolveEmbedMedia } from "../../lib/embedMedia.js";
 
 export interface SanctionDmContext {
   userMention: string;
@@ -99,10 +96,18 @@ export function buildEmbedFromPayload(embed: EmbedPayload): {
     }
   };
 
-  const authorIconUrl = resolve(embed.authorIconUrl, "authorIconUrl", "author-icon");
+  const authorIconUrl = resolve(
+    embed.authorIconUrl,
+    "authorIconUrl",
+    "author-icon",
+  );
   const thumbnailUrl = resolve(embed.thumbnailUrl, "thumbnailUrl", "thumbnail");
   const imageUrl = resolve(embed.imageUrl, "imageUrl", "image");
-  const footerIconUrl = resolve(embed.footerIconUrl, "footerIconUrl", "footer-icon");
+  const footerIconUrl = resolve(
+    embed.footerIconUrl,
+    "footerIconUrl",
+    "footer-icon",
+  );
   const color = parseHexColor(embed.color);
 
   const fields = (embed.fields ?? []).filter(
@@ -126,10 +131,12 @@ export function buildEmbedFromPayload(embed: EmbedPayload): {
   if (url) builder.setURL(url);
   if (description) builder.setDescription(description);
   if (color !== undefined) builder.setColor(color);
-  if (authorName) builder.setAuthor({ name: authorName, iconURL: authorIconUrl });
+  if (authorName)
+    builder.setAuthor({ name: authorName, iconURL: authorIconUrl });
   if (thumbnailUrl) builder.setThumbnail(thumbnailUrl);
   if (imageUrl) builder.setImage(imageUrl);
-  if (footerText) builder.setFooter({ text: footerText, iconURL: footerIconUrl });
+  if (footerText)
+    builder.setFooter({ text: footerText, iconURL: footerIconUrl });
   if (fields.length) {
     builder.addFields(
       fields.map((field) => ({
@@ -145,9 +152,7 @@ export function buildEmbedFromPayload(embed: EmbedPayload): {
 }
 
 /** Invite de un solo uso (24h) desde el primer canal de texto usable. */
-export async function createOneUseInvite(
-  guild: Guild,
-): Promise<string | null> {
+export async function createOneUseInvite(guild: Guild): Promise<string | null> {
   const channel = guild.channels.cache.find(
     (entry) =>
       (entry.type === ChannelType.GuildText ||

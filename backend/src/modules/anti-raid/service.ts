@@ -1,4 +1,3 @@
-import { eq } from "drizzle-orm";
 import type {
   AntiRaidConfigResponse,
   AntiRaidSettings,
@@ -11,14 +10,15 @@ import {
   clampRaidTimeoutSeconds,
   clampRaidWindowSeconds,
   defaultAntiRaidSettings,
+  featureLockedMessage,
   isNukePunishment,
   isRaidAgeAction,
   isRaidJoinAction,
   isRaidLockdownJoinAction,
   normalizeIdList,
-  featureLockedMessage,
   normalizeNukeThresholds,
 } from "@adobos/shared";
+import { eq } from "drizzle-orm";
 import {
   can,
   EntitlementError,
@@ -26,9 +26,9 @@ import {
 } from "../../core/entitlements/service.js";
 import { getDb, one } from "../../db/client.js";
 import {
+  type AntiRaidSettingsRow,
   antiRaidSettings,
   guildSettings,
-  type AntiRaidSettingsRow,
 } from "../../db/schema.js";
 
 export class AntiRaidError extends Error {

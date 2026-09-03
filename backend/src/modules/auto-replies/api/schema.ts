@@ -1,4 +1,3 @@
-import { z } from "zod";
 import {
   AUTO_REPLY_CHANNELS_MAX,
   AUTO_REPLY_COOLDOWN_MAX,
@@ -6,6 +5,7 @@ import {
   AUTO_REPLY_RESPONSE_MAX,
   AUTO_REPLY_TRIGGER_MAX,
 } from "@adobos/shared";
+import { z } from "zod";
 import {
   boolish,
   nonNegInt,

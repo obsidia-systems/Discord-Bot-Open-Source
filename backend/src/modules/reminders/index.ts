@@ -1,21 +1,15 @@
-import { GatewayIntentBits } from "discord.js";
 import {
   REMIND_BUTTON_CANCEL_PREFIX,
   remindersSlashCommandBody,
 } from "@adobos/shared";
-import type { AdobosModule } from "../../core/modules/types.js";
-import { isWorkerLeader } from "../../core/runtime/index.js";
+import { GatewayIntentBits } from "discord.js";
 import { registerJob } from "../../core/lifecycle.js";
 import { logger } from "../../core/log.js";
+import type { AdobosModule } from "../../core/modules/types.js";
+import { isWorkerLeader } from "../../core/runtime/index.js";
 import { remindersRoutes } from "./api/routes.js";
-import {
-  handleRemindCancelButton,
-  handleRemindCommand,
-} from "./commands.js";
-import {
-  bindRemindersScheduler,
-  processDueReminders,
-} from "./scheduler.js";
+import { handleRemindCancelButton, handleRemindCommand } from "./commands.js";
+import { bindRemindersScheduler, processDueReminders } from "./scheduler.js";
 
 const DUE_TICK_MS = 15_000;
 const slash = remindersSlashCommandBody();
@@ -52,9 +46,9 @@ export const remindersModule: AdobosModule = {
 };
 
 export {
-  RemindersError,
   createReminder,
   deleteReminder,
   listRemindersConfig,
+  RemindersError,
   updateReminderSettings,
 } from "./service.js";

@@ -1,9 +1,9 @@
+import type { AutoDeleteConfig } from "@adobos/shared";
+import { type Client, DiscordAPIError } from "discord.js";
 import { and, eq, lte, notInArray } from "drizzle-orm";
-import { DiscordAPIError, type Client } from "discord.js";
+import { logger } from "../../core/log.js";
 import { getDb } from "../../db/client.js";
 import { autoDeletePending } from "../../db/schema.js";
-import type { AutoDeleteConfig } from "@adobos/shared";
-import { logger } from "../../core/log.js";
 import { rememberBotMessageDeletes } from "../action-logs/audit.js";
 
 const DUE_BATCH = 50;
@@ -120,7 +120,10 @@ export async function processDueCountdownDeletes(
   return processed;
 }
 
-async function removePending(guildId: string, messageId: string): Promise<void> {
+async function removePending(
+  guildId: string,
+  messageId: string,
+): Promise<void> {
   await getDb()
     .delete(autoDeletePending)
     .where(

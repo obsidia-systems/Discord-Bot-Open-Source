@@ -31,7 +31,17 @@ export function pricesConfigured(): boolean {
 export function getStripe(): Stripe | null {
   if (client !== undefined) return client;
   const key = stripeSecretKey();
-  client = key ? new Stripe(key) : null;
+  client = key
+    ? new Stripe(key, {
+        // Fija la versión de API contra la que compila este código.
+        // `Stripe.API_VERSION` = la versión probada del SDK instalado
+        // (hoy "2026-08-26.dahlia"); solo cambia al subir `stripe` a propósito,
+        // nunca por drift de la versión rolling de la cuenta.
+        apiVersion: Stripe.API_VERSION,
+        // Reintentos idempotentes con backoff en fallos de red / 429 / 5xx.
+        maxNetworkRetries: 2,
+      })
+    : null;
   return client;
 }
 

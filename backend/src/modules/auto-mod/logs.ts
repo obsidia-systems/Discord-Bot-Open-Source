@@ -1,7 +1,7 @@
-import { EmbedBuilder, type Client, type User } from "discord.js";
+import { type Client, EmbedBuilder, type User } from "discord.js";
+import { logger } from "../../core/log.js";
 import { sendActionLogWebhook } from "../action-logs/webhooks.js";
 import { resolveAutoModLogChannelId } from "./service.js";
-import { logger } from "../../core/log.js";
 
 export interface AutoModAlertInput {
   guildId: string;

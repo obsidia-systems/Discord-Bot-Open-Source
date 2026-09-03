@@ -1,5 +1,8 @@
-import { Router } from "express";
 import type { Client } from "discord.js";
+import { Router } from "express";
+import { guildIdOf } from "../../../core/http/guildContext.js";
+import { recordId } from "../../../core/http/schemas.js";
+import { parse } from "../../../core/http/validate.js";
 import {
   CustomCommandsError,
   createCustomCommand,
@@ -10,9 +13,6 @@ import {
   updateCustomCommand,
 } from "../service.js";
 import { syncGuildSlashCommands } from "../sync.js";
-import { guildIdOf } from "../../../core/http/guildContext.js";
-import { parse } from "../../../core/http/validate.js";
-import { recordId } from "../../../core/http/schemas.js";
 import {
   createCustomCommandSchema,
   toggleCustomCommandSchema,

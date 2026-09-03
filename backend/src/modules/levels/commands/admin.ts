@@ -1,16 +1,16 @@
 import {
+  type ChatInputCommandInteraction,
   EmbedBuilder,
   MessageFlags,
-  type ChatInputCommandInteraction,
 } from "discord.js";
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
+import { syncLevelsProgress } from "../events.js";
 import {
   addUserXp,
   deductUserXp,
   getLevelsConfigCached,
   setUserLevel,
 } from "../service.js";
-import { syncLevelsProgress } from "../events.js";
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral } as const;
 

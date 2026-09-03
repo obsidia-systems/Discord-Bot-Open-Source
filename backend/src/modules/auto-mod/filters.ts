@@ -1,4 +1,4 @@
-import type { AutoModFilters, AutoModFilterKey } from "@adobos/shared";
+import type { AutoModFilterKey, AutoModFilters } from "@adobos/shared";
 import { AUTO_MOD_FILTER_LABELS } from "@adobos/shared";
 import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
 
@@ -9,6 +9,7 @@ export interface AutoModHit {
 
 /** Combining marks típicos de Zalgo. */
 const ZALGO_RE =
+  // biome-ignore lint/suspicious/noMisleadingCharacterClass: detectar marcas combinantes sueltas es justo el objetivo (spam Zalgo).
   /[\u0300-\u036f\u0489\u1ab0-\u1aff\u1dc0-\u1dff\u20d0-\u20ff\ufe20-\ufe2f]/g;
 
 const URL_RE =
@@ -155,7 +156,10 @@ export function detectAntiLinks(
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) =>
-      line.toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, ""),
+      line
+        .toLowerCase()
+        .replace(/^https?:\/\//, "")
+        .replace(/\/$/, ""),
     );
 
   for (const raw of matches) {
@@ -164,9 +168,7 @@ export function detectAntiLinks(
 
     const ok = allow.some(
       (entry) =>
-        host === entry ||
-        host.endsWith(`.${entry}`) ||
-        full.startsWith(entry),
+        host === entry || host.endsWith(`.${entry}`) || full.startsWith(entry),
     );
     if (!ok) return true;
   }
@@ -284,7 +286,11 @@ export function evaluateAutoModFilters(input: {
     // 3) Mayúsculas / Zalgo (zalgo mira el original: combining marks)
     if (
       filters.excessCaps &&
-      detectExcessCaps(normalized, filters.capsPercentage, filters.capsMinLength)
+      detectExcessCaps(
+        normalized,
+        filters.capsPercentage,
+        filters.capsMinLength,
+      )
     ) {
       return hit("excessCaps");
     }

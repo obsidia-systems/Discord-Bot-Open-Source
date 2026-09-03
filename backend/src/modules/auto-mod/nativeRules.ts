@@ -12,11 +12,12 @@ export const ADOBOS_NATIVE_RULE_NAMES = {
  * these names, adopts them, and renames them to the current English name in
  * place, so guilds synced before the rename don't end up with orphaned rules.
  */
-export const ADOBOS_NATIVE_RULE_LEGACY_NAMES: Record<string, AutoModFilterKey> = {
-  "Adobos · Palabras": "bannedWords",
-  "Adobos · Invitaciones": "antiInvites",
-  "Adobos · Menciones": "mentionSpam",
-};
+export const ADOBOS_NATIVE_RULE_LEGACY_NAMES: Record<string, AutoModFilterKey> =
+  {
+    "Adobos · Palabras": "bannedWords",
+    "Adobos · Invitaciones": "antiInvites",
+    "Adobos · Menciones": "mentionSpam",
+  };
 
 export const ADOBOS_NATIVE_RULE_PREFIX = "Adobos · ";
 

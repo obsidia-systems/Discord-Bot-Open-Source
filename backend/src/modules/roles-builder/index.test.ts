@@ -1,9 +1,9 @@
-import { PermissionFlagsBits } from "discord.js";
-import { describe, expect, it } from "vitest";
 import {
   isRolesBuilderPermissionKey,
   listRolePermissionKeys,
 } from "@adobos/shared";
+import { PermissionFlagsBits } from "discord.js";
+import { describe, expect, it } from "vitest";
 import { rolesBuilderModule } from "./index.js";
 import { permissionsBitfieldFromKeys } from "./service.js";
 
@@ -19,9 +19,9 @@ describe("catalog vs discord.js", () => {
     const keys = listRolePermissionKeys();
     expect(keys.length).toBeGreaterThan(0);
     for (const key of keys) {
-      expect(typeof PermissionFlagsBits[key as keyof typeof PermissionFlagsBits]).toBe(
-        "bigint",
-      );
+      expect(
+        typeof PermissionFlagsBits[key as keyof typeof PermissionFlagsBits],
+      ).toBe("bigint");
       expect(key).not.toBe("Administrator");
     }
     expect(isRolesBuilderPermissionKey("Administrator")).toBe(false);
@@ -34,7 +34,11 @@ describe("catalog vs discord.js", () => {
       PermissionFlagsBits.PinMessages,
     );
     expect(
-      permissionsBitfieldFromKeys(["PinMessages", "Administrator", "BypassSlowmode"]),
+      permissionsBitfieldFromKeys([
+        "PinMessages",
+        "Administrator",
+        "BypassSlowmode",
+      ]),
     ).toBe(
       PermissionFlagsBits.PinMessages | PermissionFlagsBits.BypassSlowmode,
     );

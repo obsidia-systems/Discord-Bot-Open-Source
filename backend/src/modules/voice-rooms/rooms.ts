@@ -1,24 +1,24 @@
 import {
-  ActionRowBuilder,
-  ChannelType,
-  OverwriteType,
-  PermissionFlagsBits,
-  StringSelectMenuBuilder,
-  type Client,
-  type Guild,
-  type GuildMember,
-  type VoiceChannel,
-} from "discord.js";
-import {
-  VOICE_ROOM_SELECT_PREFIX,
-  VOICE_ROOM_STATUS_MAX,
   applyVoiceRoomNameTemplate,
   clampVoiceBitrateKbps,
   clampVoiceUserLimit,
+  VOICE_ROOM_SELECT_PREFIX,
+  VOICE_ROOM_STATUS_MAX,
   type VoiceRoomAction,
   type VoiceRoomGenerator,
   type VoiceRoomLive,
 } from "@adobos/shared";
+import {
+  ActionRowBuilder,
+  ChannelType,
+  type Client,
+  type Guild,
+  type GuildMember,
+  OverwriteType,
+  PermissionFlagsBits,
+  StringSelectMenuBuilder,
+  type VoiceChannel,
+} from "discord.js";
 import { logger } from "../../core/log.js";
 import { VoiceRoomsError } from "./service.js";
 
@@ -83,10 +83,7 @@ export function assertCanControl(
   }
 }
 
-function parentId(
-  guild: Guild,
-  generator: VoiceRoomGenerator,
-): string | null {
+function parentId(guild: Guild, generator: VoiceRoomGenerator): string | null {
   if (generator.categoryId) return generator.categoryId;
   const hub = guild.channels.cache.get(generator.hubChannelId);
   return hub && "parentId" in hub ? hub.parentId : null;
@@ -329,7 +326,9 @@ export async function createInviteUrl(channel: VoiceChannel): Promise<string> {
   return invite.url;
 }
 
-export function buildControlSelect(voiceChannelId: string): ActionRowBuilder<StringSelectMenuBuilder> {
+export function buildControlSelect(
+  voiceChannelId: string,
+): ActionRowBuilder<StringSelectMenuBuilder> {
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId(`${VOICE_ROOM_SELECT_PREFIX}${voiceChannelId}`)
@@ -354,12 +353,10 @@ async function postControlMessage(
     if (!channel || !channel.isTextBased() || channel.isDMBased()) return;
     if (!("send" in channel)) return;
     await channel.send({
-      content:
-        "You own this room. Use `/voice` or the menu to manage it.",
+      content: "You own this room. Use `/voice` or the menu to manage it.",
       components: [buildControlSelect(voiceChannelId)],
     });
   } catch (error: unknown) {
     logger.warn({ err: error }, "Voice Rooms: couldn't publish the menu");
   }
 }
-

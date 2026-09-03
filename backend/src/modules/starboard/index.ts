@@ -16,7 +16,7 @@ export const starboardModule: AdobosModule = {
 };
 
 export {
-  StarboardError,
   getStarboardConfig,
+  StarboardError,
   updateStarboardSettings,
 } from "./service.js";

@@ -3,15 +3,15 @@ import { Router } from "express";
 import { fetchChannelInGuild } from "../../../core/http/channelScope.js";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { parse } from "../../../core/http/validate.js";
-import { lockdownBodySchema, updateAntiRaidSettingsSchema } from "./schema.js";
+import { resolveAlertChannel, sendAntiRaidAlert } from "../alerts.js";
+import { applyGuildLockdown, liftGuildLockdown } from "../lockdown.js";
 import {
   AntiRaidError,
   getAntiRaidConfig,
   getAntiRaidSettings,
   updateAntiRaidSettings,
 } from "../service.js";
-import { applyGuildLockdown, liftGuildLockdown } from "../lockdown.js";
-import { resolveAlertChannel, sendAntiRaidAlert } from "../alerts.js";
+import { lockdownBodySchema, updateAntiRaidSettingsSchema } from "./schema.js";
 
 async function assertAlertChannel(
   bot: Client,
@@ -46,7 +46,10 @@ export function antiRaidRoutes(bot: Client): Router {
     try {
       const guildId = guildIdOf(req);
       const body = parse(updateAntiRaidSettingsSchema, req.body ?? {});
-      if (typeof body.alertChannelId === "string" && body.alertChannelId.trim()) {
+      if (
+        typeof body.alertChannelId === "string" &&
+        body.alertChannelId.trim()
+      ) {
         await assertAlertChannel(bot, body.alertChannelId.trim(), guildId);
       }
       const settings = await updateAntiRaidSettings(body, guildId);

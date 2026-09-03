@@ -1,8 +1,8 @@
 import {
-  clampEconomyBalance,
-  computePayTax,
   type AdjustEconomyFundsRequest,
   type AdjustEconomyFundsResponse,
+  clampEconomyBalance,
+  computePayTax,
 } from "@adobos/shared";
 import { and, eq } from "drizzle-orm";
 import type { AppDatabase } from "../../db/client.js";
@@ -10,8 +10,8 @@ import { getDb, one } from "../../db/client.js";
 import {
   economyBlackjackOpen,
   economyShopItems,
-  userEconomy,
   type UserEconomyRow,
+  userEconomy,
 } from "../../db/schema.js";
 import { EconomyError, formatRemaining, getEconomyConfig } from "./service.js";
 
@@ -308,19 +308,13 @@ export async function transferWalletPay(
     );
   }
   if (fromUserId === toUserId) {
-    throw new EconomyError(
-      "You can't pay yourself.",
-      400,
-      "SELF_PAY",
-    );
+    throw new EconomyError("You can't pay yourself.", 400, "SELF_PAY");
   }
 
   const { sent, tax, received } = computePayTax(qty, taxPercent);
   const startBalance = await startBalanceOf(guildId);
   const [firstId, secondId] =
-    fromUserId < toUserId
-      ? [fromUserId, toUserId]
-      : [toUserId, fromUserId];
+    fromUserId < toUserId ? [fromUserId, toUserId] : [toUserId, fromUserId];
 
   return getDb().transaction(async (tx) => {
     const first = await lockUserEconomy(tx, guildId, firstId, startBalance);
@@ -374,11 +368,7 @@ export async function robWallet(input: {
   victimWallet: number;
 }> {
   if (input.robberId === input.victimId) {
-    throw new EconomyError(
-      "You can't rob yourself.",
-      400,
-      "SELF_ROB",
-    );
+    throw new EconomyError("You can't rob yourself.", 400, "SELF_ROB");
   }
 
   const startBalance = await startBalanceOf(input.guildId);
@@ -388,7 +378,12 @@ export async function robWallet(input: {
       : [input.victimId, input.robberId];
 
   return getDb().transaction(async (tx) => {
-    const first = await lockUserEconomy(tx, input.guildId, firstId, startBalance);
+    const first = await lockUserEconomy(
+      tx,
+      input.guildId,
+      firstId,
+      startBalance,
+    );
     const second = await lockUserEconomy(
       tx,
       input.guildId,
@@ -410,14 +405,24 @@ export async function robWallet(input: {
           "EMPTY_TARGET",
         );
       }
-      const victimNext = await writeUserEconomy(tx, input.guildId, input.victimId, {
-        ...victim,
-        wallet: victim.wallet - stolen,
-      });
-      const robberNext = await writeUserEconomy(tx, input.guildId, input.robberId, {
-        ...robber,
-        wallet: robber.wallet + stolen,
-      });
+      const victimNext = await writeUserEconomy(
+        tx,
+        input.guildId,
+        input.victimId,
+        {
+          ...victim,
+          wallet: victim.wallet - stolen,
+        },
+      );
+      const robberNext = await writeUserEconomy(
+        tx,
+        input.guildId,
+        input.robberId,
+        {
+          ...robber,
+          wallet: robber.wallet + stolen,
+        },
+      );
       return {
         stolen,
         fine: 0,
@@ -430,10 +435,15 @@ export async function robWallet(input: {
       robber.wallet,
       Math.max(0, Math.floor(input.fineAmount)),
     );
-    const robberNext = await writeUserEconomy(tx, input.guildId, input.robberId, {
-      ...robber,
-      wallet: robber.wallet - fine,
-    });
+    const robberNext = await writeUserEconomy(
+      tx,
+      input.guildId,
+      input.robberId,
+      {
+        ...robber,
+        wallet: robber.wallet - fine,
+      },
+    );
     return {
       stolen: 0,
       fine,
@@ -937,4 +947,3 @@ export async function claimDailyReward(
     streakBonusPercent,
   );
 }
-

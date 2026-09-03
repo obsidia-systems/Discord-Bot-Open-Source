@@ -42,10 +42,7 @@ export const sendEmbedSchema = z.object({
   footerIconUrl: z.string().optional(),
   timestamp: boolish.optional(),
   fields: pre(parseJsonish, z.array(embedFieldSchema).max(25).optional()),
-  components: pre(
-    parseJsonish,
-    z.array(linkActionRowSchema).max(5).optional(),
-  ),
+  components: pre(parseJsonish, z.array(linkActionRowSchema).max(5).optional()),
 });
 
 export const editSentEmbedSchema = sendEmbedSchema.extend({

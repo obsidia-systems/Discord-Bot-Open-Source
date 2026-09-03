@@ -1,10 +1,10 @@
+import { applyCustomCommandTokens } from "@adobos/shared";
 import type {
   ChatInputCommandInteraction,
   Guild,
   GuildMember,
   User,
 } from "discord.js";
-import { applyCustomCommandTokens } from "@adobos/shared";
 
 export type VariableResolveContext = {
   interaction: ChatInputCommandInteraction;
@@ -109,9 +109,13 @@ export function parseCustomCommandVariables(
     "{server.ownerID}": guild?.ownerId ?? "",
     "{server.createdAt}": formatDate(guild?.createdAt ?? null),
     "{channel}":
-      channel && "name" in channel ? String(channel.name ?? "channel") : "channel",
+      channel && "name" in channel
+        ? String(channel.name ?? "channel")
+        : "channel",
     "{channel.name}":
-      channel && "name" in channel ? String(channel.name ?? "channel") : "channel",
+      channel && "name" in channel
+        ? String(channel.name ?? "channel")
+        : "channel",
     "{channel.id}": channel?.id ?? "",
     "{channel.mention}": channel?.id ? `<#${channel.id}>` : "#channel",
     "{everyone}": everyone,

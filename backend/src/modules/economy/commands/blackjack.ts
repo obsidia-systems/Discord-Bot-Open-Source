@@ -1,14 +1,14 @@
 import {
   ActionRowBuilder,
   ButtonBuilder,
-  ButtonStyle,
-  EmbedBuilder,
   type ButtonInteraction,
+  ButtonStyle,
   type ChatInputCommandInteraction,
   type Client,
+  EmbedBuilder,
 } from "discord.js";
-import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
 import { logger } from "../../../core/log.js";
+import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
 import {
   createShoe,
   dealerShouldHit,
@@ -16,9 +16,9 @@ import {
   evaluateHand,
   formatHand,
   isSplitPair,
-  shuffleDeck,
-  shoeNeedsReshuffle,
   type PlayingCard,
+  shoeNeedsReshuffle,
+  shuffleDeck,
 } from "../casino/cards.js";
 import { blackjackCredit } from "../casino/payouts.js";
 import {
@@ -28,21 +28,21 @@ import {
   refundBlackjackStakeIfOpen,
 } from "../funds.js";
 import { EconomyError, getUserEconomyBalance } from "../service.js";
-import { EPHEMERAL, visibility } from "./visibility.js";
 import {
-  INFO,
-  LOSE,
-  PUSH,
-  TABLE_IDLE_MS,
-  WIN,
   assertEconomyAndCasino,
   clearMessageComponents,
   currencyOf,
+  INFO,
+  LOSE,
+  PUSH,
   parseOwnerCustomId,
   playAgainRow,
   replyCasinoError,
+  TABLE_IDLE_MS,
   tableKey,
+  WIN,
 } from "./casinoCommon.js";
+import { EPHEMERAL, visibility } from "./visibility.js";
 
 export const BJ_BUTTON_PREFIX = "bj_";
 
@@ -97,7 +97,11 @@ function clearSession(key: string): void {
   sessions.delete(key);
 }
 
-function armTimeout(session: BlackjackSession, ms: number, fn: () => void): void {
+function armTimeout(
+  session: BlackjackSession,
+  ms: number,
+  fn: () => void,
+): void {
   clearTimeout(session.timeout);
   session.timeout = setTimeout(fn, ms);
 }
@@ -208,7 +212,9 @@ function buildBlackjackEmbed(input: {
   const fields = input.hands.map((hand, index) => {
     const ev = evaluateHand(hand.cards);
     const marker =
-      input.highlightCurrent && input.hands.length > 1 && index === input.current
+      input.highlightCurrent &&
+      input.hands.length > 1 &&
+      index === input.current
         ? " ◀"
         : "";
     const label =
@@ -421,7 +427,10 @@ async function dealInto(
 ): Promise<"natural" | "play"> {
   ensureShoe(session);
   session.hands = [
-    { cards: [drawCard(session.deck), drawCard(session.deck)], bet: session.bet },
+    {
+      cards: [drawCard(session.deck), drawCard(session.deck)],
+      bet: session.bet,
+    },
   ];
   session.dealer = [drawCard(session.deck), drawCard(session.deck)];
   session.current = 0;
@@ -466,9 +475,7 @@ async function dealInto(
   return "play";
 }
 
-async function startHand(
-  session: BlackjackSession,
-): Promise<{
+async function startHand(session: BlackjackSession): Promise<{
   embeds: EmbedBuilder[];
   components: ActionRowBuilder<ButtonBuilder>[];
 }> {
@@ -476,9 +483,8 @@ async function startHand(
   session.bet = session.ante;
   await openBlackjackStake(session.guildId, session.userId, session.ante);
   const kind = await dealInto(session);
-  const wallet = (
-    await getUserEconomyBalance(session.guildId, session.userId)
-  ).wallet;
+  const wallet = (await getUserEconomyBalance(session.guildId, session.userId))
+    .wallet;
   if (kind === "natural") {
     armIdle(session);
     return {

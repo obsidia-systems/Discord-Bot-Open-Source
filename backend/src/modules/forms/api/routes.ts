@@ -1,12 +1,11 @@
-import { Router } from "express";
-import type { Client } from "discord.js";
 import { buildFormResponsesCsv } from "@adobos/shared";
-import { publishFormMessage } from "../publish.js";
-import { guildIdOf } from "../../../core/http/guildContext.js";
+import type { Client } from "discord.js";
+import { Router } from "express";
 import { channelBelongsToGuild } from "../../../core/http/channelScope.js";
-import { parse } from "../../../core/http/validate.js";
+import { guildIdOf } from "../../../core/http/guildContext.js";
 import { recordId } from "../../../core/http/schemas.js";
-import { createFormSchema, updateFormSchema } from "./schema.js";
+import { parse } from "../../../core/http/validate.js";
+import { publishFormMessage } from "../publish.js";
 import {
   createForm,
   deleteForm,
@@ -15,6 +14,7 @@ import {
   listForms,
   updateForm,
 } from "../service.js";
+import { createFormSchema, updateFormSchema } from "./schema.js";
 
 function parseFormId(raw: string): number {
   return parse(recordId, raw);
@@ -114,11 +114,7 @@ export function formsRoutes(bot: Client): Router {
     try {
       const formId = parseFormId(req.params.id);
       const meta = await deleteForm(formId, guildIdOf(req));
-      if (
-        bot.isReady() &&
-        meta.publishedChannelId &&
-        meta.publishedMessageId
-      ) {
+      if (bot.isReady() && meta.publishedChannelId && meta.publishedMessageId) {
         try {
           const channel = await bot.channels.fetch(meta.publishedChannelId);
           if (

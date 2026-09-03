@@ -1,5 +1,5 @@
-import { z } from "zod";
 import { AUTO_DELETE_MAX_RULES } from "@adobos/shared";
+import { z } from "zod";
 import { nonNegInt, snowflake, weekday } from "../../../core/http/schemas.js";
 
 const autoDeleteRuleSchema = z.object({

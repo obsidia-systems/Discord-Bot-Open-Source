@@ -1,8 +1,8 @@
-import { type GuildMember } from "discord.js";
 import type { WelcomeTemplateContext } from "@adobos/shared";
+import type { GuildMember } from "discord.js";
 
-export type { WelcomeTemplateContext };
 export { applyWelcomeVariables } from "@adobos/shared";
+export type { WelcomeTemplateContext };
 
 export function contextFromMember(member: GuildMember): WelcomeTemplateContext {
   return {

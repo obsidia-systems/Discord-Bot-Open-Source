@@ -1,24 +1,24 @@
 import {
+  countUniqueStarUsers,
+  decideStarboardAction,
+  isConfiguredStarEmoji,
+  type StarboardSettings,
+  shouldSkipStarboardSource,
+  starboardHeaderEmoji,
+} from "@adobos/shared";
+import {
   ChannelType,
   DiscordAPIError,
   EmbedBuilder,
-  PermissionFlagsBits,
   type Message,
   type MessageReaction,
   type PartialMessage,
   type PartialMessageReaction,
+  PermissionFlagsBits,
   type TextChannel,
 } from "discord.js";
-import {
-  countUniqueStarUsers,
-  decideStarboardAction,
-  isConfiguredStarEmoji,
-  shouldSkipStarboardSource,
-  starboardHeaderEmoji,
-  type StarboardSettings,
-} from "@adobos/shared";
-import { toEmojiKey } from "../../db/reaction-roles.js";
 import { logger } from "../../core/log.js";
+import { toEmojiKey } from "../../db/reaction-roles.js";
 import {
   deleteStarboardPost,
   getPostByOriginal,
@@ -96,7 +96,8 @@ async function destinationChannel(
     return null;
   }
   if (!channel.isTextBased() || channel.isDMBased()) return null;
-  const me = guild.members.me ?? (await guild.members.fetchMe().catch(() => null));
+  const me =
+    guild.members.me ?? (await guild.members.fetchMe().catch(() => null));
   if (me && !channel.permissionsFor(me)?.has(BOARD_PERMS)) {
     logger.warn(
       { guildId: guild.id, channelId },

@@ -1,10 +1,7 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import { EmbedBuilder, MessageFlags } from "discord.js";
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
-import {
-  getLevelsConfigCached,
-  listLeaderboardRows,
-} from "../service.js";
+import { getLevelsConfigCached, listLeaderboardRows } from "../service.js";
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral } as const;
 
@@ -46,7 +43,13 @@ export async function handleLeaderboardCommand(
 
   const lines = rows.map((row, index) => {
     const medal =
-      index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : `\`${index + 1}.\``;
+      index === 0
+        ? "🥇"
+        : index === 1
+          ? "🥈"
+          : index === 2
+            ? "🥉"
+            : `\`${index + 1}.\``;
     return `${medal} <@${row.userId}> — Nv. **${row.level}** · \`${row.xp.toLocaleString("es-MX")} XP\``;
   });
 

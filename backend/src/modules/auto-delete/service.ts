@@ -5,8 +5,8 @@ import type {
 } from "@adobos/shared";
 import {
   AUTO_DELETE_MAX_RULES,
-  defaultAutoDeleteConfig,
   clampCountdownDelay,
+  defaultAutoDeleteConfig,
   normalizeAutoDeleteDelayUnit,
   normalizeAutoDeleteFilterType,
   normalizeAutoDeleteMode,
@@ -15,10 +15,10 @@ import {
   normalizeScheduledTimezone,
 } from "@adobos/shared";
 import { eq } from "drizzle-orm";
-import { getDb, one } from "../../db/client.js";
-import { autoDeleteConfig, guildSettings } from "../../db/schema.js";
 import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
 import { logger } from "../../core/log.js";
+import { getDb, one } from "../../db/client.js";
+import { autoDeleteConfig, guildSettings } from "../../db/schema.js";
 import { prunePendingForConfig } from "./pending.js";
 
 export class AutoDeleteError extends Error {
@@ -35,9 +35,7 @@ export class AutoDeleteError extends Error {
 const configCache = new BoundedTtlMap<string, AutoDeleteConfig>(5_000, 60_000);
 
 /** Callback opcional para reprogramar crons tras guardar. */
-let onConfigChanged:
-  | ((config: AutoDeleteConfig) => void)
-  | null = null;
+let onConfigChanged: ((config: AutoDeleteConfig) => void) | null = null;
 
 export function setAutoDeleteConfigChangeListener(
   listener: ((config: AutoDeleteConfig) => void) | null,
@@ -57,31 +55,26 @@ function parseJson<T>(raw: string | null | undefined, fallback: T): T {
 function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new AutoDeleteError(
-      "Missing guildId.",
-      400,
-      "MISSING_GUILD_ID",
-    );
+    throw new AutoDeleteError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
   return id;
 }
 
 async function ensureGuildRow(guildId: string): Promise<void> {
-  const existing = await one(getDb()
-    .select({ guildId: guildSettings.guildId })
-    .from(guildSettings)
-    .where(eq(guildSettings.guildId, guildId))
-    .limit(1));
+  const existing = await one(
+    getDb()
+      .select({ guildId: guildSettings.guildId })
+      .from(guildSettings)
+      .where(eq(guildSettings.guildId, guildId))
+      .limit(1),
+  );
   if (!existing) {
-    await getDb()
-      .insert(guildSettings)
-      .values({
-        guildId,
-        prefix: "!",
-        welcomeEnabled: false,
-        updatedAt: new Date(),
-      })
-      ;
+    await getDb().insert(guildSettings).values({
+      guildId,
+      prefix: "!",
+      welcomeEnabled: false,
+      updatedAt: new Date(),
+    });
   }
 }
 
@@ -128,9 +121,7 @@ function rowToConfig(
   return {
     guildId,
     enabled: Boolean(row.enabled),
-    rules: normalizeAutoDeleteRules(
-      parseJson<AutoDeleteRule[]>(row.rules, []),
-    ),
+    rules: normalizeAutoDeleteRules(parseJson<AutoDeleteRule[]>(row.rules, [])),
     timezone: normalizeScheduledTimezone(row.timezone),
     updatedAt: new Date(row.updatedAt).toISOString(),
   };
@@ -141,21 +132,27 @@ export function invalidateAutoDeleteConfigCache(guildId?: string): void {
   else configCache.clear();
 }
 
-export async function getAutoDeleteConfig(guildId?: string): Promise<AutoDeleteConfig> {
+export async function getAutoDeleteConfig(
+  guildId?: string,
+): Promise<AutoDeleteConfig> {
   const id = resolveGuildId(guildId);
   await ensureGuildRow(id);
-  const row = await one(getDb()
-    .select()
-    .from(autoDeleteConfig)
-    .where(eq(autoDeleteConfig.guildId, id))
-    .limit(1));
+  const row = await one(
+    getDb()
+      .select()
+      .from(autoDeleteConfig)
+      .where(eq(autoDeleteConfig.guildId, id))
+      .limit(1),
+  );
   const config = await rowToConfig(id, row);
   configCache.set(id, config);
   return config;
 }
 
 /** Lectura rápida para messageCreate (sin I/O si hay caché). */
-export async function getAutoDeleteConfigCached(guildId: string): Promise<AutoDeleteConfig> {
+export async function getAutoDeleteConfigCached(
+  guildId: string,
+): Promise<AutoDeleteConfig> {
   const cached = configCache.get(guildId);
   if (cached) return cached;
   try {
@@ -190,9 +187,7 @@ export async function updateAutoDeleteConfig(
       input.rules !== undefined
         ? normalizeAutoDeleteRules(input.rules)
         : current.rules,
-    timezone: normalizeScheduledTimezone(
-      input.timezone ?? current.timezone,
-    ),
+    timezone: normalizeScheduledTimezone(input.timezone ?? current.timezone),
     updatedAt: new Date().toISOString(),
   };
 
@@ -213,8 +208,7 @@ export async function updateAutoDeleteConfig(
         timezone: next.timezone,
         updatedAt: new Date(),
       },
-    })
-    ;
+    });
 
   configCache.set(id, next);
   try {

@@ -1,4 +1,3 @@
-import { and, count, eq, lte, lt } from "drizzle-orm";
 import type {
   Reminder,
   ReminderSettings,
@@ -6,20 +5,21 @@ import type {
   UpdateReminderSettingsRequest,
 } from "@adobos/shared";
 import {
+  normalizeScheduledTimezone,
   REMIND_MAX_ATTEMPTS,
   REMIND_PER_GUILD_MAX,
   REMIND_PER_USER_MAX,
   REMIND_TEXT_MAX,
-  normalizeScheduledTimezone,
   sanitizeRemindText,
 } from "@adobos/shared";
+import { and, count, eq, lt, lte } from "drizzle-orm";
 import { getDb, one } from "../../db/client.js";
 import {
   guildSettings,
-  reminderSettings,
-  reminders,
   type ReminderRow,
   type ReminderSettingsRow,
+  reminderSettings,
+  reminders,
 } from "../../db/schema.js";
 
 export class RemindersError extends Error {
@@ -186,10 +186,18 @@ export async function createReminder(input: {
   }
   const message = sanitizeRemindText(input.message);
   if (!message) {
-    throw new RemindersError("Write what to remind you about.", 400, "EMPTY_TEXT");
+    throw new RemindersError(
+      "Write what to remind you about.",
+      400,
+      "EMPTY_TEXT",
+    );
   }
   if (message.length > REMIND_TEXT_MAX) {
-    throw new RemindersError("El texto es demasiado largo.", 400, "TEXT_TOO_LONG");
+    throw new RemindersError(
+      "El texto es demasiado largo.",
+      400,
+      "TEXT_TOO_LONG",
+    );
   }
   const [userCount] = await getDb()
     .select({ n: count() })
@@ -224,7 +232,11 @@ export async function createReminder(input: {
     })
     .returning();
   if (!row) {
-    throw new RemindersError("Couldn't create the reminder.", 500, "INSERT_FAILED");
+    throw new RemindersError(
+      "Couldn't create the reminder.",
+      500,
+      "INSERT_FAILED",
+    );
   }
   return mapReminder(row);
 }
@@ -237,11 +249,7 @@ export async function deleteReminder(
 ): Promise<void> {
   const current = await getReminder(reminderId, guildId);
   if (actorId && current.userId !== actorId && !staff) {
-    throw new RemindersError(
-      "You can only cancel your own.",
-      403,
-      "NOT_OWNER",
-    );
+    throw new RemindersError("You can only cancel your own.", 403, "NOT_OWNER");
   }
   await getDb()
     .delete(reminders)

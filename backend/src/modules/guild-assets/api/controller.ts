@@ -1,4 +1,3 @@
-import type { Client, Guild } from "discord.js";
 import type {
   GuildAssetsResponse,
   GuildChannelAsset,
@@ -6,10 +5,8 @@ import type {
   GuildRoleAsset,
   GuildStickerAsset,
 } from "@adobos/shared";
-import {
-  includeGuildAssetRole,
-  isGuildAssetChannelType,
-} from "@adobos/shared";
+import { includeGuildAssetRole, isGuildAssetChannelType } from "@adobos/shared";
+import type { Client, Guild } from "discord.js";
 
 export class GuildAssetsError extends Error {
   constructor(
@@ -33,11 +30,7 @@ function resolveGuild(bot: Client, guildId?: string): Guild {
 
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new GuildAssetsError(
-      "Missing guildId.",
-      400,
-      "MISSING_GUILD_ID",
-    );
+    throw new GuildAssetsError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
 
   const guild = bot.guilds.cache.get(id);

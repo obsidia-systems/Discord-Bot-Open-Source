@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { REMIND_BUTTON_CANCEL_PREFIX } from "@adobos/shared";
+import { describe, expect, it } from "vitest";
 import { remindersModule } from "./index.js";
 
 describe("reminders module", () => {

@@ -1,23 +1,9 @@
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  DiscordAPIError,
-  StringSelectMenuBuilder,
-  type AttachmentBuilder,
-  type Client,
-  type EmbedBuilder,
-  type Message,
-  type SendableChannels,
-  type TextChannel,
-} from "discord.js";
-import { and, desc, eq } from "drizzle-orm";
 import type {
   AutoroleMappingItem,
   AutoroleRegistryEntry,
   AutoroleRegistryType,
-  CreateAutoroleCompactRequest,
   CreateAutoRoleResponse,
+  CreateAutoroleCompactRequest,
   DeleteAutoroleResponse,
   EmbedPayload,
   ListActiveAutorolesResponse,
@@ -31,26 +17,37 @@ import {
   autoroleMappingLimit,
   isAutoroleSendChannelType,
 } from "@adobos/shared";
+import {
+  ActionRowBuilder,
+  type AttachmentBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  type Client,
+  DiscordAPIError,
+  type EmbedBuilder,
+  type Message,
+  type SendableChannels,
+  StringSelectMenuBuilder,
+  type TextChannel,
+} from "discord.js";
+import { and, desc, eq } from "drizzle-orm";
+import {
+  fetchChannelInGuild,
+  rethrowAsChannelError,
+} from "../../core/http/channelScope.js";
+import { logger } from "../../core/log.js";
 import { getDb, one } from "../../db/client.js";
-import { autorolesRegistry, guildSettings } from "../../db/schema.js";
 import {
   deleteReactionRolesForMessage,
   emojiKeyToResolvable,
   upsertReactionRoles,
 } from "../../db/reaction-roles.js";
+import { autorolesRegistry, guildSettings } from "../../db/schema.js";
 import { getEmbedTemplate } from "../messages/templates/service.js";
 import { buildEmbedFromPayload } from "../moderation/dm.js";
-import { logger } from "../../core/log.js";
-import { AutoRoleError } from "./errors.js";
+import { createAutoRoleSetup, normalizeEmojiKey } from "./api/controller.js";
 import { assertAssignableRoleIds } from "./assignable.js";
-import {
-  createAutoRoleSetup,
-  normalizeEmojiKey,
-} from "./api/controller.js";
-import {
-  fetchChannelInGuild,
-  rethrowAsChannelError,
-} from "../../core/http/channelScope.js";
+import { AutoRoleError } from "./errors.js";
 
 const BUTTON_STYLE_MAP: Record<
   NonNullable<AutoroleMappingItem["style"]>,
@@ -75,28 +72,24 @@ function assertSnowflake(value: string, field: string): string {
 }
 
 function resolveGuildId(raw?: string): string {
-  return assertSnowflake(
-    raw?.trim() || "",
-    "guildId",
-  );
+  return assertSnowflake(raw?.trim() || "", "guildId");
 }
 
 async function ensureGuildRow(guildId: string): Promise<void> {
-  const existing = await one(getDb()
-    .select()
-    .from(guildSettings)
-    .where(eq(guildSettings.guildId, guildId))
-    .limit(1));
+  const existing = await one(
+    getDb()
+      .select()
+      .from(guildSettings)
+      .where(eq(guildSettings.guildId, guildId))
+      .limit(1),
+  );
   if (!existing) {
-    await getDb()
-      .insert(guildSettings)
-      .values({
-        guildId,
-        prefix: "!",
-        welcomeEnabled: false,
-        updatedAt: new Date(),
-      })
-      ;
+    await getDb().insert(guildSettings).values({
+      guildId,
+      prefix: "!",
+      welcomeEnabled: false,
+      updatedAt: new Date(),
+    });
   }
 }
 
@@ -124,10 +117,7 @@ function parseMappings(raw: string): AutoroleMappingItem[] {
         style = item.style;
       }
       items.push({
-        id:
-          typeof item.id === "string"
-            ? item.id
-            : `map_${index}_${roleId}`,
+        id: typeof item.id === "string" ? item.id : `map_${index}_${roleId}`,
         roleId,
         label: typeof item.label === "string" ? item.label : "Role",
         emojiKey:
@@ -163,7 +153,11 @@ function normalizeMappings(
         ? `At most ${limit} reactions per message.`
         : `At most ${limit} ${type === "SELECT" ? "menu options" : "buttons (5×5)"}.`,
       400,
-      type === "REACTIONS" ? "TOO_MANY_REACTIONS" : type === "SELECT" ? "TOO_MANY_OPTIONS" : "TOO_MANY_BUTTONS",
+      type === "REACTIONS"
+        ? "TOO_MANY_REACTIONS"
+        : type === "SELECT"
+          ? "TOO_MANY_OPTIONS"
+          : "TOO_MANY_BUTTONS",
     );
   }
   return mappings.map((item, index) => {
@@ -193,9 +187,9 @@ function toEntry(row: {
   orphaned?: boolean;
   isBotAuthor?: boolean | null;
 }): AutoroleRegistryEntry {
-  const type = (["BUTTONS", "SELECT", "REACTIONS"].includes(row.type)
-    ? row.type
-    : "BUTTONS") as AutoroleRegistryType;
+  const type = (
+    ["BUTTONS", "SELECT", "REACTIONS"].includes(row.type) ? row.type : "BUTTONS"
+  ) as AutoroleRegistryType;
   return {
     id: row.id,
     guildId: row.guildId,
@@ -228,14 +222,15 @@ async function upsertRegistry(input: {
   const json = JSON.stringify(input.mappings);
   const existing = await one(
     db
-    .select()
-    .from(autorolesRegistry)
-    .where(eq(autorolesRegistry.messageId, input.messageId))
-    .limit(1)
+      .select()
+      .from(autorolesRegistry)
+      .where(eq(autorolesRegistry.messageId, input.messageId))
+      .limit(1),
   );
 
   if (existing) {
-    await db.update(autorolesRegistry)
+    await db
+      .update(autorolesRegistry)
       .set({
         channelId: input.channelId,
         title: input.title,
@@ -243,8 +238,7 @@ async function upsertRegistry(input: {
         rolesMapping: json,
         updatedAt: now,
       })
-      .where(eq(autorolesRegistry.id, existing.id))
-      ;
+      .where(eq(autorolesRegistry.id, existing.id));
     return existing.id;
   }
 
@@ -276,7 +270,7 @@ async function resolveChannel(
   channelId: string,
   expectedGuildId: string,
 ): Promise<SendableChannels & TextChannel> {
-  let channel;
+  let channel: Awaited<ReturnType<typeof fetchChannelInGuild>>;
   try {
     channel = await fetchChannelInGuild(bot, channelId, expectedGuildId);
   } catch (error: unknown) {
@@ -316,7 +310,9 @@ function buildButtonComponents(mappings: AutoroleMappingItem[]) {
         const button = new ButtonBuilder()
           .setCustomId(`autorole_${mapping.roleId}`.slice(0, 100))
           .setLabel(mapping.label.slice(0, 80))
-          .setStyle(BUTTON_STYLE_MAP[mapping.style ?? "Primary"] ?? ButtonStyle.Primary);
+          .setStyle(
+            BUTTON_STYLE_MAP[mapping.style ?? "Primary"] ?? ButtonStyle.Primary,
+          );
         if (mapping.emojiKey) {
           const key = normalizeEmojiKey(mapping.emojiKey);
           if (key.startsWith("custom:")) {
@@ -420,8 +416,7 @@ export async function listActiveAutoroles(
     .select()
     .from(autorolesRegistry)
     .where(eq(autorolesRegistry.guildId, guildId))
-    .orderBy(desc(autorolesRegistry.createdAt))
-    ;
+    .orderBy(desc(autorolesRegistry.createdAt));
 
   const guild = bot.guilds.cache.get(guildId);
   const botUserId = bot.user?.id ?? null;
@@ -494,16 +489,18 @@ export async function createAutoroleCompact(
   if (input.source === "existing") {
     messageSource = "existing";
     messageId = assertSnowflake(input.messageId ?? "", "messageId");
-    const duplicate = await one(getDb()
-      .select({ id: autorolesRegistry.id })
-      .from(autorolesRegistry)
-      .where(
-        and(
-          eq(autorolesRegistry.guildId, guildId),
-          eq(autorolesRegistry.messageId, messageId),
-        ),
-      )
-      .limit(1));
+    const duplicate = await one(
+      getDb()
+        .select({ id: autorolesRegistry.id })
+        .from(autorolesRegistry)
+        .where(
+          and(
+            eq(autorolesRegistry.guildId, guildId),
+            eq(autorolesRegistry.messageId, messageId),
+          ),
+        )
+        .limit(1),
+    );
     if (duplicate) {
       throw new AutoRoleError(
         "This message already has an active autorole. Visit «Active Messages» to manage it.",
@@ -512,7 +509,10 @@ export async function createAutoroleCompact(
       );
     }
   } else if (input.source === "template") {
-    if (typeof input.templateId !== "number" || !Number.isFinite(input.templateId)) {
+    if (
+      typeof input.templateId !== "number" ||
+      !Number.isFinite(input.templateId)
+    ) {
       throw new AutoRoleError(
         "Select an embed template.",
         400,
@@ -524,11 +524,7 @@ export async function createAutoroleCompact(
   } else {
     const plain = input.plainContent?.trim();
     if (!plain) {
-      throw new AutoRoleError(
-        "Type the message text.",
-        400,
-        "EMPTY_CONTENT",
-      );
+      throw new AutoRoleError("Type the message text.", 400, "EMPTY_CONTENT");
     }
     embed = { content: plain };
   }
@@ -591,11 +587,13 @@ export async function updateAutoroleMapping(
     throw new AutoRoleError("Invalid ID.", 400, "INVALID_ID");
   }
 
-  const row = await one(getDb()
-    .select()
-    .from(autorolesRegistry)
-    .where(eq(autorolesRegistry.id, id))
-    .limit(1));
+  const row = await one(
+    getDb()
+      .select()
+      .from(autorolesRegistry)
+      .where(eq(autorolesRegistry.id, id))
+      .limit(1),
+  );
 
   if (!row || row.guildId !== guildId) {
     throw new AutoRoleError("Record not found.", 404, "NOT_FOUND");
@@ -641,14 +639,15 @@ export async function updateAutoroleMapping(
       rolesMapping: JSON.stringify(mappings),
       updatedAt: now,
     })
-    .where(eq(autorolesRegistry.id, id))
-    ;
+    .where(eq(autorolesRegistry.id, id));
 
-  const updated = await one(getDb()
-    .select()
-    .from(autorolesRegistry)
-    .where(eq(autorolesRegistry.id, id))
-    .limit(1));
+  const updated = await one(
+    getDb()
+      .select()
+      .from(autorolesRegistry)
+      .where(eq(autorolesRegistry.id, id))
+      .limit(1),
+  );
   if (!updated) {
     throw new AutoRoleError("Record not found.", 404, "NOT_FOUND");
   }
@@ -672,11 +671,13 @@ export async function updateAutoroleContent(
 ): Promise<UpdateAutoroleContentResponse> {
   const guildId = resolveGuildId(guildIdRaw);
   const id = Number(idRaw);
-  const row = await one(getDb()
-    .select()
-    .from(autorolesRegistry)
-    .where(eq(autorolesRegistry.id, id))
-    .limit(1));
+  const row = await one(
+    getDb()
+      .select()
+      .from(autorolesRegistry)
+      .where(eq(autorolesRegistry.id, id))
+      .limit(1),
+  );
 
   if (!row || row.guildId !== guildId) {
     throw new AutoRoleError("Record not found.", 404, "NOT_FOUND");
@@ -732,7 +733,8 @@ export async function updateAutoroleContent(
       nextEmbed.content = input.content;
     }
 
-    const hasEmbedPatch = input.embed != null || typeof input.content === "string";
+    const hasEmbedPatch =
+      input.embed != null || typeof input.content === "string";
     if (hasEmbedPatch) {
       const built = buildEmbedFromPayload(nextEmbed);
       patch.content = built.content ?? nextEmbed.content ?? "";
@@ -764,9 +766,7 @@ export async function updateAutoroleContent(
       isBotAuthor = null;
     } else {
       throw new AutoRoleError(
-        error instanceof Error
-          ? error.message
-          : "Couldn't edit the content.",
+        error instanceof Error ? error.message : "Couldn't edit the content.",
         502,
         "DISCORD_EDIT_FAILED",
       );
@@ -778,15 +778,16 @@ export async function updateAutoroleContent(
     await getDb()
       .update(autorolesRegistry)
       .set({ title, updatedAt: new Date() })
-      .where(eq(autorolesRegistry.id, id))
-      ;
+      .where(eq(autorolesRegistry.id, id));
   }
 
-  const updated = await one(getDb()
-    .select()
-    .from(autorolesRegistry)
-    .where(eq(autorolesRegistry.id, id))
-    .limit(1));
+  const updated = await one(
+    getDb()
+      .select()
+      .from(autorolesRegistry)
+      .where(eq(autorolesRegistry.id, id))
+      .limit(1),
+  );
   if (!updated) {
     throw new AutoRoleError("Record not found.", 404, "NOT_FOUND");
   }
@@ -810,11 +811,13 @@ export async function deleteAutorole(
 ): Promise<DeleteAutoroleResponse> {
   const guildId = resolveGuildId(guildIdRaw);
   const id = Number(idRaw);
-  const row = await one(getDb()
-    .select()
-    .from(autorolesRegistry)
-    .where(eq(autorolesRegistry.id, id))
-    .limit(1));
+  const row = await one(
+    getDb()
+      .select()
+      .from(autorolesRegistry)
+      .where(eq(autorolesRegistry.id, id))
+      .limit(1),
+  );
 
   if (!row || row.guildId !== guildId) {
     throw new AutoRoleError("Record not found.", 404, "NOT_FOUND");
@@ -841,10 +844,7 @@ export async function deleteAutorole(
     }
   }
 
-  await getDb()
-    .delete(autorolesRegistry)
-    .where(eq(autorolesRegistry.id, id))
-    ;
+  await getDb().delete(autorolesRegistry).where(eq(autorolesRegistry.id, id));
 
   return { ok: true, deletedId: id, orphaned };
 }

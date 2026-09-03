@@ -1,21 +1,14 @@
-import type {
-  EconomyConfig,
-  UpdateEconomyConfigRequest,
-} from "@adobos/shared";
+import type { EconomyConfig, UpdateEconomyConfigRequest } from "@adobos/shared";
 import {
+  clampEconomyBalance,
   clampStartBalance,
   clampTransferTax,
-  clampEconomyBalance,
   defaultEconomyConfig,
   parseBankAmount,
 } from "@adobos/shared";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { getDb, one } from "../../db/client.js";
-import {
-  economyConfig,
-  guildSettings,
-  userEconomy,
-} from "../../db/schema.js";
+import { economyConfig, guildSettings, userEconomy } from "../../db/schema.js";
 
 export class EconomyError extends Error {
   constructor(
@@ -31,31 +24,26 @@ export class EconomyError extends Error {
 function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new EconomyError(
-      "Missing guildId.",
-      400,
-      "MISSING_GUILD_ID",
-    );
+    throw new EconomyError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
   return id;
 }
 
 async function ensureGuildRow(guildId: string): Promise<void> {
-  const existing = await one(getDb()
-    .select({ guildId: guildSettings.guildId })
-    .from(guildSettings)
-    .where(eq(guildSettings.guildId, guildId))
-    .limit(1));
+  const existing = await one(
+    getDb()
+      .select({ guildId: guildSettings.guildId })
+      .from(guildSettings)
+      .where(eq(guildSettings.guildId, guildId))
+      .limit(1),
+  );
   if (!existing) {
-    await getDb()
-      .insert(guildSettings)
-      .values({
-        guildId,
-        prefix: "!",
-        welcomeEnabled: false,
-        updatedAt: new Date(),
-      })
-      ;
+    await getDb().insert(guildSettings).values({
+      guildId,
+      prefix: "!",
+      welcomeEnabled: false,
+      updatedAt: new Date(),
+    });
   }
 }
 
@@ -74,13 +62,17 @@ function rowToConfig(
   };
 }
 
-export async function getEconomyConfig(guildId?: string): Promise<EconomyConfig> {
+export async function getEconomyConfig(
+  guildId?: string,
+): Promise<EconomyConfig> {
   const id = resolveGuildId(guildId);
-  const row = await one(getDb()
-    .select()
-    .from(economyConfig)
-    .where(eq(economyConfig.guildId, id))
-    .limit(1));
+  const row = await one(
+    getDb()
+      .select()
+      .from(economyConfig)
+      .where(eq(economyConfig.guildId, id))
+      .limit(1),
+  );
   return await rowToConfig(id, row);
 }
 
@@ -136,8 +128,7 @@ export async function updateEconomyConfig(
         transferTax: next.transferTax,
         updatedAt: now,
       },
-    })
-    ;
+    });
 
   return next;
 }
@@ -145,13 +136,15 @@ export async function updateEconomyConfig(
 export async function listEconomyLeaderboardRows(
   guildId: string,
   limit = 100,
-): Promise<Array<{
-  rank: number;
-  userId: string;
-  wallet: number;
-  bank: number;
-  total: number;
-}>> {
+): Promise<
+  Array<{
+    rank: number;
+    userId: string;
+    wallet: number;
+    bank: number;
+    total: number;
+  }>
+> {
   const id = resolveGuildId(guildId);
   const rows = await getDb()
     .select({
@@ -165,8 +158,7 @@ export async function listEconomyLeaderboardRows(
     .from(userEconomy)
     .where(eq(userEconomy.guildId, id))
     .orderBy(desc(sql`(${userEconomy.wallet} + ${userEconomy.bank})`))
-    .limit(Math.min(Math.max(limit, 1), 100))
-    ;
+    .limit(Math.min(Math.max(limit, 1), 100));
 
   return rows.map((row, i) => ({
     rank: i + 1,
@@ -177,13 +169,17 @@ export async function listEconomyLeaderboardRows(
   }));
 }
 
-export async function getEconomyLeaderboardTotal(guildId?: string): Promise<number> {
+export async function getEconomyLeaderboardTotal(
+  guildId?: string,
+): Promise<number> {
   const id = resolveGuildId(guildId);
-  const row = await one(getDb()
-    .select({ count: sql<number>`count(*)` })
-    .from(userEconomy)
-    .where(eq(userEconomy.guildId, id))
-    .limit(1));
+  const row = await one(
+    getDb()
+      .select({ count: sql<number>`count(*)` })
+      .from(userEconomy)
+      .where(eq(userEconomy.guildId, id))
+      .limit(1),
+  );
   return Number(row?.count ?? 0);
 }
 
@@ -198,13 +194,15 @@ async function getOrCreateUserEconomy(
   lastWeeklyAt: Date | null;
   lastMonthlyAt: Date | null;
 }> {
-  const existing = await one(getDb()
-    .select()
-    .from(userEconomy)
-    .where(
-      and(eq(userEconomy.guildId, guildId), eq(userEconomy.userId, userId)),
-    )
-    .limit(1));
+  const existing = await one(
+    getDb()
+      .select()
+      .from(userEconomy)
+      .where(
+        and(eq(userEconomy.guildId, guildId), eq(userEconomy.userId, userId)),
+      )
+      .limit(1),
+  );
   if (existing) {
     return {
       wallet: existing.wallet,
@@ -234,13 +232,15 @@ async function getOrCreateUserEconomy(
     })
     .onConflictDoNothing({ target: [userEconomy.guildId, userEconomy.userId] });
 
-  const row = await one(getDb()
-    .select()
-    .from(userEconomy)
-    .where(
-      and(eq(userEconomy.guildId, guildId), eq(userEconomy.userId, userId)),
-    )
-    .limit(1));
+  const row = await one(
+    getDb()
+      .select()
+      .from(userEconomy)
+      .where(
+        and(eq(userEconomy.guildId, guildId), eq(userEconomy.userId, userId)),
+      )
+      .limit(1),
+  );
   if (!row) {
     throw new EconomyError(
       "Couldn't create the balance.",

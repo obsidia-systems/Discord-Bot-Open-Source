@@ -1,12 +1,9 @@
-import { Router } from "express";
 import type { Client } from "discord.js";
+import { Router } from "express";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { parse } from "../../../core/http/validate.js";
+import { getAutoDeleteConfig, updateAutoDeleteConfig } from "../service.js";
 import { updateAutoDeleteConfigSchema } from "./schema.js";
-import {
-  getAutoDeleteConfig,
-  updateAutoDeleteConfig,
-} from "../service.js";
 
 export function autoDeleteRoutes(_bot: Client): Router {
   const router = Router();
@@ -14,8 +11,7 @@ export function autoDeleteRoutes(_bot: Client): Router {
   /** GET /api/auto-delete/config */
   router.get("/config", async (req, res, next) => {
     try {
-      const guildId =
-        guildIdOf(req);
+      const guildId = guildIdOf(req);
       const config = await getAutoDeleteConfig(guildId);
       res.json({ config, timezone: config.timezone });
     } catch (error) {

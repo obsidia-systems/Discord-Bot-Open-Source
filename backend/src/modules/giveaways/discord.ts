@@ -1,15 +1,15 @@
+import type { Giveaway, GiveawaySettings } from "@adobos/shared";
+import { GIVEAWAY_JOIN_PREFIX, GIVEAWAY_STATUS_LABEL } from "@adobos/shared";
 import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
   ChannelType,
-  EmbedBuilder,
   type Client,
+  EmbedBuilder,
   type Guild,
   type TextChannel,
 } from "discord.js";
-import type { Giveaway, GiveawaySettings } from "@adobos/shared";
-import { GIVEAWAY_JOIN_PREFIX, GIVEAWAY_STATUS_LABEL } from "@adobos/shared";
 import { channelBelongsToGuild } from "../../core/http/channelScope.js";
 import { logger } from "../../core/log.js";
 import { GiveawaysError } from "./service.js";
@@ -28,7 +28,10 @@ function asTextChannel(channel: unknown): TextChannel | null {
   return null;
 }
 
-export async function requireGuild(bot: Client, guildId: string): Promise<Guild> {
+export async function requireGuild(
+  bot: Client,
+  guildId: string,
+): Promise<Guild> {
   const cached = bot.guilds.cache.get(guildId);
   if (cached) return cached;
   try {
@@ -46,7 +49,9 @@ export async function fetchGiveawayChannel(
   bot: Client,
   giveaway: Giveaway,
 ): Promise<TextChannel> {
-  const channel = await bot.channels.fetch(giveaway.channelId).catch(() => null);
+  const channel = await bot.channels
+    .fetch(giveaway.channelId)
+    .catch(() => null);
   const text = asTextChannel(channel);
   if (!text || !channelBelongsToGuild(text, giveaway.guildId)) {
     throw new GiveawaysError(
@@ -93,7 +98,9 @@ export function giveawayEmbed(giveaway: Giveaway): EmbedBuilder {
   return embed;
 }
 
-export function giveawayComponents(giveaway: Giveaway): ActionRowBuilder<ButtonBuilder>[] {
+export function giveawayComponents(
+  giveaway: Giveaway,
+): ActionRowBuilder<ButtonBuilder>[] {
   if (giveaway.status !== "running") return [];
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()

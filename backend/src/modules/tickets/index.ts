@@ -1,4 +1,3 @@
-import { GatewayIntentBits } from "discord.js";
 import {
   TICKET_ADD_MODAL_PREFIX,
   TICKET_ADD_PREFIX,
@@ -12,6 +11,7 @@ import {
   TICKET_UNWAIT_PREFIX,
   TICKET_WAIT_PREFIX,
 } from "@adobos/shared";
+import { GatewayIntentBits } from "discord.js";
 import type { AdobosModule } from "../../core/modules/types.js";
 import { ticketsRoutes } from "./api/routes.js";
 import { onTicketsChannelDelete, onTicketsMessageCreate } from "./events.js";
@@ -38,7 +38,9 @@ export const ticketsModule: AdobosModule = {
     GatewayIntentBits.GuildMessages,
   ],
   register(ctx) {
-    ctx.route("/api/tickets", ticketsRoutes(ctx.client), { feature: "tickets" });
+    ctx.route("/api/tickets", ticketsRoutes(ctx.client), {
+      feature: "tickets",
+    });
     ctx.button(TICKET_OPEN_PREFIX, (interaction) =>
       onTicketOpenButton(interaction),
     );
@@ -81,5 +83,5 @@ export const ticketsModule: AdobosModule = {
   },
 };
 
-export { TicketsError } from "./service.js";
 export { publishTicketPanel } from "./publish.js";
+export { TicketsError } from "./service.js";

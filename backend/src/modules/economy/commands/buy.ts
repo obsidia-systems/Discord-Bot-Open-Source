@@ -8,15 +8,13 @@ import type {
 import { EmbedBuilder } from "discord.js";
 import { resolveEmbedMedia } from "../../../lib/embedMedia.js";
 import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
-import { EconomyError, getEconomyConfig } from "../service.js";
 import { purchaseShopItem } from "../purchaseService.js";
+import { EconomyError, getEconomyConfig } from "../service.js";
 import { listShopItems } from "../shopService.js";
 import { BUY_BUTTON_PREFIX } from "./shop.js";
 import { EPHEMERAL, visibility } from "./visibility.js";
 
-type PurchaseInteraction =
-  | ChatInputCommandInteraction
-  | ButtonInteraction;
+type PurchaseInteraction = ChatInputCommandInteraction | ButtonInteraction;
 
 async function replyPurchaseResult(
   interaction: PurchaseInteraction,
@@ -97,9 +95,7 @@ export async function handleBuyAutocomplete(
   const query = focused.value.trim().toLowerCase();
   const matches = (await listShopItems(guildId, { enabledOnly: true }))
     .filter((item) => item.stock === null || item.stock > 0)
-    .filter(
-      (item) => !query || item.name.toLowerCase().includes(query),
-    )
+    .filter((item) => !query || item.name.toLowerCase().includes(query))
     .slice(0, 25)
     .map((item) => ({
       name: `${item.name} — ${item.price.toLocaleString("es-MX")}`.slice(
@@ -150,12 +146,7 @@ export async function handleBuyCommand(
   }
 
   try {
-    await replyPurchaseResult(
-      interaction,
-      interaction.guild,
-      member,
-      itemId,
-    );
+    await replyPurchaseResult(interaction, interaction.guild, member, itemId);
   } catch (error) {
     const message =
       error instanceof EconomyError
@@ -212,12 +203,7 @@ export async function handleBuyButton(
   }
 
   try {
-    await replyPurchaseResult(
-      interaction,
-      interaction.guild,
-      member,
-      itemId,
-    );
+    await replyPurchaseResult(interaction, interaction.guild, member, itemId);
   } catch (error) {
     const message =
       error instanceof EconomyError

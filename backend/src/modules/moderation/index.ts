@@ -12,7 +12,9 @@ export const moderationModule: AdobosModule = {
     GatewayIntentBits.MessageContent,
   ],
   register(ctx) {
-    ctx.route("/api/mod", moderationRoutes(ctx.client), { feature: "moderation" });
+    ctx.route("/api/mod", moderationRoutes(ctx.client), {
+      feature: "moderation",
+    });
     // Slash nativos (/ban, /kick, …) viven en el catálogo + handlers.
   },
 };

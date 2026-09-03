@@ -1,10 +1,3 @@
-import {
-  DiscordAPIError,
-  PermissionFlagsBits,
-  type Client,
-  type Guild,
-  type Role,
-} from "discord.js";
 import type {
   CreateGuildRoleRequest,
   CreateGuildRoleResponse,
@@ -23,6 +16,13 @@ import {
   ROLE_PERMISSION_GROUPS,
   ROLE_PERMISSION_KEY_SET,
 } from "@adobos/shared";
+import {
+  type Client,
+  DiscordAPIError,
+  type Guild,
+  PermissionFlagsBits,
+  type Role,
+} from "discord.js";
 
 const AUDIT_REASON = "Adobos Bot — Roles Builder";
 
@@ -222,11 +222,7 @@ function resolveEditableRole(
   const id = roleId.trim();
   const role = guild.roles.cache.get(id);
   if (!role || role.id === guild.id) {
-    throw new RolesBuilderError(
-      `Role not found: ${id}`,
-      404,
-      "ROLE_NOT_FOUND",
-    );
+    throw new RolesBuilderError(`Role not found: ${id}`, 404, "ROLE_NOT_FOUND");
   }
   if (role.managed) {
     throw new RolesBuilderError(

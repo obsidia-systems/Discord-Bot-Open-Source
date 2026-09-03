@@ -1,10 +1,10 @@
+import type { LockdownOverwriteSnapshot } from "@adobos/shared";
 import {
   ChannelType,
-  PermissionFlagsBits,
   type Guild,
   type GuildBasedChannel,
+  PermissionFlagsBits,
 } from "discord.js";
-import type { LockdownOverwriteSnapshot } from "@adobos/shared";
 import { logger } from "../../core/log.js";
 import {
   getAntiRaidSettings,

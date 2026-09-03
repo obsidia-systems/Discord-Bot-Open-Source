@@ -1,11 +1,14 @@
-import type { Guild, GuildMember, PartialGuildMember } from "discord.js";
 import { shouldDispatchLeave } from "@adobos/shared";
+import type { Guild, GuildMember, PartialGuildMember } from "discord.js";
 import {
   dispatchCanvasEventCard,
   userPayloadFromDiscordUser,
 } from "../sendCard.js";
 
-export async function guildHasBan(guild: Guild, userId: string): Promise<boolean> {
+export async function guildHasBan(
+  guild: Guild,
+  userId: string,
+): Promise<boolean> {
   try {
     await guild.bans.fetch(userId);
     return true;

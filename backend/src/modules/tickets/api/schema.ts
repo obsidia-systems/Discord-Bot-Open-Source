@@ -1,13 +1,12 @@
 import { z } from "zod";
-import {
-  snowflakeList,
-  snowflakeNull,
-} from "../../../core/http/schemas.js";
+import { snowflakeList, snowflakeNull } from "../../../core/http/schemas.js";
 
 const panelButtonSchema = z.object({
   typeKey: z.string().min(1).max(32),
   label: z.string().min(1).max(80),
-  style: z.enum(["Primary", "Secondary", "Success", "Danger"]).default("Primary"),
+  style: z
+    .enum(["Primary", "Secondary", "Success", "Danger"])
+    .default("Primary"),
 });
 
 export const updateTicketSettingsSchema = z.object({

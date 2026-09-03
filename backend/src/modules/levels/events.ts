@@ -1,18 +1,21 @@
 import {
-  ChannelType,
-  EmbedBuilder,
-  type Client,
-  type GuildMember,
-  type Message,
-  type OmitPartialGroupDMChannel,
-  type VoiceState,
-} from "discord.js";
-import {
   applyLevelsTokens,
   buildLevelsTokenMap,
   embedColorToInt,
   levelsTemplatePingsUser,
 } from "@adobos/shared";
+import {
+  ChannelType,
+  type Client,
+  EmbedBuilder,
+  type GuildMember,
+  type Message,
+  type OmitPartialGroupDMChannel,
+  type VoiceState,
+} from "discord.js";
+import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
+import { logger } from "../../core/log.js";
+import { scheduleLiveLeaderboardRefresh } from "./liveLeaderboard.js";
 import {
   addUserXp,
   getLevelsConfigCached,
@@ -23,9 +26,6 @@ import {
   rewardsBetweenLevels,
   scaleXpAmount,
 } from "./service.js";
-import { scheduleLiveLeaderboardRefresh } from "./liveLeaderboard.js";
-import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
-import { logger } from "../../core/log.js";
 
 type GuildMessage = OmitPartialGroupDMChannel<Message<true>>;
 
@@ -310,19 +310,12 @@ async function settleVoiceSession(
   if (!config.enabled || !config.voiceEnabled) return 0;
 
   const parentId = state.channel?.parentId ?? null;
-  if (
-    isChannelIgnored(
-      config.ignoredChannels,
-      session.channelId,
-      parentId,
-    )
-  ) {
+  if (isChannelIgnored(config.ignoredChannels, session.channelId, parentId)) {
     return 0;
   }
 
   const member =
-    state.member ??
-    (await state.guild.members.fetch(userId).catch(() => null));
+    state.member ?? (await state.guild.members.fetch(userId).catch(() => null));
   if (!member || member.user.bot) return 0;
   if (memberHasIgnoredRole(member, config.ignoredRoles)) return 0;
 

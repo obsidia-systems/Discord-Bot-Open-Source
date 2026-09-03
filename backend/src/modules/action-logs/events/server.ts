@@ -1,15 +1,15 @@
 import {
   AuditLogEvent,
   ChannelType,
-  OverwriteType,
   type Guild,
   type NonThreadGuildBasedChannel,
+  OverwriteType,
   type PermissionOverwrites,
   type Role,
 } from "discord.js";
 import { resolveAuditExecutor } from "../audit.js";
-import { channelTypeName, safeChannelName } from "../helpers.js";
 import { diffGuildIdentity, snapshotGuildIdentity } from "../guildIdentity.js";
+import { channelTypeName, safeChannelName } from "../helpers.js";
 import { recordActionLog } from "../service.js";
 
 export async function onRoleCreate(role: Role): Promise<void> {
@@ -68,7 +68,10 @@ export async function onRoleDelete(role: Role): Promise<void> {
   });
 }
 
-export async function onRoleUpdate(oldRole: Role, newRole: Role): Promise<void> {
+export async function onRoleUpdate(
+  oldRole: Role,
+  newRole: Role,
+): Promise<void> {
   if (
     oldRole.name === newRole.name &&
     oldRole.hexColor === newRole.hexColor &&
@@ -124,9 +127,7 @@ export async function onChannelCreate(
   const label = `#${name}`;
   const typeName = channelTypeName(channel.type);
   const parentName =
-    "parent" in channel && channel.parent?.name
-      ? channel.parent.name
-      : "None";
+    "parent" in channel && channel.parent?.name ? channel.parent.name : "None";
   await recordActionLog(channel.client, {
     guildId: channel.guild.id,
     eventKey: "channelCreate",
@@ -162,9 +163,7 @@ export async function onChannelDelete(
   const label = `#${name}`;
   const typeName = channelTypeName(channel.type);
   const parentName =
-    "parent" in channel && channel.parent?.name
-      ? channel.parent.name
-      : "None";
+    "parent" in channel && channel.parent?.name ? channel.parent.name : "None";
   await recordActionLog(channel.client, {
     guildId: channel.guild.id,
     eventKey: "channelDelete",
@@ -299,8 +298,7 @@ function diffPermissionOverwrites(
   if (affected.length === 0) return null;
 
   const preview = affected.slice(0, 8).join(", ");
-  const extra =
-    affected.length > 8 ? ` (+${affected.length - 8} more)` : "";
+  const extra = affected.length > 8 ? ` (+${affected.length - 8} more)` : "";
   return {
     name: "🔒 Permissions Updated",
     value: `${preview}${extra}`,
@@ -324,17 +322,17 @@ function buildChannelUpdateDiffFields(
 
   const oldTopic =
     "topic" in oldChannel
-      ? readOptionalString(
-          (oldChannel as { topic?: string | null }).topic,
-        )
+      ? readOptionalString((oldChannel as { topic?: string | null }).topic)
       : undefined;
   const newTopic =
     "topic" in newChannel
-      ? readOptionalString(
-          (newChannel as { topic?: string | null }).topic,
-        )
+      ? readOptionalString((newChannel as { topic?: string | null }).topic)
       : undefined;
-  if (oldTopic !== undefined && newTopic !== undefined && oldTopic !== newTopic) {
+  if (
+    oldTopic !== undefined &&
+    newTopic !== undefined &&
+    oldTopic !== newTopic
+  ) {
     diffs.push({
       name: "Topic",
       value: `Before: ${oldTopic || "None"} ➔ After: ${newTopic || "None"}`,
@@ -363,14 +361,13 @@ function buildChannelUpdateDiffFields(
     }
   }
 
-  if (
-    "rateLimitPerUser" in oldChannel &&
-    "rateLimitPerUser" in newChannel
-  ) {
+  if ("rateLimitPerUser" in oldChannel && "rateLimitPerUser" in newChannel) {
     const oldSlow =
-      (oldChannel as { rateLimitPerUser?: number | null }).rateLimitPerUser ?? 0;
+      (oldChannel as { rateLimitPerUser?: number | null }).rateLimitPerUser ??
+      0;
     const newSlow =
-      (newChannel as { rateLimitPerUser?: number | null }).rateLimitPerUser ?? 0;
+      (newChannel as { rateLimitPerUser?: number | null }).rateLimitPerUser ??
+      0;
     if (oldSlow !== newSlow) {
       diffs.push({
         name: "Slowmode",
@@ -409,7 +406,10 @@ function buildChannelUpdateDiffFields(
   return diffs;
 }
 
-export async function onGuildUpdate(oldGuild: Guild, newGuild: Guild): Promise<void> {
+export async function onGuildUpdate(
+  oldGuild: Guild,
+  newGuild: Guild,
+): Promise<void> {
   const diffFields = diffGuildIdentity(
     snapshotGuildIdentity(oldGuild),
     snapshotGuildIdentity(newGuild),

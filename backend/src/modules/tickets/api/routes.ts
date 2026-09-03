@@ -1,25 +1,13 @@
-import { Router } from "express";
-import type { Client } from "discord.js";
 import {
   isTicketStatus,
   normalizeTicketCloseReason,
   parseTicketUserMention,
 } from "@adobos/shared";
+import type { Client } from "discord.js";
+import { Router } from "express";
 import { guildIdOf } from "../../../core/http/guildContext.js";
-import { parse } from "../../../core/http/validate.js";
 import { recordId } from "../../../core/http/schemas.js";
-import { TicketsError } from "../service.js";
-import {
-  createTicketPanel,
-  deleteTicketPanel,
-  getTicketDetail,
-  getTicketSettings,
-  listTicketPanels,
-  listTickets,
-  updateTicketPanel,
-  updateTicketSettings,
-} from "../service.js";
-import { publishTicketPanel } from "../publish.js";
+import { parse } from "../../../core/http/validate.js";
 import {
   addUserToTicket,
   claimTicket,
@@ -31,6 +19,18 @@ import {
   unwaitTicket,
   waitTicket,
 } from "../actions.js";
+import { publishTicketPanel } from "../publish.js";
+import {
+  createTicketPanel,
+  deleteTicketPanel,
+  getTicketDetail,
+  getTicketSettings,
+  listTicketPanels,
+  listTickets,
+  TicketsError,
+  updateTicketPanel,
+  updateTicketSettings,
+} from "../service.js";
 import {
   closeTicketSchema,
   createTicketPanelSchema,
@@ -141,14 +141,18 @@ export function ticketsRoutes(bot: Client): Router {
 
   router.get("/", async (req, res, next) => {
     try {
-      const statusRaw = typeof req.query.status === "string" ? req.query.status : undefined;
-      const status = statusRaw && isTicketStatus(statusRaw) ? statusRaw : undefined;
+      const statusRaw =
+        typeof req.query.status === "string" ? req.query.status : undefined;
+      const status =
+        statusRaw && isTicketStatus(statusRaw) ? statusRaw : undefined;
       const typeKey =
         typeof req.query.typeKey === "string" ? req.query.typeKey : undefined;
       const openerId =
         typeof req.query.openerId === "string" ? req.query.openerId : undefined;
       const claimedBy =
-        typeof req.query.claimedBy === "string" ? req.query.claimedBy : undefined;
+        typeof req.query.claimedBy === "string"
+          ? req.query.claimedBy
+          : undefined;
       res.json(
         await listTickets(guildIdOf(req), {
           status,
@@ -165,7 +169,10 @@ export function ticketsRoutes(bot: Client): Router {
   router.get("/:id", async (req, res, next) => {
     try {
       res.json({
-        ticket: await getTicketDetail(parse(recordId, req.params.id), guildIdOf(req)),
+        ticket: await getTicketDetail(
+          parse(recordId, req.params.id),
+          guildIdOf(req),
+        ),
       });
     } catch (error: unknown) {
       next(error);

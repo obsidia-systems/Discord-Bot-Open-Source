@@ -1,7 +1,7 @@
+import { AUTO_DELETE_MAX_RULES } from "@adobos/shared";
 import { describe, expect, it } from "vitest";
 import { registerAutoDeleteListeners } from "./events.js";
 import { normalizeAutoDeleteRules } from "./service.js";
-import { AUTO_DELETE_MAX_RULES } from "@adobos/shared";
 
 describe("registerAutoDeleteListeners", () => {
   it("listens for messageCreate", () => {

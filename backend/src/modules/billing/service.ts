@@ -5,9 +5,9 @@ import {
   isSubscriptionStatus,
   type PaidPlanTier,
   type PlanTier,
+  type SubscriptionStatus,
   seatsAtCapacity,
   seatsMaxForTier,
-  type SubscriptionStatus,
 } from "@adobos/shared";
 import { desc, eq } from "drizzle-orm";
 import type Stripe from "stripe";
@@ -45,8 +45,8 @@ import {
   publicAppUrl,
   requireStripe,
   stripePriceEnv,
-  stripeReady,
   pricesConfigured as stripePricesConfigured,
+  stripeReady,
 } from "./stripe.js";
 
 function metadataString(
@@ -185,9 +185,7 @@ export async function getLatestSubscriptionForUser(
     .from(subscriptions)
     .where(eq(subscriptions.userId, userId))
     .orderBy(desc(subscriptions.updatedAt));
-  return (
-    rows.find((row) => isPaidSubscriptionStatus(row.status)) ?? rows[0]
-  );
+  return rows.find((row) => isPaidSubscriptionStatus(row.status)) ?? rows[0];
 }
 
 async function upsertSubscriptionRow(input: {
@@ -266,9 +264,8 @@ export async function assignGuildToSubscription(input: {
     }
   }
 
-  const paidTier = isPlanTier(input.tier) && input.tier !== "free"
-    ? input.tier
-    : "pro";
+  const paidTier =
+    isPlanTier(input.tier) && input.tier !== "free" ? input.tier : "pro";
   await assertSeatsAvailable(input.subscriptionId, paidTier, input.guildId);
   await upsertGuildEntitlement({
     guildId: input.guildId,
@@ -344,7 +341,11 @@ export async function applyStripeSubscription(
     stripeCustomerId: customerId,
     stripeSubscriptionId: sub.id,
     stripePriceId: priceId,
-    tier: paid ? tier : existing && isPlanTier(existing.tier) ? existing.tier : tier,
+    tier: paid
+      ? tier
+      : existing && isPlanTier(existing.tier)
+        ? existing.tier
+        : tier,
     status,
     currentPeriodEnd: periodEndFromSubscription(sub),
     cancelAt: cancelAtFromSubscription(sub),
@@ -363,7 +364,10 @@ export async function applyStripeSubscription(
         userId,
       });
     } catch (error: unknown) {
-      if (error instanceof EntitlementError && error.code === "SEATS_EXCEEDED") {
+      if (
+        error instanceof EntitlementError &&
+        error.code === "SEATS_EXCEEDED"
+      ) {
         logger.warn(
           { guildId, subscriptionId: row.id },
           "No seats to assign the checkout server",
@@ -435,9 +439,7 @@ export async function getBillingStatus(input: {
   const entitlement = await getGuildEntitlementRow(input.guildId);
   const sub = await getLatestSubscriptionForUser(input.userId);
   const customerId = await getBillingCustomer(input.userId);
-  const coveredByUser = Boolean(
-    sub && entitlement?.subscriptionId === sub.id,
-  );
+  const coveredByUser = Boolean(sub && entitlement?.subscriptionId === sub.id);
   const coveredByOther = Boolean(
     entitlement?.subscriptionId &&
       (!sub || entitlement.subscriptionId !== sub.id),

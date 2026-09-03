@@ -1,25 +1,12 @@
-import { Router } from "express";
-import type { Client } from "discord.js";
-import {
-  AutoRoleError,
-  createAutoRoleSetup,
-  normalizeEmojiKey,
-  saveReactionRoleMappings,
-} from "./controller.js";
-import { emojiKeyToResolvable } from "../../../db/reaction-roles.js";
-import { guildIdOf } from "../../../core/http/guildContext.js";
-import { parse } from "../../../core/http/validate.js";
-import { recordId } from "../../../core/http/schemas.js";
-import {
-  createAutoRoleLegacySchema,
-  createAutoroleCompactSchema,
-  saveReactionRolesSchema,
-  updateAutoroleContentSchema,
-  updateAutoroleMappingSchema,
-} from "./schema.js";
-import { fetchChannelInGuild } from "../../../core/http/channelScope.js";
-import { logger } from "../../../core/log.js";
 import { isAutoroleSendChannelType } from "@adobos/shared";
+import type { Client } from "discord.js";
+import { Router } from "express";
+import { fetchChannelInGuild } from "../../../core/http/channelScope.js";
+import { guildIdOf } from "../../../core/http/guildContext.js";
+import { recordId } from "../../../core/http/schemas.js";
+import { parse } from "../../../core/http/validate.js";
+import { logger } from "../../../core/log.js";
+import { emojiKeyToResolvable } from "../../../db/reaction-roles.js";
 import {
   createAutoroleCompact,
   deleteAutorole,
@@ -27,14 +14,26 @@ import {
   updateAutoroleContent,
   updateAutoroleMapping,
 } from "../registry.js";
+import {
+  AutoRoleError,
+  createAutoRoleSetup,
+  normalizeEmojiKey,
+  saveReactionRoleMappings,
+} from "./controller.js";
+import {
+  createAutoRoleLegacySchema,
+  createAutoroleCompactSchema,
+  saveReactionRolesSchema,
+  updateAutoroleContentSchema,
+  updateAutoroleMappingSchema,
+} from "./schema.js";
 
 export function autoroleRoutes(bot: Client): Router {
   const router = Router();
 
   /** GET /api/autoroles/active */
   router.get("/active", async (req, res, next) => {
-    const guildId =
-      guildIdOf(req);
+    const guildId = guildIdOf(req);
     try {
       res.json(await listActiveAutoroles(bot, guildId));
     } catch (error: unknown) {
@@ -90,7 +89,10 @@ export function autoroleRoutes(bot: Client): Router {
           await message.react(emoji).catch(() => undefined);
         }
       } catch (error: unknown) {
-        logger.warn({ err: error }, "Mappings saved, but reactions couldn't be added:");
+        logger.warn(
+          { err: error },
+          "Mappings saved, but reactions couldn't be added:",
+        );
       }
 
       res.status(201).json(result);

@@ -1,5 +1,10 @@
-import { ChannelType, type DMChannel, type Message, type NonThreadGuildBasedChannel } from "discord.js";
 import type { TextChannel } from "discord.js";
+import {
+  ChannelType,
+  type DMChannel,
+  type Message,
+  type NonThreadGuildBasedChannel,
+} from "discord.js";
 import { logger } from "../../core/log.js";
 import { onTicketChannelDeleted, onTicketChannelMessage } from "./actions.js";
 

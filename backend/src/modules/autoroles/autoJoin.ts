@@ -1,5 +1,3 @@
-import { eq } from "drizzle-orm";
-import type { Client } from "discord.js";
 import {
   AUTOROLE_JOIN_ROLES_MAX,
   type AutoJoinRolesConfig,
@@ -7,46 +5,40 @@ import {
   type SaveAutoJoinRolesRequest,
   type SaveAutoJoinRolesResponse,
 } from "@adobos/shared";
+import type { Client } from "discord.js";
+import { eq } from "drizzle-orm";
 import { getDb, one } from "../../db/client.js";
 import { autoRoles, guildSettings } from "../../db/schema.js";
-import { AutoRoleError } from "./errors.js";
 import { assertAssignableRoleIds } from "./assignable.js";
+import { AutoRoleError } from "./errors.js";
 
 function assertSnowflake(value: string, field: string): string {
   const trimmed = value.trim();
   if (!/^\d{17,20}$/.test(trimmed)) {
-    throw new AutoRoleError(
-      `Invalid ${field}.`,
-      400,
-      "INVALID_IDS",
-    );
+    throw new AutoRoleError(`Invalid ${field}.`, 400, "INVALID_IDS");
   }
   return trimmed;
 }
 
 function resolveGuildId(raw?: string): string {
-  return assertSnowflake(
-    raw?.trim() || "",
-    "guildId",
-  );
+  return assertSnowflake(raw?.trim() || "", "guildId");
 }
 
 async function ensureGuildRow(guildId: string): Promise<void> {
-  const existing = await one(getDb()
-    .select()
-    .from(guildSettings)
-    .where(eq(guildSettings.guildId, guildId))
-    .limit(1));
+  const existing = await one(
+    getDb()
+      .select()
+      .from(guildSettings)
+      .where(eq(guildSettings.guildId, guildId))
+      .limit(1),
+  );
   if (!existing) {
-    await getDb()
-      .insert(guildSettings)
-      .values({
-        guildId,
-        prefix: "!",
-        welcomeEnabled: false,
-        updatedAt: new Date(),
-      })
-      ;
+    await getDb().insert(guildSettings).values({
+      guildId,
+      prefix: "!",
+      welcomeEnabled: false,
+      updatedAt: new Date(),
+    });
   }
 }
 
@@ -84,11 +76,13 @@ export async function getAutoJoinRoles(
   guildIdRaw?: string,
 ): Promise<GetAutoJoinRolesResponse> {
   const guildId = resolveGuildId(guildIdRaw);
-  const row = await one(getDb()
-    .select()
-    .from(autoRoles)
-    .where(eq(autoRoles.guildId, guildId))
-    .limit(1));
+  const row = await one(
+    getDb()
+      .select()
+      .from(autoRoles)
+      .where(eq(autoRoles.guildId, guildId))
+      .limit(1),
+  );
 
   if (!row) {
     return {
@@ -114,11 +108,13 @@ export async function saveAutoJoinRoles(
 
   await ensureGuildRow(guildId);
   const now = new Date();
-  const existing = await one(getDb()
-    .select()
-    .from(autoRoles)
-    .where(eq(autoRoles.guildId, guildId))
-    .limit(1));
+  const existing = await one(
+    getDb()
+      .select()
+      .from(autoRoles)
+      .where(eq(autoRoles.guildId, guildId))
+      .limit(1),
+  );
 
   if (existing) {
     await getDb()
@@ -128,8 +124,7 @@ export async function saveAutoJoinRoles(
         botRoles: JSON.stringify(botRoles),
         updatedAt: now,
       })
-      .where(eq(autoRoles.guildId, guildId))
-      ;
+      .where(eq(autoRoles.guildId, guildId));
   } else {
     await getDb()
       .insert(autoRoles)
@@ -138,8 +133,7 @@ export async function saveAutoJoinRoles(
         humanRoles: JSON.stringify(humanRoles),
         botRoles: JSON.stringify(botRoles),
         updatedAt: now,
-      })
-      ;
+      });
   }
 
   return { ok: true, config: (await getAutoJoinRoles(guildId)).config };

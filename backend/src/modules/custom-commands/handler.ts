@@ -222,8 +222,7 @@ export async function handleCustomChatCommand(
       });
     } catch {
       await interaction.reply({
-        content:
-          "I couldn't send you a DM. Check your privacy settings.",
+        content: "I couldn't send you a DM. Check your privacy settings.",
         ...EPHEMERAL,
       });
     }

@@ -1,5 +1,5 @@
-import { GatewayIntentBits } from "discord.js";
 import { antiRaidLockdownSlashCommandBody } from "@adobos/shared";
+import { GatewayIntentBits } from "discord.js";
 import type { AdobosModule } from "../../core/modules/types.js";
 import { antiRaidRoutes } from "./api/routes.js";
 import { handleLockdownCommand } from "./commands.js";

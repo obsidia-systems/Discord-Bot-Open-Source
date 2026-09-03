@@ -1,23 +1,23 @@
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ChannelType,
-  EmbedBuilder,
-  type Client,
-  type TextChannel,
-} from "discord.js";
 import type {
   PublishTicketPanelResponse,
   TicketButtonStyle,
   UpdateTicketPanelRequest,
 } from "@adobos/shared";
 import { ticketOpenCustomId } from "@adobos/shared";
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ChannelType,
+  type Client,
+  EmbedBuilder,
+  type TextChannel,
+} from "discord.js";
 import { channelBelongsToGuild } from "../../core/http/channelScope.js";
 import {
-  TicketsError,
   getTicketPanel,
   setPanelPublishedMessage,
+  TicketsError,
   updateTicketPanel,
 } from "./service.js";
 
@@ -102,11 +102,16 @@ export async function publishTicketPanel(
 
   let messageId = panel.messageId;
   if (messageId) {
-    const existing = await textChannel.messages.fetch(messageId).catch(() => null);
+    const existing = await textChannel.messages
+      .fetch(messageId)
+      .catch(() => null);
     if (existing) {
       await existing.edit({ embeds: [embed], components: [row] });
     } else {
-      const sent = await textChannel.send({ embeds: [embed], components: [row] });
+      const sent = await textChannel.send({
+        embeds: [embed],
+        components: [row],
+      });
       messageId = sent.id;
     }
   } else {

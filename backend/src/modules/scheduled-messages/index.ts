@@ -1,24 +1,21 @@
 import { GatewayIntentBits } from "discord.js";
+import { registerJob } from "../../core/lifecycle.js";
+import { logger } from "../../core/log.js";
 import type { AdobosModule } from "../../core/modules/types.js";
+import { isWorkerLeader } from "../../core/runtime/index.js";
 import { scheduledMessagesRoutes } from "./api/routes.js";
 import {
   bindScheduledMessagesScheduler,
   processDueScheduledMessages,
   rehydrateScheduledMessages,
 } from "./scheduler.js";
-import { logger } from "../../core/log.js";
-import { isWorkerLeader } from "../../core/runtime/index.js";
-import { registerJob } from "../../core/lifecycle.js";
 
 const DUE_TICK_MS = 15_000;
 
 export const scheduledMessagesModule: AdobosModule = {
   id: "scheduled-messages",
   name: "Scheduled Messages",
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-  ],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
   register(ctx) {
     bindScheduledMessagesScheduler(ctx.client);
 
@@ -48,12 +45,12 @@ export const scheduledMessagesModule: AdobosModule = {
 };
 
 export {
-  ScheduledMessagesError,
   createScheduledMessage,
   deleteScheduledMessage,
   getScheduledMessage,
   listAllActiveScheduledMessages,
   listScheduledMessages,
+  ScheduledMessagesError,
   setScheduledMessageActive,
   updateScheduledMessage,
 } from "./service.js";

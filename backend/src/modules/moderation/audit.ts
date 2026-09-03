@@ -1,11 +1,3 @@
-import {
-  AuditLogEvent,
-  DiscordAPIError,
-  type Client,
-  type Guild,
-  type GuildAuditLogsEntry,
-  type User,
-} from "discord.js";
 import type {
   DiscordAuditCategory,
   DiscordAuditChangeItem,
@@ -16,12 +8,20 @@ import type {
   DiscordAuditTone,
 } from "@adobos/shared";
 import {
+  AuditLogEvent,
+  type Client,
+  DiscordAPIError,
+  type Guild,
+  type GuildAuditLogsEntry,
+  type User,
+} from "discord.js";
+import { logger } from "../../core/log.js";
+import {
   resolveMembersBatch,
   resolveUserPreview,
 } from "../../lib/discordMember.js";
-import { ModerationError } from "./service.js";
 import { consolidateAuditLogs } from "./consolidateAuditLogs.js";
-import { logger } from "../../core/log.js";
+import { ModerationError } from "./service.js";
 
 type ActionMeta = {
   label: string;
@@ -370,11 +370,7 @@ function resolveGuild(bot: Client, guildId?: string): Guild {
 
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new ModerationError(
-      "Missing guildId.",
-      400,
-      "MISSING_GUILD_ID",
-    );
+    throw new ModerationError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
 
   const guild = bot.guilds.cache.get(id);
@@ -418,9 +414,7 @@ function stringifyValue(value: unknown): string {
   }
 }
 
-function flattenChanges(
-  entry: GuildAuditLogsEntry,
-): DiscordAuditChangeItem[] {
+function flattenChanges(entry: GuildAuditLogsEntry): DiscordAuditChangeItem[] {
   const changes = entry.changes ?? [];
   return changes.map((change) => {
     const key = String(change.key);
@@ -459,7 +453,13 @@ function resolveTarget(
 ): DiscordAuditTarget {
   const targetId = entry.targetId ?? null;
   const target = entry.target as
-    | { id?: string; username?: string; globalName?: string | null; name?: string; type?: number }
+    | {
+        id?: string;
+        username?: string;
+        globalName?: string | null;
+        name?: string;
+        type?: number;
+      }
     | null
     | undefined;
 
@@ -640,10 +640,7 @@ function extractRoleRefsFromRaw(
   return { added, removed };
 }
 
-function mapEntry(
-  guild: Guild,
-  entry: GuildAuditLogsEntry,
-): DiscordAuditEntry {
+function mapEntry(guild: Guild, entry: GuildAuditLogsEntry): DiscordAuditEntry {
   const meta =
     ACTION_META[entry.action as AuditLogEvent] ??
     ({

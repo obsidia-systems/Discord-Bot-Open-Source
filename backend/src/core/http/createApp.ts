@@ -51,6 +51,46 @@ function isPublicApiPath(req: Request, registry: ModuleRegistry): boolean {
 }
 
 /**
+ * CSP del panel (Astro estático + islas React + Tailwind + Radix UI).
+ * - `script-src 'self'`: Astro sirve todos los bundles desde el mismo origen.
+ * - `style-src 'unsafe-inline'`: Tailwind compilado + estilos inline de Radix/React.
+ * - `img-src`: avatares e íconos de Discord + subidas propias + data URIs.
+ * - `connect-src 'self'`: el panel solo llama a /api del mismo origen.
+ * Rollout: arranca con `CSP_REPORT_ONLY=1` para ver violaciones sin romper el
+ * panel; quita la variable para hacerla obligatoria.
+ */
+function helmetMiddleware(): RequestHandler {
+  const isProd = env().NODE_ENV === "production";
+  const reportOnly =
+    env().CSP_REPORT_ONLY === "1" || env().CSP_REPORT_ONLY === "true";
+
+  return helmet({
+    contentSecurityPolicy: {
+      useDefaults: true,
+      reportOnly,
+      directives: {
+        "default-src": ["'self'"],
+        "script-src": ["'self'"],
+        "style-src": ["'self'", "'unsafe-inline'"],
+        "img-src": [
+          "'self'",
+          "data:",
+          "https://cdn.discordapp.com",
+          "https://media.discordapp.net",
+        ],
+        "font-src": ["'self'", "data:"],
+        "connect-src": ["'self'"],
+        "frame-ancestors": ["'none'"],
+        "object-src": ["'none'"],
+        "base-uri": ["'self'"],
+        "form-action": ["'self'"],
+        ...(isProd ? { "upgrade-insecure-requests": [] } : {}),
+      },
+    },
+  });
+}
+
+/**
  * Express kernel: health + auth + uploads + rutas de módulos.
  * /api/* (salvo health y webhooks raw) exige sesión. Rutas de dominio exigen guild.
  */
@@ -60,7 +100,7 @@ export function createApp(options: CreateAppOptions): Express {
 
   app.set("trust proxy", 1);
   app.use(requestIdMiddleware());
-  app.use(helmet({ contentSecurityPolicy: false }));
+  app.use(helmetMiddleware());
   app.use(cors({ origin: corsOrigin(), credentials: true }));
   app.use(cookieParser());
   app.use((req, res, next) => {
@@ -149,7 +189,7 @@ export function createHealthApp(bot: Client): Express {
   const app = express();
   app.set("trust proxy", 1);
   app.use(requestIdMiddleware());
-  app.use(helmet({ contentSecurityPolicy: false }));
+  app.use(helmet()); // solo JSON de health: la CSP por defecto de helmet basta
   app.use("/api/health", healthRouter(bot));
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -1,11 +1,17 @@
-import { MessageFlags, type ButtonInteraction, type GuildMember } from "discord.js";
 import { GIVEAWAY_JOIN_PREFIX, parseGiveawayRecordId } from "@adobos/shared";
-import { GiveawaysError } from "./service.js";
+import {
+  type ButtonInteraction,
+  type GuildMember,
+  MessageFlags,
+} from "discord.js";
 import { joinGiveawayFromMember } from "./actions.js";
+import { GiveawaysError } from "./service.js";
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral } as const;
 
-function asGuildMember(member: ButtonInteraction["member"]): GuildMember | null {
+function asGuildMember(
+  member: ButtonInteraction["member"],
+): GuildMember | null {
   if (member && "roles" in member && member.roles && "cache" in member.roles) {
     return member as GuildMember;
   }

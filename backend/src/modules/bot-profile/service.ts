@@ -1,14 +1,4 @@
 import fs from "node:fs";
-import {
-  DiscordAPIError,
-  PresenceUpdateStatus,
-  type ActivitiesOptions,
-  type ActivityType,
-  type Client,
-  type Guild,
-  type PresenceStatusData,
-} from "discord.js";
-import { eq } from "drizzle-orm";
 import type {
   BotActivityTypeName,
   BotGuildProfileResponse,
@@ -22,10 +12,20 @@ import {
   parseBotActivityType,
   parseBotPresenceStatus,
 } from "@adobos/shared";
+import {
+  type ActivitiesOptions,
+  type ActivityType,
+  type Client,
+  DiscordAPIError,
+  type Guild,
+  type PresenceStatusData,
+  PresenceUpdateStatus,
+} from "discord.js";
+import { eq } from "drizzle-orm";
+import { logger } from "../../core/log.js";
 import { getDb, one } from "../../db/client.js";
 import { botPresenceSettings } from "../../db/schema.js";
 import { resolvePublicUploadPath } from "../../lib/dataPaths.js";
-import { logger } from "../../core/log.js";
 
 export class BotProfileError extends Error {
   constructor(
@@ -78,11 +78,7 @@ function resolveGuild(bot: Client, guildId?: string): Guild {
   assertBotReady(bot);
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new BotProfileError(
-      "Missing guildId.",
-      400,
-      "MISSING_GUILD_ID",
-    );
+    throw new BotProfileError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
   const guild = bot.guilds.cache.get(id);
   if (!guild) {
@@ -99,10 +95,10 @@ export async function readPersistedPresence(): Promise<PersistedPresence | null>
   const db = getDb();
   const row = await one(
     db
-    .select()
-    .from(botPresenceSettings)
-    .where(eq(botPresenceSettings.id, PRESENCE_ROW_ID))
-    .limit(1)
+      .select()
+      .from(botPresenceSettings)
+      .where(eq(botPresenceSettings.id, PRESENCE_ROW_ID))
+      .limit(1),
   );
 
   if (!row) return null;
@@ -314,10 +310,9 @@ export async function updateGuildBotProfile(
   try {
     const clearNickname = fields.clearNickname === true;
     const nicknameRaw = fields.nickname;
-    const shouldUpdateNickname =
-      clearNickname || nicknameRaw !== undefined;
+    const shouldUpdateNickname = clearNickname || nicknameRaw !== undefined;
 
-      if (shouldUpdateNickname) {
+    if (shouldUpdateNickname) {
       const nextNick = clearNickname
         ? null
         : typeof nicknameRaw === "string"

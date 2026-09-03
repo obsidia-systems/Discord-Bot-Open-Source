@@ -1,13 +1,9 @@
-import type {
-  Guild,
-  GuildAuditLogsEntry,
-  GuildMember,
-} from "discord.js";
-import type { ModuleContext } from "../../core/modules/types.js";
+import type { Guild, GuildAuditLogsEntry, GuildMember } from "discord.js";
 import { logger } from "../../core/log.js";
-import { getAntiRaidSettings } from "./service.js";
-import { onAntiRaidMemberAdd } from "./raid.js";
+import type { ModuleContext } from "../../core/modules/types.js";
 import { onAntiNukeAudit } from "./nuke.js";
+import { onAntiRaidMemberAdd } from "./raid.js";
+import { getAntiRaidSettings } from "./service.js";
 
 function catchRaid(label: string, error: unknown): void {
   logger.warn({ err: error }, `anti-raid: ${label}`);

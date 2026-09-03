@@ -1,15 +1,15 @@
+import type { ActionLogWebhooksMapping } from "@adobos/shared";
 import {
-  DiscordAPIError,
   type Client,
+  DiscordAPIError,
   type EmbedBuilder,
   type GuildTextBasedChannel,
   type Webhook,
 } from "discord.js";
 import { eq } from "drizzle-orm";
-import type { ActionLogWebhooksMapping } from "@adobos/shared";
+import { logger } from "../../core/log.js";
 import { getDb, one } from "../../db/client.js";
 import { actionLogsConfig } from "../../db/schema.js";
-import { logger } from "../../core/log.js";
 
 /** Nombre de creación del webhook en el canal (fallback legacy). */
 export const ACTION_LOG_WEBHOOK_NAME = "Adobos Audit";
@@ -18,7 +18,9 @@ const LEGACY_WEBHOOK_NAMES = new Set([
   "Adobos Audit Log",
 ]);
 
-function parseMapping(raw: string | undefined | null): ActionLogWebhooksMapping {
+function parseMapping(
+  raw: string | undefined | null,
+): ActionLogWebhooksMapping {
   try {
     return JSON.parse(raw ?? "{}") as ActionLogWebhooksMapping;
   } catch {
@@ -26,12 +28,16 @@ function parseMapping(raw: string | undefined | null): ActionLogWebhooksMapping 
   }
 }
 
-async function readWebhooksMapping(guildId: string): Promise<ActionLogWebhooksMapping> {
-  const row = await one(getDb()
-    .select({ webhooksMapping: actionLogsConfig.webhooksMapping })
-    .from(actionLogsConfig)
-    .where(eq(actionLogsConfig.guildId, guildId))
-    .limit(1));
+async function readWebhooksMapping(
+  guildId: string,
+): Promise<ActionLogWebhooksMapping> {
+  const row = await one(
+    getDb()
+      .select({ webhooksMapping: actionLogsConfig.webhooksMapping })
+      .from(actionLogsConfig)
+      .where(eq(actionLogsConfig.guildId, guildId))
+      .limit(1),
+  );
   return parseMapping(row?.webhooksMapping);
 }
 
@@ -45,11 +51,13 @@ async function writeWebhooksMapping(
       webhooksMapping: JSON.stringify(mapping),
       updatedAt: new Date(),
     })
-    .where(eq(actionLogsConfig.guildId, guildId))
-    ;
+    .where(eq(actionLogsConfig.guildId, guildId));
 }
 
-async function forgetWebhook(guildId: string, channelId: string): Promise<void> {
+async function forgetWebhook(
+  guildId: string,
+  channelId: string,
+): Promise<void> {
   const mapping = await readWebhooksMapping(guildId);
   if (!(channelId in mapping)) return;
   delete mapping[channelId];
@@ -96,11 +104,15 @@ async function resolveBotServerIdentity(
       avatarURL: me.displayAvatarURL({ extension: "png", size: 128 }),
     };
   } catch (err) {
-    logger.warn({ err: err }, "Couldn't resolve the bot identity in the server:");
+    logger.warn(
+      { err: err },
+      "Couldn't resolve the bot identity in the server:",
+    );
     const fallback = bot.user?.username?.trim() || "Adobos";
     return {
       username: `${fallback} Audit`,
-      avatarURL: bot.user?.displayAvatarURL({ extension: "png", size: 128 }) ?? null,
+      avatarURL:
+        bot.user?.displayAvatarURL({ extension: "png", size: 128 }) ?? null,
     };
   }
 }

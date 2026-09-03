@@ -13,10 +13,10 @@ export async function onInviteCreate(invite: Invite): Promise<void> {
   if (!guild) return;
   const inviter = invite.inviter;
   if (
-    !await passesActionLogFilters(guild.id, "inviteCreate", {
+    !(await passesActionLogFilters(guild.id, "inviteCreate", {
       channelId: invite.channelId,
       actorIsBot: inviter?.bot,
-    })
+    }))
   ) {
     return;
   }
@@ -44,9 +44,9 @@ export async function onInviteDelete(invite: Invite): Promise<void> {
   const guild = inviteGuild(invite);
   if (!guild) return;
   if (
-    !await passesActionLogFilters(guild.id, "inviteDelete", {
+    !(await passesActionLogFilters(guild.id, "inviteDelete", {
       channelId: invite.channelId,
-    })
+    }))
   ) {
     return;
   }

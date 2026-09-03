@@ -34,9 +34,7 @@ describe("timeAndMonthDayToCron", () => {
 
 describe("timeAndSpecificDateToCron", () => {
   it("builds m h day month * (yearly; the year is filtered separately)", () => {
-    expect(timeAndSpecificDateToCron("18:00", "2026-09-01")).toBe(
-      "0 18 1 9 *",
-    );
+    expect(timeAndSpecificDateToCron("18:00", "2026-09-01")).toBe("0 18 1 9 *");
   });
 
   it("rejects an invalid date or time", () => {

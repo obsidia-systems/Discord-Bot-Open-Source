@@ -1,2 +1,2 @@
 /** @deprecated Shim — usa `core/http/createApp`. */
-export { createApp, type CreateAppOptions } from "../core/http/createApp.js";
+export { type CreateAppOptions, createApp } from "../core/http/createApp.js";

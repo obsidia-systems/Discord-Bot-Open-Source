@@ -1,8 +1,4 @@
-import {
-  AuditLogEvent,
-  type GuildEmoji,
-  type Sticker,
-} from "discord.js";
+import { AuditLogEvent, type GuildEmoji, type Sticker } from "discord.js";
 import { resolveAuditExecutor } from "../audit.js";
 import { recordActionLog } from "../service.js";
 
@@ -154,7 +150,10 @@ export async function onStickerUpdate(
   newSticker: Sticker,
 ): Promise<void> {
   if (!newSticker.guildId || !newSticker.guild) return;
-  if (oldSticker.name === newSticker.name && oldSticker.description === newSticker.description) {
+  if (
+    oldSticker.name === newSticker.name &&
+    oldSticker.description === newSticker.description
+  ) {
     return;
   }
   const executor = await resolveAuditExecutor(

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { economyModule } from "./index.js";
-import { parseBankAmountInput, EconomyError } from "./service.js";
+import { EconomyError, parseBankAmountInput } from "./service.js";
 
 describe("economy module", () => {
   it("is named Economy", () => {

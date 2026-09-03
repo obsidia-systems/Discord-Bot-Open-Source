@@ -1,9 +1,9 @@
 /** @deprecated Shim — usa `modules/welcome`. */
 export {
-  WelcomeSettingsError,
-  FONT_SIZE_MIN,
+  disableWelcomeSettings,
   FONT_SIZE_MAX,
+  FONT_SIZE_MIN,
   getWelcomeSettings,
   saveWelcomeSettings,
-  disableWelcomeSettings,
+  WelcomeSettingsError,
 } from "../../modules/welcome/service.js";

@@ -1,23 +1,23 @@
+import {
+  antiRaidLockdownSlashCommandBody,
+  remindersSlashCommandBody,
+  resolveDiscordPermPreset,
+  SYSTEM_COMMAND_CATALOG,
+  type SystemCommandDefinition,
+  toDiscordSlashCommandBody,
+  voiceRoomsSlashCommandBody,
+} from "@adobos/shared";
 import type {
   Client,
   RESTPostAPIChatInputApplicationCommandsJSONBody,
 } from "discord.js";
 import { PermissionFlagsBits, Routes } from "discord.js";
 import {
-  SYSTEM_COMMAND_CATALOG,
-  resolveDiscordPermPreset,
-  toDiscordSlashCommandBody,
-  voiceRoomsSlashCommandBody,
-  remindersSlashCommandBody,
-  antiRaidLockdownSlashCommandBody,
-  type SystemCommandDefinition,
-} from "@adobos/shared";
-import {
   createDiscordRest,
   discordApplicationId,
 } from "../../core/bot/discordApp.js";
-import { getCommandPermission } from "./service.js";
 import { logger } from "../../core/log.js";
+import { getCommandPermission } from "./service.js";
 
 /** Bitfield Discord para ocultar el comando en el autocomplete. */
 function defaultMemberPermissionsFor(
@@ -91,7 +91,9 @@ export function buildGlobalDefaultSlashBodies(): RESTPostAPIChatInputApplication
 export async function syncGlobalCommands(client: Client): Promise<number> {
   const rest = createDiscordRest();
   if (!rest) {
-    logger.warn("system-commands: no DISCORD_TOKEN — global slash commands not synced.");
+    logger.warn(
+      "system-commands: no DISCORD_TOKEN — global slash commands not synced.",
+    );
     return 0;
   }
 
@@ -99,9 +101,7 @@ export async function syncGlobalCommands(client: Client): Promise<number> {
   await rest.put(Routes.applicationCommands(discordApplicationId(client)), {
     body,
   });
-  logger.info(
-    `slash sync global (${body.length} nativos)`,
-  );
+  logger.info(`slash sync global (${body.length} nativos)`);
   return body.length;
 }
 

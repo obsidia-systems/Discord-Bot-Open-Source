@@ -1,5 +1,5 @@
 import type { HandEvaluation } from "./cards.js";
-import { rouletteColor, type RouletteColor } from "./roulette.js";
+import { type RouletteColor, rouletteColor } from "./roulette.js";
 
 export type CoinflipSide = "heads" | "tails";
 

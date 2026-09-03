@@ -1,25 +1,18 @@
-import { Router } from "express";
-import type { Client } from "discord.js";
 import type {
   EconomyLeaderboardEntry,
   EconomyLeaderboardResponse,
 } from "@adobos/shared";
-import { resolveMembersBatch } from "../../../lib/discordMember.js";
+import type { Client } from "discord.js";
+import { Router } from "express";
 import { guildIdOf } from "../../../core/http/guildContext.js";
-import { parse, parseQuery } from "../../../core/http/validate.js";
 import { leaderboardQuerySchema } from "../../../core/http/schemas.js";
-import {
-  adjustEconomyFundsSchema,
-  createShopItemSchema,
-  updateEconomyCasinoSchema,
-  updateEconomyConfigSchema,
-  updateEconomyIncomeSchema,
-  updateShopItemSchema,
-} from "./schema.js";
+import { parse, parseQuery } from "../../../core/http/validate.js";
+import { resolveMembersBatch } from "../../../lib/discordMember.js";
 import {
   getEconomyCasinoConfig,
   updateEconomyCasinoConfig,
 } from "../casinoService.js";
+import { adjustEconomyFunds } from "../funds.js";
 import {
   getEconomyIncomeConfig,
   updateEconomyIncomeConfig,
@@ -30,13 +23,20 @@ import {
   listEconomyLeaderboardRows,
   updateEconomyConfig,
 } from "../service.js";
-import { adjustEconomyFunds } from "../funds.js";
 import {
   createShopItem,
   deleteShopItem,
   listShopItems,
   updateShopItem,
 } from "../shopService.js";
+import {
+  adjustEconomyFundsSchema,
+  createShopItemSchema,
+  updateEconomyCasinoSchema,
+  updateEconomyConfigSchema,
+  updateEconomyIncomeSchema,
+  updateShopItemSchema,
+} from "./schema.js";
 
 async function resolveLeaderboard(
   bot: Client,
@@ -200,7 +200,10 @@ export function economyRoutes(bot: Client): Router {
     void (async () => {
       try {
         const guildId = guildIdOf(req);
-        const { limit: rawLimit } = parseQuery(leaderboardQuerySchema, req.query);
+        const { limit: rawLimit } = parseQuery(
+          leaderboardQuerySchema,
+          req.query,
+        );
         const limit = rawLimit ?? 100;
         const payload = await resolveLeaderboard(bot, guildId, limit);
         res.json(payload);

@@ -22,14 +22,14 @@ export const levelsModule: AdobosModule = {
 };
 
 export {
-  LevelsError,
-  getLevelsConfig,
-  getLevelsConfigCached,
-  invalidateLevelsConfigCache,
-  updateLevelsConfig,
   addUserXp,
   deductUserXp,
-  setUserLevel,
+  getLevelsConfig,
+  getLevelsConfigCached,
   getUserRankStats,
+  invalidateLevelsConfigCache,
+  LevelsError,
   listLeaderboardRows,
+  setUserLevel,
+  updateLevelsConfig,
 } from "./service.js";

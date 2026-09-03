@@ -1,17 +1,17 @@
-import { Router } from "express";
 import type { Client } from "discord.js";
+import { Router } from "express";
 import { guildIdOf } from "../../../core/http/guildContext.js";
 import { parse, parseQuery } from "../../../core/http/validate.js";
-import {
-  actionLogsHistoryQuerySchema,
-  updateActionLogsConfigSchema,
-} from "./schema.js";
 import {
   getActionLogsConfig,
   listActionLogsHistory,
   sendActionLogsTestEmbed,
   updateActionLogsConfig,
 } from "../service.js";
+import {
+  actionLogsHistoryQuerySchema,
+  updateActionLogsConfigSchema,
+} from "./schema.js";
 
 export function actionLogsRoutes(bot: Client): Router {
   const router = Router();
@@ -19,8 +19,7 @@ export function actionLogsRoutes(bot: Client): Router {
   /** GET /api/logs/config */
   router.get("/config", async (req, res, next) => {
     try {
-      const guildId =
-        guildIdOf(req);
+      const guildId = guildIdOf(req);
       const config = await getActionLogsConfig(guildId);
       res.json({ config });
     } catch (error) {

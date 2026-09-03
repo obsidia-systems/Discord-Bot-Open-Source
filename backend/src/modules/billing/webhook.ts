@@ -1,5 +1,5 @@
-import type { RequestHandler } from "express";
 import { eq } from "drizzle-orm";
+import type { RequestHandler } from "express";
 import Stripe from "stripe";
 import { HttpError } from "../../core/http/httpError.js";
 import { logger } from "../../core/log.js";
@@ -23,7 +23,10 @@ async function alreadyProcessed(eventId: string): Promise<boolean> {
   return Boolean(row);
 }
 
-async function markProcessed(eventId: string, eventType: string): Promise<void> {
+async function markProcessed(
+  eventId: string,
+  eventType: string,
+): Promise<void> {
   await getDb()
     .insert(webhookEvents)
     .values({ eventId, eventType, processedAt: new Date() })

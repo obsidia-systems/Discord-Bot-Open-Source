@@ -1,36 +1,36 @@
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ChannelType,
-  DiscordAPIError,
-  EmbedBuilder,
-  type AttachmentBuilder,
-  type Client,
-  type Message,
-  type SendableChannels,
-} from "discord.js";
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
 import {
   EMBED_AUTHOR_MAX,
   EMBED_DESCRIPTION_MAX,
   EMBED_FOOTER_MAX,
   EMBED_TITLE_MAX,
   EMBED_TOTAL_MAX,
-  MESSAGE_CONTENT_MAX,
+  type EmbedPayload,
   embedCharacterCount,
+  MESSAGE_CONTENT_MAX,
+  type MessageActionRowInput,
   parseEmbedHexColor,
   persistEmbedMediaUrl,
-  sanitizeEmbedFields,
-  sanitizeLinkActionRows,
-  type EmbedPayload,
-  type MessageActionRowInput,
   type SendEmbedRequest,
   type SendEmbedResponse,
   type SendMessageRequest,
   type SendMessageResponse,
+  sanitizeEmbedFields,
+  sanitizeLinkActionRows,
 } from "@adobos/shared";
+import {
+  ActionRowBuilder,
+  type AttachmentBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ChannelType,
+  type Client,
+  DiscordAPIError,
+  EmbedBuilder,
+  type Message,
+  type SendableChannels,
+} from "discord.js";
+import { eq } from "drizzle-orm";
 import { getDb, one } from "../../../db/client.js";
 import { guildSettings, sentEmbeds } from "../../../db/schema.js";
 import {
@@ -87,7 +87,7 @@ async function resolveSendableChannel(
   channelId: string,
   expectedGuildId: string,
 ): Promise<SendableChannels> {
-  let channel;
+  let channel: Awaited<ReturnType<typeof bot.channels.fetch>>;
   try {
     channel = await bot.channels.fetch(channelId);
   } catch {
@@ -262,7 +262,10 @@ function preparedToSnapshot(
       input.authorIconUrl,
       sent?.author?.iconURL,
     ),
-    thumbnailUrl: persistEmbedMediaUrl(input.thumbnailUrl, sent?.thumbnail?.url),
+    thumbnailUrl: persistEmbedMediaUrl(
+      input.thumbnailUrl,
+      sent?.thumbnail?.url,
+    ),
     imageUrl: persistEmbedMediaUrl(input.imageUrl, sent?.image?.url),
     footerText: prepared.footerText,
     footerIconUrl: persistEmbedMediaUrl(
@@ -328,7 +331,11 @@ function prepareEmbed(
   const components = buildLinkRows(linkRows);
 
   if (title && title.length > EMBED_TITLE_MAX) {
-    throw new MessageSendError("The title exceeds 256 characters.", 400, "TITLE_TOO_LONG");
+    throw new MessageSendError(
+      "The title exceeds 256 characters.",
+      400,
+      "TITLE_TOO_LONG",
+    );
   }
   if (description && description.length > EMBED_DESCRIPTION_MAX) {
     throw new MessageSendError(
@@ -525,16 +532,18 @@ export async function sendEmbedMessage(
       sentId = randomUUID();
       const snapshot = preparedToSnapshot(prepared, input, message);
       const now = new Date();
-      await getDb().insert(sentEmbeds).values({
-        id: sentId,
-        guildId,
-        channelId: message.channelId,
-        messageId: message.id,
-        title: prepared.title ?? prepared.content?.slice(0, 80) ?? null,
-        embedData: JSON.stringify(snapshot),
-        createdAt: now,
-        updatedAt: now,
-      });
+      await getDb()
+        .insert(sentEmbeds)
+        .values({
+          id: sentId,
+          guildId,
+          channelId: message.channelId,
+          messageId: message.id,
+          title: prepared.title ?? prepared.content?.slice(0, 80) ?? null,
+          embedData: JSON.stringify(snapshot),
+          createdAt: now,
+          updatedAt: now,
+        });
     }
 
     return {

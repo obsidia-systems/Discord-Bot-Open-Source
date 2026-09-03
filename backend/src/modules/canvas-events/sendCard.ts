@@ -1,17 +1,17 @@
+import type { CanvasEventType } from "@adobos/shared";
 import { AttachmentBuilder, type Guild, type User } from "discord.js";
 import { and, eq } from "drizzle-orm";
-import type { CanvasEventType } from "@adobos/shared";
+import { logger } from "../../core/log.js";
 import { getDb, one } from "../../db/client.js";
 import { canvasEventSettings } from "../../db/schema.js";
 import { buildWelcomeCard } from "../welcome/card/WelcomeCardBuilder.js";
+import { isWelcomeSendChannel } from "../welcome/channel.js";
+import { parseTextLayersJson } from "../welcome/service.js";
 import {
   applyWelcomeVariables,
   type WelcomeTemplateContext,
 } from "../welcome/text/welcomeEmbed.js";
-import { isWelcomeSendChannel } from "../welcome/channel.js";
-import { parseTextLayersJson } from "../welcome/service.js";
 import { disableCanvasEventSettings } from "./service.js";
-import { logger } from "../../core/log.js";
 
 export interface CanvasEventUserPayload {
   id: string;
@@ -45,16 +45,18 @@ export async function dispatchCanvasEventCard(options: {
   try {
     const { eventType, guild, user, logLabel } = options;
 
-    const row = await one(getDb()
-      .select()
-      .from(canvasEventSettings)
-      .where(
-        and(
-          eq(canvasEventSettings.guildId, guild.id),
-          eq(canvasEventSettings.eventType, eventType),
-        ),
-      )
-      .limit(1));
+    const row = await one(
+      getDb()
+        .select()
+        .from(canvasEventSettings)
+        .where(
+          and(
+            eq(canvasEventSettings.guildId, guild.id),
+            eq(canvasEventSettings.eventType, eventType),
+          ),
+        )
+        .limit(1),
+    );
 
     if (!row?.isEnabled || !row.channelId) return;
 
@@ -110,7 +112,10 @@ export async function dispatchCanvasEventCard(options: {
       files: [new AttachmentBuilder(png, { name: `${eventType}-card.png` })],
     });
   } catch (error: unknown) {
-    logger.warn({ err: error instanceof Error ? error.message : error }, `Error silencioso en ${options.logLabel}:`);
+    logger.warn(
+      { err: error instanceof Error ? error.message : error },
+      `Error silencioso en ${options.logLabel}:`,
+    );
   }
 }
 

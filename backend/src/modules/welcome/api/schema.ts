@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { finiteNum, snowflakeNull, snowflakeOpt } from "../../../core/http/schemas.js";
+import {
+  finiteNum,
+  snowflakeNull,
+  snowflakeOpt,
+} from "../../../core/http/schemas.js";
 
 const textLayerSchema = z.object({
   id: z.string(),

@@ -1,8 +1,8 @@
-import {
+import type {
   AuditLogEvent,
-  type Client,
-  type Guild,
-  type GuildAuditLogsEntry,
+  Client,
+  Guild,
+  GuildAuditLogsEntry,
 } from "discord.js";
 import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
 import { userTag } from "./helpers.js";
@@ -32,7 +32,10 @@ export interface BotDeleteHint {
 }
 
 const recentAudit = new BoundedTtlMap<string, CachedAuditEntry>(8_000, 10_000);
-const botMessageDeletes = new BoundedTtlMap<string, BotDeleteHint>(8_000, 20_000);
+const botMessageDeletes = new BoundedTtlMap<string, BotDeleteHint>(
+  8_000,
+  20_000,
+);
 
 function botDeleteKey(guildId: string, messageId: string): string {
   return `${guildId}:msg:${messageId}`;
@@ -94,7 +97,9 @@ export function getCachedAuditEntry(
   action: number,
   targetId?: string | null,
 ): CachedAuditEntry | undefined {
-  const exact = recentAudit.get(auditCacheKey(guildId, action, targetId ?? null));
+  const exact = recentAudit.get(
+    auditCacheKey(guildId, action, targetId ?? null),
+  );
   if (exact) return exact;
   if (targetId) {
     return recentAudit.get(auditCacheKey(guildId, action, null));

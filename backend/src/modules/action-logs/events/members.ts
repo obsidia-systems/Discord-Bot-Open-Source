@@ -148,9 +148,10 @@ export async function onGuildMemberUpdate(
           targetId: newMember.id,
           targetTag: userTag(newMember.user),
           channelId: null,
-          summary: timedOut && newUntil
-            ? `${userTag(newMember.user)} timed out until ${new Date(newUntil).toISOString()}`
-            : `${userTag(newMember.user)} is no longer timed out`,
+          summary:
+            timedOut && newUntil
+              ? `${userTag(newMember.user)} timed out until ${new Date(newUntil).toISOString()}`
+              : `${userTag(newMember.user)} is no longer timed out`,
           description: timedOut
             ? `**Timeout** ${untilLabel}`
             : `**Timeout lifted**`,

@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
 import {
   FORM_ACCEPT_PREFIX,
   FORM_DENY_PREFIX,
   FORM_OPEN_PREFIX,
   FORM_SUBMIT_PREFIX,
 } from "@adobos/shared";
+import { describe, expect, it } from "vitest";
 import { formsModule } from "./index.js";
 import { remainingMsFromLast } from "./service.js";
 
@@ -41,9 +41,7 @@ describe("formsModule.register", () => {
 describe("remainingMsFromLast", () => {
   it("once blocks forever; cooldown 0 does not wait", () => {
     const last = new Date(Date.now() - 1_000);
-    expect(remainingMsFromLast(last, "once", 0)).toBe(
-      Number.POSITIVE_INFINITY,
-    );
+    expect(remainingMsFromLast(last, "once", 0)).toBe(Number.POSITIVE_INFINITY);
     expect(remainingMsFromLast(last, "cooldown", 0)).toBe(0);
     expect(remainingMsFromLast(null, "once", 10)).toBe(0);
   });

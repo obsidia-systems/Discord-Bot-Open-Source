@@ -1,5 +1,9 @@
-import { Router } from "express";
 import type { Client } from "discord.js";
+import { Router } from "express";
+import { guildIdOf } from "../../../core/http/guildContext.js";
+import { searchQuerySchema, snowflake } from "../../../core/http/schemas.js";
+import { parse, parseQuery } from "../../../core/http/validate.js";
+import { fetchDiscordAuditLog } from "../audit.js";
 import {
   executeModAction,
   fetchDiscordMessage,
@@ -10,10 +14,6 @@ import {
   searchChannels,
   searchMembers,
 } from "../service.js";
-import { fetchDiscordAuditLog } from "../audit.js";
-import { guildIdOf } from "../../../core/http/guildContext.js";
-import { parse, parseQuery } from "../../../core/http/validate.js";
-import { searchQuerySchema, snowflake } from "../../../core/http/schemas.js";
 import {
   discordAuditQuerySchema,
   fetchMessageQuerySchema,
@@ -104,8 +104,7 @@ export function moderationRoutes(bot: Client): Router {
   });
 
   router.get("/active/bans", async (req, res, next) => {
-    const guildId =
-      guildIdOf(req);
+    const guildId = guildIdOf(req);
     try {
       res.json(await listActiveBans(bot, guildId));
     } catch (error: unknown) {
@@ -114,8 +113,7 @@ export function moderationRoutes(bot: Client): Router {
   });
 
   router.get("/active/timeouts", async (req, res, next) => {
-    const guildId =
-      guildIdOf(req);
+    const guildId = guildIdOf(req);
     try {
       res.json(await listActiveTimeouts(bot, guildId));
     } catch (error: unknown) {

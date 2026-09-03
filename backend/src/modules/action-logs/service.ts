@@ -1,11 +1,4 @@
 import { randomUUID } from "node:crypto";
-import {
-  ChannelType,
-  EmbedBuilder,
-  type Client,
-  type Guild,
-} from "discord.js";
-import { and, desc, eq, gte, lt, lte, or, sql, like } from "drizzle-orm";
 import type {
   ActionLogCategory,
   ActionLogChannelsMapping,
@@ -20,31 +13,33 @@ import type {
   UpdateActionLogsConfigRequest,
 } from "@adobos/shared";
 import {
+  type ActionLogEmbedTone,
+  clampRetentionDays,
   defaultActionLogChannelsMapping,
   defaultActionLogEnabledEvents,
-  clampRetentionDays,
   isUnlimited,
   limitExceededMessage,
   normalizeChannelsMapping,
   normalizeRetentionDays,
   normalizeRoutingMode,
-  type ActionLogEmbedTone,
 } from "@adobos/shared";
-import { getDb, one } from "../../db/client.js";
+import { ChannelType, type Client, EmbedBuilder, type Guild } from "discord.js";
+import { and, desc, eq, gte, like, lt, lte, or, sql } from "drizzle-orm";
+import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
 import {
   EntitlementError,
   getGuildTier,
   limit as guildLimit,
 } from "../../core/entitlements/service.js";
+import { logger } from "../../core/log.js";
+import { getDb, one } from "../../db/client.js";
 import {
   actionLogs,
   actionLogsConfig,
   guildSettings,
 } from "../../db/schema.js";
-import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
 import { buildActionLogEmbed } from "./embeds.js";
 import { sendActionLogWebhook } from "./webhooks.js";
-import { logger } from "../../core/log.js";
 
 const configCache = new BoundedTtlMap<string, ActionLogsConfig>(5_000, 60_000);
 
@@ -82,44 +77,272 @@ const EVENT_META: Record<
     emoji: string;
   }
 > = {
-  messageDelete: { eventType: "MESSAGE_DELETE", category: "MESSAGES", label: "Message deleted", tone: "red", emoji: "🗑️" },
-  messageUpdate: { eventType: "MESSAGE_UPDATE", category: "MESSAGES", label: "Message edited", tone: "yellow", emoji: "✏️" },
-  messageAttachmentDelete: { eventType: "MESSAGE_ATTACHMENT_DELETE", category: "MESSAGES", label: "Attachment deleted", tone: "red", emoji: "🖼️" },
-  messageDeleteBulk: { eventType: "MESSAGE_DELETE_BULK", category: "MESSAGES", label: "Bulk message delete", tone: "red", emoji: "🧹" },
-  memberJoin: { eventType: "MEMBER_JOIN", category: "MEMBERS", label: "Member joins", tone: "green", emoji: "📥" },
-  memberLeave: { eventType: "MEMBER_LEAVE", category: "MEMBERS", label: "Member leaves", tone: "yellow", emoji: "🚪" },
-  memberKick: { eventType: "MEMBER_KICK", category: "MEMBERS", label: "Member kicked", tone: "red", emoji: "👢" },
-  memberRoleUpdate: { eventType: "MEMBER_ROLE_UPDATE", category: "MEMBERS", label: "Roles updated", tone: "blue", emoji: "🎭" },
-  memberNicknameUpdate: { eventType: "MEMBER_NICKNAME_UPDATE", category: "MEMBERS", label: "Nickname changed", tone: "yellow", emoji: "🏷️" },
-  memberTimeout: { eventType: "MEMBER_TIMEOUT", category: "MEMBERS", label: "Timeout", tone: "red", emoji: "⏱️" },
-  memberUntimeout: { eventType: "MEMBER_UNTIMEOUT", category: "MEMBERS", label: "Timeout lifted", tone: "green", emoji: "⏱️" },
-  memberBan: { eventType: "MEMBER_BAN", category: "MEMBERS", label: "Member banned", tone: "red", emoji: "🔨" },
-  memberUnban: { eventType: "MEMBER_UNBAN", category: "MEMBERS", label: "Member unbanned", tone: "green", emoji: "🔓" },
-  roleCreate: { eventType: "ROLE_CREATE", category: "ROLES", label: "Role created", tone: "green", emoji: "✨" },
-  roleDelete: { eventType: "ROLE_DELETE", category: "ROLES", label: "Role deleted", tone: "red", emoji: "🗑️" },
-  roleUpdate: { eventType: "ROLE_UPDATE", category: "ROLES", label: "Role updated", tone: "yellow", emoji: "🔧" },
-  channelCreate: { eventType: "CHANNEL_CREATE", category: "CHANNELS", label: "Channel created", tone: "green", emoji: "📁" },
-  channelDelete: { eventType: "CHANNEL_DELETE", category: "CHANNELS", label: "Channel deleted", tone: "red", emoji: "📁" },
-  channelUpdate: { eventType: "CHANNEL_UPDATE", category: "CHANNELS", label: "Channel updated", tone: "yellow", emoji: "🔧" },
-  threadCreate: { eventType: "THREAD_CREATE", category: "CHANNELS", label: "Thread created", tone: "green", emoji: "🧵" },
-  threadDelete: { eventType: "THREAD_DELETE", category: "CHANNELS", label: "Thread deleted", tone: "red", emoji: "🧵" },
-  threadUpdate: { eventType: "THREAD_UPDATE", category: "CHANNELS", label: "Thread updated", tone: "yellow", emoji: "🧵" },
-  guildUpdate: { eventType: "GUILD_UPDATE", category: "CHANNELS", label: "Server updated", tone: "yellow", emoji: "🏠" },
-  emojiCreate: { eventType: "EMOJI_CREATE", category: "ASSETS", label: "Emoji created", tone: "green", emoji: "😀" },
-  emojiDelete: { eventType: "EMOJI_DELETE", category: "ASSETS", label: "Emoji deleted", tone: "red", emoji: "😀" },
-  emojiUpdate: { eventType: "EMOJI_UPDATE", category: "ASSETS", label: "Emoji updated", tone: "yellow", emoji: "😀" },
-  stickerCreate: { eventType: "STICKER_CREATE", category: "ASSETS", label: "Sticker created", tone: "green", emoji: "🏷️" },
-  stickerDelete: { eventType: "STICKER_DELETE", category: "ASSETS", label: "Sticker deleted", tone: "red", emoji: "🏷️" },
-  stickerUpdate: { eventType: "STICKER_UPDATE", category: "ASSETS", label: "Sticker updated", tone: "yellow", emoji: "🏷️" },
-  soundboardCreate: { eventType: "SOUNDBOARD_CREATE", category: "ASSETS", label: "Sound created", tone: "green", emoji: "🔊" },
-  soundboardDelete: { eventType: "SOUNDBOARD_DELETE", category: "ASSETS", label: "Sound deleted", tone: "red", emoji: "🔊" },
-  soundboardUpdate: { eventType: "SOUNDBOARD_UPDATE", category: "ASSETS", label: "Sound updated", tone: "yellow", emoji: "🔊" },
-  voiceJoin: { eventType: "VOICE_JOIN", category: "VOICE", label: "Voice join", tone: "green", emoji: "🔊" },
-  voiceLeave: { eventType: "VOICE_LEAVE", category: "VOICE", label: "Voice leave", tone: "blue", emoji: "🚪" },
-  voiceKick: { eventType: "VOICE_KICK", category: "VOICE", label: "Voice kick", tone: "red", emoji: "👢" },
-  voiceMove: { eventType: "VOICE_MOVE", category: "VOICE", label: "Voice move", tone: "blue", emoji: "🔀" },
-  inviteCreate: { eventType: "INVITE_CREATE", category: "INVITES", label: "Invite created", tone: "green", emoji: "🔗" },
-  inviteDelete: { eventType: "INVITE_DELETE", category: "INVITES", label: "Invite deleted", tone: "red", emoji: "⛓️" },
+  messageDelete: {
+    eventType: "MESSAGE_DELETE",
+    category: "MESSAGES",
+    label: "Message deleted",
+    tone: "red",
+    emoji: "🗑️",
+  },
+  messageUpdate: {
+    eventType: "MESSAGE_UPDATE",
+    category: "MESSAGES",
+    label: "Message edited",
+    tone: "yellow",
+    emoji: "✏️",
+  },
+  messageAttachmentDelete: {
+    eventType: "MESSAGE_ATTACHMENT_DELETE",
+    category: "MESSAGES",
+    label: "Attachment deleted",
+    tone: "red",
+    emoji: "🖼️",
+  },
+  messageDeleteBulk: {
+    eventType: "MESSAGE_DELETE_BULK",
+    category: "MESSAGES",
+    label: "Bulk message delete",
+    tone: "red",
+    emoji: "🧹",
+  },
+  memberJoin: {
+    eventType: "MEMBER_JOIN",
+    category: "MEMBERS",
+    label: "Member joins",
+    tone: "green",
+    emoji: "📥",
+  },
+  memberLeave: {
+    eventType: "MEMBER_LEAVE",
+    category: "MEMBERS",
+    label: "Member leaves",
+    tone: "yellow",
+    emoji: "🚪",
+  },
+  memberKick: {
+    eventType: "MEMBER_KICK",
+    category: "MEMBERS",
+    label: "Member kicked",
+    tone: "red",
+    emoji: "👢",
+  },
+  memberRoleUpdate: {
+    eventType: "MEMBER_ROLE_UPDATE",
+    category: "MEMBERS",
+    label: "Roles updated",
+    tone: "blue",
+    emoji: "🎭",
+  },
+  memberNicknameUpdate: {
+    eventType: "MEMBER_NICKNAME_UPDATE",
+    category: "MEMBERS",
+    label: "Nickname changed",
+    tone: "yellow",
+    emoji: "🏷️",
+  },
+  memberTimeout: {
+    eventType: "MEMBER_TIMEOUT",
+    category: "MEMBERS",
+    label: "Timeout",
+    tone: "red",
+    emoji: "⏱️",
+  },
+  memberUntimeout: {
+    eventType: "MEMBER_UNTIMEOUT",
+    category: "MEMBERS",
+    label: "Timeout lifted",
+    tone: "green",
+    emoji: "⏱️",
+  },
+  memberBan: {
+    eventType: "MEMBER_BAN",
+    category: "MEMBERS",
+    label: "Member banned",
+    tone: "red",
+    emoji: "🔨",
+  },
+  memberUnban: {
+    eventType: "MEMBER_UNBAN",
+    category: "MEMBERS",
+    label: "Member unbanned",
+    tone: "green",
+    emoji: "🔓",
+  },
+  roleCreate: {
+    eventType: "ROLE_CREATE",
+    category: "ROLES",
+    label: "Role created",
+    tone: "green",
+    emoji: "✨",
+  },
+  roleDelete: {
+    eventType: "ROLE_DELETE",
+    category: "ROLES",
+    label: "Role deleted",
+    tone: "red",
+    emoji: "🗑️",
+  },
+  roleUpdate: {
+    eventType: "ROLE_UPDATE",
+    category: "ROLES",
+    label: "Role updated",
+    tone: "yellow",
+    emoji: "🔧",
+  },
+  channelCreate: {
+    eventType: "CHANNEL_CREATE",
+    category: "CHANNELS",
+    label: "Channel created",
+    tone: "green",
+    emoji: "📁",
+  },
+  channelDelete: {
+    eventType: "CHANNEL_DELETE",
+    category: "CHANNELS",
+    label: "Channel deleted",
+    tone: "red",
+    emoji: "📁",
+  },
+  channelUpdate: {
+    eventType: "CHANNEL_UPDATE",
+    category: "CHANNELS",
+    label: "Channel updated",
+    tone: "yellow",
+    emoji: "🔧",
+  },
+  threadCreate: {
+    eventType: "THREAD_CREATE",
+    category: "CHANNELS",
+    label: "Thread created",
+    tone: "green",
+    emoji: "🧵",
+  },
+  threadDelete: {
+    eventType: "THREAD_DELETE",
+    category: "CHANNELS",
+    label: "Thread deleted",
+    tone: "red",
+    emoji: "🧵",
+  },
+  threadUpdate: {
+    eventType: "THREAD_UPDATE",
+    category: "CHANNELS",
+    label: "Thread updated",
+    tone: "yellow",
+    emoji: "🧵",
+  },
+  guildUpdate: {
+    eventType: "GUILD_UPDATE",
+    category: "CHANNELS",
+    label: "Server updated",
+    tone: "yellow",
+    emoji: "🏠",
+  },
+  emojiCreate: {
+    eventType: "EMOJI_CREATE",
+    category: "ASSETS",
+    label: "Emoji created",
+    tone: "green",
+    emoji: "😀",
+  },
+  emojiDelete: {
+    eventType: "EMOJI_DELETE",
+    category: "ASSETS",
+    label: "Emoji deleted",
+    tone: "red",
+    emoji: "😀",
+  },
+  emojiUpdate: {
+    eventType: "EMOJI_UPDATE",
+    category: "ASSETS",
+    label: "Emoji updated",
+    tone: "yellow",
+    emoji: "😀",
+  },
+  stickerCreate: {
+    eventType: "STICKER_CREATE",
+    category: "ASSETS",
+    label: "Sticker created",
+    tone: "green",
+    emoji: "🏷️",
+  },
+  stickerDelete: {
+    eventType: "STICKER_DELETE",
+    category: "ASSETS",
+    label: "Sticker deleted",
+    tone: "red",
+    emoji: "🏷️",
+  },
+  stickerUpdate: {
+    eventType: "STICKER_UPDATE",
+    category: "ASSETS",
+    label: "Sticker updated",
+    tone: "yellow",
+    emoji: "🏷️",
+  },
+  soundboardCreate: {
+    eventType: "SOUNDBOARD_CREATE",
+    category: "ASSETS",
+    label: "Sound created",
+    tone: "green",
+    emoji: "🔊",
+  },
+  soundboardDelete: {
+    eventType: "SOUNDBOARD_DELETE",
+    category: "ASSETS",
+    label: "Sound deleted",
+    tone: "red",
+    emoji: "🔊",
+  },
+  soundboardUpdate: {
+    eventType: "SOUNDBOARD_UPDATE",
+    category: "ASSETS",
+    label: "Sound updated",
+    tone: "yellow",
+    emoji: "🔊",
+  },
+  voiceJoin: {
+    eventType: "VOICE_JOIN",
+    category: "VOICE",
+    label: "Voice join",
+    tone: "green",
+    emoji: "🔊",
+  },
+  voiceLeave: {
+    eventType: "VOICE_LEAVE",
+    category: "VOICE",
+    label: "Voice leave",
+    tone: "blue",
+    emoji: "🚪",
+  },
+  voiceKick: {
+    eventType: "VOICE_KICK",
+    category: "VOICE",
+    label: "Voice kick",
+    tone: "red",
+    emoji: "👢",
+  },
+  voiceMove: {
+    eventType: "VOICE_MOVE",
+    category: "VOICE",
+    label: "Voice move",
+    tone: "blue",
+    emoji: "🔀",
+  },
+  inviteCreate: {
+    eventType: "INVITE_CREATE",
+    category: "INVITES",
+    label: "Invite created",
+    tone: "green",
+    emoji: "🔗",
+  },
+  inviteDelete: {
+    eventType: "INVITE_DELETE",
+    category: "INVITES",
+    label: "Invite deleted",
+    tone: "red",
+    emoji: "⛓️",
+  },
 };
 
 export function getEventMeta(eventKey: ActionLogEventKey) {
@@ -138,31 +361,25 @@ async function ensureGuildRow(guildId: string): Promise<void> {
   const db = getDb();
   const existing = await one(
     db
-    .select()
-    .from(guildSettings)
-    .where(eq(guildSettings.guildId, guildId))
-    .limit(1)
+      .select()
+      .from(guildSettings)
+      .where(eq(guildSettings.guildId, guildId))
+      .limit(1),
   );
   if (!existing) {
-    await db.insert(guildSettings)
-      .values({
-        guildId,
-        prefix: "!",
-        welcomeEnabled: false,
-        updatedAt: new Date(),
-      })
-      ;
+    await db.insert(guildSettings).values({
+      guildId,
+      prefix: "!",
+      welcomeEnabled: false,
+      updatedAt: new Date(),
+    });
   }
 }
 
 function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new ActionLogsError(
-      "Missing guildId.",
-      400,
-      "MISSING_GUILD_ID",
-    );
+    throw new ActionLogsError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
   return id;
 }
@@ -244,15 +461,19 @@ function rowToConfig(
   };
 }
 
-export async function getActionLogsConfig(guildId?: string): Promise<ActionLogsConfig> {
+export async function getActionLogsConfig(
+  guildId?: string,
+): Promise<ActionLogsConfig> {
   const id = resolveGuildId(guildId);
   const cached = configCache.get(id);
   if (cached) return cached;
-  const row = await one(getDb()
-    .select()
-    .from(actionLogsConfig)
-    .where(eq(actionLogsConfig.guildId, id))
-    .limit(1));
+  const row = await one(
+    getDb()
+      .select()
+      .from(actionLogsConfig)
+      .where(eq(actionLogsConfig.guildId, id))
+      .limit(1),
+  );
   const config = rowToConfig(id, row);
   configCache.set(id, config);
   return config;
@@ -274,9 +495,7 @@ export async function updateActionLogsConfig(
   const next: ActionLogsConfig = {
     ...current,
     enabled: input.enabled ?? current.enabled,
-    routingMode: normalizeRoutingMode(
-      input.routingMode ?? current.routingMode,
-    ),
+    routingMode: normalizeRoutingMode(input.routingMode ?? current.routingMode),
     globalChannelId:
       input.globalChannelId === undefined
         ? current.globalChannelId
@@ -348,8 +567,7 @@ export async function updateActionLogsConfig(
         dataRetentionDays: next.dataRetentionDays,
         updatedAt: now,
       },
-    })
-    ;
+    });
 
   // Compat: sincroniza log_channel_id legacy con el canal global.
   if (next.globalChannelId) {
@@ -359,8 +577,7 @@ export async function updateActionLogsConfig(
         logChannelId: next.globalChannelId,
         updatedAt: now,
       })
-      .where(eq(guildSettings.guildId, id))
-      ;
+      .where(eq(guildSettings.guildId, id));
   }
 
   configCache.set(id, next);
@@ -504,8 +721,7 @@ export async function recordActionLog(
       summary: input.summary,
       details: JSON.stringify(details),
       createdAt,
-    })
-    ;
+    });
 
   const entry: ActionLogEntry = {
     id,
@@ -565,9 +781,7 @@ export async function recordActionLog(
             meta.eventType.startsWith("VOICE_")));
 
       const affectedSnowflake =
-        isUserTarget &&
-        input.targetId &&
-        /^\d{17,20}$/.test(input.targetId)
+        isUserTarget && input.targetId && /^\d{17,20}$/.test(input.targetId)
           ? input.targetId
           : null;
       if (affectedSnowflake) {
@@ -606,15 +820,16 @@ export async function recordActionLog(
         targetAvatarURL,
         systemAvatarURL,
         messageId,
-        targetKind: (detailsTargetKind as
-          | "user"
-          | "channel"
-          | "role"
-          | "emoji"
-          | "sticker"
-          | "invite"
-          | "resource"
-          | null) ?? undefined,
+        targetKind:
+          (detailsTargetKind as
+            | "user"
+            | "channel"
+            | "role"
+            | "emoji"
+            | "sticker"
+            | "invite"
+            | "resource"
+            | null) ?? undefined,
       });
 
       await sendActionLogWebhook(bot, {
@@ -623,7 +838,10 @@ export async function recordActionLog(
         embeds: [embed],
       });
     } catch (error) {
-      logger.warn({ err: error }, `action-logs: couldn't send webhook to ${destinationId}:`);
+      logger.warn(
+        { err: error },
+        `action-logs: couldn't send webhook to ${destinationId}:`,
+      );
     }
   }
 
@@ -631,7 +849,9 @@ export async function recordActionLog(
 }
 
 /** Borra logs Postgres anteriores a la retención del guild. */
-export async function purgeExpiredActionLogs(guildId?: string): Promise<number> {
+export async function purgeExpiredActionLogs(
+  guildId?: string,
+): Promise<number> {
   const id = resolveGuildId(guildId);
   const config = await getActionLogsConfig(id);
   const maxDays = await guildLimit(id, "logRetentionDays");
@@ -641,22 +861,25 @@ export async function purgeExpiredActionLogs(guildId?: string): Promise<number> 
   const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   const deleted = await getDb()
     .delete(actionLogs)
-    .where(
-      and(eq(actionLogs.guildId, id), lt(actionLogs.createdAt, cutoff)),
-    )
+    .where(and(eq(actionLogs.guildId, id), lt(actionLogs.createdAt, cutoff)))
     .returning({ id: actionLogs.id });
   return deleted.length;
 }
 
 /** Limpia retención de todos los guilds con config (job periódico). */
 export async function purgeAllExpiredActionLogs(): Promise<number> {
-  const rows = await getDb().select({ guildId: actionLogsConfig.guildId }).from(actionLogsConfig);
+  const rows = await getDb()
+    .select({ guildId: actionLogsConfig.guildId })
+    .from(actionLogsConfig);
   let total = 0;
   for (const row of rows) {
     try {
       total += await purgeExpiredActionLogs(row.guildId);
     } catch (error) {
-      logger.warn({ err: error }, `action-logs: purge failed for ${row.guildId}:`);
+      logger.warn(
+        { err: error },
+        `action-logs: purge failed for ${row.guildId}:`,
+      );
     }
   }
   return total;
@@ -715,10 +938,10 @@ export async function listActionLogsHistory(
 
   const totalRow = await one(
     db
-    .select({ count: sql<number>`count(*)` })
-    .from(actionLogs)
-    .where(where)
-    .limit(1)
+      .select({ count: sql<number>`count(*)` })
+      .from(actionLogs)
+      .where(where)
+      .limit(1),
   );
   const total = Number(totalRow?.count ?? 0);
 
@@ -728,8 +951,7 @@ export async function listActionLogsHistory(
     .where(where)
     .orderBy(desc(actionLogs.createdAt))
     .limit(limit)
-    .offset(offset)
-    ;
+    .offset(offset);
 
   const entries: ActionLogEntry[] = rows.map((row) => ({
     id: row.id,
@@ -761,7 +983,8 @@ export async function sendActionLogsTestEmbed(
 ): Promise<ActionLogsTestResponse> {
   const guild = resolveGuild(bot, guildId);
   const config = await getActionLogsConfig(guild.id);
-  const channelId = resolveLogChannelId(config, "MESSAGES") ?? config.globalChannelId;
+  const channelId =
+    resolveLogChannelId(config, "MESSAGES") ?? config.globalChannelId;
 
   if (!channelId) {
     throw new ActionLogsError(

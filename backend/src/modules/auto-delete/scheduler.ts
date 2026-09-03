@@ -1,21 +1,25 @@
-import cron, { type ScheduledTask } from "node-cron";
-import {
-  ChannelType,
-  type Channel,
-  type Client,
-  type GuildTextBasedChannel,
-  type Message,
-} from "discord.js";
-import type { AutoDeleteConfig, AutoDeleteFilterType, AutoDeleteRule } from "@adobos/shared";
+import type {
+  AutoDeleteConfig,
+  AutoDeleteFilterType,
+  AutoDeleteRule,
+} from "@adobos/shared";
 import {
   isOlderThanBulkWindow,
   messageMatchesAutoDeleteFilter,
   normalizeScheduledTimezone,
 } from "@adobos/shared";
-import { timeAndDaysToCron } from "../../lib/schedulerTimezone.js";
-import { listAllAutoDeleteConfigs } from "./service.js";
-import { rememberBotMessageDeletes } from "../action-logs/audit.js";
+import {
+  type Channel,
+  ChannelType,
+  type Client,
+  type GuildTextBasedChannel,
+  type Message,
+} from "discord.js";
+import cron, { type ScheduledTask } from "node-cron";
 import { logger } from "../../core/log.js";
+import { timeAndDaysToCron } from "../../lib/schedulerTimezone.js";
+import { rememberBotMessageDeletes } from "../action-logs/audit.js";
+import { listAllAutoDeleteConfigs } from "./service.js";
 
 const MAX_PAGES = 25;
 const PAUSE_MS = 350;
@@ -70,11 +74,7 @@ async function sweepTextChannel(
     );
 
     if (young.size > 0) {
-      rememberBotMessageDeletes(
-        channel.client,
-        channel.guild.id,
-        young.keys(),
-      );
+      rememberBotMessageDeletes(channel.client, channel.guild.id, young.keys());
       await channel.bulkDelete(young, true).catch((error: unknown) => {
         logger.warn(
           { err: error },
@@ -135,7 +135,9 @@ async function runScheduledCleanup(
       (await client.guilds.fetch(guildId).catch(() => null));
     if (!guild) return;
 
-    const channel = await guild.channels.fetch(rule.channelId).catch(() => null);
+    const channel = await guild.channels
+      .fetch(rule.channelId)
+      .catch(() => null);
     if (!channel) return;
 
     const allowed =
@@ -147,7 +149,10 @@ async function runScheduledCleanup(
 
     await sweepChannelAndThreads(channel, rule.filterType);
   } catch (error) {
-    logger.warn({ err: error }, `auto-delete: scheduled cleanup failed (${guildId}/${rule.channelId}):`);
+    logger.warn(
+      { err: error },
+      `auto-delete: scheduled cleanup failed (${guildId}/${rule.channelId}):`,
+    );
   }
 }
 
@@ -182,7 +187,9 @@ export function stopAllAutoDeleteJobs(): void {
  * Destruye jobs previos del guild y registra crons de reglas SCHEDULED.
  * Si el módulo está desactivado, solo limpia.
  */
-export async function syncAutoDeleteJobsForConfig(config: AutoDeleteConfig): Promise<void> {
+export async function syncAutoDeleteJobsForConfig(
+  config: AutoDeleteConfig,
+): Promise<void> {
   const client = botClient;
   stopAutoDeleteJobsForGuild(config.guildId);
   if (!client || !config.enabled) return;

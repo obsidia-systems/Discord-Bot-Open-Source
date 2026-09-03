@@ -1,10 +1,8 @@
-import { eq } from "drizzle-orm";
-import type { Client } from "discord.js";
 import type {
   SaveWelcomeSettingsRequest,
   SaveWelcomeSettingsResponse,
-  WelcomeTextLayer,
   WelcomeSettingsResponse,
+  WelcomeTextLayer,
 } from "@adobos/shared";
 import {
   defaultWelcomeTextLayers,
@@ -17,6 +15,8 @@ import {
   WELCOME_FONT_SIZE_MAX,
   WELCOME_FONT_SIZE_MIN,
 } from "@adobos/shared";
+import type { Client } from "discord.js";
+import { eq } from "drizzle-orm";
 import { getDb, one } from "../../db/client.js";
 import { guildSettings, welcomeSettings } from "../../db/schema.js";
 import { resolvePublicUploadPath } from "../../lib/dataPaths.js";
@@ -63,7 +63,12 @@ function assertSnowflake(value: string, field: string): string {
   return trimmed;
 }
 
-function clamp(value: number, min: number, max: number, fallback: number): number {
+function clamp(
+  value: number,
+  min: number,
+  max: number,
+  fallback: number,
+): number {
   if (!Number.isFinite(value)) return fallback;
   return Math.max(min, Math.min(max, Math.round(value)));
 }
@@ -263,9 +268,16 @@ export async function saveWelcomeSettings(
   }
 
   const blurAmount = clampBlur(input.blurAmount);
-  const messageContent = (input.messageContent ?? "{user}").trim().slice(0, 500);
+  const messageContent = (input.messageContent ?? "{user}")
+    .trim()
+    .slice(0, 500);
   const avatarX = clamp(input.avatarX, 0, WELCOME_CARD_WIDTH, DEFAULTS.avatarX);
-  const avatarY = clamp(input.avatarY, 0, WELCOME_CARD_HEIGHT, DEFAULTS.avatarY);
+  const avatarY = clamp(
+    input.avatarY,
+    0,
+    WELCOME_CARD_HEIGHT,
+    DEFAULTS.avatarY,
+  );
   const avatarSize = clamp(
     input.avatarSize,
     WELCOME_AVATAR_SIZE_MIN,

@@ -1,34 +1,33 @@
+import type { TicketSettings, TicketSummary } from "@adobos/shared";
+import {
+  applyTicketNameTemplate,
+  clampTicketTranscript,
+  TICKET_ADD_PREFIX,
+  TICKET_CLAIM_PREFIX,
+  TICKET_CLOSE_PREFIX,
+  TICKET_REMOVE_PREFIX,
+  TICKET_STATUS_LABEL,
+  TICKET_UNCLAIM_PREFIX,
+  TICKET_UNWAIT_PREFIX,
+  TICKET_WAIT_PREFIX,
+} from "@adobos/shared";
 import {
   ActionRowBuilder,
   AttachmentBuilder,
   ButtonBuilder,
   ButtonStyle,
   ChannelType,
-  EmbedBuilder,
-  OverwriteType,
-  PermissionFlagsBits,
   type Client,
+  EmbedBuilder,
   type Guild,
   type GuildMember,
   type Message,
+  OverwriteType,
+  PermissionFlagsBits,
   type TextChannel,
 } from "discord.js";
-import type { TicketSettings, TicketSummary } from "@adobos/shared";
-import {
-  TICKET_ADD_PREFIX,
-  TICKET_CLAIM_PREFIX,
-  TICKET_CLOSE_PREFIX,
-  TICKET_REMOVE_PREFIX,
-  TICKET_UNCLAIM_PREFIX,
-  TICKET_UNWAIT_PREFIX,
-  TICKET_WAIT_PREFIX,
-  TICKET_STATUS_LABEL,
-  applyTicketNameTemplate,
-  clampTicketTranscript,
-} from "@adobos/shared";
 import { logger } from "../../core/log.js";
 import {
-  TicketsError,
   addTicketParticipant,
   appendChannelDeletedEvent,
   applyTicketAction,
@@ -39,6 +38,7 @@ import {
   insertOpenedTicket,
   removeTicketParticipant,
   setTicketChannelId,
+  TicketsError,
 } from "./service.js";
 
 const TICKET_ALLOW = [
@@ -156,9 +156,7 @@ function controlRows(ticket: TicketSummary): ActionRowBuilder<ButtonBuilder>[] {
 }
 
 function ticketEmbed(ticket: TicketSummary): EmbedBuilder {
-  const staff = ticket.claimedBy
-    ? `<@${ticket.claimedBy}>`
-    : "Nobody yet";
+  const staff = ticket.claimedBy ? `<@${ticket.claimedBy}>` : "Nobody yet";
   return new EmbedBuilder()
     .setColor(embedColorInt("#5865F2"))
     .setTitle(`Ticket #${ticket.number}`)
@@ -254,7 +252,10 @@ async function createTicketChannel(
     });
     return channel;
   } catch (error: unknown) {
-    logger.warn({ err: error, guildId: guild.id }, "Couldn't create the ticket channel");
+    logger.warn(
+      { err: error, guildId: guild.id },
+      "Couldn't create the ticket channel",
+    );
     throw new TicketsError(
       "Couldn't create the channel. Make sure the bot has the Manage Channels permission in that category.",
       400,
@@ -305,13 +306,15 @@ async function postTicketLog(
     .setFooter({ text: `Ticket #${ticket.number}` })
     .setTimestamp(new Date());
   const files = file
-    ? [new AttachmentBuilder(Buffer.from(file.text, "utf8"), { name: file.name })]
+    ? [
+        new AttachmentBuilder(Buffer.from(file.text, "utf8"), {
+          name: file.name,
+        }),
+      ]
     : [];
-  await channel
-    .send({ embeds: [embed], files })
-    .catch((error: unknown) => {
-      logger.warn({ err: error }, "Couldn't send the ticket log");
-    });
+  await channel.send({ embeds: [embed], files }).catch((error: unknown) => {
+    logger.warn({ err: error }, "Couldn't send the ticket log");
+  });
 }
 
 async function dmTranscript(
@@ -420,7 +423,11 @@ export async function claimTicket(input: {
 }): Promise<TicketSummary> {
   const current = await getTicketById(input.ticketId, input.guild.id);
   if (current.claimedBy === input.actor.id && current.status === "claimed") {
-    throw new TicketsError("You already have this ticket.", 409, "ALREADY_CLAIMER");
+    throw new TicketsError(
+      "You already have this ticket.",
+      409,
+      "ALREADY_CLAIMER",
+    );
   }
   const action =
     current.status === "claimed" || current.status === "waiting"
@@ -590,7 +597,11 @@ export async function reopenTicket(input: {
     opener,
   );
   await setTicketChannelId(placeholder.id, channel.id);
-  const live = { ...placeholder, channelId: channel.id, status: "open" as const };
+  const live = {
+    ...placeholder,
+    channelId: channel.id,
+    status: "open" as const,
+  };
   await channel.send({
     content: `<@${current.openerId}>`,
     embeds: [
@@ -650,7 +661,9 @@ export async function removeUserFromTicket(input: {
   if (ticket.channelId) {
     const channel = await fetchTextInGuild(input.guild, ticket.channelId);
     if (channel) {
-      await channel.permissionOverwrites.delete(input.userId).catch(() => undefined);
+      await channel.permissionOverwrites
+        .delete(input.userId)
+        .catch(() => undefined);
     }
   }
   return ticket;

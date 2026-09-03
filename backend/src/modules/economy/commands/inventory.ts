@@ -4,13 +4,13 @@ import type {
 } from "discord.js";
 import { EmbedBuilder } from "discord.js";
 import { and, eq } from "drizzle-orm";
-import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
 import { getDb } from "../../../db/client.js";
 import {
   economyOwnedChannels,
   economyOwnedRoles,
   economyUserBoosts,
 } from "../../../db/schema.js";
+import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
 import { EconomyError } from "../service.js";
 import { EPHEMERAL, visibility } from "./visibility.js";
 
@@ -196,7 +196,11 @@ export async function handleUseCommand(
     const member = await interaction.guild.members.fetch(interaction.user.id);
     const role = await interaction.guild.roles.fetch(row.roleId);
     if (!role) {
-      throw new EconomyError("The role no longer exists in the server.", 400, "ROLE_GONE");
+      throw new EconomyError(
+        "The role no longer exists in the server.",
+        400,
+        "ROLE_GONE",
+      );
     }
 
     if (member.roles.cache.has(role.id)) {

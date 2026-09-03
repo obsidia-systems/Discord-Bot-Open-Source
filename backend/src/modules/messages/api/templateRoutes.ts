@@ -1,22 +1,22 @@
-import path from "node:path";
-import fs from "node:fs";
 import { randomUUID } from "node:crypto";
-import multer from "multer";
-import { Router } from "express";
+import fs from "node:fs";
+import path from "node:path";
 import type { Client } from "discord.js";
+import { Router } from "express";
+import multer from "multer";
+import { guildIdOf } from "../../../core/http/guildContext.js";
+import { recordId } from "../../../core/http/schemas.js";
+import { parse } from "../../../core/http/validate.js";
 import { getTemplatesDir } from "../../../lib/dataPaths.js";
 import { sniffImageFile } from "../../../lib/imageMagic.js";
-import { guildIdOf } from "../../../core/http/guildContext.js";
-import { parse } from "../../../core/http/validate.js";
-import { recordId } from "../../../core/http/schemas.js";
-import { saveEmbedTemplateSchema } from "./schema.js";
 import {
-  EmbedTemplateError,
   deleteEmbedTemplate,
+  EmbedTemplateError,
   getEmbedTemplate,
   listEmbedTemplates,
   saveEmbedTemplate,
 } from "../templates/service.js";
+import { saveEmbedTemplateSchema } from "./schema.js";
 
 const ALLOWED_MIME = new Set([
   "image/png",
@@ -93,8 +93,7 @@ export function embedTemplateRoutes(_bot: Client): Router {
   const router = Router();
 
   router.get("/", async (req, res, next) => {
-    const guildId =
-      guildIdOf(req);
+    const guildId = guildIdOf(req);
     try {
       res.json(await listEmbedTemplates(guildId));
     } catch (error: unknown) {

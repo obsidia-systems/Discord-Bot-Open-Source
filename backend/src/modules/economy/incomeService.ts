@@ -21,31 +21,26 @@ import { EconomyError } from "./service.js";
 function resolveGuildId(guildId?: string): string {
   const id = (guildId ?? "").trim();
   if (!id) {
-    throw new EconomyError(
-      "Missing guildId.",
-      400,
-      "MISSING_GUILD_ID",
-    );
+    throw new EconomyError("Missing guildId.", 400, "MISSING_GUILD_ID");
   }
   return id;
 }
 
 async function ensureGuildRow(guildId: string): Promise<void> {
-  const existing = await one(getDb()
-    .select({ guildId: guildSettings.guildId })
-    .from(guildSettings)
-    .where(eq(guildSettings.guildId, guildId))
-    .limit(1));
+  const existing = await one(
+    getDb()
+      .select({ guildId: guildSettings.guildId })
+      .from(guildSettings)
+      .where(eq(guildSettings.guildId, guildId))
+      .limit(1),
+  );
   if (!existing) {
-    await getDb()
-      .insert(guildSettings)
-      .values({
-        guildId,
-        prefix: "!",
-        welcomeEnabled: false,
-        updatedAt: new Date(),
-      })
-      ;
+    await getDb().insert(guildSettings).values({
+      guildId,
+      prefix: "!",
+      welcomeEnabled: false,
+      updatedAt: new Date(),
+    });
   }
 }
 
@@ -59,7 +54,9 @@ function parseJsonArray<T>(raw: string | null | undefined, fallback: T[]): T[] {
   }
 }
 
-function parseJsonObject(raw: string | null | undefined): Record<string, unknown> {
+function parseJsonObject(
+  raw: string | null | undefined,
+): Record<string, unknown> {
   if (!raw) return {};
   try {
     const parsed = JSON.parse(raw) as unknown;
@@ -87,9 +84,7 @@ function sanitizeRoleSalaries(raw: unknown): EconomyRoleSalary[] {
         row.frequency === "weekly" ? ("weekly" as const) : ("daily" as const);
       return {
         id:
-          typeof row.id === "string" && row.id.trim()
-            ? row.id.trim()
-            : newId(),
+          typeof row.id === "string" && row.id.trim() ? row.id.trim() : newId(),
         roleId,
         amount: clampNonNegInt(Number(row.amount)),
         frequency,
@@ -115,9 +110,7 @@ function sanitizeJobs(raw: unknown): EconomyJob[] {
           : "You worked as {job} and earned {payout} {currency}.";
       return {
         id:
-          typeof row.id === "string" && row.id.trim()
-            ? row.id.trim()
-            : newId(),
+          typeof row.id === "string" && row.id.trim() ? row.id.trim() : newId(),
         name,
         minPay: pay.min,
         maxPay: pay.max,
@@ -156,9 +149,7 @@ function sanitizeCrimes(raw: unknown): EconomyCrime[] {
           : "You got caught during «{crime}». Fine of {fine} {currency}.";
       return {
         id:
-          typeof row.id === "string" && row.id.trim()
-            ? row.id.trim()
-            : newId(),
+          typeof row.id === "string" && row.id.trim() ? row.id.trim() : newId(),
         name,
         successChance: clampPercent(Number(row.successChance)),
         minReward: reward.min,
@@ -192,7 +183,10 @@ function sanitizeRob(raw: unknown): EconomyRobConfig {
     ),
     cooldownMinutes: Math.min(
       10080,
-      Math.max(1, clampNonNegInt(Number(row.cooldownMinutes), base.cooldownMinutes)),
+      Math.max(
+        1,
+        clampNonNegInt(Number(row.cooldownMinutes), base.cooldownMinutes),
+      ),
     ),
     minTargetWallet: clampNonNegInt(
       Number(row.minTargetWallet ?? base.minTargetWallet),
@@ -217,22 +211,24 @@ function rowToConfig(
     monthlyPay: row.monthlyPay,
     streakEnabled: row.streakEnabled,
     streakBonusPercent: row.streakBonusPercent,
-    roleSalaries: sanitizeRoleSalaries(
-      parseJsonArray(row.roleSalaries, []),
-    ),
+    roleSalaries: sanitizeRoleSalaries(parseJsonArray(row.roleSalaries, [])),
     jobs: sanitizeJobs(parseJsonArray(row.jobs, [])),
     crimes: sanitizeCrimes(parseJsonArray(row.crimes, [])),
     rob: sanitizeRob(parseJsonObject(row.rob)),
   };
 }
 
-export async function getEconomyIncomeConfig(guildId?: string): Promise<EconomyIncomeConfig> {
+export async function getEconomyIncomeConfig(
+  guildId?: string,
+): Promise<EconomyIncomeConfig> {
   const id = resolveGuildId(guildId);
-  const row = await one(getDb()
-    .select()
-    .from(economyIncome)
-    .where(eq(economyIncome.guildId, id))
-    .limit(1));
+  const row = await one(
+    getDb()
+      .select()
+      .from(economyIncome)
+      .where(eq(economyIncome.guildId, id))
+      .limit(1),
+  );
   return await rowToConfig(id, row);
 }
 
@@ -307,8 +303,7 @@ export async function updateEconomyIncomeConfig(
         rob: JSON.stringify(next.rob),
         updatedAt: now,
       },
-    })
-    ;
+    });
 
   return next;
 }

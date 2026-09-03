@@ -1,7 +1,4 @@
-import {
-  AuditLogEvent,
-  type AnyThreadChannel,
-} from "discord.js";
+import { type AnyThreadChannel, AuditLogEvent } from "discord.js";
 import { resolveAuditExecutor } from "../audit.js";
 import { recordActionLog } from "../service.js";
 

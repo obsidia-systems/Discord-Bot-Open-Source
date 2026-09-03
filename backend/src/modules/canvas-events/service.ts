@@ -1,5 +1,3 @@
-import { and, eq } from "drizzle-orm";
-import type { Client } from "discord.js";
 import type {
   CanvasEventSettingsResponse,
   CanvasEventType,
@@ -15,14 +13,16 @@ import {
   WELCOME_CARD_HEIGHT,
   WELCOME_CARD_WIDTH,
 } from "@adobos/shared";
+import type { Client } from "discord.js";
+import { and, eq } from "drizzle-orm";
 import { getDb, one } from "../../db/client.js";
 import { canvasEventSettings, guildSettings } from "../../db/schema.js";
+import { resolvePublicUploadPath } from "../../lib/dataPaths.js";
+import { assertGuildWelcomeChannel } from "../welcome/channel.js";
 import {
   normalizeTextLayers,
   parseTextLayersJson,
 } from "../welcome/service.js";
-import { resolvePublicUploadPath } from "../../lib/dataPaths.js";
-import { assertGuildWelcomeChannel } from "../welcome/channel.js";
 
 export class CanvasEventSettingsError extends Error {
   constructor(
@@ -138,7 +138,12 @@ function storedBackgroundUrl(raw: string | null | undefined): string {
   return isWelcomeRemoteBackground(trimmed) ? trimmed : "";
 }
 
-function clamp(value: number, min: number, max: number, fallback: number): number {
+function clamp(
+  value: number,
+  min: number,
+  max: number,
+  fallback: number,
+): number {
   if (!Number.isFinite(value)) return fallback;
   return Math.max(min, Math.min(max, Math.round(value)));
 }
@@ -162,21 +167,19 @@ async function ensureGuildRow(guildId: string): Promise<void> {
   const db = getDb();
   const existing = await one(
     db
-    .select()
-    .from(guildSettings)
-    .where(eq(guildSettings.guildId, guildId))
-    .limit(1)
+      .select()
+      .from(guildSettings)
+      .where(eq(guildSettings.guildId, guildId))
+      .limit(1),
   );
 
   if (!existing) {
-    await db.insert(guildSettings)
-      .values({
-        guildId,
-        prefix: "!",
-        welcomeEnabled: false,
-        updatedAt: new Date(),
-      })
-      ;
+    await db.insert(guildSettings).values({
+      guildId,
+      prefix: "!",
+      welcomeEnabled: false,
+      updatedAt: new Date(),
+    });
   }
 }
 
@@ -189,21 +192,20 @@ export async function getCanvasEventSettings(
   guildIdRaw?: string,
 ): Promise<CanvasEventSettingsResponse> {
   const eventType = assertEventType(eventTypeRaw);
-  const guildId = assertSnowflake(
-    guildIdRaw?.trim() || "",
-    "guildId",
-  );
+  const guildId = assertSnowflake(guildIdRaw?.trim() || "", "guildId");
 
-  const row = await one(getDb()
-    .select()
-    .from(canvasEventSettings)
-    .where(
-      and(
-        eq(canvasEventSettings.guildId, guildId),
-        eq(canvasEventSettings.eventType, eventType),
-      ),
-    )
-    .limit(1));
+  const row = await one(
+    getDb()
+      .select()
+      .from(canvasEventSettings)
+      .where(
+        and(
+          eq(canvasEventSettings.guildId, guildId),
+          eq(canvasEventSettings.eventType, eventType),
+        ),
+      )
+      .limit(1),
+  );
 
   if (!row) {
     return {
@@ -281,7 +283,12 @@ export async function saveCanvasEventSettings(
   )
     .trim()
     .slice(0, 500);
-  const avatarX = clamp(input.avatarX, 0, WELCOME_CARD_WIDTH, WELCOME_CARD_WIDTH / 2);
+  const avatarX = clamp(
+    input.avatarX,
+    0,
+    WELCOME_CARD_WIDTH,
+    WELCOME_CARD_WIDTH / 2,
+  );
   const avatarY = clamp(input.avatarY, 0, WELCOME_CARD_HEIGHT, 380);
   const avatarSize = clamp(
     input.avatarSize,
@@ -382,6 +389,5 @@ export async function disableCanvasEventSettings(
         eq(canvasEventSettings.guildId, guildId),
         eq(canvasEventSettings.eventType, eventType),
       ),
-    )
-    ;
+    );
 }

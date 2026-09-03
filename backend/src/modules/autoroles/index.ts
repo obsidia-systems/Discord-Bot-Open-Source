@@ -1,12 +1,12 @@
+import { exclusiveSelectRoleIds } from "@adobos/shared";
 import {
-  GatewayIntentBits,
   type ButtonInteraction,
+  GatewayIntentBits,
   type StringSelectMenuInteraction,
 } from "discord.js";
-import { exclusiveSelectRoleIds } from "@adobos/shared";
 import type { AdobosModule } from "../../core/modules/types.js";
-import { autoroleRoutes } from "./api/routes.js";
 import { rolesRoutes } from "./api/roles.routes.js";
+import { autoroleRoutes } from "./api/routes.js";
 import {
   assignableSkipMessage,
   isRoleAssignableInGuild,
@@ -20,7 +20,9 @@ async function replyEphemeral(
   content: string,
 ): Promise<void> {
   if (interaction.replied || interaction.deferred) {
-    await interaction.followUp({ content, ephemeral: true }).catch(() => undefined);
+    await interaction
+      .followUp({ content, ephemeral: true })
+      .catch(() => undefined);
     return;
   }
   await interaction.reply({ content, ephemeral: true }).catch(() => undefined);

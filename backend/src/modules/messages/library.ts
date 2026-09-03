@@ -1,5 +1,3 @@
-import { desc, eq } from "drizzle-orm";
-import type { Client } from "discord.js";
 import type {
   DeleteSentEmbedResponse,
   EditSentEmbedRequest,
@@ -10,16 +8,18 @@ import type {
   SendEmbedResponse,
   SentEmbedRecord,
 } from "@adobos/shared";
+import type { Client } from "discord.js";
+import { desc, eq } from "drizzle-orm";
 import { getDb, one } from "../../db/client.js";
 import { sentEmbeds } from "../../db/schema.js";
-import { listEmbedTemplates } from "./templates/service.js";
 import {
   deleteDiscordMessage,
+  type EmbedUploadedFiles,
   editEmbedMessage,
   MessageSendError,
   sendEmbedMessage,
-  type EmbedUploadedFiles,
 } from "./api/controller.js";
+import { listEmbedTemplates } from "./templates/service.js";
 
 function resolveGuildId(raw?: string): string {
   const guildId = raw?.trim() || "";
@@ -74,8 +74,7 @@ export async function getEmbedLibrary(
     .select()
     .from(sentEmbeds)
     .where(eq(sentEmbeds.guildId, guildId))
-    .orderBy(desc(sentEmbeds.createdAt))
-    ;
+    .orderBy(desc(sentEmbeds.createdAt));
 
   const guild = bot.guilds.cache.get(guildId);
   const sentMessages = rows.map((row) => {
@@ -109,11 +108,9 @@ export async function editSentEmbed(
   guildIdRaw?: string,
 ): Promise<EditSentEmbedResponse> {
   const guildId = resolveGuildId(guildIdRaw);
-  const row = await one(getDb()
-    .select()
-    .from(sentEmbeds)
-    .where(eq(sentEmbeds.id, id))
-    .limit(1));
+  const row = await one(
+    getDb().select().from(sentEmbeds).where(eq(sentEmbeds.id, id)).limit(1),
+  );
 
   if (!row || row.guildId !== guildId) {
     throw new MessageSendError("Sent message not found.", 404, "NOT_FOUND");
@@ -159,17 +156,16 @@ export async function editSentEmbed(
   await getDb()
     .update(sentEmbeds)
     .set({
-      title: payload.title?.trim() || payload.content?.slice(0, 80) || row.title,
+      title:
+        payload.title?.trim() || payload.content?.slice(0, 80) || row.title,
       embedData: JSON.stringify(snapshot ?? payload),
       updatedAt: now,
     })
     .where(eq(sentEmbeds.id, id));
 
-  const updated = await one(getDb()
-    .select()
-    .from(sentEmbeds)
-    .where(eq(sentEmbeds.id, id))
-    .limit(1));
+  const updated = await one(
+    getDb().select().from(sentEmbeds).where(eq(sentEmbeds.id, id)).limit(1),
+  );
   if (!updated) {
     throw new MessageSendError("Message not found.", 404, "NOT_FOUND");
   }
@@ -183,11 +179,9 @@ export async function deleteSentEmbed(
   guildIdRaw?: string,
 ): Promise<DeleteSentEmbedResponse> {
   const guildId = resolveGuildId(guildIdRaw);
-  const row = await one(getDb()
-    .select()
-    .from(sentEmbeds)
-    .where(eq(sentEmbeds.id, id))
-    .limit(1));
+  const row = await one(
+    getDb().select().from(sentEmbeds).where(eq(sentEmbeds.id, id)).limit(1),
+  );
 
   if (!row || row.guildId !== guildId) {
     throw new MessageSendError("Sent message not found.", 404, "NOT_FOUND");

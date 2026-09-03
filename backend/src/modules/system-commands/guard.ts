@@ -1,23 +1,20 @@
-import type { ChatInputCommandInteraction, GuildMember } from "discord.js";
-import { PermissionFlagsBits } from "discord.js";
 import {
   featureLockedMessage,
   getSystemCommandDefinition,
   tierHasFeature,
 } from "@adobos/shared";
-import { getGuildTier } from "../../core/entitlements/service.js";
+import type { ChatInputCommandInteraction, GuildMember } from "discord.js";
+import { PermissionFlagsBits } from "discord.js";
 import { featureForCommandCategory } from "../../core/entitlements/features.js";
-import { getCommandPermission } from "./service.js";
+import { getGuildTier } from "../../core/entitlements/service.js";
 import { setInteractionEphemeral } from "./ephemeral.js";
+import { getCommandPermission } from "./service.js";
 
 export type SystemCommandGuardResult =
   | { ok: true; ephemeral: boolean }
   | { ok: false; message: string };
 
-function memberHasAnyRole(
-  member: GuildMember,
-  roleIds: string[],
-): boolean {
+function memberHasAnyRole(member: GuildMember, roleIds: string[]): boolean {
   if (roleIds.length === 0) return true;
   return roleIds.some((id) => member.roles.cache.has(id));
 }

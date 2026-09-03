@@ -1,8 +1,8 @@
 import { ChannelType, type Client } from "discord.js";
 import { Router } from "express";
 import { guildIdOf } from "../../../core/http/guildContext.js";
-import { parse } from "../../../core/http/validate.js";
 import { recordId } from "../../../core/http/schemas.js";
+import { parse } from "../../../core/http/validate.js";
 import { destroyVoicePair } from "../rooms.js";
 import {
   createGenerator,

@@ -1,10 +1,10 @@
-import { z } from "zod";
 import {
   AUTO_MOD_MAX_ALLOWED_LINKS,
   AUTO_MOD_MAX_BANNED_WORDS,
   AUTO_MOD_MAX_LINK_LENGTH,
   AUTO_MOD_MAX_WORD_LENGTH,
 } from "@adobos/shared";
+import { z } from "zod";
 import {
   nonNegInt,
   posInt,

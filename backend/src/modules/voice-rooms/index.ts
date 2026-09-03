@@ -1,8 +1,8 @@
-import { GatewayIntentBits } from "discord.js";
 import {
   VOICE_ROOM_SELECT_PREFIX,
   voiceRoomsSlashCommandBody,
 } from "@adobos/shared";
+import { GatewayIntentBits } from "discord.js";
 import type { AdobosModule } from "../../core/modules/types.js";
 import { voiceRoomsRoutes } from "./api/routes.js";
 import { handleVoiceCommand, handleVoiceRoomSelect } from "./commands.js";
@@ -30,11 +30,11 @@ export const voiceRoomsModule: AdobosModule = {
   },
 };
 
+export { reconcileVoiceRooms } from "./events.js";
 export {
-  VoiceRoomsError,
   createGenerator,
   deleteGenerator,
   listVoiceRoomsConfig,
   updateGenerator,
+  VoiceRoomsError,
 } from "./service.js";
-export { reconcileVoiceRooms } from "./events.js";
