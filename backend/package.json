@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@adobos/shared": "workspace:*",
+    "@discordjs/rest": "^2.6.3",
     "@napi-rs/canvas": "^1.0.8",
     "bullmq": "^6.3.4",
     "cookie-parser": "^1.4.7",

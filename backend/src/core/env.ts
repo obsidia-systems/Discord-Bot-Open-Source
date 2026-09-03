@@ -85,6 +85,13 @@ export function loadEnv(): AppEnv {
       `Invalid ADOBO_ROLE (${raw.ADOBO_ROLE}). Use all | api | gateway | worker.`,
     );
   }
+  // Multi-proceso: los roles ≠ all comparten caché, rate-limit y cola por Redis.
+  // `all` (dev / nodo único) sigue con los fallbacks en memoria.
+  if (raw.ADOBO_ROLE !== "all" && !raw.REDIS_URL?.trim()) {
+    throw new Error(
+      `ADOBO_ROLE=${raw.ADOBO_ROLE} requires REDIS_URL (shared cache / rate-limit / queue). Only ADOBO_ROLE=all runs without Redis.`,
+    );
+  }
   if (raw.NODE_ENV === "production" && !raw.CORS_ORIGIN?.trim()) {
     throw new Error(
       "CORS_ORIGIN is required in production (allowlist, not origin:true).",
