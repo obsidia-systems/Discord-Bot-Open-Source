@@ -56,9 +56,12 @@ export async function initDatabase(): Promise<AppDatabase> {
   for (let attempt = 1; attempt <= 8; attempt++) {
     const migrationClient = postgres(url, { max: 1, connect_timeout: 10 });
     try {
-      await migrate(drizzle(migrationClient, { schema }), {
-        migrationsFolder: folder,
-      });
+      await migrate(
+        drizzle(migrationClient, { schema, casing: "snake_case" }),
+        {
+          migrationsFolder: folder,
+        },
+      );
       await migrationClient.end({ timeout: 5 });
 
       const max = poolMax();
@@ -74,7 +77,7 @@ export async function initDatabase(): Promise<AppDatabase> {
           application_name: `adobos-${runtimeRole()}`,
         },
       });
-      db = drizzle(sql, { schema });
+      db = drizzle(sql, { schema, casing: "snake_case" });
       logger.info({ poolMax: max, role: runtimeRole() }, "Postgres listo");
       return db;
     } catch (error: unknown) {

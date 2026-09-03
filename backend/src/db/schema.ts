@@ -15,12 +15,12 @@ import {
  * Extensible sin romper plugins: campos nuevos se añaden aquí; flags de features van a plugins_enabled.
  */
 export const guildSettings = pgTable("guild_settings", {
-  guildId: text("guild_id").primaryKey(),
-  prefix: text("prefix").notNull().default("!"),
+  guildId: text().primaryKey(),
+  prefix: text().notNull().default("!"),
   /** Canal principal de Action Logs (null = sin logs configurados). */
-  logChannelId: text("log_channel_id"),
-  welcomeEnabled: boolean("welcome_enabled").notNull().default(false),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+  logChannelId: text(),
+  welcomeEnabled: boolean().notNull().default(false),
+  updatedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -32,12 +32,12 @@ export const guildSettings = pgTable("guild_settings", {
 export const pluginsEnabled = pgTable(
   "plugins_enabled",
   {
-    guildId: text("guild_id")
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    pluginName: text("plugin_name").notNull(),
-    enabled: boolean("enabled").notNull().default(false),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    pluginName: text().notNull(),
+    enabled: boolean().notNull().default(false),
+    updatedAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -51,14 +51,14 @@ export const pluginsEnabled = pgTable(
 export const reactionRoles = pgTable(
   "reaction_roles",
   {
-    guildId: text("guild_id")
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    channelId: text("channel_id").notNull(),
-    messageId: text("message_id").notNull(),
-    emojiKey: text("emoji_key").notNull(),
-    roleId: text("role_id").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    channelId: text().notNull(),
+    messageId: text().notNull(),
+    emojiKey: text().notNull(),
+    roleId: text().notNull(),
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -69,14 +69,14 @@ export const reactionRoles = pgTable(
  * Roles automáticos al unirse (humanos vs bots).
  */
 export const autoRoles = pgTable("auto_roles", {
-  guildId: text("guild_id")
+  guildId: text()
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
   /** JSON: string[] role IDs */
-  humanRoles: text("human_roles").notNull().default("[]"),
+  humanRoles: text().notNull().default("[]"),
   /** JSON: string[] role IDs */
-  botRoles: text("bot_roles").notNull().default("[]"),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+  botRoles: text().notNull().default("[]"),
+  updatedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -86,19 +86,19 @@ export const autoRoles = pgTable("auto_roles", {
  * @deprecated Preferir `autoroles_registry`.
  */
 export const reactionRolesMenus = pgTable("reaction_roles_menus", {
-  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-  guildId: text("guild_id")
+  id: integer().primaryKey().generatedByDefaultAsIdentity(),
+  guildId: text()
     .notNull()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  channelId: text("channel_id").notNull(),
-  messageId: text("message_id").notNull(),
-  mode: text("mode").notNull().default("reactions"),
+  channelId: text().notNull(),
+  messageId: text().notNull(),
+  mode: text().notNull().default("reactions"),
   /** JSON: mappings (emoji/button → role) */
-  rolesMapping: text("roles_mapping").notNull().default("[]"),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+  rolesMapping: text().notNull().default("[]"),
+  createdAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+  updatedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -107,21 +107,21 @@ export const reactionRolesMenus = pgTable("reaction_roles_menus", {
  * Registro persistente de menús de autoroles publicados.
  */
 export const autorolesRegistry = pgTable("autoroles_registry", {
-  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-  guildId: text("guild_id")
+  id: integer().primaryKey().generatedByDefaultAsIdentity(),
+  guildId: text()
     .notNull()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  channelId: text("channel_id").notNull(),
-  messageId: text("message_id").notNull(),
-  title: text("title").notNull().default("Autoroles"),
+  channelId: text().notNull(),
+  messageId: text().notNull(),
+  title: text().notNull().default("Autoroles"),
   /** BUTTONS | SELECT | REACTIONS */
-  type: text("type").notNull().default("BUTTONS"),
+  type: text().notNull().default("BUTTONS"),
   /** JSON: [{ id, roleId, label, emojiKey, style }] */
-  rolesMapping: text("roles_mapping").notNull().default("[]"),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+  rolesMapping: text().notNull().default("[]"),
+  createdAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+  updatedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -130,43 +130,43 @@ export const autorolesRegistry = pgTable("autoroles_registry", {
  * Tarjeta de bienvenida por servidor (imagen PNG generada).
  */
 export const welcomeSettings = pgTable("welcome_settings", {
-  guildId: text("guild_id")
+  guildId: text()
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  channelId: text("channel_id"),
-  isEnabled: boolean("is_enabled").notNull().default(false),
+  channelId: text(),
+  isEnabled: boolean().notNull().default(false),
   /** Legacy: el módulo siempre opera como canvas (`card`). */
-  welcomeMode: text("welcome_mode").notNull().default("card"),
+  welcomeMode: text().notNull().default("card"),
   /** URL remota — opcional si hay bg_filepath. */
-  backgroundUrl: text("background_url"),
+  backgroundUrl: text(),
   /** Ruta pública local: `/uploads/backgrounds/...` */
-  bgFilepath: text("bg_filepath"),
-  blurAmount: integer("blur_amount").notNull().default(4),
+  bgFilepath: text(),
+  blurAmount: integer().notNull().default(4),
   /**
    * @deprecated Migrado a `textLayers`. Se mantiene para lectura legacy.
    */
-  primaryText: text("primary_text").notNull().default("Welcome!"),
+  primaryText: text().notNull().default("Welcome!"),
   /**
    * @deprecated Migrado a `textLayers`.
    */
-  secondaryText: text("secondary_text").notNull().default("{username}"),
+  secondaryText: text().notNull().default("{username}"),
   /** Texto opcional del mensaje Discord (o descripción embed). */
-  messageContent: text("message_content").notNull().default("{user}"),
-  avatarX: integer("avatar_x").notNull().default(960),
-  avatarY: integer("avatar_y").notNull().default(380),
-  avatarSize: integer("avatar_size").notNull().default(280),
-  avatarBorderWidth: integer("avatar_border_width").notNull().default(8),
-  avatarBorderColor: text("avatar_border_color").notNull().default("#FFFFFF"),
+  messageContent: text().notNull().default("{user}"),
+  avatarX: integer().notNull().default(960),
+  avatarY: integer().notNull().default(380),
+  avatarSize: integer().notNull().default(280),
+  avatarBorderWidth: integer().notNull().default(8),
+  avatarBorderColor: text().notNull().default("#FFFFFF"),
   /**
    * @deprecated Coordenadas legacy; las capas viven en textLayers.
    */
-  textX: integer("text_x").notNull().default(960),
-  textY: integer("text_y").notNull().default(560),
-  fontSize: integer("font_size").notNull().default(64),
-  textColor: text("text_color").notNull().default("#FFFFFF"),
+  textX: integer().notNull().default(960),
+  textY: integer().notNull().default(560),
+  fontSize: integer().notNull().default(64),
+  textColor: text().notNull().default("#FFFFFF"),
   /** JSON: WelcomeTextLayer[] */
-  textLayers: text("text_layers"),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+  textLayers: text(),
+  updatedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -178,30 +178,30 @@ export const welcomeSettings = pgTable("welcome_settings", {
 export const canvasEventSettings = pgTable(
   "canvas_event_settings",
   {
-    guildId: text("guild_id")
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
     /** `leave` | `ban` | `boost` */
-    eventType: text("event_type").notNull(),
-    channelId: text("channel_id"),
-    isEnabled: boolean("is_enabled").notNull().default(false),
-    backgroundUrl: text("background_url"),
-    bgFilepath: text("bg_filepath"),
-    blurAmount: integer("blur_amount").notNull().default(4),
-    primaryText: text("primary_text").notNull().default("See you soon!"),
-    secondaryText: text("secondary_text").notNull().default("{username}"),
-    messageContent: text("message_content").notNull().default("{user}"),
-    avatarX: integer("avatar_x").notNull().default(960),
-    avatarY: integer("avatar_y").notNull().default(380),
-    avatarSize: integer("avatar_size").notNull().default(280),
-    avatarBorderWidth: integer("avatar_border_width").notNull().default(8),
-    avatarBorderColor: text("avatar_border_color").notNull().default("#FFFFFF"),
-    textX: integer("text_x").notNull().default(960),
-    textY: integer("text_y").notNull().default(560),
-    fontSize: integer("font_size").notNull().default(64),
-    textColor: text("text_color").notNull().default("#FFFFFF"),
-    textLayers: text("text_layers"),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    eventType: text().notNull(),
+    channelId: text(),
+    isEnabled: boolean().notNull().default(false),
+    backgroundUrl: text(),
+    bgFilepath: text(),
+    blurAmount: integer().notNull().default(4),
+    primaryText: text().notNull().default("See you soon!"),
+    secondaryText: text().notNull().default("{username}"),
+    messageContent: text().notNull().default("{user}"),
+    avatarX: integer().notNull().default(960),
+    avatarY: integer().notNull().default(380),
+    avatarSize: integer().notNull().default(280),
+    avatarBorderWidth: integer().notNull().default(8),
+    avatarBorderColor: text().notNull().default("#FFFFFF"),
+    textX: integer().notNull().default(960),
+    textY: integer().notNull().default(560),
+    fontSize: integer().notNull().default(64),
+    textColor: text().notNull().default("#FFFFFF"),
+    textLayers: text(),
+    updatedAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -214,13 +214,13 @@ export const canvasEventSettings = pgTable(
  */
 export const botPresenceSettings = pgTable("bot_presence_settings", {
   /** Siempre `default` (una sola fila). */
-  id: text("id").primaryKey().default("default"),
-  status: text("status").notNull().default("online"),
-  activityType: text("activity_type").notNull().default("Playing"),
-  activityName: text("activity_name").notNull().default(""),
-  streamUrl: text("stream_url"),
-  state: text("state").notNull().default(""),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+  id: text().primaryKey().default("default"),
+  status: text().notNull().default("online"),
+  activityType: text().notNull().default("Playing"),
+  activityName: text().notNull().default(""),
+  streamUrl: text(),
+  state: text().notNull().default(""),
+  updatedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -231,14 +231,14 @@ export const botPresenceSettings = pgTable("bot_presence_settings", {
 export const warnings = pgTable(
   "warnings",
   {
-    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-    guildId: text("guild_id")
+    id: integer().primaryKey().generatedByDefaultAsIdentity(),
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    userId: text("user_id").notNull(),
-    moderatorId: text("moderator_id").notNull(),
-    reason: text("reason").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    userId: text().notNull(),
+    moderatorId: text().notNull(),
+    reason: text().notNull(),
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -249,17 +249,17 @@ export const warnings = pgTable(
  * Plantillas de embed reutilizables (moderación DM, anuncios, etc.).
  */
 export const embedTemplates = pgTable("embed_templates", {
-  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-  guildId: text("guild_id")
+  id: integer().primaryKey().generatedByDefaultAsIdentity(),
+  guildId: text()
     .notNull()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  name: text("name").notNull(),
+  name: text().notNull(),
   /** JSON: EmbedPayload */
-  embedData: text("embed_data").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+  embedData: text().notNull(),
+  createdAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+  updatedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -270,19 +270,19 @@ export const embedTemplates = pgTable("embed_templates", {
 export const sentEmbeds = pgTable(
   "sent_embeds",
   {
-    id: text("id").primaryKey(),
-    guildId: text("guild_id")
+    id: text().primaryKey(),
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    channelId: text("channel_id").notNull(),
-    messageId: text("message_id").notNull(),
-    title: text("title"),
+    channelId: text().notNull(),
+    messageId: text().notNull(),
+    title: text(),
     /** JSON: EmbedPayload + components */
-    embedData: text("embed_data").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    embedData: text().notNull(),
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    updatedAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -297,17 +297,17 @@ export const sentEmbeds = pgTable(
 export const modLogs = pgTable(
   "mod_logs",
   {
-    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-    guildId: text("guild_id")
+    id: integer().primaryKey().generatedByDefaultAsIdentity(),
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    action: text("action").notNull(),
-    targetUserId: text("target_user_id"),
-    targetChannelId: text("target_channel_id"),
-    moderatorId: text("moderator_id").notNull(),
-    reason: text("reason").notNull().default(""),
-    meta: text("meta"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    action: text().notNull(),
+    targetUserId: text(),
+    targetChannelId: text(),
+    moderatorId: text().notNull(),
+    reason: text().notNull().default(""),
+    meta: text(),
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -318,27 +318,27 @@ export const modLogs = pgTable(
  * Configuración de Action Logs por guild (canales, filtros, eventos).
  */
 export const actionLogsConfig = pgTable("action_logs_config", {
-  guildId: text("guild_id")
+  guildId: text()
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  enabled: boolean("enabled").notNull().default(false),
+  enabled: boolean().notNull().default(false),
   /** GLOBAL | CATEGORY */
-  routingMode: text("routing_mode").notNull().default("GLOBAL"),
-  globalChannelId: text("global_channel_id"),
+  routingMode: text().notNull().default("GLOBAL"),
+  globalChannelId: text(),
   /** JSON: { messages, members, server, assets } */
-  channelsMapping: text("channels_mapping").notNull().default("{}"),
+  channelsMapping: text().notNull().default("{}"),
   /** JSON: string[] */
-  ignoredChannels: text("ignored_channels").notNull().default("[]"),
+  ignoredChannels: text().notNull().default("[]"),
   /** JSON: string[] */
-  ignoredRoles: text("ignored_roles").notNull().default("[]"),
-  ignoreBots: boolean("ignore_bots").notNull().default(true),
+  ignoredRoles: text().notNull().default("[]"),
+  ignoreBots: boolean().notNull().default(true),
   /** JSON: Record<eventKey, boolean> */
-  enabledEvents: text("enabled_events").notNull().default("{}"),
+  enabledEvents: text().notNull().default("{}"),
   /** Días de retención del historial; 0 = sin límite. */
-  dataRetentionDays: integer("data_retention_days").notNull().default(14),
+  dataRetentionDays: integer().notNull().default(14),
   /** JSON: { [channelId]: webhookId } */
-  webhooksMapping: text("webhooks_mapping").notNull().default("{}"),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+  webhooksMapping: text().notNull().default("{}"),
+  updatedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -349,21 +349,21 @@ export const actionLogsConfig = pgTable("action_logs_config", {
 export const actionLogs = pgTable(
   "action_logs",
   {
-    id: text("id").primaryKey(),
-    guildId: text("guild_id")
+    id: text().primaryKey(),
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    category: text("category").notNull(),
-    eventType: text("event_type").notNull(),
-    executorId: text("executor_id"),
-    executorTag: text("executor_tag"),
-    targetId: text("target_id"),
-    targetTag: text("target_tag"),
-    channelId: text("channel_id"),
-    summary: text("summary").notNull().default(""),
+    category: text().notNull(),
+    eventType: text().notNull(),
+    executorId: text(),
+    executorTag: text(),
+    targetId: text(),
+    targetTag: text(),
+    channelId: text(),
+    summary: text().notNull().default(""),
     /** JSON con detalles / diff */
-    details: text("details").notNull().default("{}"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    details: text().notNull().default("{}"),
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -377,28 +377,28 @@ export const actionLogs = pgTable(
  * Las infracciones se registran en `warnings` (sin tabla de strikes propia).
  */
 export const autoModConfig = pgTable("auto_mod_config", {
-  guildId: text("guild_id")
+  guildId: text()
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  enabled: boolean("enabled").notNull().default(false),
+  enabled: boolean().notNull().default(false),
   /** JSON: AutoModFilters */
-  filters: text("filters").notNull().default("{}"),
+  filters: text().notNull().default("{}"),
   /** JSON: string[] */
-  ignoredRoles: text("ignored_roles").notNull().default("[]"),
+  ignoredRoles: text().notNull().default("[]"),
   /** JSON: string[] */
-  ignoredChannels: text("ignored_channels").notNull().default("[]"),
-  logChannelId: text("log_channel_id"),
+  ignoredChannels: text().notNull().default("[]"),
+  logChannelId: text(),
   /** Días para caducidad de Warns activos; 0 = nunca. */
-  warnDecayDays: integer("warn_decay_days").notNull().default(30),
+  warnDecayDays: integer().notNull().default(30),
   /** Registrar warn en cada hit de filtro (default: sí, comportamiento histórico). */
-  warnOnHit: boolean("warn_on_hit").notNull().default(true),
+  warnOnHit: boolean().notNull().default(true),
   /** DM al usuario junto al warn. Ignorado si warnOnHit es false. */
-  dmOnHit: boolean("dm_on_hit").notNull().default(true),
+  dmOnHit: boolean().notNull().default(true),
   /** Saltar Administrator / ManageMessages. */
-  skipStaff: boolean("skip_staff").notNull().default(false),
+  skipStaff: boolean().notNull().default(false),
   /** JSON: AutoModPunishment[] */
-  punishments: text("punishments").notNull().default("[]"),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+  punishments: text().notNull().default("[]"),
+  updatedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -438,15 +438,15 @@ export type NewAutoModConfigRow = typeof autoModConfig.$inferInsert;
  * Configuración de Auto-delete por guild (reglas de borrado por canal).
  */
 export const autoDeleteConfig = pgTable("auto_delete_config", {
-  guildId: text("guild_id")
+  guildId: text()
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  enabled: boolean("enabled").notNull().default(false),
+  enabled: boolean().notNull().default(false),
   /** JSON: AutoDeleteRule[] */
-  rules: text("rules").notNull().default("[]"),
+  rules: text().notNull().default("[]"),
   /** IANA timezone del cron SCHEDULED. */
-  timezone: text("timezone").notNull().default("UTC"),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+  timezone: text().notNull().default("UTC"),
+  updatedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -458,13 +458,13 @@ export type NewAutoDeleteConfigRow = typeof autoDeleteConfig.$inferInsert;
 export const autoDeletePending = pgTable(
   "auto_delete_pending",
   {
-    guildId: text("guild_id")
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    channelId: text("channel_id").notNull(),
-    messageId: text("message_id").notNull(),
-    ruleChannelId: text("rule_channel_id").notNull(),
-    deleteAt: timestamp("delete_at", {
+    channelId: text().notNull(),
+    messageId: text().notNull(),
+    ruleChannelId: text().notNull(),
+    deleteAt: timestamp({
       withTimezone: true,
       mode: "date",
     }).notNull(),
@@ -483,57 +483,43 @@ export const autoDeletePending = pgTable(
  * Configuración de Levels por guild.
  */
 export const xpConfig = pgTable("xp_config", {
-  guildId: text("guild_id")
+  guildId: text()
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  enabled: boolean("enabled").notNull().default(false),
-  textXpMin: integer("text_xp_min").notNull().default(15),
-  textXpMax: integer("text_xp_max").notNull().default(25),
-  cooldownSeconds: integer("cooldown_seconds").notNull().default(60),
-  voiceEnabled: boolean("voice_enabled").notNull().default(false),
-  voiceXpPerMinute: integer("voice_xp_per_minute").notNull().default(10),
+  enabled: boolean().notNull().default(false),
+  textXpMin: integer().notNull().default(15),
+  textXpMax: integer().notNull().default(25),
+  cooldownSeconds: integer().notNull().default(60),
+  voiceEnabled: boolean().notNull().default(false),
+  voiceXpPerMinute: integer().notNull().default(10),
   /** Multiplicador al transmitir pantalla (1.0 = sin bonus). */
-  streamMultiplier: real("stream_multiplier").notNull().default(1),
-  xpMultiplier: integer("xp_multiplier").notNull().default(1),
+  streamMultiplier: real().notNull().default(1),
+  xpMultiplier: integer().notNull().default(1),
   /** JSON: string[] */
-  ignoredRoles: text("ignored_roles").notNull().default("[]"),
+  ignoredRoles: text().notNull().default("[]"),
   /** JSON: string[] */
-  ignoredChannels: text("ignored_channels").notNull().default("[]"),
-  levelUpChannelId: text("level_up_channel_id"),
+  ignoredChannels: text().notNull().default("[]"),
+  levelUpChannelId: text(),
   /** JSON: LevelsRoleMultiplier[] */
-  customMultipliers: text("custom_multipliers").notNull().default("[]"),
+  customMultipliers: text().notNull().default("[]"),
   /** JSON: LevelsChannelMultiplier[] */
-  customChannelMultipliers: text("custom_channel_multipliers")
-    .notNull()
-    .default("[]"),
+  customChannelMultipliers: text().notNull().default("[]"),
   /** TEXT | EMBED | IMAGE */
-  levelUpFormat: text("level_up_format").notNull().default("TEXT"),
-  levelUpMessage: text("level_up_message")
+  levelUpFormat: text().notNull().default("TEXT"),
+  levelUpMessage: text()
     .notNull()
     .default("🎉 {user} reached **level {level}**!"),
-  levelUpEmbedTitle: text("level_up_embed_title")
-    .notNull()
-    .default("Level Up!"),
-  levelUpEmbedColor: text("level_up_embed_color").notNull().default("#34E21D"),
-  levelUpShowThumbnail: boolean("level_up_show_thumbnail")
-    .notNull()
-    .default(true),
-  levelUpImage: text("level_up_image"),
-  liveLeaderboardChannelId: text("live_leaderboard_channel_id"),
-  liveLeaderboardMessageId: text("live_leaderboard_message_id"),
-  leaderboardEmbedTitle: text("leaderboard_embed_title")
-    .notNull()
-    .default("🏆 Leaderboard"),
-  leaderboardEmbedDescription: text("leaderboard_embed_description")
-    .notNull()
-    .default(""),
-  leaderboardEmbedColor: text("leaderboard_embed_color")
-    .notNull()
-    .default("#CA7AFF"),
-  leaderboardShowThumbnail: boolean("leaderboard_show_thumbnail")
-    .notNull()
-    .default(false),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+  levelUpEmbedTitle: text().notNull().default("Level Up!"),
+  levelUpEmbedColor: text().notNull().default("#34E21D"),
+  levelUpShowThumbnail: boolean().notNull().default(true),
+  levelUpImage: text(),
+  liveLeaderboardChannelId: text(),
+  liveLeaderboardMessageId: text(),
+  leaderboardEmbedTitle: text().notNull().default("🏆 Leaderboard"),
+  leaderboardEmbedDescription: text().notNull().default(""),
+  leaderboardEmbedColor: text().notNull().default("#CA7AFF"),
+  leaderboardShowThumbnail: boolean().notNull().default(false),
+  updatedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -542,12 +528,12 @@ export const xpConfig = pgTable("xp_config", {
 export const xpRewards = pgTable(
   "xp_rewards",
   {
-    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-    guildId: text("guild_id")
+    id: integer().primaryKey().generatedByDefaultAsIdentity(),
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    level: integer("level").notNull(),
-    roleId: text("role_id").notNull(),
+    level: integer().notNull(),
+    roleId: text().notNull(),
   },
   (table) => [
     uniqueIndex("idx_xp_rewards_guild_level").on(table.guildId, table.level),
@@ -558,14 +544,14 @@ export const xpRewards = pgTable(
 export const userXp = pgTable(
   "user_xp",
   {
-    guildId: text("guild_id")
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    userId: text("user_id").notNull(),
-    xp: integer("xp").notNull().default(0),
-    level: integer("level").notNull().default(0),
+    userId: text().notNull(),
+    xp: integer().notNull().default(0),
+    level: integer().notNull().default(0),
     /** Si está en el futuro, el usuario no gana XP (Auto Mod XP_FREEZE). */
-    xpFrozenUntil: timestamp("xp_frozen_until", {
+    xpFrozenUntil: timestamp({
       withTimezone: true,
       mode: "date",
     }),
@@ -584,40 +570,40 @@ export type NewUserXpRow = typeof userXp.$inferInsert;
  * Formularios interactivos (Discord Modals) — varios por guild.
  */
 export const guildForms = pgTable("guild_forms", {
-  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-  guildId: text("guild_id")
+  id: integer().primaryKey().generatedByDefaultAsIdentity(),
+  guildId: text()
     .notNull()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  modalTitle: text("modal_title").notNull().default("Form"),
-  buttonLabel: text("button_label").notNull().default("Open form"),
-  embedTitle: text("embed_title").notNull().default("Server form"),
-  embedDescription: text("embed_description")
+  modalTitle: text().notNull().default("Form"),
+  buttonLabel: text().notNull().default("Open form"),
+  embedTitle: text().notNull().default("Server form"),
+  embedDescription: text()
     .notNull()
     .default("Click the button to fill out the form."),
-  embedColor: text("embed_color").notNull().default("#5865F2"),
-  embedImageUrl: text("embed_image_url"),
-  embedThumbnailUrl: text("embed_thumbnail_url"),
-  publishChannelId: text("publish_channel_id"),
-  receptionChannelId: text("reception_channel_id"),
+  embedColor: text().notNull().default("#5865F2"),
+  embedImageUrl: text(),
+  embedThumbnailUrl: text(),
+  publishChannelId: text(),
+  receptionChannelId: text(),
   /** JSON: FormQuestion[] */
-  questions: text("questions").notNull().default("[]"),
-  cooldownMinutes: integer("cooldown_minutes").notNull().default(0),
-  enabled: boolean("enabled").notNull().default(true),
+  questions: text().notNull().default("[]"),
+  cooldownMinutes: integer().notNull().default(0),
+  enabled: boolean().notNull().default(true),
   /** cooldown | once */
-  submitMode: text("submit_mode").notNull().default("cooldown"),
+  submitMode: text().notNull().default("cooldown"),
   /** JSON: snowflake[] */
-  requiredRoleIds: text("required_role_ids").notNull().default("[]"),
+  requiredRoleIds: text().notNull().default("[]"),
   /** JSON: snowflake[] */
-  blockedRoleIds: text("blocked_role_ids").notNull().default("[]"),
-  pingRoleId: text("ping_role_id"),
-  thankYouMessage: text("thank_you_message").notNull().default(""),
-  acceptRoleId: text("accept_role_id"),
-  publishedChannelId: text("published_channel_id"),
-  publishedMessageId: text("published_message_id"),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+  blockedRoleIds: text().notNull().default("[]"),
+  pingRoleId: text(),
+  thankYouMessage: text().notNull().default(""),
+  acceptRoleId: text(),
+  publishedChannelId: text(),
+  publishedMessageId: text(),
+  createdAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+  updatedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -631,24 +617,24 @@ export type NewGuildFormRow = typeof guildForms.$inferInsert;
 export const formResponses = pgTable(
   "form_responses",
   {
-    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-    formId: integer("form_id")
+    id: integer().primaryKey().generatedByDefaultAsIdentity(),
+    formId: integer()
       .notNull()
       .references(() => guildForms.id, { onDelete: "cascade" }),
-    guildId: text("guild_id")
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    userId: text("user_id").notNull(),
-    username: text("username").notNull().default(""),
-    displayName: text("display_name").notNull().default(""),
-    avatarUrl: text("avatar_url"),
+    userId: text().notNull(),
+    username: text().notNull().default(""),
+    displayName: text().notNull().default(""),
+    avatarUrl: text(),
     /** JSON: FormAnswerEntry[] */
-    answers: text("answers").notNull().default("[]"),
+    answers: text().notNull().default("[]"),
     /** pending | accepted | rejected */
-    status: text("status").notNull().default("pending"),
-    reviewedBy: text("reviewed_by"),
-    reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    status: text().notNull().default("pending"),
+    reviewedBy: text(),
+    reviewedAt: timestamp({ withTimezone: true, mode: "date" }),
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -669,22 +655,22 @@ export type NewFormResponseRow = typeof formResponses.$inferInsert;
  * @deprecated Tabla legacy 1:1 por guild. Migrada a `guild_forms`.
  */
 export const interactiveForms = pgTable("interactive_forms", {
-  guildId: text("guild_id")
+  guildId: text()
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  modalTitle: text("modal_title").notNull().default("Form"),
-  buttonLabel: text("button_label").notNull().default("Open form"),
-  embedTitle: text("embed_title").notNull().default("Server form"),
-  embedDescription: text("embed_description")
+  modalTitle: text().notNull().default("Form"),
+  buttonLabel: text().notNull().default("Open form"),
+  embedTitle: text().notNull().default("Server form"),
+  embedDescription: text()
     .notNull()
     .default("Click the button to fill out the form."),
-  embedColor: text("embed_color").notNull().default("#5865F2"),
-  publishChannelId: text("publish_channel_id"),
-  receptionChannelId: text("reception_channel_id"),
-  questions: text("questions").notNull().default("[]"),
-  publishedChannelId: text("published_channel_id"),
-  publishedMessageId: text("published_message_id"),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+  embedColor: text().notNull().default("#5865F2"),
+  publishChannelId: text(),
+  receptionChannelId: text(),
+  questions: text().notNull().default("[]"),
+  publishedChannelId: text(),
+  publishedMessageId: text(),
+  updatedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -698,31 +684,31 @@ export type NewInteractiveFormsRow = typeof interactiveForms.$inferInsert;
 export const scheduledMessages = pgTable(
   "scheduled_messages",
   {
-    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-    guildId: text("guild_id")
+    id: integer().primaryKey().generatedByDefaultAsIdentity(),
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    channelId: text("channel_id").notNull(),
+    channelId: text().notNull(),
     /** IANA timezone, ej. America/Mexico_City */
-    timezone: text("timezone").notNull().default("UTC"),
+    timezone: text().notNull().default("UTC"),
     /** JSON: ScheduledFrequency */
-    frequency: text("frequency").notNull().default("{}"),
+    frequency: text().notNull().default("{}"),
     /** JSON: ScheduledEmbedData */
-    embedData: text("embed_data").notNull().default("{}"),
-    content: text("content").notNull().default(""),
-    pingRoleId: text("ping_role_id"),
-    isActive: boolean("is_active").notNull().default(true),
-    nextRunAt: timestamp("next_run_at", { withTimezone: true, mode: "date" }),
-    lastSentAt: timestamp("last_sent_at", { withTimezone: true, mode: "date" }),
+    embedData: text().notNull().default("{}"),
+    content: text().notNull().default(""),
+    pingRoleId: text(),
+    isActive: boolean().notNull().default(true),
+    nextRunAt: timestamp({ withTimezone: true, mode: "date" }),
+    lastSentAt: timestamp({ withTimezone: true, mode: "date" }),
     /** Lease del productor de cola (SKIP LOCKED). NULL = libre. */
-    claimedUntil: timestamp("claimed_until", {
+    claimedUntil: timestamp({
       withTimezone: true,
       mode: "date",
     }),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    updatedAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -740,23 +726,23 @@ export type NewScheduledMessageRow = typeof scheduledMessages.$inferInsert;
 export const customCommands = pgTable(
   "custom_commands",
   {
-    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-    guildId: text("guild_id")
+    id: integer().primaryKey().generatedByDefaultAsIdentity(),
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    description: text("description").notNull().default("Custom command"),
+    name: text().notNull(),
+    description: text().notNull().default("Custom command"),
     /** JSON: CustomCommandResponseData */
-    responseData: text("response_data").notNull().default("{}"),
+    responseData: text().notNull().default("{}"),
     /** JSON: CustomCommandOptions */
-    options: text("options").notNull().default("{}"),
+    options: text().notNull().default("{}"),
     /** JSON: CustomCommandPermissions */
-    permissions: text("permissions").notNull().default("{}"),
-    isActive: boolean("is_active").notNull().default(true),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    permissions: text().notNull().default("{}"),
+    isActive: boolean().notNull().default(true),
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    updatedAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -774,17 +760,17 @@ export type NewCustomCommandRow = typeof customCommands.$inferInsert;
 export const defaultCommandPermissions = pgTable(
   "default_command_permissions",
   {
-    guildId: text("guild_id")
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    commandName: text("command_name").notNull(),
-    enabled: boolean("enabled").notNull().default(true),
+    commandName: text().notNull(),
+    enabled: boolean().notNull().default(true),
     /** JSON: string[] role IDs */
-    allowedRoles: text("allowed_roles").notNull().default("[]"),
+    allowedRoles: text().notNull().default("[]"),
     /** JSON: string[] channel IDs donde el comando no se puede usar */
-    ignoredChannels: text("ignored_channels").notNull().default("[]"),
-    ephemeral: boolean("ephemeral").notNull().default(false),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    ignoredChannels: text().notNull().default("[]"),
+    ephemeral: boolean().notNull().default(false),
+    updatedAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -800,15 +786,15 @@ export type NewDefaultCommandPermissionRow =
  * Configuración global de economía por guild.
  */
 export const economyConfig = pgTable("economy_config", {
-  guildId: text("guild_id")
+  guildId: text()
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  isActive: boolean("is_active").notNull().default(false),
-  currencyName: text("currency_name").notNull().default("Adobos Coins"),
-  currencySymbol: text("currency_symbol").notNull().default("🪙"),
-  startBalance: integer("start_balance").notNull().default(0),
-  transferTax: integer("transfer_tax").notNull().default(0),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+  isActive: boolean().notNull().default(false),
+  currencyName: text().notNull().default("Adobos Coins"),
+  currencySymbol: text().notNull().default("🪙"),
+  startBalance: integer().notNull().default(0),
+  transferTax: integer().notNull().default(0),
+  updatedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -822,30 +808,30 @@ export type NewEconomyConfigRow = typeof economyConfig.$inferInsert;
 export const userEconomy = pgTable(
   "user_economy",
   {
-    guildId: text("guild_id")
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    userId: text("user_id").notNull(),
-    wallet: integer("wallet").notNull().default(0),
-    bank: integer("bank").notNull().default(0),
+    userId: text().notNull(),
+    wallet: integer().notNull().default(0),
+    bank: integer().notNull().default(0),
     /** Racha de /daily. */
-    dailyStreak: integer("daily_streak").notNull().default(0),
+    dailyStreak: integer().notNull().default(0),
     /** Última reclamación de /daily (ms). null = nunca. */
-    lastDailyAt: timestamp("last_daily_at", {
+    lastDailyAt: timestamp({
       withTimezone: true,
       mode: "date",
     }),
     /** Última reclamación de /weekly. */
-    lastWeeklyAt: timestamp("last_weekly_at", {
+    lastWeeklyAt: timestamp({
       withTimezone: true,
       mode: "date",
     }),
     /** Última reclamación de /monthly. */
-    lastMonthlyAt: timestamp("last_monthly_at", {
+    lastMonthlyAt: timestamp({
       withTimezone: true,
       mode: "date",
     }),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    updatedAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -862,12 +848,12 @@ export type NewUserEconomyRow = typeof userEconomy.$inferInsert;
 export const economyBlackjackOpen = pgTable(
   "economy_blackjack_open",
   {
-    guildId: text("guild_id")
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    userId: text("user_id").notNull(),
-    bet: integer("bet").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    userId: text().notNull(),
+    bet: integer().notNull(),
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -882,13 +868,13 @@ export type EconomyBlackjackOpenRow = typeof economyBlackjackOpen.$inferSelect;
 export const economyCooldowns = pgTable(
   "economy_cooldowns",
   {
-    guildId: text("guild_id")
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    userId: text("user_id").notNull(),
+    userId: text().notNull(),
     /** Clave: `work` | `crime` | … */
-    commandKey: text("command_key").notNull(),
-    availableAt: timestamp("available_at", {
+    commandKey: text().notNull(),
+    availableAt: timestamp({
       withTimezone: true,
       mode: "date",
     }).notNull(),
@@ -907,23 +893,23 @@ export type EconomyCooldownRow = typeof economyCooldowns.$inferSelect;
  * trabajos (`/work`) y crímenes (`/crime`) — arrays JSON.
  */
 export const economyIncome = pgTable("economy_income", {
-  guildId: text("guild_id")
+  guildId: text()
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  dailyPay: integer("daily_pay").notNull().default(100),
-  weeklyPay: integer("weekly_pay").notNull().default(500),
-  monthlyPay: integer("monthly_pay").notNull().default(2000),
-  streakEnabled: boolean("streak_enabled").notNull().default(false),
-  streakBonusPercent: integer("streak_bonus_percent").notNull().default(5),
+  dailyPay: integer().notNull().default(100),
+  weeklyPay: integer().notNull().default(500),
+  monthlyPay: integer().notNull().default(2000),
+  streakEnabled: boolean().notNull().default(false),
+  streakBonusPercent: integer().notNull().default(5),
   /** EconomyRoleSalary[] */
-  roleSalaries: text("role_salaries").notNull().default("[]"),
+  roleSalaries: text().notNull().default("[]"),
   /** EconomyJob[] */
-  jobs: text("jobs").notNull().default("[]"),
+  jobs: text().notNull().default("[]"),
   /** EconomyCrime[] */
-  crimes: text("crimes").notNull().default("[]"),
+  crimes: text().notNull().default("[]"),
   /** EconomyRobConfig JSON. */
-  rob: text("rob").notNull().default("{}"),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+  rob: text().notNull().default("{}"),
+  updatedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -937,30 +923,30 @@ export type NewEconomyIncomeRow = typeof economyIncome.$inferInsert;
 export const economyShopItems = pgTable(
   "economy_shop_items",
   {
-    id: text("id").primaryKey(),
-    guildId: text("guild_id")
+    id: text().primaryKey(),
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    description: text("description").notNull().default(""),
-    price: integer("price").notNull().default(0),
-    icon: text("icon").notNull().default("🛒"),
+    name: text().notNull(),
+    description: text().notNull().default(""),
+    price: integer().notNull().default(0),
+    icon: text().notNull().default("🛒"),
     /** null = infinito (almacenado como NULL). */
-    stock: integer("stock"),
+    stock: integer(),
     /** EconomyShopRewards JSON (Smart Toggles). */
-    rewards: text("rewards").notNull().default("{}"),
+    rewards: text().notNull().default("{}"),
     /** @deprecated Secuencia Shortcuts; se migra al leer. */
-    actionSequence: text("action_sequence").default("[]"),
+    actionSequence: text().default("[]"),
     /** @deprecated Legacy single-reward; se migra al leer. */
-    rewardType: text("reward_type"),
+    rewardType: text(),
     /** @deprecated */
-    rewardConfig: text("reward_config").default("{}"),
-    enabled: boolean("enabled").notNull().default(true),
-    sortOrder: integer("sort_order").notNull().default(0),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    rewardConfig: text().default("{}"),
+    enabled: boolean().notNull().default(true),
+    sortOrder: integer().notNull().default(0),
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    updatedAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -976,17 +962,17 @@ export type NewEconomyShopItemRow = typeof economyShopItems.$inferInsert;
 export const economyPurchases = pgTable(
   "economy_purchases",
   {
-    id: text("id").primaryKey(),
-    guildId: text("guild_id")
+    id: text().primaryKey(),
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    userId: text("user_id").notNull(),
-    itemId: text("item_id").notNull(),
-    itemName: text("item_name").notNull(),
-    pricePaid: integer("price_paid").notNull(),
-    status: text("status").notNull().default("fulfilled"),
-    metadata: text("metadata").notNull().default("{}"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    userId: text().notNull(),
+    itemId: text().notNull(),
+    itemName: text().notNull(),
+    pricePaid: integer().notNull(),
+    status: text().notNull().default("fulfilled"),
+    metadata: text().notNull().default("{}"),
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -1004,17 +990,17 @@ export type NewEconomyPurchaseRow = typeof economyPurchases.$inferInsert;
 export const economyUserBoosts = pgTable(
   "economy_user_boosts",
   {
-    id: text("id").primaryKey(),
-    guildId: text("guild_id")
+    id: text().primaryKey(),
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    userId: text("user_id").notNull(),
-    module: text("module").notNull(),
-    multiplier: integer("multiplier").notNull(),
+    userId: text().notNull(),
+    module: text().notNull(),
+    multiplier: integer().notNull(),
     /** null = boost permanente. */
-    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
-    purchaseId: text("purchase_id"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    expiresAt: timestamp({ withTimezone: true, mode: "date" }),
+    purchaseId: text(),
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -1035,24 +1021,22 @@ export type EconomyUserBoostRow = typeof economyUserBoosts.$inferSelect;
 export const economyOwnedRoles = pgTable(
   "economy_owned_roles",
   {
-    id: text("id").primaryKey(),
-    guildId: text("guild_id")
+    id: text().primaryKey(),
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    userId: text("user_id").notNull(),
-    roleId: text("role_id").notNull(),
-    itemId: text("item_id"),
-    purchaseId: text("purchase_id"),
+    userId: text().notNull(),
+    roleId: text().notNull(),
+    itemId: text(),
+    purchaseId: text(),
     /** null = permanente. */
-    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
+    expiresAt: timestamp({ withTimezone: true, mode: "date" }),
     /**
      * true = borrar el rol de Discord al expirar (creado por la tienda);
      * false = solo quitarlo del miembro (rol existente temporal).
      */
-    deleteRoleOnExpire: boolean("delete_role_on_expire")
-      .notNull()
-      .default(false),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    deleteRoleOnExpire: boolean().notNull().default(false),
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -1069,17 +1053,17 @@ export type EconomyOwnedRoleRow = typeof economyOwnedRoles.$inferSelect;
 export const economyOwnedChannels = pgTable(
   "economy_owned_channels",
   {
-    id: text("id").primaryKey(),
-    guildId: text("guild_id")
+    id: text().primaryKey(),
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    userId: text("user_id").notNull(),
-    channelId: text("channel_id").notNull(),
-    itemId: text("item_id"),
-    purchaseId: text("purchase_id"),
+    userId: text().notNull(),
+    channelId: text().notNull(),
+    itemId: text(),
+    purchaseId: text(),
     /** null = permanente. */
-    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    expiresAt: timestamp({ withTimezone: true, mode: "date" }),
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -1094,21 +1078,21 @@ export type EconomyOwnedChannelRow = typeof economyOwnedChannels.$inferSelect;
  * Config del Casino por guild (límites globales + reglas por juego).
  */
 export const economyCasino = pgTable("economy_casino", {
-  guildId: text("guild_id")
+  guildId: text()
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  isActive: boolean("is_active").notNull().default(false),
-  minBet: integer("min_bet").notNull().default(10),
-  maxBet: integer("max_bet").notNull().default(10_000),
+  isActive: boolean().notNull().default(false),
+  minBet: integer().notNull().default(10),
+  maxBet: integer().notNull().default(10_000),
   /** EconomyCasinoCoinflipConfig JSON. */
-  coinflip: text("coinflip").notNull().default("{}"),
+  coinflip: text().notNull().default("{}"),
   /** EconomyCasinoRouletteConfig JSON. */
-  roulette: text("roulette").notNull().default("{}"),
+  roulette: text().notNull().default("{}"),
   /** EconomyCasinoBlackjackConfig JSON. */
-  blackjack: text("blackjack").notNull().default("{}"),
+  blackjack: text().notNull().default("{}"),
   /** EconomyCasinoSlotsConfig JSON. */
-  slots: text("slots").notNull().default("{}"),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+  slots: text().notNull().default("{}"),
+  updatedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -1118,14 +1102,14 @@ export type NewEconomyCasinoRow = typeof economyCasino.$inferInsert;
 
 /** Usuarios del panel (OAuth Discord). */
 export const panelUsers = pgTable("panel_users", {
-  userId: text("user_id").primaryKey(),
-  username: text("username").notNull(),
-  globalName: text("global_name"),
-  avatar: text("avatar"),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+  userId: text().primaryKey(),
+  username: text().notNull(),
+  globalName: text(),
+  avatar: text(),
+  createdAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+  updatedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -1134,21 +1118,21 @@ export const panelUsers = pgTable("panel_users", {
 export const panelSessions = pgTable(
   "panel_sessions",
   {
-    id: text("id").primaryKey(),
-    userId: text("user_id")
+    id: text().primaryKey(),
+    userId: text()
       .notNull()
       .references(() => panelUsers.userId, { onDelete: "cascade" }),
-    accessTokenEnc: text("access_token_enc").notNull(),
-    refreshTokenEnc: text("refresh_token_enc"),
-    accessExpiresAt: timestamp("access_expires_at", {
+    accessTokenEnc: text().notNull(),
+    refreshTokenEnc: text(),
+    accessExpiresAt: timestamp({
       withTimezone: true,
       mode: "date",
     }),
-    expiresAt: timestamp("expires_at", {
+    expiresAt: timestamp({
       withTimezone: true,
       mode: "date",
     }).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -1157,9 +1141,9 @@ export const panelSessions = pgTable(
 
 /** State OAuth de un solo uso (anti-CSRF + PKCE verifier). */
 export const oauthStates = pgTable("oauth_states", {
-  state: text("state").primaryKey(),
-  codeVerifier: text("code_verifier").notNull(),
-  expiresAt: timestamp("expires_at", {
+  state: text().primaryKey(),
+  codeVerifier: text().notNull(),
+  expiresAt: timestamp({
     withTimezone: true,
     mode: "date",
   }).notNull(),
@@ -1169,12 +1153,16 @@ export const oauthStates = pgTable("oauth_states", {
  * Usuario Discord ↔ customer de Stripe. El portal y checkout reutilizan este id.
  */
 export const billingCustomers = pgTable("billing_customers", {
-  userId: text("user_id").primaryKey(),
-  stripeCustomerId: text("stripe_customer_id").notNull().unique(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+  userId: text().primaryKey(),
+  // Nombre de constraint explícito: con `casing` drizzle-kit lo derivaría del
+  // key JS (…stripeCustomerId_unique) y no del nombre de columna resuelto.
+  stripeCustomerId: text()
+    .notNull()
+    .unique("billing_customers_stripe_customer_id_unique"),
+  createdAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+  updatedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -1186,23 +1174,25 @@ export const billingCustomers = pgTable("billing_customers", {
 export const subscriptions = pgTable(
   "subscriptions",
   {
-    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-    userId: text("user_id").notNull(),
-    stripeCustomerId: text("stripe_customer_id"),
-    stripeSubscriptionId: text("stripe_subscription_id").unique(),
-    stripePriceId: text("stripe_price_id"),
-    tier: text("tier").notNull().default("pro"),
+    id: integer().primaryKey().generatedByDefaultAsIdentity(),
+    userId: text().notNull(),
+    stripeCustomerId: text(),
+    stripeSubscriptionId: text().unique(
+      "subscriptions_stripe_subscription_id_unique",
+    ),
+    stripePriceId: text(),
+    tier: text().notNull().default("pro"),
     /** active | trialing | past_due | paused | canceled | unpaid */
-    status: text("status").notNull().default("active"),
-    currentPeriodEnd: timestamp("current_period_end", {
+    status: text().notNull().default("active"),
+    currentPeriodEnd: timestamp({
       withTimezone: true,
       mode: "date",
     }),
-    cancelAt: timestamp("cancel_at", { withTimezone: true, mode: "date" }),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    cancelAt: timestamp({ withTimezone: true, mode: "date" }),
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    updatedAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -1216,13 +1206,12 @@ export const subscriptions = pgTable(
 export const guildEntitlements = pgTable(
   "guild_entitlements",
   {
-    guildId: text("guild_id").primaryKey(),
-    subscriptionId: integer("subscription_id").references(
-      () => subscriptions.id,
-      { onDelete: "set null" },
-    ),
-    tier: text("tier").notNull().default("free"),
-    assignedAt: timestamp("assigned_at", { withTimezone: true, mode: "date" })
+    guildId: text().primaryKey(),
+    subscriptionId: integer().references(() => subscriptions.id, {
+      onDelete: "set null",
+    }),
+    tier: text().notNull().default("free"),
+    assignedAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -1235,9 +1224,9 @@ export const guildEntitlements = pgTable(
  * Idempotencia de webhooks de Stripe (`event.id`).
  */
 export const webhookEvents = pgTable("webhook_events", {
-  eventId: text("event_id").primaryKey(),
-  eventType: text("event_type").notNull(),
-  processedAt: timestamp("processed_at", { withTimezone: true, mode: "date" })
+  eventId: text().primaryKey(),
+  eventType: text().notNull(),
+  processedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -1253,23 +1242,23 @@ export type WebhookEventRow = typeof webhookEvents.$inferSelect;
 export const voiceRoomGenerators = pgTable(
   "voice_room_generators",
   {
-    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-    guildId: text("guild_id")
+    id: integer().primaryKey().generatedByDefaultAsIdentity(),
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    hubChannelId: text("hub_channel_id").notNull(),
-    categoryId: text("category_id"),
-    nameTemplate: text("name_template").notNull().default("{user}'s room"),
-    defaultUserLimit: integer("default_user_limit").notNull().default(0),
-    defaultBitrate: integer("default_bitrate").notNull().default(0),
-    autoText: boolean("auto_text").notNull().default(false),
-    enabled: boolean("enabled").notNull().default(true),
+    hubChannelId: text().notNull(),
+    categoryId: text(),
+    nameTemplate: text().notNull().default("{user}'s room"),
+    defaultUserLimit: integer().notNull().default(0),
+    defaultBitrate: integer().notNull().default(0),
+    autoText: boolean().notNull().default(false),
+    enabled: boolean().notNull().default(true),
     /** JSON: VoiceRoomActionMap */
-    allowedActions: text("allowed_actions").notNull().default("{}"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    allowedActions: text().notNull().default("{}"),
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    updatedAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -1287,18 +1276,18 @@ export const voiceRoomGenerators = pgTable(
 export const voiceRooms = pgTable(
   "voice_rooms",
   {
-    channelId: text("channel_id").primaryKey(),
-    guildId: text("guild_id")
+    channelId: text().primaryKey(),
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    generatorId: integer("generator_id")
+    generatorId: integer()
       .notNull()
       .references(() => voiceRoomGenerators.id, { onDelete: "cascade" }),
-    ownerId: text("owner_id").notNull(),
-    textChannelId: text("text_channel_id"),
-    locked: boolean("locked").notNull().default(false),
-    ghosted: boolean("ghosted").notNull().default(false),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    ownerId: text().notNull(),
+    textChannelId: text(),
+    locked: boolean().notNull().default(false),
+    ghosted: boolean().notNull().default(false),
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -1315,12 +1304,12 @@ export type VoiceRoomRow = typeof voiceRooms.$inferSelect;
  * Ajustes de Reminders por guild (timezone para `/remind at`).
  */
 export const reminderSettings = pgTable("reminder_settings", {
-  guildId: text("guild_id")
+  guildId: text()
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  timezone: text("timezone").notNull().default("UTC"),
-  enabled: boolean("enabled").notNull().default(true),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+  timezone: text().notNull().default("UTC"),
+  enabled: boolean().notNull().default(true),
+  updatedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -1331,21 +1320,21 @@ export const reminderSettings = pgTable("reminder_settings", {
 export const reminders = pgTable(
   "reminders",
   {
-    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-    guildId: text("guild_id")
+    id: integer().primaryKey().generatedByDefaultAsIdentity(),
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    userId: text("user_id").notNull(),
-    channelId: text("channel_id").notNull(),
-    message: text("message").notNull(),
-    dueAt: timestamp("due_at", { withTimezone: true, mode: "date" }).notNull(),
-    attempts: integer("attempts").notNull().default(0),
+    userId: text().notNull(),
+    channelId: text().notNull(),
+    message: text().notNull(),
+    dueAt: timestamp({ withTimezone: true, mode: "date" }).notNull(),
+    attempts: integer().notNull().default(0),
     /** Lease del productor de cola (SKIP LOCKED). NULL = libre. */
-    claimedUntil: timestamp("claimed_until", {
+    claimedUntil: timestamp({
       withTimezone: true,
       mode: "date",
     }),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -1362,19 +1351,19 @@ export type ReminderRow = typeof reminders.$inferSelect;
  * Un tablón Starboard por guild. emojis / ignore_channel_ids son JSON texto.
  */
 export const starboardSettings = pgTable("starboard_settings", {
-  guildId: text("guild_id")
+  guildId: text()
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  channelId: text("channel_id"),
+  channelId: text(),
   /** JSON: string[] de claves unicode:/custom: */
-  emojis: text("emojis").notNull().default('["unicode:⭐"]'),
-  threshold: integer("threshold").notNull().default(3),
-  enabled: boolean("enabled").notNull().default(false),
-  allowSelfStar: boolean("allow_self_star").notNull().default(false),
-  allowBots: boolean("allow_bots").notNull().default(false),
+  emojis: text().notNull().default('["unicode:⭐"]'),
+  threshold: integer().notNull().default(3),
+  enabled: boolean().notNull().default(false),
+  allowSelfStar: boolean().notNull().default(false),
+  allowBots: boolean().notNull().default(false),
   /** JSON: snowflake[] */
-  ignoreChannelIds: text("ignore_channel_ids").notNull().default("[]"),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+  ignoreChannelIds: text().notNull().default("[]"),
+  updatedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -1385,14 +1374,14 @@ export const starboardSettings = pgTable("starboard_settings", {
 export const starboardPosts = pgTable(
   "starboard_posts",
   {
-    originalMessageId: text("original_message_id").primaryKey(),
-    guildId: text("guild_id")
+    originalMessageId: text().primaryKey(),
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    channelId: text("channel_id").notNull(),
-    starboardMessageId: text("starboard_message_id").notNull(),
-    starCount: integer("star_count").notNull().default(0),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    channelId: text().notNull(),
+    starboardMessageId: text().notNull(),
+    starCount: integer().notNull().default(0),
+    updatedAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -1411,35 +1400,35 @@ export type StarboardPostRow = typeof starboardPosts.$inferSelect;
  * Anti-Raid por guild. lockdown_snapshot y umbrales nuke son JSON texto.
  */
 export const antiRaidSettings = pgTable("anti_raid_settings", {
-  guildId: text("guild_id")
+  guildId: text()
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  enabled: boolean("enabled").notNull().default(false),
-  alertChannelId: text("alert_channel_id"),
-  joinFloodEnabled: boolean("join_flood_enabled").notNull().default(true),
-  joinCount: integer("join_count").notNull().default(10),
-  joinWindowSeconds: integer("join_window_seconds").notNull().default(10),
-  joinAction: text("join_action").notNull().default("kick"),
-  accountAgeEnabled: boolean("account_age_enabled").notNull().default(false),
-  accountAgeDays: integer("account_age_days").notNull().default(7),
-  accountAgeAction: text("account_age_action").notNull().default("kick"),
-  lockdownJoinAction: text("lockdown_join_action").notNull().default("timeout"),
-  timeoutSeconds: integer("timeout_seconds").notNull().default(3600),
-  whitelistRoleIds: text("whitelist_role_ids").notNull().default("[]"),
-  nukeEnabled: boolean("nuke_enabled").notNull().default(false),
-  nukeWindowSeconds: integer("nuke_window_seconds").notNull().default(10),
-  nukePunishment: text("nuke_punishment").notNull().default("strip"),
-  nukeThresholds: text("nuke_thresholds").notNull().default("{}"),
-  nukeWhitelistUserIds: text("nuke_whitelist_user_ids").notNull().default("[]"),
-  nukeWhitelistRoleIds: text("nuke_whitelist_role_ids").notNull().default("[]"),
-  lockdownActive: boolean("lockdown_active").notNull().default(false),
-  lockdownStartedAt: timestamp("lockdown_started_at", {
+  enabled: boolean().notNull().default(false),
+  alertChannelId: text(),
+  joinFloodEnabled: boolean().notNull().default(true),
+  joinCount: integer().notNull().default(10),
+  joinWindowSeconds: integer().notNull().default(10),
+  joinAction: text().notNull().default("kick"),
+  accountAgeEnabled: boolean().notNull().default(false),
+  accountAgeDays: integer().notNull().default(7),
+  accountAgeAction: text().notNull().default("kick"),
+  lockdownJoinAction: text().notNull().default("timeout"),
+  timeoutSeconds: integer().notNull().default(3600),
+  whitelistRoleIds: text().notNull().default("[]"),
+  nukeEnabled: boolean().notNull().default(false),
+  nukeWindowSeconds: integer().notNull().default(10),
+  nukePunishment: text().notNull().default("strip"),
+  nukeThresholds: text().notNull().default("{}"),
+  nukeWhitelistUserIds: text().notNull().default("[]"),
+  nukeWhitelistRoleIds: text().notNull().default("[]"),
+  lockdownActive: boolean().notNull().default(false),
+  lockdownStartedAt: timestamp({
     withTimezone: true,
     mode: "date",
   }),
-  lockdownByUserId: text("lockdown_by_user_id"),
-  lockdownSnapshot: text("lockdown_snapshot").notNull().default("[]"),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+  lockdownByUserId: text(),
+  lockdownSnapshot: text().notNull().default("[]"),
+  updatedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -1453,34 +1442,32 @@ export type AntiRaidSettingsRow = typeof antiRaidSettings.$inferSelect;
 export const streamAlerts = pgTable(
   "stream_alerts",
   {
-    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-    guildId: text("guild_id")
+    id: integer().primaryKey().generatedByDefaultAsIdentity(),
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    platform: text("platform").notNull(),
-    handle: text("handle").notNull(),
-    displayName: text("display_name").notNull(),
-    discordChannelId: text("discord_channel_id").notNull(),
-    mentionRoleId: text("mention_role_id"),
-    template: text("template")
-      .notNull()
-      .default("{name} is live: {title}\n{url}"),
-    enabled: boolean("enabled").notNull().default(true),
-    isLive: boolean("is_live").notNull().default(false),
-    liveId: text("live_id"),
-    lastTitle: text("last_title"),
-    lastCheckedAt: timestamp("last_checked_at", {
+    platform: text().notNull(),
+    handle: text().notNull(),
+    displayName: text().notNull(),
+    discordChannelId: text().notNull(),
+    mentionRoleId: text(),
+    template: text().notNull().default("{name} is live: {title}\n{url}"),
+    enabled: boolean().notNull().default(true),
+    isLive: boolean().notNull().default(false),
+    liveId: text(),
+    lastTitle: text(),
+    lastCheckedAt: timestamp({
       withTimezone: true,
       mode: "date",
     }),
-    lastLiveAt: timestamp("last_live_at", {
+    lastLiveAt: timestamp({
       withTimezone: true,
       mode: "date",
     }),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    updatedAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -1503,24 +1490,24 @@ export type StreamAlertRow = typeof streamAlerts.$inferSelect;
 export const autoReplies = pgTable(
   "auto_replies",
   {
-    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-    guildId: text("guild_id")
+    id: integer().primaryKey().generatedByDefaultAsIdentity(),
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    trigger: text("trigger").notNull(),
-    matchMode: text("match_mode").notNull().default("contains"),
-    response: text("response").notNull(),
-    enabled: boolean("enabled").notNull().default(true),
-    caseSensitive: boolean("case_sensitive").notNull().default(false),
-    wholeWord: boolean("whole_word").notNull().default(false),
-    useReply: boolean("use_reply").notNull().default(true),
-    cooldownSeconds: integer("cooldown_seconds").notNull().default(0),
-    allowedChannelIds: text("allowed_channel_ids").notNull().default("[]"),
-    ignoredChannelIds: text("ignored_channel_ids").notNull().default("[]"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    trigger: text().notNull(),
+    matchMode: text().notNull().default("contains"),
+    response: text().notNull(),
+    enabled: boolean().notNull().default(true),
+    caseSensitive: boolean().notNull().default(false),
+    wholeWord: boolean().notNull().default(false),
+    useReply: boolean().notNull().default(true),
+    cooldownSeconds: integer().notNull().default(0),
+    allowedChannelIds: text().notNull().default("[]"),
+    ignoredChannelIds: text().notNull().default("[]"),
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    updatedAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -1533,17 +1520,17 @@ export type AutoReplyRow = typeof autoReplies.$inferSelect;
  * Tickets: ajustes por guild. El canal de Discord es la sala; Postgres es el expediente.
  */
 export const ticketSettings = pgTable("ticket_settings", {
-  guildId: text("guild_id")
+  guildId: text()
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  categoryId: text("category_id"),
-  staffRoleIds: text("staff_role_ids").notNull().default("[]"),
-  nameTemplate: text("name_template").notNull().default("ticket-{n}-{user}"),
-  maxOpenPerUser: integer("max_open_per_user").notNull().default(1),
-  logChannelId: text("log_channel_id"),
-  nextNumber: integer("next_number").notNull().default(1),
-  openerCanClose: boolean("opener_can_close").notNull().default(true),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+  categoryId: text(),
+  staffRoleIds: text().notNull().default("[]"),
+  nameTemplate: text().notNull().default("ticket-{n}-{user}"),
+  maxOpenPerUser: integer().notNull().default(1),
+  logChannelId: text(),
+  nextNumber: integer().notNull().default(1),
+  openerCanClose: boolean().notNull().default(true),
+  updatedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -1554,22 +1541,22 @@ export type TicketSettingsRow = typeof ticketSettings.$inferSelect;
 export const ticketPanels = pgTable(
   "ticket_panels",
   {
-    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-    guildId: text("guild_id")
+    id: integer().primaryKey().generatedByDefaultAsIdentity(),
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    channelId: text("channel_id"),
-    messageId: text("message_id"),
-    embedTitle: text("embed_title").notNull().default("Tickets"),
-    embedDescription: text("embed_description")
+    channelId: text(),
+    messageId: text(),
+    embedTitle: text().notNull().default("Tickets"),
+    embedDescription: text()
       .notNull()
       .default("Press a button to open a ticket."),
-    embedColor: text("embed_color").notNull().default("#5865F2"),
-    buttons: text("buttons").notNull().default("[]"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    embedColor: text().notNull().default("#5865F2"),
+    buttons: text().notNull().default("[]"),
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    updatedAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -1582,24 +1569,24 @@ export type TicketPanelRow = typeof ticketPanels.$inferSelect;
 export const tickets = pgTable(
   "tickets",
   {
-    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-    guildId: text("guild_id")
+    id: integer().primaryKey().generatedByDefaultAsIdentity(),
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    number: integer("number").notNull(),
-    openerId: text("opener_id").notNull(),
-    channelId: text("channel_id"),
-    typeKey: text("type_key").notNull(),
-    status: text("status").notNull().default("open"),
-    claimedBy: text("claimed_by"),
-    reason: text("reason"),
-    closeReason: text("close_reason"),
-    transcriptText: text("transcript_text"),
-    openedAt: timestamp("opened_at", { withTimezone: true, mode: "date" })
+    number: integer().notNull(),
+    openerId: text().notNull(),
+    channelId: text(),
+    typeKey: text().notNull(),
+    status: text().notNull().default("open"),
+    claimedBy: text(),
+    reason: text(),
+    closeReason: text(),
+    transcriptText: text(),
+    openedAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
-    closedAt: timestamp("closed_at", { withTimezone: true, mode: "date" }),
-    claimedAt: timestamp("claimed_at", { withTimezone: true, mode: "date" }),
+    closedAt: timestamp({ withTimezone: true, mode: "date" }),
+    claimedAt: timestamp({ withTimezone: true, mode: "date" }),
   },
   (table) => [
     uniqueIndex("tickets_guild_number").on(table.guildId, table.number),
@@ -1615,17 +1602,17 @@ export type TicketRow = typeof tickets.$inferSelect;
 export const ticketEvents = pgTable(
   "ticket_events",
   {
-    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-    ticketId: integer("ticket_id")
+    id: integer().primaryKey().generatedByDefaultAsIdentity(),
+    ticketId: integer()
       .notNull()
       .references(() => tickets.id, { onDelete: "cascade" }),
-    guildId: text("guild_id")
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    type: text("type").notNull(),
-    actorId: text("actor_id"),
-    payload: text("payload").notNull().default("{}"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    type: text().notNull(),
+    actorId: text(),
+    payload: text().notNull().default("{}"),
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -1640,11 +1627,11 @@ export type TicketEventRow = typeof ticketEvents.$inferSelect;
 export const ticketParticipants = pgTable(
   "ticket_participants",
   {
-    ticketId: integer("ticket_id")
+    ticketId: integer()
       .notNull()
       .references(() => tickets.id, { onDelete: "cascade" }),
-    userId: text("user_id").notNull(),
-    kind: text("kind").notNull().default("added"),
+    userId: text().notNull(),
+    kind: text().notNull().default("added"),
   },
   (table) => [
     primaryKey({ columns: [table.ticketId, table.userId] }),
@@ -1658,13 +1645,13 @@ export type TicketParticipantRow = typeof ticketParticipants.$inferSelect;
  * Giveaways: ajustes por guild. La urna es Postgres; el mensaje es el anuncio.
  */
 export const giveawaySettings = pgTable("giveaway_settings", {
-  guildId: text("guild_id")
+  guildId: text()
     .primaryKey()
     .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  managerRoleIds: text("manager_role_ids").notNull().default("[]"),
-  dmWinners: boolean("dm_winners").notNull().default(true),
-  pingRoleId: text("ping_role_id"),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+  managerRoleIds: text().notNull().default("[]"),
+  dmWinners: boolean().notNull().default(true),
+  pingRoleId: text(),
+  updatedAt: timestamp({ withTimezone: true, mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -1674,38 +1661,38 @@ export type GiveawaySettingsRow = typeof giveawaySettings.$inferSelect;
 export const giveaways = pgTable(
   "giveaways",
   {
-    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-    guildId: text("guild_id")
+    id: integer().primaryKey().generatedByDefaultAsIdentity(),
+    guildId: text()
       .notNull()
       .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-    channelId: text("channel_id").notNull(),
-    messageId: text("message_id"),
-    prize: text("prize").notNull(),
-    description: text("description").notNull().default(""),
-    winnerCount: integer("winner_count").notNull().default(1),
-    status: text("status").notNull().default("scheduled"),
-    startsAt: timestamp("starts_at", {
+    channelId: text().notNull(),
+    messageId: text(),
+    prize: text().notNull(),
+    description: text().notNull().default(""),
+    winnerCount: integer().notNull().default(1),
+    status: text().notNull().default("scheduled"),
+    startsAt: timestamp({
       withTimezone: true,
       mode: "date",
     }).notNull(),
-    endsAt: timestamp("ends_at", {
+    endsAt: timestamp({
       withTimezone: true,
       mode: "date",
     }).notNull(),
-    endedAt: timestamp("ended_at", { withTimezone: true, mode: "date" }),
+    endedAt: timestamp({ withTimezone: true, mode: "date" }),
     /** Lease del productor de cola (SKIP LOCKED). NULL = libre. */
-    claimedUntil: timestamp("claimed_until", {
+    claimedUntil: timestamp({
       withTimezone: true,
       mode: "date",
     }),
-    createdBy: text("created_by").notNull(),
-    requiredRoleIds: text("required_role_ids").notNull().default("[]"),
-    blockedRoleIds: text("blocked_role_ids").notNull().default("[]"),
-    minGuildAgeDays: integer("min_guild_age_days").notNull().default(0),
-    minAccountAgeDays: integer("min_account_age_days").notNull().default(0),
-    winnerIds: text("winner_ids").notNull().default("[]"),
-    pastWinnerIds: text("past_winner_ids").notNull().default("[]"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    createdBy: text().notNull(),
+    requiredRoleIds: text().notNull().default("[]"),
+    blockedRoleIds: text().notNull().default("[]"),
+    minGuildAgeDays: integer().notNull().default(0),
+    minAccountAgeDays: integer().notNull().default(0),
+    winnerIds: text().notNull().default("[]"),
+    pastWinnerIds: text().notNull().default("[]"),
+    createdAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -1721,11 +1708,11 @@ export type GiveawayRow = typeof giveaways.$inferSelect;
 export const giveawayEntries = pgTable(
   "giveaway_entries",
   {
-    giveawayId: integer("giveaway_id")
+    giveawayId: integer()
       .notNull()
       .references(() => giveaways.id, { onDelete: "cascade" }),
-    userId: text("user_id").notNull(),
-    enteredAt: timestamp("entered_at", { withTimezone: true, mode: "date" })
+    userId: text().notNull(),
+    enteredAt: timestamp({ withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
