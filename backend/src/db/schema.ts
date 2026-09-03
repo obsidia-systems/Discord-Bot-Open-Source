@@ -714,6 +714,11 @@ export const scheduledMessages = pgTable(
     isActive: boolean("is_active").notNull().default(true),
     nextRunAt: timestamp("next_run_at", { withTimezone: true, mode: "date" }),
     lastSentAt: timestamp("last_sent_at", { withTimezone: true, mode: "date" }),
+    /** Lease del productor de cola (SKIP LOCKED). NULL = libre. */
+    claimedUntil: timestamp("claimed_until", {
+      withTimezone: true,
+      mode: "date",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
@@ -1335,6 +1340,11 @@ export const reminders = pgTable(
     message: text("message").notNull(),
     dueAt: timestamp("due_at", { withTimezone: true, mode: "date" }).notNull(),
     attempts: integer("attempts").notNull().default(0),
+    /** Lease del productor de cola (SKIP LOCKED). NULL = libre. */
+    claimedUntil: timestamp("claimed_until", {
+      withTimezone: true,
+      mode: "date",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
@@ -1683,6 +1693,11 @@ export const giveaways = pgTable(
       mode: "date",
     }).notNull(),
     endedAt: timestamp("ended_at", { withTimezone: true, mode: "date" }),
+    /** Lease del productor de cola (SKIP LOCKED). NULL = libre. */
+    claimedUntil: timestamp("claimed_until", {
+      withTimezone: true,
+      mode: "date",
+    }),
     createdBy: text("created_by").notNull(),
     requiredRoleIds: text("required_role_ids").notNull().default("[]"),
     blockedRoleIds: text("blocked_role_ids").notNull().default("[]"),

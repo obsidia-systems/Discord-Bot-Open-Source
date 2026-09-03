@@ -23,7 +23,7 @@ import {
   parseGiveawayWinnerIds,
   pickGiveawayWinners,
 } from "@adobos/shared";
-import { and, count, desc, eq, inArray, lte } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { BoundedTtlMap } from "#core/cache/boundedTtlMap.js";
 import { getDb, one } from "#db/client.js";
 import {
@@ -474,21 +474,48 @@ export async function applyGiveawayAction(input: {
   return getGiveawayById(current.id, input.guildId);
 }
 
-export async function listDueToStart(now = new Date()): Promise<Giveaway[]> {
-  const rows = await getDb()
-    .select()
-    .from(giveaways)
-    .where(and(eq(giveaways.status, "scheduled"), lte(giveaways.startsAt, now)))
-    .limit(50);
-  return rows.map((row) => mapGiveaway(row, 0));
+/**
+ * Reclama sorteos que deben arrancar (`scheduled` + `starts_at`) o cerrarse
+ * (`running` + `ends_at`), con lease de 2 min y `FOR UPDATE SKIP LOCKED`.
+ * El consumidor mira `status` para decidir start vs end.
+ */
+export async function claimDueGiveaways(
+  limit = 50,
+): Promise<Array<{ id: number; guildId: string; status: string }>> {
+  const rows = await getDb().execute(sql`
+    WITH due AS (
+      SELECT id FROM giveaways
+      WHERE (claimed_until IS NULL OR claimed_until < now())
+        AND (
+          (status = 'scheduled' AND starts_at <= now())
+          OR (status = 'running' AND ends_at <= now())
+        )
+      ORDER BY id
+      LIMIT ${limit}
+      FOR UPDATE SKIP LOCKED
+    )
+    UPDATE giveaways g
+       SET claimed_until = now() + interval '2 minutes'
+      FROM due
+     WHERE g.id = due.id
+    RETURNING g.id, g.guild_id AS "guildId", g.status
+  `);
+  return (
+    rows as unknown as Array<{
+      id: number | string;
+      guildId: string;
+      status: string;
+    }>
+  ).map((r) => ({
+    id: Number(r.id),
+    guildId: String(r.guildId),
+    status: String(r.status),
+  }));
 }
 
-export async function listDueToEnd(now = new Date()): Promise<Giveaway[]> {
-  const rows = await getDb()
-    .select()
-    .from(giveaways)
-    .where(and(eq(giveaways.status, "running"), lte(giveaways.endsAt, now)))
-    .limit(50);
-  const counts = await entryCounts(rows.map((row) => row.id));
-  return rows.map((row) => mapGiveaway(row, counts.get(row.id) ?? 0));
+export async function clearGiveawayClaim(giveawayId: number): Promise<void> {
+  await getDb()
+    .update(giveaways)
+    .set({ claimedUntil: null })
+    .where(eq(giveaways.id, giveawayId));
 }

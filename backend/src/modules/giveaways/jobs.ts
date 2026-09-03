@@ -1,54 +1,54 @@
 import type { Client } from "discord.js";
 import { logger } from "#core/log.js";
+import { defineQueue } from "#core/queue/index.js";
 import { endGiveawayNow, startGiveawayMessage } from "./actions.js";
-import { listDueToEnd, listDueToStart } from "./domain/giveaways.js";
+import { claimDueGiveaways, clearGiveawayClaim } from "./domain/giveaways.js";
 
 let botClient: Client | null = null;
-const inFlight = new Set<number>();
+
+interface DueJob {
+  id: number;
+  guildId: string;
+  status: string;
+}
+
+const queue = defineQueue<DueJob>("giveaways");
 
 export function bindGiveawaysScheduler(client: Client): void {
   botClient = client;
+  queue.process((job) => processGiveaway(job));
 }
 
-export async function processDueGiveaways(): Promise<number> {
+/**
+ * Consumidor: arranca (`scheduled`) o cierra (`running`) un sorteo reclamado.
+ * En fallo lanza SIN liberar el lease — BullMQ reintenta dentro de la ventana
+ * de 2 min; si la agota, el lease expira y el productor lo vuelve a reclamar.
+ */
+export async function processGiveaway(job: DueJob): Promise<void> {
   const client = botClient;
-  if (!client?.isReady()) return 0;
-  let processed = 0;
-  const dueStart = await listDueToStart();
-  for (const snapshot of dueStart) {
-    if (inFlight.has(snapshot.id)) continue;
-    inFlight.add(snapshot.id);
-    try {
-      await startGiveawayMessage(client, snapshot.id, snapshot.guildId);
-      processed += 1;
-    } catch (error: unknown) {
-      logger.warn(
-        { err: error, id: snapshot.id },
-        "giveaways: couldn't start the scheduled giveaway",
-      );
-    } finally {
-      inFlight.delete(snapshot.id);
-    }
+  if (!client?.isReady()) throw new Error("giveaways: bot no listo");
+
+  if (job.status === "scheduled") {
+    await startGiveawayMessage(client, job.id, job.guildId);
+  } else {
+    await endGiveawayNow({
+      bot: client,
+      giveawayId: job.id,
+      guildId: job.guildId,
+    });
   }
-  const dueEnd = await listDueToEnd();
-  for (const snapshot of dueEnd) {
-    if (inFlight.has(snapshot.id)) continue;
-    inFlight.add(snapshot.id);
-    try {
-      await endGiveawayNow({
-        bot: client,
-        giveawayId: snapshot.id,
-        guildId: snapshot.guildId,
-      });
-      processed += 1;
-    } catch (error: unknown) {
-      logger.warn(
-        { err: error, id: snapshot.id },
-        "giveaways: couldn't close the giveaway",
-      );
-    } finally {
-      inFlight.delete(snapshot.id);
-    }
+  await clearGiveawayClaim(job.id).catch(() => undefined);
+}
+
+/** Productor (líder): reclama sorteos que deben arrancar o cerrarse y los encola. */
+export async function processDueGiveaways(): Promise<number> {
+  if (!botClient?.isReady()) return 0;
+  const claimed = await claimDueGiveaways();
+  for (const job of claimed) {
+    await queue.add(job);
   }
-  return processed;
+  if (claimed.length > 0) {
+    logger.debug({ n: claimed.length }, "giveaways: encolados");
+  }
+  return claimed.length;
 }

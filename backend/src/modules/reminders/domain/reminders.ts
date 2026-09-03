@@ -12,15 +12,15 @@ import {
   REMIND_TEXT_MAX,
   sanitizeRemindText,
 } from "@adobos/shared";
-import { and, count, eq, lt, lte } from "drizzle-orm";
-import { getDb, one } from "../../../db/client.js";
+import { and, count, eq, sql } from "drizzle-orm";
+import { getDb, one } from "#db/client.js";
 import {
   guildSettings,
   type ReminderRow,
   type ReminderSettingsRow,
   reminderSettings,
   reminders,
-} from "../../../db/schema.js";
+} from "#db/schema.js";
 
 export class RemindersError extends Error {
   constructor(
@@ -256,19 +256,40 @@ export async function deleteReminder(
     .where(and(eq(reminders.id, reminderId), eq(reminders.guildId, guildId)));
 }
 
-export async function listDueReminders(now = new Date()): Promise<Reminder[]> {
-  const rows = await getDb()
-    .select()
-    .from(reminders)
-    .where(
-      and(
-        lte(reminders.dueAt, now),
-        lt(reminders.attempts, REMIND_MAX_ATTEMPTS),
-      ),
+/**
+ * Reclama recordatorios vencidos (`FOR UPDATE SKIP LOCKED`, lease 2 min).
+ * El consumidor entrega o incrementa `attempts` y libera el lease para que el
+ * productor lo reintente en el siguiente ciclo (hasta `REMIND_MAX_ATTEMPTS`).
+ */
+export async function claimDueReminders(
+  limit = 50,
+): Promise<Array<{ id: number; guildId: string }>> {
+  const rows = await getDb().execute(sql`
+    WITH due AS (
+      SELECT id FROM reminders
+      WHERE due_at <= now()
+        AND attempts < ${REMIND_MAX_ATTEMPTS}
+        AND (claimed_until IS NULL OR claimed_until < now())
+      ORDER BY due_at
+      LIMIT ${limit}
+      FOR UPDATE SKIP LOCKED
     )
-    .orderBy(reminders.dueAt)
-    .limit(50);
-  return rows.map(mapReminder);
+    UPDATE reminders r
+       SET claimed_until = now() + interval '2 minutes'
+      FROM due
+     WHERE r.id = due.id
+    RETURNING r.id, r.guild_id AS "guildId"
+  `);
+  return (
+    rows as unknown as Array<{ id: number | string; guildId: string }>
+  ).map((r) => ({ id: Number(r.id), guildId: String(r.guildId) }));
+}
+
+export async function clearReminderClaim(reminderId: number): Promise<void> {
+  await getDb()
+    .update(reminders)
+    .set({ claimedUntil: null })
+    .where(eq(reminders.id, reminderId));
 }
 
 export async function bumpReminderAttempt(reminderId: number): Promise<void> {

@@ -10,21 +10,29 @@ import {
   type TextChannel,
 } from "discord.js";
 import { logger } from "#core/log.js";
+import { defineQueue } from "#core/queue/index.js";
 import { resolveEmbedMedia } from "#lib/embedMedia.js";
 import {
   applyScheduledMessageTick,
   backfillScheduledNextRuns,
+  claimDueScheduledMessages,
   getScheduledMessage,
-  listDueScheduledMessages,
   nextRunAfterSend,
   ScheduledMessagesError,
 } from "./domain/scheduled-messages.js";
 
 let botClient: Client | null = null;
-const inFlight = new Set<number>();
+
+interface DueJob {
+  id: number;
+  guildId: string;
+}
+
+const queue = defineQueue<DueJob>("scheduled-messages");
 
 export function bindScheduledMessagesScheduler(client: Client): void {
   botClient = client;
+  queue.process((job) => processScheduledMessage(job.id, job.guildId));
 }
 
 export function isScheduledDestinationChannel(channel: Channel): boolean {
@@ -190,71 +198,82 @@ export async function sendScheduledMessageNow(
   return await getScheduledMessage(messageId, guildId);
 }
 
-export async function processDueScheduledMessages(): Promise<number> {
+/**
+ * Consumidor: entrega un mensaje reclamado. En fallo NO libera el lease —
+ * BullMQ reintenta dentro de la ventana de 2 min y, si agota, el lease expira
+ * y el productor lo vuelve a reclamar.
+ */
+export async function processScheduledMessage(
+  id: number,
+  guildId: string,
+): Promise<void> {
   const client = botClient;
-  if (!client) return 0;
+  if (!client) throw new Error("scheduled-messages: bot no listo");
 
-  const due = await listDueScheduledMessages();
-  let processed = 0;
-  for (const snapshot of due) {
-    if (inFlight.has(snapshot.id)) continue;
-    inFlight.add(snapshot.id);
-    try {
-      processed += 1;
-      const fresh = await getScheduledMessage(snapshot.id, snapshot.guildId);
-      if (!fresh.isActive) continue;
-
-      const now = new Date();
-      const lastSent = fresh.lastSentAt ? new Date(fresh.lastSentAt) : null;
-      const computed = computeNextRunAt(
-        fresh.frequency,
-        fresh.timezone,
-        now,
-        lastSent,
-      );
-      if (computed && computed.getTime() > now.getTime()) {
-        await applyScheduledMessageTick(fresh.id, fresh.guildId, {
-          nextRunAt: computed,
-        });
-        continue;
-      }
-      if (!computed) {
-        await applyScheduledMessageTick(fresh.id, fresh.guildId, {
-          isActive: false,
-          nextRunAt: null,
-        });
-        continue;
-      }
-
-      const result = await deliverScheduledMessage(client, fresh);
-      if (result === "invalid_channel") {
-        await deactivateInvalid(fresh);
-        continue;
-      }
-      if (result !== "sent") continue;
-
-      const sentAt = new Date();
-      const after = nextRunAfterSend(fresh, sentAt);
-      await applyScheduledMessageTick(fresh.id, fresh.guildId, {
-        lastSentAt: sentAt,
-        isActive: after.isActive,
-        nextRunAt: after.nextRunAt,
-      });
-      if (isScheduledOneShot(fresh.frequency)) {
-        logger.info(
-          `scheduled-messages: one-shot enviado y pausado (id=${fresh.id})`,
-        );
-      }
-    } catch (error) {
-      logger.warn(
-        { err: error },
-        `scheduled-messages: tick failed (id=${snapshot.id})`,
-      );
-    } finally {
-      inFlight.delete(snapshot.id);
-    }
+  const fresh = await getScheduledMessage(id, guildId);
+  if (!fresh.isActive) {
+    await applyScheduledMessageTick(id, guildId, { claimedUntil: null });
+    return;
   }
-  return processed;
+
+  const now = new Date();
+  const lastSent = fresh.lastSentAt ? new Date(fresh.lastSentAt) : null;
+  const computed = computeNextRunAt(
+    fresh.frequency,
+    fresh.timezone,
+    now,
+    lastSent,
+  );
+  if (computed && computed.getTime() > now.getTime()) {
+    await applyScheduledMessageTick(id, guildId, {
+      nextRunAt: computed,
+      claimedUntil: null,
+    });
+    return;
+  }
+  if (!computed) {
+    await applyScheduledMessageTick(id, guildId, {
+      isActive: false,
+      nextRunAt: null,
+      claimedUntil: null,
+    });
+    return;
+  }
+
+  const result = await deliverScheduledMessage(client, fresh);
+  if (result === "invalid_channel") {
+    await applyScheduledMessageTick(id, guildId, {
+      isActive: false,
+      nextRunAt: null,
+      claimedUntil: null,
+    });
+    return;
+  }
+  if (result !== "sent") {
+    throw new Error(`scheduled-messages: envío falló (id=${id})`);
+  }
+
+  const sentAt = new Date();
+  const after = nextRunAfterSend(fresh, sentAt);
+  await applyScheduledMessageTick(id, guildId, {
+    lastSentAt: sentAt,
+    isActive: after.isActive,
+    nextRunAt: after.nextRunAt,
+    claimedUntil: null,
+  });
+  if (isScheduledOneShot(fresh.frequency)) {
+    logger.info(`scheduled-messages: one-shot enviado y pausado (id=${id})`);
+  }
+}
+
+/** Productor (líder): reclama filas vencidas y las encola. */
+export async function processDueScheduledMessages(): Promise<number> {
+  if (!botClient) return 0;
+  const claimed = await claimDueScheduledMessages();
+  for (const job of claimed) {
+    await queue.add(job);
+  }
+  return claimed.length;
 }
 
 /** Rellena next_run_at de filas activas (migración / restart). */

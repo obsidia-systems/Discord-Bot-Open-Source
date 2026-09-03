@@ -1,18 +1,27 @@
 import type { Reminder } from "@adobos/shared";
 import { ChannelType, type Client, type TextBasedChannel } from "discord.js";
 import { logger } from "#core/log.js";
+import { defineQueue } from "#core/queue/index.js";
 import {
   bumpReminderAttempt,
+  claimDueReminders,
+  clearReminderClaim,
   deleteReminderById,
   getReminder,
-  listDueReminders,
 } from "./domain/reminders.js";
 
 let botClient: Client | null = null;
-const inFlight = new Set<number>();
+
+interface DueJob {
+  id: number;
+  guildId: string;
+}
+
+const queue = defineQueue<DueJob>("reminders");
 
 export function bindRemindersScheduler(client: Client): void {
   botClient = client;
+  queue.process((job) => processReminder(job.id, job.guildId));
 }
 
 async function tryDm(client: Client, reminder: Reminder): Promise<boolean> {
@@ -91,26 +100,29 @@ export async function deliverReminder(
   return false;
 }
 
-export async function processDueReminders(): Promise<number> {
+/**
+ * Consumidor: entrega un recordatorio. `deliverReminder` ya gestiona el estado
+ * terminal (borra al entregar, o incrementa `attempts`). Si el bot no está
+ * listo lanza → BullMQ reintenta. Si no, libera el lease para el siguiente ciclo.
+ */
+export async function processReminder(
+  id: number,
+  guildId: string,
+): Promise<void> {
   const client = botClient;
-  if (!client?.isReady()) return 0;
-  const due = await listDueReminders();
-  let processed = 0;
-  for (const snapshot of due) {
-    if (inFlight.has(snapshot.id)) continue;
-    inFlight.add(snapshot.id);
-    try {
-      const fresh = await getReminder(snapshot.id, snapshot.guildId).catch(
-        () => null,
-      );
-      if (!fresh) continue;
-      processed += 1;
-      await deliverReminder(client, fresh);
-    } catch (error: unknown) {
-      logger.warn({ err: error }, `reminders: tick failed (id=${snapshot.id})`);
-    } finally {
-      inFlight.delete(snapshot.id);
-    }
+  if (!client?.isReady()) throw new Error("reminders: bot no listo");
+  const fresh = await getReminder(id, guildId).catch(() => null);
+  if (!fresh) return;
+  await deliverReminder(client, fresh);
+  await clearReminderClaim(id).catch(() => undefined);
+}
+
+/** Productor (líder): reclama recordatorios vencidos y los encola. */
+export async function processDueReminders(): Promise<number> {
+  if (!botClient?.isReady()) return 0;
+  const claimed = await claimDueReminders();
+  for (const job of claimed) {
+    await queue.add(job);
   }
-  return processed;
+  return claimed.length;
 }

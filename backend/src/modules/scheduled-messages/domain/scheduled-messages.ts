@@ -14,7 +14,7 @@ import {
   normalizeScheduledPingRoleId,
   normalizeScheduledTimezone,
 } from "@adobos/shared";
-import { and, asc, count, desc, eq, isNotNull, lte } from "drizzle-orm";
+import { and, count, desc, eq, sql } from "drizzle-orm";
 import { assertWithinLimit } from "#core/entitlements/service.js";
 import { getDb, one } from "#db/client.js";
 import { guildSettings, scheduledMessages } from "#db/schema.js";
@@ -164,22 +164,43 @@ export async function listAllActiveScheduledMessages(): Promise<
   return rows.map(rowToMessage);
 }
 
-export async function listDueScheduledMessages(
+/**
+ * Reclama filas vencidas de forma atómica (`FOR UPDATE SKIP LOCKED`) poniéndoles
+ * un lease de 2 min. N productores pueden correr en paralelo sin doble-lectura.
+ */
+export async function claimDueScheduledMessages(
   limit = 25,
-): Promise<ScheduledMessage[]> {
-  const rows = await getDb()
-    .select()
-    .from(scheduledMessages)
-    .where(
-      and(
-        eq(scheduledMessages.isActive, true),
-        isNotNull(scheduledMessages.nextRunAt),
-        lte(scheduledMessages.nextRunAt, new Date()),
-      ),
+): Promise<Array<{ id: number; guildId: string }>> {
+  const rows = await getDb().execute(sql`
+    WITH due AS (
+      SELECT id FROM scheduled_messages
+      WHERE is_active = true
+        AND next_run_at IS NOT NULL
+        AND next_run_at <= now()
+        AND (claimed_until IS NULL OR claimed_until < now())
+      ORDER BY next_run_at
+      LIMIT ${limit}
+      FOR UPDATE SKIP LOCKED
     )
-    .orderBy(asc(scheduledMessages.nextRunAt))
-    .limit(limit);
-  return rows.map(rowToMessage);
+    UPDATE scheduled_messages s
+       SET claimed_until = now() + interval '2 minutes'
+      FROM due
+     WHERE s.id = due.id
+    RETURNING s.id, s.guild_id AS "guildId"
+  `);
+  return (
+    rows as unknown as Array<{ id: number | string; guildId: string }>
+  ).map((r) => ({ id: Number(r.id), guildId: String(r.guildId) }));
+}
+
+/** Libera el lease (fila sobrevive con `next_run_at` futuro o inactiva). */
+export async function releaseScheduledMessageClaim(
+  messageId: number,
+): Promise<void> {
+  await getDb()
+    .update(scheduledMessages)
+    .set({ claimedUntil: null })
+    .where(eq(scheduledMessages.id, messageId));
 }
 
 export async function getScheduledMessage(
@@ -343,6 +364,7 @@ export async function applyScheduledMessageTick(
     isActive?: boolean;
     nextRunAt?: Date | null;
     lastSentAt?: Date | null;
+    claimedUntil?: Date | null;
   },
 ): Promise<void> {
   const id = resolveGuildId(guildId);
@@ -350,11 +372,13 @@ export async function applyScheduledMessageTick(
     isActive?: boolean;
     nextRunAt?: Date | null;
     lastSentAt?: Date | null;
+    claimedUntil?: Date | null;
     updatedAt: Date;
   } = { updatedAt: new Date() };
   if (patch.isActive !== undefined) set.isActive = patch.isActive;
   if (patch.nextRunAt !== undefined) set.nextRunAt = patch.nextRunAt;
   if (patch.lastSentAt !== undefined) set.lastSentAt = patch.lastSentAt;
+  if (patch.claimedUntil !== undefined) set.claimedUntil = patch.claimedUntil;
 
   await getDb()
     .update(scheduledMessages)
