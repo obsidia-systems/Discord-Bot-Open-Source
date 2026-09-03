@@ -2,9 +2,9 @@ import type { CanvasEventType } from "@adobos/shared";
 import { AttachmentBuilder, type Guild, type User } from "discord.js";
 import { and, eq } from "drizzle-orm";
 import { logger } from "../../core/log.js";
+import { renderWelcomeCard } from "../../core/workers/welcomeCardPool.js";
 import { getDb, one } from "../../db/client.js";
 import { canvasEventSettings } from "../../db/schema.js";
-import { buildWelcomeCard } from "../welcome/card/WelcomeCardBuilder.js";
 import { isWelcomeSendChannel } from "../welcome/channel.js";
 import { parseTextLayersJson } from "../welcome/service.js";
 import {
@@ -90,7 +90,7 @@ export async function dispatchCanvasEventCard(options: {
       text: applyWelcomeVariables(layer.text, ctx, "card"),
     }));
 
-    const png = await buildWelcomeCard({
+    const png = await renderWelcomeCard({
       user: {
         username: user.username,
         displayName: user.displayName,
