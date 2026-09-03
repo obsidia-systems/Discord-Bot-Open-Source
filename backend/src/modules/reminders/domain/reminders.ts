@@ -12,7 +12,7 @@ import {
   REMIND_TEXT_MAX,
   sanitizeRemindText,
 } from "@adobos/shared";
-import { and, count, eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getDb, one } from "#db/client.js";
 import {
   guildSettings,
@@ -199,22 +199,19 @@ export async function createReminder(input: {
       "TEXT_TOO_LONG",
     );
   }
-  const [userCount] = await getDb()
-    .select({ n: count() })
-    .from(reminders)
-    .where(and(eq(reminders.guildId, id), eq(reminders.userId, input.userId)));
-  if ((userCount?.n ?? 0) >= REMIND_PER_USER_MAX) {
+  const userCount = await getDb().$count(
+    reminders,
+    and(eq(reminders.guildId, id), eq(reminders.userId, input.userId)),
+  );
+  if (userCount >= REMIND_PER_USER_MAX) {
     throw new RemindersError(
       `At most ${REMIND_PER_USER_MAX} pending reminders.`,
       400,
       "USER_LIMIT",
     );
   }
-  const [guildCount] = await getDb()
-    .select({ n: count() })
-    .from(reminders)
-    .where(eq(reminders.guildId, id));
-  if ((guildCount?.n ?? 0) >= REMIND_PER_GUILD_MAX) {
+  const guildCount = await getDb().$count(reminders, eq(reminders.guildId, id));
+  if (guildCount >= REMIND_PER_GUILD_MAX) {
     throw new RemindersError(
       `At most ${REMIND_PER_GUILD_MAX} reminders in the server.`,
       400,

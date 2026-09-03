@@ -11,7 +11,7 @@ import {
   normalizeAutoReplyChannelIds,
   normalizeAutoReplyTrigger,
 } from "@adobos/shared";
-import { and, count, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { cache } from "#core/cache/store.js";
 import { assertWithinLimit } from "#core/entitlements/service.js";
 import { getDb, one } from "#db/client.js";
@@ -172,11 +172,8 @@ export async function createAutoReply(
     ? input.matchMode
     : "contains";
 
-  const [usage] = await getDb()
-    .select({ n: count() })
-    .from(autoReplies)
-    .where(eq(autoReplies.guildId, id));
-  await assertWithinLimit(id, "autoReplies", usage?.n ?? 0);
+  const usage = await getDb().$count(autoReplies, eq(autoReplies.guildId, id));
+  await assertWithinLimit(id, "autoReplies", usage);
   await assertUniqueTrigger(id, trigger);
 
   const now = new Date();

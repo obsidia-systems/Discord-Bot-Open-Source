@@ -205,13 +205,10 @@ async function entryCounts(ids: number[]): Promise<Map<number, number>> {
 }
 
 export async function countRunningGiveaways(guildId: string): Promise<number> {
-  const rows = await getDb()
-    .select({ n: count() })
-    .from(giveaways)
-    .where(
-      and(eq(giveaways.guildId, guildId), eq(giveaways.status, "running")),
-    );
-  return Number(rows[0]?.n ?? 0);
+  return getDb().$count(
+    giveaways,
+    and(eq(giveaways.guildId, guildId), eq(giveaways.status, "running")),
+  );
 }
 
 export async function listGiveaways(guildId?: string): Promise<Giveaway[]> {

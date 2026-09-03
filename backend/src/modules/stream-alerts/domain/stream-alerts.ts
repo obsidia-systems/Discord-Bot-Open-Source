@@ -11,7 +11,7 @@ import {
   isStreamAlertPlatform,
   normalizeStreamHandle,
 } from "@adobos/shared";
-import { and, count, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { assertWithinLimit } from "#core/entitlements/service.js";
 import { getDb, one } from "#db/client.js";
 import {
@@ -186,11 +186,11 @@ export async function createStreamAlert(
     );
   }
 
-  const [usage] = await getDb()
-    .select({ n: count() })
-    .from(streamAlerts)
-    .where(eq(streamAlerts.guildId, id));
-  await assertWithinLimit(id, "streamAlerts", usage?.n ?? 0);
+  const usage = await getDb().$count(
+    streamAlerts,
+    eq(streamAlerts.guildId, id),
+  );
+  await assertWithinLimit(id, "streamAlerts", usage);
 
   const parsed = parseHandle(input.platform, input.handle);
   const discordChannelId = requireSnowflake(input.discordChannelId, "Channel");

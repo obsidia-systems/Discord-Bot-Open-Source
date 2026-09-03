@@ -10,7 +10,7 @@ import {
   normalizeIgnoreChannelIds,
   normalizeStarboardEmojis,
 } from "@adobos/shared";
-import { and, count, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb, one } from "#db/client.js";
 import {
   guildSettings,
@@ -116,11 +116,11 @@ export async function getStarboardConfig(
 ): Promise<StarboardConfigResponse> {
   const id = resolveGuildId(guildId);
   const settings = await getStarboardSettings(id);
-  const [row] = await getDb()
-    .select({ n: count() })
-    .from(starboardPosts)
-    .where(eq(starboardPosts.guildId, id));
-  return { settings, postCount: Number(row?.n ?? 0) };
+  const postCount = await getDb().$count(
+    starboardPosts,
+    eq(starboardPosts.guildId, id),
+  );
+  return { settings, postCount };
 }
 
 export async function updateStarboardSettings(

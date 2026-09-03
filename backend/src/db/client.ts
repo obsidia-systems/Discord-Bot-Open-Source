@@ -99,9 +99,21 @@ export async function initDatabase(): Promise<AppDatabase> {
   throw new Error("Could not connect to Postgres.");
 }
 
+/**
+ * Código de error de red, desenvolviendo la cadena `cause`.
+ * drizzle-orm ≥0.39 envuelve los fallos en `DrizzleQueryError`, así que el
+ * `ECONNREFUSED`/`ENOTFOUND` real vive en `error.cause` (o más abajo).
+ */
 function errorCode(error: unknown): string {
-  if (error && typeof error === "object" && "code" in error) {
-    return String((error as { code: unknown }).code);
+  let cursor: unknown = error;
+  for (
+    let depth = 0;
+    cursor && typeof cursor === "object" && depth < 5;
+    depth++
+  ) {
+    const code = (cursor as { code?: unknown }).code;
+    if (typeof code === "string" && code) return code;
+    cursor = (cursor as { cause?: unknown }).cause;
   }
   return "";
 }

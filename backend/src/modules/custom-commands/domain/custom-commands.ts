@@ -14,7 +14,7 @@ import {
   normalizeCustomCommandPermissions,
   normalizeCustomCommandResponseData,
 } from "@adobos/shared";
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { assertWithinLimit } from "#core/entitlements/service.js";
 import { getDb, one } from "#db/client.js";
 import { customCommands, guildSettings } from "#db/schema.js";
@@ -144,24 +144,14 @@ export async function listActiveCustomCommands(
 }
 
 async function countCommands(guildId: string): Promise<number> {
-  const [row] = await getDb()
-    .select({ n: count() })
-    .from(customCommands)
-    .where(eq(customCommands.guildId, guildId));
-  return row?.n ?? 0;
+  return getDb().$count(customCommands, eq(customCommands.guildId, guildId));
 }
 
 async function countActiveCommands(guildId: string): Promise<number> {
-  const [row] = await getDb()
-    .select({ n: count() })
-    .from(customCommands)
-    .where(
-      and(
-        eq(customCommands.guildId, guildId),
-        eq(customCommands.isActive, true),
-      ),
-    );
-  return row?.n ?? 0;
+  return getDb().$count(
+    customCommands,
+    and(eq(customCommands.guildId, guildId), eq(customCommands.isActive, true)),
+  );
 }
 
 function isUniqueViolation(error: unknown): boolean {

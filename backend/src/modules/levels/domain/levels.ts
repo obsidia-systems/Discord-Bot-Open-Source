@@ -22,7 +22,7 @@ import {
   normalizeLevelUpFormat,
   resolveXpMultiplier,
 } from "@adobos/shared";
-import { and, asc, count, desc, eq, gt } from "drizzle-orm";
+import { and, asc, desc, eq, gt } from "drizzle-orm";
 import { cache } from "#core/cache/store.js";
 import { getDb, one } from "#db/client.js";
 import { guildSettings, userXp, xpConfig, xpRewards } from "#db/schema.js";
@@ -760,14 +760,7 @@ export async function getTopUserXpRows(
 }
 
 export async function getLeaderboardTotal(guildId: string): Promise<number> {
-  const row = await one(
-    getDb()
-      .select({ n: count() })
-      .from(userXp)
-      .where(eq(userXp.guildId, guildId))
-      .limit(1),
-  );
-  return row?.n ?? 0;
+  return getDb().$count(userXp, eq(userXp.guildId, guildId));
 }
 
 /** Fingerprint del Top N para detectar cambios de posiciones/puntos. */
@@ -791,12 +784,9 @@ export async function getUserRankStats(
 
   if (!row) return null;
 
-  const ahead = await one(
-    getDb()
-      .select({ n: count() })
-      .from(userXp)
-      .where(and(eq(userXp.guildId, guildId), gt(userXp.xp, row.xp)))
-      .limit(1),
+  const ahead = await getDb().$count(
+    userXp,
+    and(eq(userXp.guildId, guildId), gt(userXp.xp, row.xp)),
   );
 
   const total = await getLeaderboardTotal(guildId);
@@ -808,7 +798,7 @@ export async function getUserRankStats(
     userId,
     xp: row.xp,
     level,
-    rank: (ahead?.n ?? 0) + 1,
+    rank: ahead + 1,
     xpForNextLevel: nextXp,
     xpRemaining,
     totalUsers: total,

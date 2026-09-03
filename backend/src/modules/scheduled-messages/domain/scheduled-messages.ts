@@ -14,7 +14,7 @@ import {
   normalizeScheduledPingRoleId,
   normalizeScheduledTimezone,
 } from "@adobos/shared";
-import { and, count, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { assertWithinLimit } from "#core/entitlements/service.js";
 import { getDb, one } from "#db/client.js";
 import { guildSettings, scheduledMessages } from "#db/schema.js";
@@ -237,11 +237,11 @@ export async function createScheduledMessage(
   const id = resolveGuildId(guildId);
   await ensureGuildRow(id);
 
-  const [usage] = await getDb()
-    .select({ n: count() })
-    .from(scheduledMessages)
-    .where(eq(scheduledMessages.guildId, id));
-  await assertWithinLimit(id, "scheduledMessages", usage?.n ?? 0);
+  const usage = await getDb().$count(
+    scheduledMessages,
+    eq(scheduledMessages.guildId, id),
+  );
+  await assertWithinLimit(id, "scheduledMessages", usage);
 
   const channelId = normalizeSnowflake(input.channelId);
   const timezone = normalizeScheduledTimezone(input.timezone);
