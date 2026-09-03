@@ -1,7 +1,7 @@
 import { VOICE_ROOM_EMPTY_GRACE_MS } from "@adobos/shared";
 import type { Guild, GuildMember, VoiceState } from "discord.js";
-import { logger } from "../../core/log.js";
-import type { ModuleContext } from "../../core/modules/types.js";
+import { logger } from "#core/log.js";
+import type { ModuleContext } from "#core/modules/types.js";
 import {
   createOwnedRoom,
   destroyVoicePair,

@@ -1,16 +1,16 @@
 import type { CanvasEventType } from "@adobos/shared";
 import { AttachmentBuilder, type Guild, type User } from "discord.js";
 import { and, eq } from "drizzle-orm";
-import { logger } from "../../core/log.js";
-import { renderWelcomeCard } from "../../core/workers/welcomeCardPool.js";
-import { getDb, one } from "../../db/client.js";
-import { canvasEventSettings } from "../../db/schema.js";
-import { isWelcomeSendChannel } from "../welcome/channel.js";
-import { parseTextLayersJson } from "../welcome/service.js";
+import { logger } from "#core/log.js";
+import { renderWelcomeCard } from "#core/workers/welcomeCardPool.js";
+import { getDb, one } from "#db/client.js";
+import { canvasEventSettings } from "#db/schema.js";
+import { isWelcomeSendChannel } from "#modules/welcome/channel.js";
+import { parseTextLayersJson } from "#modules/welcome/service.js";
 import {
   applyWelcomeVariables,
   type WelcomeTemplateContext,
-} from "../welcome/text/welcomeEmbed.js";
+} from "#modules/welcome/text/welcomeEmbed.js";
 import { disableCanvasEventSettings } from "./service.js";
 
 export interface CanvasEventUserPayload {

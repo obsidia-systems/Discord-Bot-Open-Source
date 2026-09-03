@@ -16,7 +16,7 @@ import { Worker } from "node:worker_threads";
 import {
   type BuildWelcomeCardOptions,
   buildWelcomeCard,
-} from "../../modules/welcome/card/WelcomeCardBuilder.js";
+} from "#modules/welcome/card/WelcomeCardBuilder.js";
 import { onShutdown } from "../lifecycle.js";
 import { logger } from "../log.js";
 

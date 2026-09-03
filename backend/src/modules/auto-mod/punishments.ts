@@ -1,13 +1,16 @@
 import type { AutoModConfig, AutoModPunishment } from "@adobos/shared";
 import type { Client, GuildMember } from "discord.js";
-import { logger } from "../../core/log.js";
-import { syncLevelsProgress } from "../levels/events.js";
+import { logger } from "#core/log.js";
+import { syncLevelsProgress } from "#modules/levels/events.js";
 import {
   deductUserXp,
   freezeUserXp,
   getLevelsConfigCached,
-} from "../levels/service.js";
-import { executeModAction, ModerationError } from "../moderation/service.js";
+} from "#modules/levels/service.js";
+import {
+  executeModAction,
+  ModerationError,
+} from "#modules/moderation/service.js";
 import {
   findPunishmentForWarnCount,
   timeoutMsToSeconds,

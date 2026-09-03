@@ -1,5 +1,5 @@
 import type { AutoModPunishment } from "@adobos/shared";
-import { clampTimeoutSeconds } from "../moderation/duration.js";
+import { clampTimeoutSeconds } from "#modules/moderation/duration.js";
 
 /** Primera regla cuyo umbral coincide exactamente con el recuento activo. */
 export function findPunishmentForWarnCount(

@@ -9,8 +9,8 @@ import {
   SYSTEM_COMMAND_CATALOG,
 } from "@adobos/shared";
 import { and, eq } from "drizzle-orm";
-import { getDb, one } from "../../db/client.js";
-import { defaultCommandPermissions, guildSettings } from "../../db/schema.js";
+import { getDb, one } from "#db/client.js";
+import { defaultCommandPermissions, guildSettings } from "#db/schema.js";
 
 export class SystemCommandsError extends Error {
   constructor(

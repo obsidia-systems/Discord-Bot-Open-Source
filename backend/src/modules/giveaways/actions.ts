@@ -1,7 +1,7 @@
 import type { CreateGiveawayRequest, Giveaway } from "@adobos/shared";
 import { canEnterGiveaway, giveawayEntryGateReason } from "@adobos/shared";
 import type { Client, GuildMember } from "discord.js";
-import { logger } from "../../core/log.js";
+import { logger } from "#core/log.js";
 import {
   announceGiveawayWinners,
   requireGuild,

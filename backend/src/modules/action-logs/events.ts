@@ -1,5 +1,5 @@
 import type { NonThreadGuildBasedChannel } from "discord.js";
-import { logger } from "../../core/log.js";
+import { logger } from "#core/log.js";
 import { onGuildAuditLogEntryCreate } from "./audit.js";
 import {
   onEmojiCreate,

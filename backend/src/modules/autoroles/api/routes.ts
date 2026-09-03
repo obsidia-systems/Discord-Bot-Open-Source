@@ -1,12 +1,12 @@
 import { isAutoroleSendChannelType } from "@adobos/shared";
 import type { Client } from "discord.js";
 import { Router } from "express";
-import { fetchChannelInGuild } from "../../../core/http/channelScope.js";
-import { guildIdOf } from "../../../core/http/guildContext.js";
-import { recordId } from "../../../core/http/schemas.js";
-import { parse } from "../../../core/http/validate.js";
-import { logger } from "../../../core/log.js";
-import { emojiKeyToResolvable } from "../../../db/reaction-roles.js";
+import { fetchChannelInGuild } from "#core/http/channelScope.js";
+import { guildIdOf } from "#core/http/guildContext.js";
+import { idParams } from "#core/http/schemas.js";
+import { defineRoute, parse } from "#core/http/validate.js";
+import { logger } from "#core/log.js";
+import { emojiKeyToResolvable } from "#db/reaction-roles.js";
 import {
   createAutoroleCompact,
   deleteAutorole,
@@ -32,24 +32,22 @@ export function autoroleRoutes(bot: Client): Router {
   const router = Router();
 
   /** GET /api/autoroles/active */
-  router.get("/active", async (req, res, next) => {
-    const guildId = guildIdOf(req);
-    try {
-      res.json(await listActiveAutoroles(bot, guildId));
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+  router.get(
+    "/active",
+    defineRoute({}, async (req, res) => {
+      res.json(await listActiveAutoroles(bot, guildIdOf(req)));
+    }),
+  );
 
   /** POST /api/autoroles/reactions */
-  router.post("/reactions", async (req, res, next) => {
-    try {
-      const body = parse(saveReactionRolesSchema, req.body);
+  router.post(
+    "/reactions",
+    defineRoute({ body: saveReactionRolesSchema }, async (req, res, valid) => {
       const payload = {
         guildId: guildIdOf(req),
-        channelId: body.channelId,
-        messageId: body.messageId,
-        mappings: body.mappings,
+        channelId: valid.body.channelId,
+        messageId: valid.body.messageId,
+        mappings: valid.body.mappings,
       };
 
       const channel = await fetchChannelInGuild(
@@ -96,14 +94,13 @@ export function autoroleRoutes(bot: Client): Router {
       }
 
       res.status(201).json(result);
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   /** POST /api/autoroles/create — compacto (preferido) o legacy */
-  router.post("/create", async (req, res, next) => {
-    try {
+  router.post(
+    "/create",
+    defineRoute({}, async (req, res) => {
       const raw = req.body as Record<string, unknown> | undefined;
       if (raw && typeof raw.type === "string") {
         const payload = parse(createAutoroleCompactSchema, raw);
@@ -121,57 +118,68 @@ export function autoroleRoutes(bot: Client): Router {
         guildId: guildIdOf(req),
       });
       res.status(201).json(result);
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   /** PUT /api/autoroles/update-mapping/:id */
-  router.put("/update-mapping/:id", async (req, res, next) => {
-    try {
-      const id = parse(recordId, req.params.id);
-      const body = parse(updateAutoroleMappingSchema, req.body);
-      const result = await updateAutoroleMapping(bot, id, body, guildIdOf(req));
-      res.json(result);
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+  router.put(
+    "/update-mapping/:id",
+    defineRoute(
+      { params: idParams, body: updateAutoroleMappingSchema },
+      async (req, res, valid) => {
+        const result = await updateAutoroleMapping(
+          bot,
+          valid.params.id,
+          valid.body,
+          guildIdOf(req),
+        );
+        res.json(result);
+      },
+    ),
+  );
 
   /** PUT /api/autoroles/update-content/:id */
-  router.put("/update-content/:id", async (req, res, next) => {
-    try {
-      const id = parse(recordId, req.params.id);
-      const body = parse(updateAutoroleContentSchema, req.body);
-      const result = await updateAutoroleContent(bot, id, body, guildIdOf(req));
-      res.json(result);
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+  router.put(
+    "/update-content/:id",
+    defineRoute(
+      { params: idParams, body: updateAutoroleContentSchema },
+      async (req, res, valid) => {
+        const result = await updateAutoroleContent(
+          bot,
+          valid.params.id,
+          valid.body,
+          guildIdOf(req),
+        );
+        res.json(result);
+      },
+    ),
+  );
 
   /** Alias: PUT /api/autoroles/edit-content/:id */
-  router.put("/edit-content/:id", async (req, res, next) => {
-    try {
-      const id = parse(recordId, req.params.id);
-      const body = parse(updateAutoroleContentSchema, req.body);
-      const result = await updateAutoroleContent(bot, id, body, guildIdOf(req));
-      res.json(result);
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+  router.put(
+    "/edit-content/:id",
+    defineRoute(
+      { params: idParams, body: updateAutoroleContentSchema },
+      async (req, res, valid) => {
+        const result = await updateAutoroleContent(
+          bot,
+          valid.params.id,
+          valid.body,
+          guildIdOf(req),
+        );
+        res.json(result);
+      },
+    ),
+  );
 
   /** DELETE /api/autoroles/delete/:id */
-  router.delete("/delete/:id", async (req, res, next) => {
-    try {
-      const id = parse(recordId, req.params.id);
-      const result = await deleteAutorole(bot, id, guildIdOf(req));
+  router.delete(
+    "/delete/:id",
+    defineRoute({ params: idParams }, async (req, res, valid) => {
+      const result = await deleteAutorole(bot, valid.params.id, guildIdOf(req));
       res.json(result);
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   return router;
 }

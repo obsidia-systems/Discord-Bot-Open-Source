@@ -1,13 +1,13 @@
 import type { Client } from "discord.js";
 import { and, eq, isNotNull, lte } from "drizzle-orm";
-import { registerJob } from "../../core/lifecycle.js";
-import { logger } from "../../core/log.js";
-import { getDb } from "../../db/client.js";
+import { registerJob } from "#core/lifecycle.js";
+import { logger } from "#core/log.js";
+import { getDb } from "#db/client.js";
 import {
   economyOwnedChannels,
   economyOwnedRoles,
   economyUserBoosts,
-} from "../../db/schema.js";
+} from "#db/schema.js";
 
 const SWEEP_MS = 60_000;
 

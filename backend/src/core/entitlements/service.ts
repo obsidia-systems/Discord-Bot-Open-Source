@@ -12,8 +12,8 @@ import {
 } from "@adobos/shared";
 import { eq } from "drizzle-orm";
 import type { RequestHandler } from "express";
-import { getDb, one } from "../../db/client.js";
-import { guildEntitlements } from "../../db/schema.js";
+import { getDb, one } from "#db/client.js";
+import { guildEntitlements } from "#db/schema.js";
 import { cache } from "../cache/store.js";
 import { HttpError } from "../http/httpError.js";
 

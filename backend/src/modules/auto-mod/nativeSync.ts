@@ -9,7 +9,7 @@ import {
   type Guild,
   PermissionFlagsBits,
 } from "discord.js";
-import { logger } from "../../core/log.js";
+import { logger } from "#core/log.js";
 import {
   ADOBOS_NATIVE_RULE_NAMES,
   ADOBOS_NATIVE_RULE_PREFIX,

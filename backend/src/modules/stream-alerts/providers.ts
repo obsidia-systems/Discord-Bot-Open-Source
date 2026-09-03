@@ -1,6 +1,6 @@
 import type { StreamLiveSnapshot } from "@adobos/shared";
 import { streamAlertWatchUrl } from "@adobos/shared";
-import { logger } from "../../core/log.js";
+import { logger } from "#core/log.js";
 
 const FETCH_MS = 8_000;
 const UA = "Mozilla/5.0 (compatible; AdobosBot/0.1; +https://github.com)";

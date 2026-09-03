@@ -30,8 +30,8 @@ import {
   ticketStatusAfter,
 } from "@adobos/shared";
 import { and, desc, eq, inArray } from "drizzle-orm";
-import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
-import { getDb, one } from "../../db/client.js";
+import { BoundedTtlMap } from "#core/cache/boundedTtlMap.js";
+import { getDb, one } from "#db/client.js";
 import {
   guildSettings,
   type TicketEventRow,
@@ -44,7 +44,7 @@ import {
   ticketParticipants,
   ticketSettings,
   tickets,
-} from "../../db/schema.js";
+} from "#db/schema.js";
 
 export class TicketsError extends Error {
   constructor(

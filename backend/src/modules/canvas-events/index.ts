@@ -1,5 +1,5 @@
 import { GatewayIntentBits } from "discord.js";
-import type { AdobosModule } from "../../core/modules/types.js";
+import type { AdobosModule } from "#core/modules/types.js";
 import { canvasEventSettingsRoutes } from "./api/routes.js";
 import { onGuildBanAdd } from "./events/guildBanAdd.js";
 import { onGuildMemberRemove } from "./events/guildMemberRemove.js";

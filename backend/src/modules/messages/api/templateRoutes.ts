@@ -4,11 +4,11 @@ import path from "node:path";
 import type { Client } from "discord.js";
 import { Router } from "express";
 import multer from "multer";
-import { guildIdOf } from "../../../core/http/guildContext.js";
-import { recordId } from "../../../core/http/schemas.js";
-import { parse } from "../../../core/http/validate.js";
-import { getTemplatesDir } from "../../../lib/dataPaths.js";
-import { sniffImageFile } from "../../../lib/imageMagic.js";
+import { guildIdOf } from "#core/http/guildContext.js";
+import { idParams } from "#core/http/schemas.js";
+import { defineRoute } from "#core/http/validate.js";
+import { getTemplatesDir } from "#lib/dataPaths.js";
+import { sniffImageFile } from "#lib/imageMagic.js";
 import {
   deleteEmbedTemplate,
   EmbedTemplateError,
@@ -92,82 +92,67 @@ function assertSniffedTemplateFiles(
 export function embedTemplateRoutes(_bot: Client): Router {
   const router = Router();
 
-  router.get("/", async (req, res, next) => {
-    const guildId = guildIdOf(req);
-    try {
-      res.json(await listEmbedTemplates(guildId));
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+  router.get(
+    "/",
+    defineRoute({}, async (req, res) => {
+      res.json(await listEmbedTemplates(guildIdOf(req)));
+    }),
+  );
 
-  router.post("/", async (req, res, next) => {
-    templateUpload(req, res, async (err: unknown) => {
-      if (err) {
-        next(err);
-        return;
+  router.post(
+    "/",
+    templateUpload,
+    defineRoute({ body: saveEmbedTemplateSchema }, async (req, res, valid) => {
+      const files = req.files as
+        | Record<string, Express.Multer.File[]>
+        | undefined;
+      assertSniffedTemplateFiles(files);
+
+      const uploadedPaths: {
+        imageUrl?: string;
+        thumbnailUrl?: string;
+        authorIconUrl?: string;
+        footerIconUrl?: string;
+      } = {};
+      const image = files?.image?.[0];
+      const thumbnail = files?.thumbnail?.[0];
+      const authorIcon = files?.authorIcon?.[0];
+      const footerIcon = files?.footerIcon?.[0];
+      if (image) uploadedPaths.imageUrl = publicTemplatePath(image.filename);
+      if (thumbnail) {
+        uploadedPaths.thumbnailUrl = publicTemplatePath(thumbnail.filename);
+      }
+      if (authorIcon) {
+        uploadedPaths.authorIconUrl = publicTemplatePath(authorIcon.filename);
+      }
+      if (footerIcon) {
+        uploadedPaths.footerIconUrl = publicTemplatePath(footerIcon.filename);
       }
 
-      try {
-        const files = req.files as
-          | Record<string, Express.Multer.File[]>
-          | undefined;
-        assertSniffedTemplateFiles(files);
+      res.json(
+        await saveEmbedTemplate(
+          { ...valid.body, guildId: guildIdOf(req) },
+          uploadedPaths,
+        ),
+      );
+    }),
+  );
 
-        const payload = parse(saveEmbedTemplateSchema, req.body);
+  router.get(
+    "/:id",
+    defineRoute({ params: idParams }, async (req, res, valid) => {
+      res.json(await getEmbedTemplate(valid.params.id, guildIdOf(req)));
+    }),
+  );
 
-        const uploadedPaths: {
-          imageUrl?: string;
-          thumbnailUrl?: string;
-          authorIconUrl?: string;
-          footerIconUrl?: string;
-        } = {};
-
-        const image = files?.image?.[0];
-        const thumbnail = files?.thumbnail?.[0];
-        const authorIcon = files?.authorIcon?.[0];
-        const footerIcon = files?.footerIcon?.[0];
-
-        if (image) uploadedPaths.imageUrl = publicTemplatePath(image.filename);
-        if (thumbnail) {
-          uploadedPaths.thumbnailUrl = publicTemplatePath(thumbnail.filename);
-        }
-        if (authorIcon) {
-          uploadedPaths.authorIconUrl = publicTemplatePath(authorIcon.filename);
-        }
-        if (footerIcon) {
-          uploadedPaths.footerIconUrl = publicTemplatePath(footerIcon.filename);
-        }
-
-        res.json(
-          await saveEmbedTemplate(
-            { ...payload, guildId: guildIdOf(req) },
-            uploadedPaths,
-          ),
-        );
-      } catch (error: unknown) {
-        next(error);
-      }
-    });
-  });
-
-  router.get("/:id", async (req, res, next) => {
-    try {
-      const id = parse(recordId, req.params.id);
-      res.json(await getEmbedTemplate(id, guildIdOf(req)));
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
-
-  router.delete("/:id", async (req, res, next) => {
-    try {
-      const id = parse(recordId, req.params.id);
-      res.json(await deleteEmbedTemplate(String(id), guildIdOf(req)));
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+  router.delete(
+    "/:id",
+    defineRoute({ params: idParams }, async (req, res, valid) => {
+      res.json(
+        await deleteEmbedTemplate(String(valid.params.id), guildIdOf(req)),
+      );
+    }),
+  );
 
   return router;
 }

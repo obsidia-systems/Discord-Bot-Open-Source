@@ -1,5 +1,5 @@
 import { GatewayIntentBits } from "discord.js";
-import type { AdobosModule } from "../../core/modules/types.js";
+import type { AdobosModule } from "#core/modules/types.js";
 import { moderationRoutes } from "./api/routes.js";
 
 export const moderationModule: AdobosModule = {

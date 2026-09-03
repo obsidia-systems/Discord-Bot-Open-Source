@@ -1,1 +1,1 @@
-export { saveCanvasEventSettingsSchema } from "../../welcome/api/schema.js";
+export { saveCanvasEventSettingsSchema } from "#modules/welcome/api/schema.js";

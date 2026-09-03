@@ -5,7 +5,7 @@ import {
   FORM_SUBMIT_PREFIX,
 } from "@adobos/shared";
 import { GatewayIntentBits } from "discord.js";
-import type { AdobosModule } from "../../core/modules/types.js";
+import type { AdobosModule } from "#core/modules/types.js";
 import { formsRoutes } from "./api/routes.js";
 import {
   onFormsModalSubmit,

@@ -1,6 +1,6 @@
 import { MODULE_IDS } from "@adobos/shared";
 import { describe, expect, it } from "vitest";
-import { ENABLED_MODULES } from "./index.js";
+import { ENABLED_MODULES } from "#modules/index.js";
 
 describe("ENABLED_MODULES catalog", () => {
   it("every Lego is in shared's MODULE_IDS", () => {

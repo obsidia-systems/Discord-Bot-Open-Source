@@ -3,9 +3,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { type Request, type Response, Router } from "express";
 import multer from "multer";
-import { HttpError } from "../../core/http/httpError.js";
-import { getBackgroundsDir, getImagesDir } from "../../lib/dataPaths.js";
-import { sniffImageFile } from "../../lib/imageMagic.js";
+import { HttpError } from "#core/http/httpError.js";
+import { getBackgroundsDir, getImagesDir } from "#lib/dataPaths.js";
+import { sniffImageFile } from "#lib/imageMagic.js";
 
 const ALLOWED_MIME = new Set([
   "image/png",

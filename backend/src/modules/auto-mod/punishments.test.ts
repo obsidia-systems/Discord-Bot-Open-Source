@@ -1,6 +1,6 @@
 import { AUTO_MOD_DURATION_OPTIONS } from "@adobos/shared";
 import { describe, expect, it } from "vitest";
-import { MAX_TIMEOUT_SECONDS } from "../moderation/duration.js";
+import { MAX_TIMEOUT_SECONDS } from "#modules/moderation/duration.js";
 import {
   findPunishmentForWarnCount,
   timeoutMsToSeconds,

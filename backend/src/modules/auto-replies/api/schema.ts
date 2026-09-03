@@ -6,11 +6,7 @@ import {
   AUTO_REPLY_TRIGGER_MAX,
 } from "@adobos/shared";
 import { z } from "zod";
-import {
-  boolish,
-  nonNegInt,
-  snowflakeList,
-} from "../../../core/http/schemas.js";
+import { boolish, nonNegInt, snowflakeList } from "#core/http/schemas.js";
 
 export const createAutoReplySchema = z.object({
   trigger: z.string().min(1).max(AUTO_REPLY_TRIGGER_MAX),

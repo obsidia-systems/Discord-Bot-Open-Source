@@ -12,13 +12,13 @@ import {
   normalizeStreamHandle,
 } from "@adobos/shared";
 import { and, count, eq } from "drizzle-orm";
-import { assertWithinLimit } from "../../core/entitlements/service.js";
-import { getDb, one } from "../../db/client.js";
+import { assertWithinLimit } from "#core/entitlements/service.js";
+import { getDb, one } from "#db/client.js";
 import {
   guildSettings,
   type StreamAlertRow,
   streamAlerts,
-} from "../../db/schema.js";
+} from "#db/schema.js";
 
 const SNOWFLAKE_RE = /^\d{17,20}$/;
 

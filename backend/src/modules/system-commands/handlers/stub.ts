@@ -1,5 +1,5 @@
 import type { ChatInputCommandInteraction } from "discord.js";
-import { logger } from "../../../core/log.js";
+import { logger } from "#core/log.js";
 import { consumeInteractionEphemeral } from "../ephemeral.js";
 
 /** Stub genérico mientras se implementa la lógica de negocio. */

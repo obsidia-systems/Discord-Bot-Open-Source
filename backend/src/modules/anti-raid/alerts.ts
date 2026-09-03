@@ -1,6 +1,6 @@
 import type { AntiRaidSettings } from "@adobos/shared";
 import { EmbedBuilder, type GuildTextBasedChannel } from "discord.js";
-import { logger } from "../../core/log.js";
+import { logger } from "#core/log.js";
 
 const COLOR = 0xed4245;
 

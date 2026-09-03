@@ -1,4 +1,4 @@
-import type { AdobosModule } from "../../core/modules/types.js";
+import type { AdobosModule } from "#core/modules/types.js";
 import { billingRoutes } from "./api/routes.js";
 import { stripeWebhookHandler } from "./webhook.js";
 

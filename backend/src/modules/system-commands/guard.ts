@@ -5,8 +5,8 @@ import {
 } from "@adobos/shared";
 import type { ChatInputCommandInteraction, GuildMember } from "discord.js";
 import { PermissionFlagsBits } from "discord.js";
-import { featureForCommandCategory } from "../../core/entitlements/features.js";
-import { getGuildTier } from "../../core/entitlements/service.js";
+import { featureForCommandCategory } from "#core/entitlements/features.js";
+import { getGuildTier } from "#core/entitlements/service.js";
 import { setInteractionEphemeral } from "./ephemeral.js";
 import { getCommandPermission } from "./service.js";
 

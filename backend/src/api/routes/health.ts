@@ -1,8 +1,8 @@
 import type { HealthResponse, ReadyResponse } from "@adobos/shared";
 import type { Client } from "discord.js";
 import { Router } from "express";
-import { roleRunsGateway } from "../../core/runtime/index.js";
-import { pingDatabase } from "../../db/client.js";
+import { roleRunsGateway } from "#core/runtime/index.js";
+import { pingDatabase } from "#db/client.js";
 
 export function healthRouter(bot: Client): Router {
   const router = Router();

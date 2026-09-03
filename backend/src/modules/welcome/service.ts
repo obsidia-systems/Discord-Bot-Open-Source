@@ -17,9 +17,9 @@ import {
 } from "@adobos/shared";
 import type { Client } from "discord.js";
 import { eq } from "drizzle-orm";
-import { getDb, one } from "../../db/client.js";
-import { guildSettings, welcomeSettings } from "../../db/schema.js";
-import { resolvePublicUploadPath } from "../../lib/dataPaths.js";
+import { getDb, one } from "#db/client.js";
+import { guildSettings, welcomeSettings } from "#db/schema.js";
+import { resolvePublicUploadPath } from "#lib/dataPaths.js";
 import { assertGuildWelcomeChannel } from "./channel.js";
 
 export class WelcomeSettingsError extends Error {

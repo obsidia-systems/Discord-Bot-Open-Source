@@ -12,8 +12,8 @@ import {
   rewardsFromActionSequence,
 } from "@adobos/shared";
 import { and, asc, eq } from "drizzle-orm";
-import { getDb, one } from "../../db/client.js";
-import { economyShopItems, guildSettings } from "../../db/schema.js";
+import { getDb, one } from "#db/client.js";
+import { economyShopItems, guildSettings } from "#db/schema.js";
 import { EconomyError } from "./service.js";
 
 function resolveGuildId(guildId?: string): string {

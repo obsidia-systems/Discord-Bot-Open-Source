@@ -1,8 +1,9 @@
 import type { Client } from "discord.js";
 import { Router } from "express";
-import { guildIdOf } from "../../../core/http/guildContext.js";
-import { stringId } from "../../../core/http/schemas.js";
-import { parse } from "../../../core/http/validate.js";
+import { z } from "zod";
+import { guildIdOf } from "#core/http/guildContext.js";
+import { stringId } from "#core/http/schemas.js";
+import { defineRoute } from "#core/http/validate.js";
 import {
   deleteSentEmbed,
   editSentEmbed,
@@ -12,58 +13,61 @@ import {
 import { editSentEmbedSchema, sendEmbedSchema } from "./schema.js";
 import { optionalEmbedUpload, uploadedFromRequest } from "./upload.js";
 
+const sentIdParams = z.object({ id: stringId });
+
 export function embedLibraryRoutes(bot: Client): Router {
   const router = Router();
 
-  router.get("/library", async (req, res, next) => {
-    try {
+  router.get(
+    "/library",
+    defineRoute({}, async (req, res) => {
       res.json(await getEmbedLibrary(bot, guildIdOf(req)));
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.post("/send", optionalEmbedUpload, async (req, res, next) => {
-    try {
-      const payload = parse(sendEmbedSchema, req.body);
+  router.post(
+    "/send",
+    optionalEmbedUpload,
+    defineRoute({ body: sendEmbedSchema }, async (req, res, valid) => {
       const result = await sendAndRegisterEmbed(
         bot,
-        payload,
+        valid.body,
         uploadedFromRequest(req),
         guildIdOf(req),
       );
       res.status(201).json(result);
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.put("/edit-sent/:id", optionalEmbedUpload, async (req, res, next) => {
-    try {
-      const id = parse(stringId, req.params.id);
-      const payload = parse(editSentEmbedSchema, req.body);
-      const result = await editSentEmbed(
+  router.put(
+    "/edit-sent/:id",
+    optionalEmbedUpload,
+    defineRoute(
+      { params: sentIdParams, body: editSentEmbedSchema },
+      async (req, res, valid) => {
+        const result = await editSentEmbed(
+          bot,
+          valid.params.id,
+          valid.body,
+          uploadedFromRequest(req),
+          guildIdOf(req),
+        );
+        res.json(result);
+      },
+    ),
+  );
+
+  router.delete(
+    "/sent/:id",
+    defineRoute({ params: sentIdParams }, async (req, res, valid) => {
+      const result = await deleteSentEmbed(
         bot,
-        id,
-        payload,
-        uploadedFromRequest(req),
+        valid.params.id,
         guildIdOf(req),
       );
       res.json(result);
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
-
-  router.delete("/sent/:id", async (req, res, next) => {
-    try {
-      const id = parse(stringId, req.params.id);
-      const result = await deleteSentEmbed(bot, id, guildIdOf(req));
-      res.json(result);
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   return router;
 }

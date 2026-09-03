@@ -1,7 +1,7 @@
 import type { Client } from "discord.js";
 import { Router } from "express";
-import { guildIdOf } from "../../../core/http/guildContext.js";
-import { parse } from "../../../core/http/validate.js";
+import { guildIdOf } from "#core/http/guildContext.js";
+import { defineRoute } from "#core/http/validate.js";
 import { getAutoDeleteConfig, updateAutoDeleteConfig } from "../service.js";
 import { updateAutoDeleteConfigSchema } from "./schema.js";
 
@@ -9,27 +9,25 @@ export function autoDeleteRoutes(_bot: Client): Router {
   const router = Router();
 
   /** GET /api/auto-delete/config */
-  router.get("/config", async (req, res, next) => {
-    try {
-      const guildId = guildIdOf(req);
-      const config = await getAutoDeleteConfig(guildId);
+  router.get(
+    "/config",
+    defineRoute({}, async (req, res) => {
+      const config = await getAutoDeleteConfig(guildIdOf(req));
       res.json({ config, timezone: config.timezone });
-    } catch (error) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   /** POST /api/auto-delete/config */
-  router.post("/config", async (req, res, next) => {
-    try {
-      const guildId = guildIdOf(req);
-      const body = parse(updateAutoDeleteConfigSchema, req.body ?? {});
-      const config = await updateAutoDeleteConfig(body, guildId);
-      res.json({ config, timezone: config.timezone });
-    } catch (error) {
-      next(error);
-    }
-  });
+  router.post(
+    "/config",
+    defineRoute(
+      { body: updateAutoDeleteConfigSchema },
+      async (req, res, valid) => {
+        const config = await updateAutoDeleteConfig(valid.body, guildIdOf(req));
+        res.json({ config, timezone: config.timezone });
+      },
+    ),
+  );
 
   return router;
 }

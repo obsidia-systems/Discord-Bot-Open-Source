@@ -1,8 +1,9 @@
 import type { Client } from "discord.js";
 import { Router } from "express";
-import { guildIdOf } from "../../../core/http/guildContext.js";
-import { searchQuerySchema, snowflake } from "../../../core/http/schemas.js";
-import { parse, parseQuery } from "../../../core/http/validate.js";
+import { z } from "zod";
+import { guildIdOf } from "#core/http/guildContext.js";
+import { searchQuerySchema, snowflake } from "#core/http/schemas.js";
+import { defineRoute } from "#core/http/validate.js";
 import { fetchDiscordAuditLog } from "../audit.js";
 import {
   executeModAction,
@@ -20,106 +21,92 @@ import {
   modActionSchema,
 } from "./schema.js";
 
+const snowflakeIdParams = z.object({ id: snowflake });
+
 export function moderationRoutes(bot: Client): Router {
   const router = Router();
 
-  router.get("/search-member", async (req, res, next) => {
-    try {
-      const { q = "" } = parseQuery(searchQuerySchema, req.query);
-      res.json(await searchMembers(bot, q, guildIdOf(req)));
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+  router.get(
+    "/search-member",
+    defineRoute({ query: searchQuerySchema }, async (req, res, valid) => {
+      res.json(await searchMembers(bot, valid.query.q ?? "", guildIdOf(req)));
+    }),
+  );
 
-  router.get("/search-channel", async (req, res, next) => {
-    try {
-      const { q = "" } = parseQuery(searchQuerySchema, req.query);
-      res.json(await searchChannels(bot, q, guildIdOf(req)));
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+  router.get(
+    "/search-channel",
+    defineRoute({ query: searchQuerySchema }, async (req, res, valid) => {
+      res.json(await searchChannels(bot, valid.query.q ?? "", guildIdOf(req)));
+    }),
+  );
 
-  router.get("/member-info/:id", async (req, res, next) => {
-    try {
-      const id = parse(snowflake, req.params.id);
-      res.json(await getMemberInfo(bot, id, guildIdOf(req)));
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+  router.get(
+    "/member-info/:id",
+    defineRoute({ params: snowflakeIdParams }, async (req, res, valid) => {
+      res.json(await getMemberInfo(bot, valid.params.id, guildIdOf(req)));
+    }),
+  );
 
-  router.get("/channel-info/:id", async (req, res, next) => {
-    try {
-      const id = parse(snowflake, req.params.id);
-      res.json(await getChannelInfo(bot, id, guildIdOf(req)));
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+  router.get(
+    "/channel-info/:id",
+    defineRoute({ params: snowflakeIdParams }, async (req, res, valid) => {
+      res.json(await getChannelInfo(bot, valid.params.id, guildIdOf(req)));
+    }),
+  );
 
-  router.get("/fetch-message", async (req, res, next) => {
-    try {
-      const { channelId, messageId } = parseQuery(
-        fetchMessageQuerySchema,
-        req.query,
-      );
+  router.get(
+    "/fetch-message",
+    defineRoute({ query: fetchMessageQuerySchema }, async (req, res, valid) => {
       res.json(
-        await fetchDiscordMessage(bot, channelId, messageId, guildIdOf(req)),
+        await fetchDiscordMessage(
+          bot,
+          valid.query.channelId,
+          valid.query.messageId,
+          guildIdOf(req),
+        ),
       );
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.post("/action", async (req, res, next) => {
-    try {
-      const payload = parse(modActionSchema, req.body);
+  router.post(
+    "/action",
+    defineRoute({ body: modActionSchema }, async (req, res, valid) => {
       const result = await executeModAction(
         bot,
-        { ...payload, guildId: guildIdOf(req) },
+        { ...valid.body, guildId: guildIdOf(req) },
         req.guild?.userId,
       );
       res.status(result.dmFailed ? 206 : 200).json(result);
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.get("/discord-audit", async (req, res, next) => {
-    try {
-      const query = parseQuery(discordAuditQuerySchema, req.query);
+  router.get(
+    "/discord-audit",
+    defineRoute({ query: discordAuditQuerySchema }, async (req, res, valid) => {
       res.json(
         await fetchDiscordAuditLog(bot, {
           guildId: guildIdOf(req),
-          limit: query.limit ?? 100,
-          userId: query.userId,
-          actionType: query.actionType,
+          limit: valid.query.limit ?? 100,
+          userId: valid.query.userId,
+          actionType: valid.query.actionType,
         }),
       );
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.get("/active/bans", async (req, res, next) => {
-    const guildId = guildIdOf(req);
-    try {
-      res.json(await listActiveBans(bot, guildId));
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+  router.get(
+    "/active/bans",
+    defineRoute({}, async (req, res) => {
+      res.json(await listActiveBans(bot, guildIdOf(req)));
+    }),
+  );
 
-  router.get("/active/timeouts", async (req, res, next) => {
-    const guildId = guildIdOf(req);
-    try {
-      res.json(await listActiveTimeouts(bot, guildId));
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+  router.get(
+    "/active/timeouts",
+    defineRoute({}, async (req, res) => {
+      res.json(await listActiveTimeouts(bot, guildIdOf(req)));
+    }),
+  );
 
   return router;
 }

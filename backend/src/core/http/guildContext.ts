@@ -2,7 +2,7 @@ import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { userManagesGuild } from "../auth/discordGuilds.js";
 import { readSessionFromRequest, redirectToLogin } from "../auth/oauth.js";
 import type { GuildContext } from "../auth/types.js";
-import { DiscordHttpError } from "../bot/discordHttpError.js";
+import { DiscordHttpError } from "../discord/discordHttpError.js";
 import { entitlementsOf, getGuildTier } from "../entitlements/service.js";
 import { logger } from "../log.js";
 import { HttpError } from "./httpError.js";

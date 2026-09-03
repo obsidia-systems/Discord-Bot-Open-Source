@@ -8,8 +8,8 @@ import {
   sanitizeLinkActionRows,
 } from "@adobos/shared";
 import { and, desc, eq } from "drizzle-orm";
-import { getDb, one } from "../../../db/client.js";
-import { embedTemplates, guildSettings } from "../../../db/schema.js";
+import { getDb, one } from "#db/client.js";
+import { embedTemplates, guildSettings } from "#db/schema.js";
 
 export class EmbedTemplateError extends Error {
   constructor(

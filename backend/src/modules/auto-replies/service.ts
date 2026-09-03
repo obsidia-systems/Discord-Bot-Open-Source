@@ -12,14 +12,10 @@ import {
   normalizeAutoReplyTrigger,
 } from "@adobos/shared";
 import { and, count, eq } from "drizzle-orm";
-import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
-import { assertWithinLimit } from "../../core/entitlements/service.js";
-import { getDb, one } from "../../db/client.js";
-import {
-  type AutoReplyRow,
-  autoReplies,
-  guildSettings,
-} from "../../db/schema.js";
+import { BoundedTtlMap } from "#core/cache/boundedTtlMap.js";
+import { assertWithinLimit } from "#core/entitlements/service.js";
+import { getDb, one } from "#db/client.js";
+import { type AutoReplyRow, autoReplies, guildSettings } from "#db/schema.js";
 
 export class AutoRepliesError extends Error {
   constructor(

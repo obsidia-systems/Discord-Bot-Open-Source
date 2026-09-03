@@ -1,9 +1,5 @@
 import { z } from "zod";
-import {
-  snowflake,
-  snowflakeList,
-  snowflakeNull,
-} from "../../../core/http/schemas.js";
+import { snowflake, snowflakeList, snowflakeNull } from "#core/http/schemas.js";
 
 export const updateGiveawaySettingsSchema = z.object({
   managerRoleIds: snowflakeList.max(20).optional(),

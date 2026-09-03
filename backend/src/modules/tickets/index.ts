@@ -12,7 +12,7 @@ import {
   TICKET_WAIT_PREFIX,
 } from "@adobos/shared";
 import { GatewayIntentBits } from "discord.js";
-import type { AdobosModule } from "../../core/modules/types.js";
+import type { AdobosModule } from "#core/modules/types.js";
 import { ticketsRoutes } from "./api/routes.js";
 import { onTicketsChannelDelete, onTicketsMessageCreate } from "./events.js";
 import {

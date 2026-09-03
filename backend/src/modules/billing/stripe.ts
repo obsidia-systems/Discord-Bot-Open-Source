@@ -1,5 +1,5 @@
 import Stripe from "stripe";
-import { HttpError } from "../../core/http/httpError.js";
+import { HttpError } from "#core/http/httpError.js";
 import type { StripePriceEnv } from "./map.js";
 
 let client: Stripe | null | undefined;

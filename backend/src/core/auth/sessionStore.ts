@@ -1,6 +1,6 @@
 import { eq, lt } from "drizzle-orm";
-import { getDb, one } from "../../db/client.js";
-import { oauthStates, panelSessions, panelUsers } from "../../db/schema.js";
+import { getDb, one } from "#db/client.js";
+import { oauthStates, panelSessions, panelUsers } from "#db/schema.js";
 import { encryptSecret, randomToken } from "./crypto.js";
 import {
   OAUTH_STATE_TTL_MS,

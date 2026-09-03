@@ -3,7 +3,8 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",
-    "types": ["node"]
+    "types": ["node"],
+    "customConditions": ["adobos-src"]
   },
   "include": ["src/**/*"],
   "exclude": ["src/**/*.test.ts"],

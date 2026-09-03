@@ -7,8 +7,8 @@ import {
   parseBankAmount,
 } from "@adobos/shared";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { getDb, one } from "../../db/client.js";
-import { economyConfig, guildSettings, userEconomy } from "../../db/schema.js";
+import { getDb, one } from "#db/client.js";
+import { economyConfig, guildSettings, userEconomy } from "#db/schema.js";
 
 export class EconomyError extends Error {
   constructor(

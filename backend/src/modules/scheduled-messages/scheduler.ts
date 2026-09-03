@@ -9,8 +9,8 @@ import {
   EmbedBuilder,
   type TextChannel,
 } from "discord.js";
-import { logger } from "../../core/log.js";
-import { resolveEmbedMedia } from "../../lib/embedMedia.js";
+import { logger } from "#core/log.js";
+import { resolveEmbedMedia } from "#lib/embedMedia.js";
 import {
   applyScheduledMessageTick,
   backfillScheduledNextRuns,

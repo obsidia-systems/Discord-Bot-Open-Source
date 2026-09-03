@@ -4,7 +4,7 @@ import {
   posInt,
   snowflake,
   snowflakeOpt,
-} from "../../../core/http/schemas.js";
+} from "#core/http/schemas.js";
 
 export const fetchMessageQuerySchema = z.object({
   channelId: snowflake,

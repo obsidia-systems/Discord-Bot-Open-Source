@@ -5,9 +5,10 @@ import {
 } from "@adobos/shared";
 import type { Client } from "discord.js";
 import { Router } from "express";
-import { guildIdOf } from "../../../core/http/guildContext.js";
-import { recordId } from "../../../core/http/schemas.js";
-import { parse } from "../../../core/http/validate.js";
+import { z } from "zod";
+import { guildIdOf } from "#core/http/guildContext.js";
+import { idParams } from "#core/http/schemas.js";
+import { defineRoute } from "#core/http/validate.js";
 import {
   addUserToTicket,
   claimTicket,
@@ -39,6 +40,17 @@ import {
   updateTicketSettingsSchema,
 } from "./schema.js";
 
+const ticketListQuery = z.object({
+  status: z.string().optional(),
+  typeKey: z.string().optional(),
+  openerId: z.string().optional(),
+  claimedBy: z.string().optional(),
+});
+const participantParams = z.object({
+  id: z.coerce.number().int().positive(),
+  userId: z.string(),
+});
+
 function actorIdOf(req: Parameters<typeof guildIdOf>[0]): string {
   const id = req.guild?.userId;
   if (!id) {
@@ -63,258 +75,241 @@ async function actorMember(bot: Client, guildId: string, userId: string) {
 export function ticketsRoutes(bot: Client): Router {
   const router = Router();
 
-  router.get("/settings", async (req, res, next) => {
-    try {
+  router.get(
+    "/settings",
+    defineRoute({}, async (req, res) => {
       res.json({ settings: await getTicketSettings(guildIdOf(req)) });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.put("/settings", async (req, res, next) => {
-    try {
-      const settings = await updateTicketSettings(
-        parse(updateTicketSettingsSchema, req.body ?? {}),
-        guildIdOf(req),
-      );
-      res.json({ settings });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+  router.put(
+    "/settings",
+    defineRoute(
+      { body: updateTicketSettingsSchema },
+      async (req, res, valid) => {
+        const settings = await updateTicketSettings(valid.body, guildIdOf(req));
+        res.json({ settings });
+      },
+    ),
+  );
 
-  router.get("/panels", async (req, res, next) => {
-    try {
+  router.get(
+    "/panels",
+    defineRoute({}, async (req, res) => {
       res.json({ panels: await listTicketPanels(guildIdOf(req)) });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.post("/panels", async (req, res, next) => {
-    try {
-      const panel = await createTicketPanel(
-        parse(createTicketPanelSchema, req.body ?? {}),
-        guildIdOf(req),
-      );
+  router.post(
+    "/panels",
+    defineRoute({ body: createTicketPanelSchema }, async (req, res, valid) => {
+      const panel = await createTicketPanel(valid.body, guildIdOf(req));
       res.status(201).json({ panel });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.patch("/panels/:id", async (req, res, next) => {
-    try {
-      const panel = await updateTicketPanel(
-        parse(recordId, req.params.id),
-        parse(updateTicketPanelSchema, req.body ?? {}),
-        guildIdOf(req),
-      );
-      res.json({ panel });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+  router.patch(
+    "/panels/:id",
+    defineRoute(
+      { params: idParams, body: updateTicketPanelSchema },
+      async (req, res, valid) => {
+        const panel = await updateTicketPanel(
+          valid.params.id,
+          valid.body,
+          guildIdOf(req),
+        );
+        res.json({ panel });
+      },
+    ),
+  );
 
-  router.delete("/panels/:id", async (req, res, next) => {
-    try {
-      await deleteTicketPanel(parse(recordId, req.params.id), guildIdOf(req));
+  router.delete(
+    "/panels/:id",
+    defineRoute({ params: idParams }, async (req, res, valid) => {
+      await deleteTicketPanel(valid.params.id, guildIdOf(req));
       res.status(204).send();
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.post("/panels/:id/publish", async (req, res, next) => {
-    try {
-      const result = await publishTicketPanel(
-        bot,
-        parse(recordId, req.params.id),
-        guildIdOf(req),
-        parse(updateTicketPanelSchema, req.body ?? {}),
-      );
-      res.json(result);
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+  router.post(
+    "/panels/:id/publish",
+    defineRoute(
+      { params: idParams, body: updateTicketPanelSchema },
+      async (req, res, valid) => {
+        const result = await publishTicketPanel(
+          bot,
+          valid.params.id,
+          guildIdOf(req),
+          valid.body,
+        );
+        res.json(result);
+      },
+    ),
+  );
 
-  router.get("/", async (req, res, next) => {
-    try {
-      const statusRaw =
-        typeof req.query.status === "string" ? req.query.status : undefined;
+  router.get(
+    "/",
+    defineRoute({ query: ticketListQuery }, async (req, res, valid) => {
       const status =
-        statusRaw && isTicketStatus(statusRaw) ? statusRaw : undefined;
-      const typeKey =
-        typeof req.query.typeKey === "string" ? req.query.typeKey : undefined;
-      const openerId =
-        typeof req.query.openerId === "string" ? req.query.openerId : undefined;
-      const claimedBy =
-        typeof req.query.claimedBy === "string"
-          ? req.query.claimedBy
+        valid.query.status && isTicketStatus(valid.query.status)
+          ? valid.query.status
           : undefined;
       res.json(
         await listTickets(guildIdOf(req), {
           status,
-          typeKey,
-          openerId,
-          claimedBy,
+          typeKey: valid.query.typeKey,
+          openerId: valid.query.openerId,
+          claimedBy: valid.query.claimedBy,
         }),
       );
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.get("/:id", async (req, res, next) => {
-    try {
+  router.get(
+    "/:id",
+    defineRoute({ params: idParams }, async (req, res, valid) => {
       res.json({
-        ticket: await getTicketDetail(
-          parse(recordId, req.params.id),
-          guildIdOf(req),
-        ),
+        ticket: await getTicketDetail(valid.params.id, guildIdOf(req)),
       });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.post("/:id/claim", async (req, res, next) => {
-    try {
-      const guildId = guildIdOf(req);
-      const { guild, member } = await actorMember(bot, guildId, actorIdOf(req));
+  router.post(
+    "/:id/claim",
+    defineRoute({ params: idParams }, async (req, res, valid) => {
+      const { guild, member } = await actorMember(
+        bot,
+        guildIdOf(req),
+        actorIdOf(req),
+      );
       const ticket = await claimTicket({
         guild,
-        ticketId: parse(recordId, req.params.id),
+        ticketId: valid.params.id,
         actor: member,
       });
       res.json({ ticket });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.post("/:id/unclaim", async (req, res, next) => {
-    try {
+  router.post(
+    "/:id/unclaim",
+    defineRoute({ params: idParams }, async (req, res, valid) => {
       const guild = await requireGuild(bot, guildIdOf(req));
       const ticket = await unclaimTicket({
         guild,
-        ticketId: parse(recordId, req.params.id),
+        ticketId: valid.params.id,
         actorId: actorIdOf(req),
       });
       res.json({ ticket });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.post("/:id/wait", async (req, res, next) => {
-    try {
+  router.post(
+    "/:id/wait",
+    defineRoute({ params: idParams }, async (req, res, valid) => {
       const guild = await requireGuild(bot, guildIdOf(req));
       const ticket = await waitTicket({
         guild,
-        ticketId: parse(recordId, req.params.id),
+        ticketId: valid.params.id,
         actorId: actorIdOf(req),
       });
       res.json({ ticket });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.post("/:id/unwait", async (req, res, next) => {
-    try {
+  router.post(
+    "/:id/unwait",
+    defineRoute({ params: idParams }, async (req, res, valid) => {
       const guild = await requireGuild(bot, guildIdOf(req));
       const ticket = await unwaitTicket({
         guild,
-        ticketId: parse(recordId, req.params.id),
+        ticketId: valid.params.id,
         actorId: actorIdOf(req),
       });
       res.json({ ticket });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.post("/:id/close", async (req, res, next) => {
-    try {
-      const reason = normalizeTicketCloseReason(
-        parse(closeTicketSchema, req.body ?? {}).reason,
+  router.post(
+    "/:id/close",
+    defineRoute(
+      { params: idParams, body: closeTicketSchema },
+      async (req, res, valid) => {
+        const reason = normalizeTicketCloseReason(valid.body.reason);
+        if (!reason) {
+          throw new TicketsError(
+            "The close reason is required.",
+            400,
+            "MISSING_CLOSE_REASON",
+          );
+        }
+        const guild = await requireGuild(bot, guildIdOf(req));
+        const ticket = await closeTicket({
+          guild,
+          ticketId: valid.params.id,
+          actorId: actorIdOf(req),
+          reason,
+        });
+        res.json({ ticket });
+      },
+    ),
+  );
+
+  router.post(
+    "/:id/reopen",
+    defineRoute({ params: idParams }, async (req, res, valid) => {
+      const { guild, member } = await actorMember(
+        bot,
+        guildIdOf(req),
+        actorIdOf(req),
       );
-      if (!reason) {
-        throw new TicketsError(
-          "The close reason is required.",
-          400,
-          "MISSING_CLOSE_REASON",
-        );
-      }
-      const guild = await requireGuild(bot, guildIdOf(req));
-      const ticket = await closeTicket({
-        guild,
-        ticketId: parse(recordId, req.params.id),
-        actorId: actorIdOf(req),
-        reason,
-      });
-      res.json({ ticket });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
-
-  router.post("/:id/reopen", async (req, res, next) => {
-    try {
-      const guildId = guildIdOf(req);
-      const { guild, member } = await actorMember(bot, guildId, actorIdOf(req));
       const ticket = await reopenTicket({
         guild,
-        ticketId: parse(recordId, req.params.id),
+        ticketId: valid.params.id,
         actor: member,
       });
       res.json({ ticket });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.post("/:id/participants", async (req, res, next) => {
-    try {
-      const userId = parseTicketUserMention(
-        parse(ticketUserSchema, req.body ?? {}).userId,
-      );
-      if (!userId) {
-        throw new TicketsError("Invalid user.", 400, "INVALID_USER");
-      }
-      const guild = await requireGuild(bot, guildIdOf(req));
-      const ticket = await addUserToTicket({
-        guild,
-        ticketId: parse(recordId, req.params.id),
-        actorId: actorIdOf(req),
-        userId,
-      });
-      res.json({ ticket });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+  router.post(
+    "/:id/participants",
+    defineRoute(
+      { params: idParams, body: ticketUserSchema },
+      async (req, res, valid) => {
+        const userId = parseTicketUserMention(valid.body.userId);
+        if (!userId) {
+          throw new TicketsError("Invalid user.", 400, "INVALID_USER");
+        }
+        const guild = await requireGuild(bot, guildIdOf(req));
+        const ticket = await addUserToTicket({
+          guild,
+          ticketId: valid.params.id,
+          actorId: actorIdOf(req),
+          userId,
+        });
+        res.json({ ticket });
+      },
+    ),
+  );
 
-  router.delete("/:id/participants/:userId", async (req, res, next) => {
-    try {
-      const userId = parseTicketUserMention(req.params.userId);
+  router.delete(
+    "/:id/participants/:userId",
+    defineRoute({ params: participantParams }, async (req, res, valid) => {
+      const userId = parseTicketUserMention(valid.params.userId);
       if (!userId) {
         throw new TicketsError("Invalid user.", 400, "INVALID_USER");
       }
       const guild = await requireGuild(bot, guildIdOf(req));
       const ticket = await removeUserFromTicket({
         guild,
-        ticketId: parse(recordId, req.params.id),
+        ticketId: valid.params.id,
         actorId: actorIdOf(req),
         userId,
       });
       res.json({ ticket });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   return router;
 }

@@ -1,7 +1,7 @@
 import { listSystemCommandNames } from "@adobos/shared";
 import { GatewayIntentBits } from "discord.js";
-import { logger } from "../../core/log.js";
-import type { AdobosModule } from "../../core/modules/types.js";
+import { logger } from "#core/log.js";
+import type { AdobosModule } from "#core/modules/types.js";
 import { customCommandsRoutes } from "./api/routes.js";
 import { handleCustomChatCommand } from "./handler.js";
 import { setReservedSlashCommandNames } from "./service.js";

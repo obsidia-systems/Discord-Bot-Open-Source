@@ -16,9 +16,9 @@ import {
   type Message,
 } from "discord.js";
 import cron, { type ScheduledTask } from "node-cron";
-import { logger } from "../../core/log.js";
-import { timeAndDaysToCron } from "../../lib/schedulerTimezone.js";
-import { rememberBotMessageDeletes } from "../action-logs/audit.js";
+import { logger } from "#core/log.js";
+import { timeAndDaysToCron } from "#lib/schedulerTimezone.js";
+import { rememberBotMessageDeletes } from "#modules/action-logs/audit.js";
 import { listAllAutoDeleteConfigs } from "./service.js";
 
 const MAX_PAGES = 25;

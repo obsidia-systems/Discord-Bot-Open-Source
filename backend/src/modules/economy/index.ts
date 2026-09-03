@@ -1,6 +1,6 @@
-import { logger } from "../../core/log.js";
-import type { AdobosModule } from "../../core/modules/types.js";
-import { isWorkerLeader } from "../../core/runtime/index.js";
+import { logger } from "#core/log.js";
+import type { AdobosModule } from "#core/modules/types.js";
+import { isWorkerLeader } from "#core/runtime/index.js";
 import { economyRoutes } from "./api/routes.js";
 import { handleBuyButton } from "./commands/buy.js";
 import {

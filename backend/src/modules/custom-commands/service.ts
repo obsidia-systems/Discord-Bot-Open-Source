@@ -15,9 +15,9 @@ import {
   normalizeCustomCommandResponseData,
 } from "@adobos/shared";
 import { and, count, desc, eq } from "drizzle-orm";
-import { assertWithinLimit } from "../../core/entitlements/service.js";
-import { getDb, one } from "../../db/client.js";
-import { customCommands, guildSettings } from "../../db/schema.js";
+import { assertWithinLimit } from "#core/entitlements/service.js";
+import { getDb, one } from "#db/client.js";
+import { customCommands, guildSettings } from "#db/schema.js";
 
 export class CustomCommandsError extends Error {
   constructor(

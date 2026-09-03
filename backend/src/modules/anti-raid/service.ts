@@ -23,13 +23,13 @@ import {
   can,
   EntitlementError,
   getGuildTier,
-} from "../../core/entitlements/service.js";
-import { getDb, one } from "../../db/client.js";
+} from "#core/entitlements/service.js";
+import { getDb, one } from "#db/client.js";
 import {
   type AntiRaidSettingsRow,
   antiRaidSettings,
   guildSettings,
-} from "../../db/schema.js";
+} from "#db/schema.js";
 
 export class AntiRaidError extends Error {
   constructor(

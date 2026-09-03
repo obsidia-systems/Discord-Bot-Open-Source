@@ -1,4 +1,4 @@
-import type { AdobosModule } from "../../core/modules/types.js";
+import type { AdobosModule } from "#core/modules/types.js";
 import { embedLibraryRoutes } from "./api/libraryRoutes.js";
 import { messageRoutes } from "./api/routes.js";
 import { embedTemplateRoutes } from "./api/templateRoutes.js";

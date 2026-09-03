@@ -1,9 +1,9 @@
 import { GIVEAWAY_JOIN_PREFIX } from "@adobos/shared";
 import { GatewayIntentBits } from "discord.js";
-import { registerJob } from "../../core/lifecycle.js";
-import { logger } from "../../core/log.js";
-import type { AdobosModule } from "../../core/modules/types.js";
-import { isWorkerLeader } from "../../core/runtime/index.js";
+import { registerJob } from "#core/lifecycle.js";
+import { logger } from "#core/log.js";
+import type { AdobosModule } from "#core/modules/types.js";
+import { isWorkerLeader } from "#core/runtime/index.js";
 import { giveawaysRoutes } from "./api/routes.js";
 import { onGiveawayChannelDelete, onGiveawayMessageDelete } from "./events.js";
 import { onGiveawayJoinButton } from "./handlers.js";

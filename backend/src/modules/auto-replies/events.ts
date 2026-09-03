@@ -4,7 +4,7 @@ import {
   pickMatchingAutoReply,
 } from "@adobos/shared";
 import type { Message } from "discord.js";
-import { logger } from "../../core/log.js";
+import { logger } from "#core/log.js";
 import { listAutoRepliesCached } from "./service.js";
 
 const lastFired = new Map<string, number>();

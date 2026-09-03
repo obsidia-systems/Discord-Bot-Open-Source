@@ -22,7 +22,7 @@ import {
   pre,
   snowflakeList,
   snowflakeNull,
-} from "../../../core/http/schemas.js";
+} from "#core/http/schemas.js";
 
 const nukeThresholdsSchema = z
   .object(

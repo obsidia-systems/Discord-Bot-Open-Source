@@ -1,5 +1,5 @@
 import { AuditLogEvent, type VoiceState } from "discord.js";
-import { logger } from "../../../core/log.js";
+import { logger } from "#core/log.js";
 import { resolveAuditExecutor } from "../audit.js";
 import { userTag } from "../helpers.js";
 import { passesActionLogFilters, recordActionLog } from "../service.js";

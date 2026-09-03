@@ -4,7 +4,7 @@ import type {
   Guild,
   GuildAuditLogsEntry,
 } from "discord.js";
-import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
+import { BoundedTtlMap } from "#core/cache/boundedTtlMap.js";
 import { userTag } from "./helpers.js";
 
 /** Entradas de audit más viejas que esto no se usan como ejecutor. */

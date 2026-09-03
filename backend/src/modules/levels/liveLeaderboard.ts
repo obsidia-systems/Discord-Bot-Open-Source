@@ -1,7 +1,7 @@
 import { applyLevelsTokens, embedColorToInt } from "@adobos/shared";
 import { type Client, EmbedBuilder, type TextChannel } from "discord.js";
-import { registerJob } from "../../core/lifecycle.js";
-import { logger } from "../../core/log.js";
+import { registerJob } from "#core/lifecycle.js";
+import { logger } from "#core/log.js";
 import {
   getLeaderboardTotal,
   getLevelsConfigCached,

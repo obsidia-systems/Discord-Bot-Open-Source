@@ -10,7 +10,7 @@ import {
   pre,
   snowflakeList,
   snowflakeNull,
-} from "../../../core/http/schemas.js";
+} from "#core/http/schemas.js";
 
 export const updateStarboardSettingsSchema = z.object({
   channelId: pre((value) => (value === "" ? null : value), snowflakeNull),

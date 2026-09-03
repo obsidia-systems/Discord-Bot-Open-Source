@@ -5,7 +5,7 @@ import {
   snowflake,
   snowflakeList,
   snowflakeOpt,
-} from "../../../core/http/schemas.js";
+} from "#core/http/schemas.js";
 
 const reactionMappingSchema = z.object({
   emojiKey: z.string().min(1),

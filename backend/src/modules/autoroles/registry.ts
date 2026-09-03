@@ -34,17 +34,17 @@ import { and, desc, eq } from "drizzle-orm";
 import {
   fetchChannelInGuild,
   rethrowAsChannelError,
-} from "../../core/http/channelScope.js";
-import { logger } from "../../core/log.js";
-import { getDb, one } from "../../db/client.js";
+} from "#core/http/channelScope.js";
+import { logger } from "#core/log.js";
+import { getDb, one } from "#db/client.js";
 import {
   deleteReactionRolesForMessage,
   emojiKeyToResolvable,
   upsertReactionRoles,
-} from "../../db/reaction-roles.js";
-import { autorolesRegistry, guildSettings } from "../../db/schema.js";
-import { getEmbedTemplate } from "../messages/templates/service.js";
-import { buildEmbedFromPayload } from "../moderation/dm.js";
+} from "#db/reaction-roles.js";
+import { autorolesRegistry, guildSettings } from "#db/schema.js";
+import { getEmbedTemplate } from "#modules/messages/templates/service.js";
+import { buildEmbedFromPayload } from "#modules/moderation/dm.js";
 import { createAutoRoleSetup, normalizeEmojiKey } from "./api/controller.js";
 import { assertAssignableRoleIds } from "./assignable.js";
 import { AutoRoleError } from "./errors.js";

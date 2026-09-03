@@ -12,9 +12,9 @@ import {
   EmbedBuilder,
   MessageFlags,
 } from "discord.js";
-import { can, getGuildTier } from "../../core/entitlements/service.js";
-import { logger } from "../../core/log.js";
-import { resolveEmbedMedia } from "../../lib/embedMedia.js";
+import { can, getGuildTier } from "#core/entitlements/service.js";
+import { logger } from "#core/log.js";
+import { resolveEmbedMedia } from "#lib/embedMedia.js";
 import { getCustomCommandByName } from "./service.js";
 import { parseCustomCommandVariables } from "./variables.js";
 

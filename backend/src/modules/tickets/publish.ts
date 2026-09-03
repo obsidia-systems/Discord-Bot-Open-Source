@@ -13,7 +13,7 @@ import {
   EmbedBuilder,
   type TextChannel,
 } from "discord.js";
-import { channelBelongsToGuild } from "../../core/http/channelScope.js";
+import { channelBelongsToGuild } from "#core/http/channelScope.js";
 import {
   getTicketPanel,
   setPanelPublishedMessage,

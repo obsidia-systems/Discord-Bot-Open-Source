@@ -4,7 +4,7 @@ import {
   type Client,
   EmbedBuilder,
 } from "discord.js";
-import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
+import { consumeInteractionEphemeral } from "#modules/system-commands/ephemeral.js";
 import {
   SLOT_PAIR_MULTIPLIER,
   slotsCredit,

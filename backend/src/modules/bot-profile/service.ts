@@ -22,10 +22,10 @@ import {
   PresenceUpdateStatus,
 } from "discord.js";
 import { eq } from "drizzle-orm";
-import { logger } from "../../core/log.js";
-import { getDb, one } from "../../db/client.js";
-import { botPresenceSettings } from "../../db/schema.js";
-import { resolvePublicUploadPath } from "../../lib/dataPaths.js";
+import { logger } from "#core/log.js";
+import { getDb, one } from "#db/client.js";
+import { botPresenceSettings } from "#db/schema.js";
+import { resolvePublicUploadPath } from "#lib/dataPaths.js";
 
 export class BotProfileError extends Error {
   constructor(

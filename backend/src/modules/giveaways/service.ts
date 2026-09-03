@@ -24,8 +24,8 @@ import {
   pickGiveawayWinners,
 } from "@adobos/shared";
 import { and, count, desc, eq, inArray, lte } from "drizzle-orm";
-import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
-import { getDb, one } from "../../db/client.js";
+import { BoundedTtlMap } from "#core/cache/boundedTtlMap.js";
+import { getDb, one } from "#db/client.js";
 import {
   type GiveawayEntryRow,
   type GiveawayRow,
@@ -34,7 +34,7 @@ import {
   giveawaySettings,
   giveaways,
   guildSettings,
-} from "../../db/schema.js";
+} from "#db/schema.js";
 
 export class GiveawaysError extends Error {
   constructor(

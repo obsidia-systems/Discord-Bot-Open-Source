@@ -5,7 +5,7 @@ import {
   messageMatchesAutoDeleteFilter,
 } from "@adobos/shared";
 import type { Message } from "discord.js";
-import { logger } from "../../core/log.js";
+import { logger } from "#core/log.js";
 import { enqueueCountdownDelete } from "./pending.js";
 import { getAutoDeleteConfigCached } from "./service.js";
 

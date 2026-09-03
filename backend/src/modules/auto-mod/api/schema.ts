@@ -10,7 +10,7 @@ import {
   posInt,
   snowflakeList,
   snowflakeNull,
-} from "../../../core/http/schemas.js";
+} from "#core/http/schemas.js";
 
 const autoModFiltersSchema = z.object({
   zalgo: z.boolean().optional(),

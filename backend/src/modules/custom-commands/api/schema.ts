@@ -1,10 +1,6 @@
 import { CUSTOM_COMMAND_NAME_REGEX } from "@adobos/shared";
 import { z } from "zod";
-import {
-  boolish,
-  nonNegInt,
-  snowflakeList,
-} from "../../../core/http/schemas.js";
+import { boolish, nonNegInt, snowflakeList } from "#core/http/schemas.js";
 
 const customEmbedSchema = z.object({
   title: z.string(),

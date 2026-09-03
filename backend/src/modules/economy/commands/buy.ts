@@ -6,8 +6,8 @@ import type {
   GuildMember,
 } from "discord.js";
 import { EmbedBuilder } from "discord.js";
-import { resolveEmbedMedia } from "../../../lib/embedMedia.js";
-import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
+import { resolveEmbedMedia } from "#lib/embedMedia.js";
+import { consumeInteractionEphemeral } from "#modules/system-commands/ephemeral.js";
 import { purchaseShopItem } from "../purchaseService.js";
 import { EconomyError, getEconomyConfig } from "../service.js";
 import { listShopItems } from "../shopService.js";

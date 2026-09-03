@@ -13,7 +13,7 @@ import {
   EmbedBuilder,
   type TextBasedChannel,
 } from "discord.js";
-import { logger } from "../../core/log.js";
+import { logger } from "#core/log.js";
 import {
   fetchKickLive,
   fetchTwitchLiveMap,

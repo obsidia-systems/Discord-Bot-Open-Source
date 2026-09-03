@@ -7,9 +7,9 @@ import {
   type Webhook,
 } from "discord.js";
 import { eq } from "drizzle-orm";
-import { logger } from "../../core/log.js";
-import { getDb, one } from "../../db/client.js";
-import { actionLogsConfig } from "../../db/schema.js";
+import { logger } from "#core/log.js";
+import { getDb, one } from "#db/client.js";
+import { actionLogsConfig } from "#db/schema.js";
 
 /** Nombre de creación del webhook en el canal (fallback legacy). */
 export const ACTION_LOG_WEBHOOK_NAME = "Adobos Audit";

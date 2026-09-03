@@ -8,9 +8,9 @@ import express, {
   type RequestHandler,
 } from "express";
 import helmet from "helmet";
+import { getUploadsRoot } from "#lib/dataPaths.js";
 import { healthRouter } from "../../api/routes/health.js";
 import { uploadRoutes } from "../../api/routes/uploads.routes.js";
-import { getUploadsRoot } from "../../lib/dataPaths.js";
 import { authRouter, meRouter } from "../auth/oauth.js";
 import { entitlementsRoutes, requireFeature } from "../entitlements/index.js";
 import { env } from "../env.js";

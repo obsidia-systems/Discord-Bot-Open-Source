@@ -1,7 +1,7 @@
 import type { Client } from "discord.js";
 import { Router } from "express";
-import { guildIdOf } from "../../../core/http/guildContext.js";
-import { parse, parseQuery } from "../../../core/http/validate.js";
+import { guildIdOf } from "#core/http/guildContext.js";
+import { defineRoute } from "#core/http/validate.js";
 import {
   getActionLogsConfig,
   listActionLogsHistory,
@@ -17,58 +17,54 @@ export function actionLogsRoutes(bot: Client): Router {
   const router = Router();
 
   /** GET /api/logs/config */
-  router.get("/config", async (req, res, next) => {
-    try {
-      const guildId = guildIdOf(req);
-      const config = await getActionLogsConfig(guildId);
+  router.get(
+    "/config",
+    defineRoute({}, async (req, res) => {
+      const config = await getActionLogsConfig(guildIdOf(req));
       res.json({ config });
-    } catch (error) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   /** POST /api/logs/config */
-  router.post("/config", async (req, res, next) => {
-    try {
-      const guildId = guildIdOf(req);
-      const body = parse(updateActionLogsConfigSchema, req.body ?? {});
-      const config = await updateActionLogsConfig(body, guildId);
-      res.json({ config });
-    } catch (error) {
-      next(error);
-    }
-  });
+  router.post(
+    "/config",
+    defineRoute(
+      { body: updateActionLogsConfigSchema },
+      async (req, res, valid) => {
+        const config = await updateActionLogsConfig(valid.body, guildIdOf(req));
+        res.json({ config });
+      },
+    ),
+  );
 
   /** GET /api/logs/history */
-  router.get("/history", async (req, res, next) => {
-    try {
-      const guildId = guildIdOf(req);
-      const query = parseQuery(actionLogsHistoryQuerySchema, req.query);
-
-      const result = await listActionLogsHistory({
-        guildId,
-        category: query.category as never,
-        q: query.q,
-        from: query.from,
-        to: query.to,
-        page: query.page,
-        limit: query.limit,
-      });
-      res.json(result);
-    } catch (error) {
-      next(error);
-    }
-  });
+  router.get(
+    "/history",
+    defineRoute(
+      { query: actionLogsHistoryQuerySchema },
+      async (req, res, valid) => {
+        const result = await listActionLogsHistory({
+          guildId: guildIdOf(req),
+          category: valid.query.category as never,
+          q: valid.query.q,
+          from: valid.query.from,
+          to: valid.query.to,
+          page: valid.query.page,
+          limit: valid.query.limit,
+        });
+        res.json(result);
+      },
+    ),
+  );
 
   /** POST /api/logs/test */
-  router.post("/test", async (req, res, next) => {
-    try {
+  router.post(
+    "/test",
+    defineRoute({}, async (req, res) => {
       const result = await sendActionLogsTestEmbed(bot, guildIdOf(req));
       res.json(result);
-    } catch (error) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   return router;
 }

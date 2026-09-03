@@ -12,12 +12,12 @@ import type {
   RESTPostAPIChatInputApplicationCommandsJSONBody,
 } from "discord.js";
 import { PermissionFlagsBits, Routes } from "discord.js";
-import { commandsNeedSync } from "../../core/bot/commandDiff.js";
+import { commandsNeedSync } from "#core/discord/commandDiff.js";
 import {
   createDiscordRest,
   discordApplicationId,
-} from "../../core/bot/discordApp.js";
-import { logger } from "../../core/log.js";
+} from "#core/discord/discordApp.js";
+import { logger } from "#core/log.js";
 import { getCommandPermission } from "./service.js";
 
 /** Bitfield Discord para ocultar el comando en el autocomplete. */

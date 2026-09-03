@@ -5,14 +5,14 @@ import {
   computePayTax,
 } from "@adobos/shared";
 import { and, eq } from "drizzle-orm";
-import type { AppDatabase } from "../../db/client.js";
-import { getDb, one } from "../../db/client.js";
+import type { AppDatabase } from "#db/client.js";
+import { getDb, one } from "#db/client.js";
 import {
   economyBlackjackOpen,
   economyShopItems,
   type UserEconomyRow,
   userEconomy,
-} from "../../db/schema.js";
+} from "#db/schema.js";
 import { EconomyError, formatRemaining, getEconomyConfig } from "./service.js";
 
 type EconomyTx = Parameters<Parameters<AppDatabase["transaction"]>[0]>[0];

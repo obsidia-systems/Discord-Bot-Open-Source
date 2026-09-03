@@ -14,8 +14,8 @@ import {
   normalizeMinMax,
 } from "@adobos/shared";
 import { eq } from "drizzle-orm";
-import { getDb, one } from "../../db/client.js";
-import { economyIncome, guildSettings } from "../../db/schema.js";
+import { getDb, one } from "#db/client.js";
+import { economyIncome, guildSettings } from "#db/schema.js";
 import { EconomyError } from "./service.js";
 
 function resolveGuildId(guildId?: string): string {

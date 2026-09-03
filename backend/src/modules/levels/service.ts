@@ -23,9 +23,9 @@ import {
   resolveXpMultiplier,
 } from "@adobos/shared";
 import { and, asc, count, desc, eq, gt } from "drizzle-orm";
-import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
-import { getDb, one } from "../../db/client.js";
-import { guildSettings, userXp, xpConfig, xpRewards } from "../../db/schema.js";
+import { BoundedTtlMap } from "#core/cache/boundedTtlMap.js";
+import { getDb, one } from "#db/client.js";
+import { guildSettings, userXp, xpConfig, xpRewards } from "#db/schema.js";
 
 export class LevelsError extends Error {
   constructor(

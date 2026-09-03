@@ -15,14 +15,14 @@ import {
 } from "@adobos/shared";
 import type { Client } from "discord.js";
 import { and, eq } from "drizzle-orm";
-import { getDb, one } from "../../db/client.js";
-import { canvasEventSettings, guildSettings } from "../../db/schema.js";
-import { resolvePublicUploadPath } from "../../lib/dataPaths.js";
-import { assertGuildWelcomeChannel } from "../welcome/channel.js";
+import { getDb, one } from "#db/client.js";
+import { canvasEventSettings, guildSettings } from "#db/schema.js";
+import { resolvePublicUploadPath } from "#lib/dataPaths.js";
+import { assertGuildWelcomeChannel } from "#modules/welcome/channel.js";
 import {
   normalizeTextLayers,
   parseTextLayersJson,
-} from "../welcome/service.js";
+} from "#modules/welcome/service.js";
 
 export class CanvasEventSettingsError extends Error {
   constructor(

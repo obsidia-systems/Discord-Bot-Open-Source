@@ -4,7 +4,7 @@ import type {
   RESTPostAPIApplicationCommandsJSONBody,
 } from "discord.js";
 import { describe, expect, it } from "vitest";
-import { commandsNeedSync } from "./commandDiff.js";
+import { commandsNeedSync } from "#core/discord/commandDiff.js";
 
 /** Collection mínima: solo lo que usa `commandsNeedSync` (`size` + `find`). */
 function fakeCollection(

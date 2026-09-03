@@ -1,5 +1,5 @@
 import type { Client } from "discord.js";
-import { logger } from "../../core/log.js";
+import { logger } from "#core/log.js";
 import { endGiveawayNow, startGiveawayMessage } from "./actions.js";
 import { listDueToEnd, listDueToStart } from "./service.js";
 

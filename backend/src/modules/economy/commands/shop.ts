@@ -10,7 +10,7 @@ import {
   ButtonStyle,
   EmbedBuilder,
 } from "discord.js";
-import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
+import { consumeInteractionEphemeral } from "#modules/system-commands/ephemeral.js";
 import { getEconomyConfig } from "../service.js";
 import { listShopItems } from "../shopService.js";
 import { EPHEMERAL, visibility } from "./visibility.js";

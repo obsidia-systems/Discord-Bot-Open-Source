@@ -4,7 +4,7 @@ import {
   snowflake,
   snowflakeNull,
   weekday,
-} from "../../../core/http/schemas.js";
+} from "#core/http/schemas.js";
 
 const scheduledFrequencySchema = z.object({
   type: z.enum(["daily", "weekly", "monthly", "specific_date", "interval"]),

@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
-import { getDb, one } from "../../db/client.js";
-import { economyCooldowns } from "../../db/schema.js";
+import { getDb, one } from "#db/client.js";
+import { economyCooldowns } from "#db/schema.js";
 import { EconomyError, formatRemaining } from "./service.js";
 
 /**

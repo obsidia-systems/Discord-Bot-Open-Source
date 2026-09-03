@@ -1,6 +1,6 @@
 import { BOT_GUILD_NICKNAME_MAX } from "@adobos/shared";
 import { z } from "zod";
-import { boolish } from "../../../core/http/schemas.js";
+import { boolish } from "#core/http/schemas.js";
 
 export const updateBotGuildProfileSchema = z.object({
   nickname: z.string().max(BOT_GUILD_NICKNAME_MAX).nullable().optional(),

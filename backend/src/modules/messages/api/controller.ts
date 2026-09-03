@@ -31,14 +31,14 @@ import {
   type SendableChannels,
 } from "discord.js";
 import { eq } from "drizzle-orm";
-import { getDb, one } from "../../../db/client.js";
-import { guildSettings, sentEmbeds } from "../../../db/schema.js";
+import { getDb, one } from "#db/client.js";
+import { guildSettings, sentEmbeds } from "#db/schema.js";
 import {
   EmbedMediaError,
   requireHttpUrl,
   resolveEmbedMedia,
   resolveMulterEmbedMedia,
-} from "../../../lib/embedMedia.js";
+} from "#lib/embedMedia.js";
 
 export class MessageSendError extends Error {
   constructor(

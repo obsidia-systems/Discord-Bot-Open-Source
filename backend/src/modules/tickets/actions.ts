@@ -26,7 +26,7 @@ import {
   PermissionFlagsBits,
   type TextChannel,
 } from "discord.js";
-import { logger } from "../../core/log.js";
+import { logger } from "#core/log.js";
 import {
   addTicketParticipant,
   appendChannelDeletedEvent,

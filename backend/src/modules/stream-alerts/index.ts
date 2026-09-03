@@ -1,9 +1,9 @@
 import { STREAM_ALERT_POLL_MS } from "@adobos/shared";
 import { GatewayIntentBits } from "discord.js";
-import { registerJob } from "../../core/lifecycle.js";
-import { logger } from "../../core/log.js";
-import type { AdobosModule } from "../../core/modules/types.js";
-import { isWorkerLeader } from "../../core/runtime/index.js";
+import { registerJob } from "#core/lifecycle.js";
+import { logger } from "#core/log.js";
+import type { AdobosModule } from "#core/modules/types.js";
+import { isWorkerLeader } from "#core/runtime/index.js";
 import { streamAlertsRoutes } from "./api/routes.js";
 import { bindStreamAlertsPoller, processStreamAlerts } from "./poller.js";
 

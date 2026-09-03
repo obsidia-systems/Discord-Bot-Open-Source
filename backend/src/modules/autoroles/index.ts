@@ -4,7 +4,7 @@ import {
   GatewayIntentBits,
   type StringSelectMenuInteraction,
 } from "discord.js";
-import type { AdobosModule } from "../../core/modules/types.js";
+import type { AdobosModule } from "#core/modules/types.js";
 import { rolesRoutes } from "./api/roles.routes.js";
 import { autoroleRoutes } from "./api/routes.js";
 import {

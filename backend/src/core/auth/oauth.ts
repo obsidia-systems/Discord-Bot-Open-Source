@@ -7,7 +7,7 @@ import {
   type Response,
   Router,
 } from "express";
-import { DiscordHttpError } from "../bot/discordHttpError.js";
+import { DiscordHttpError } from "../discord/discordHttpError.js";
 import { logger } from "../log.js";
 import { listManagedGuilds } from "./discordGuilds.js";
 import {

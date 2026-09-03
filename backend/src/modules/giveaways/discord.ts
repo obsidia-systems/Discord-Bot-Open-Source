@@ -10,8 +10,8 @@ import {
   type Guild,
   type TextChannel,
 } from "discord.js";
-import { channelBelongsToGuild } from "../../core/http/channelScope.js";
-import { logger } from "../../core/log.js";
+import { channelBelongsToGuild } from "#core/http/channelScope.js";
+import { logger } from "#core/log.js";
 import { GiveawaysError } from "./service.js";
 
 function asTextChannel(channel: unknown): TextChannel | null {

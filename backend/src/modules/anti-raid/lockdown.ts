@@ -5,7 +5,7 @@ import {
   type GuildBasedChannel,
   PermissionFlagsBits,
 } from "discord.js";
-import { logger } from "../../core/log.js";
+import { logger } from "#core/log.js";
 import {
   getAntiRaidSettings,
   getLockdownSnapshot,

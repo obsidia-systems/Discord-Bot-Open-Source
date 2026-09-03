@@ -15,9 +15,9 @@ import {
   normalizeScheduledTimezone,
 } from "@adobos/shared";
 import { and, asc, count, desc, eq, isNotNull, lte } from "drizzle-orm";
-import { assertWithinLimit } from "../../core/entitlements/service.js";
-import { getDb, one } from "../../db/client.js";
-import { guildSettings, scheduledMessages } from "../../db/schema.js";
+import { assertWithinLimit } from "#core/entitlements/service.js";
+import { getDb, one } from "#db/client.js";
+import { guildSettings, scheduledMessages } from "#db/schema.js";
 
 export class ScheduledMessagesError extends Error {
   constructor(

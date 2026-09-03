@@ -5,31 +5,31 @@ import { fileURLToPath } from "node:url";
 import {
   startSessionPruneJob,
   stopSessionPruneJob,
-} from "./core/auth/sessionStore.js";
-import { createBotClient } from "./core/bot/createClient.js";
-import { loadEnv } from "./core/env.js";
-import { createApp, createHealthApp } from "./core/http/createApp.js";
+} from "#core/auth/sessionStore.js";
+import { createBotClient } from "#core/discord/createClient.js";
+import { loadEnv } from "#core/env.js";
+import { createApp, createHealthApp } from "#core/http/createApp.js";
 import {
   installProcessGuards,
   onShutdown,
   runShutdown,
-} from "./core/lifecycle.js";
-import { logger } from "./core/log.js";
-import { loadModules } from "./core/modules/index.js";
+} from "#core/lifecycle.js";
+import { logger } from "#core/log.js";
+import { loadModules } from "#core/modules/index.js";
 import {
   roleRunsGateway,
   roleRunsHttp,
   roleRunsWorker,
   setRuntimeRole,
   setWorkerLeader,
-} from "./core/runtime/index.js";
+} from "#core/runtime/index.js";
 import {
   acquireWorkerLock,
   releaseWorkerLock,
-} from "./core/runtime/workerLock.js";
-import { closeDatabase, initDatabase } from "./db/client.js";
-import { wireCustomCommandsBuiltinSync } from "./modules/custom-commands/index.js";
-import { ENABLED_MODULES } from "./modules/index.js";
+} from "#core/runtime/workerLock.js";
+import { closeDatabase, initDatabase } from "#db/client.js";
+import { wireCustomCommandsBuiltinSync } from "#modules/custom-commands/index.js";
+import { ENABLED_MODULES } from "#modules/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

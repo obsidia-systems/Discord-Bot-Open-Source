@@ -5,7 +5,7 @@ import {
   type Message,
   type NonThreadGuildBasedChannel,
 } from "discord.js";
-import { logger } from "../../core/log.js";
+import { logger } from "#core/log.js";
 import { onTicketChannelDeleted, onTicketChannelMessage } from "./actions.js";
 
 function asGuildText(channel: unknown): TextChannel | null {

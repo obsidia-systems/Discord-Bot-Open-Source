@@ -1,9 +1,9 @@
 import type { Client } from "discord.js";
 import { Router } from "express";
 import multer from "multer";
-import { requireFeature } from "../../../core/entitlements/service.js";
-import { guildIdOf } from "../../../core/http/guildContext.js";
-import { parse } from "../../../core/http/validate.js";
+import { requireFeature } from "#core/entitlements/service.js";
+import { guildIdOf } from "#core/http/guildContext.js";
+import { defineRoute } from "#core/http/validate.js";
 import { getGuildBotProfile, updateGuildBotProfile } from "../service.js";
 import { updateBotGuildProfileSchema } from "./schema.js";
 
@@ -32,38 +32,29 @@ const avatarUpload = multer({
 export function botProfileRoutes(bot: Client): Router {
   const router = Router();
 
-  router.get("/", async (req, res, next) => {
-    const guildId = guildIdOf(req);
-    try {
-      res.json(await getGuildBotProfile(bot, guildId));
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+  router.get(
+    "/",
+    defineRoute({}, async (req, res) => {
+      res.json(await getGuildBotProfile(bot, guildIdOf(req)));
+    }),
+  );
 
-  router.post("/", requireFeature("branding"), async (req, res, next) => {
-    avatarUpload.single("serverAvatar")(req, res, async (err: unknown) => {
-      if (err) {
-        next(err);
-        return;
-      }
-
-      try {
-        const fields = parse(updateBotGuildProfileSchema, req.body ?? {});
-        const guildId = guildIdOf(req);
-        const file = req.file;
-
+  router.post(
+    "/",
+    requireFeature("branding"),
+    avatarUpload.single("serverAvatar"),
+    defineRoute(
+      { body: updateBotGuildProfileSchema },
+      async (req, res, valid) => {
         const result = await updateGuildBotProfile(bot, {
-          fields,
-          avatarBuffer: file?.buffer,
-          guildId,
+          fields: valid.body,
+          avatarBuffer: req.file?.buffer,
+          guildId: guildIdOf(req),
         });
         res.json(result);
-      } catch (error: unknown) {
-        next(error);
-      }
-    });
-  });
+      },
+    ),
+  );
 
   return router;
 }

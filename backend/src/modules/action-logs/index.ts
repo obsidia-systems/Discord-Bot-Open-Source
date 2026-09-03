@@ -1,8 +1,8 @@
 import { GatewayIntentBits } from "discord.js";
-import { registerJob } from "../../core/lifecycle.js";
-import { logger } from "../../core/log.js";
-import type { AdobosModule } from "../../core/modules/types.js";
-import { isWorkerLeader } from "../../core/runtime/index.js";
+import { registerJob } from "#core/lifecycle.js";
+import { logger } from "#core/log.js";
+import type { AdobosModule } from "#core/modules/types.js";
+import { isWorkerLeader } from "#core/runtime/index.js";
 import { actionLogsRoutes } from "./api/routes.js";
 import { registerActionLogListeners } from "./events.js";
 import { purgeAllExpiredActionLogs } from "./service.js";

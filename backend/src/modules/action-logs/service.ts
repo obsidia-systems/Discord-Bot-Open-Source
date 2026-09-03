@@ -25,19 +25,15 @@ import {
 } from "@adobos/shared";
 import { ChannelType, type Client, EmbedBuilder, type Guild } from "discord.js";
 import { and, desc, eq, gte, like, lt, lte, or, sql } from "drizzle-orm";
-import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
+import { BoundedTtlMap } from "#core/cache/boundedTtlMap.js";
 import {
   EntitlementError,
   getGuildTier,
   limit as guildLimit,
-} from "../../core/entitlements/service.js";
-import { logger } from "../../core/log.js";
-import { getDb, one } from "../../db/client.js";
-import {
-  actionLogs,
-  actionLogsConfig,
-  guildSettings,
-} from "../../db/schema.js";
+} from "#core/entitlements/service.js";
+import { logger } from "#core/log.js";
+import { getDb, one } from "#db/client.js";
+import { actionLogs, actionLogsConfig, guildSettings } from "#db/schema.js";
 import { buildActionLogEmbed } from "./embeds.js";
 import { sendActionLogWebhook } from "./webhooks.js";
 

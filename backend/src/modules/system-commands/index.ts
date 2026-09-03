@@ -1,9 +1,9 @@
 import { SYSTEM_COMMAND_CATALOG } from "@adobos/shared";
 import { GatewayIntentBits, MessageFlags } from "discord.js";
-import { logger } from "../../core/log.js";
-import type { AdobosModule } from "../../core/modules/types.js";
-import { handleBuyAutocomplete } from "../economy/commands/buy.js";
-import { handleUseAutocomplete } from "../economy/commands/inventory.js";
+import { logger } from "#core/log.js";
+import type { AdobosModule } from "#core/modules/types.js";
+import { handleBuyAutocomplete } from "#modules/economy/commands/buy.js";
+import { handleUseAutocomplete } from "#modules/economy/commands/inventory.js";
 import { systemCommandsRoutes } from "./api/routes.js";
 import { assertSystemCommandAllowed } from "./guard.js";
 import { dispatchDefaultCommand } from "./handlers/index.js";

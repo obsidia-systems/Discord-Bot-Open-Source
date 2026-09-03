@@ -1,12 +1,12 @@
 import { getSystemCommandDefinition } from "@adobos/shared";
 import type { ChatInputCommandInteraction } from "discord.js";
-import { handleBuyCommand } from "../../economy/commands/buy.js";
+import { handleBuyCommand } from "#modules/economy/commands/buy.js";
 import {
   handleBlackjackCommand,
   handleCoinflipCommand,
   handleRouletteCommand,
   handleSlotsCommand,
-} from "../../economy/commands/casino.js";
+} from "#modules/economy/commands/casino.js";
 import {
   handleAddMoneyCommand,
   handleBalanceCommand,
@@ -23,20 +23,20 @@ import {
   handleWeeklyCommand,
   handleWithdrawCommand,
   handleWorkCommand,
-} from "../../economy/commands/income.js";
+} from "#modules/economy/commands/income.js";
 import {
   handleInventoryCommand,
   handleUseCommand,
-} from "../../economy/commands/inventory.js";
-import { handleShopCommand } from "../../economy/commands/shop.js";
-import { getEconomyConfig } from "../../economy/service.js";
+} from "#modules/economy/commands/inventory.js";
+import { handleShopCommand } from "#modules/economy/commands/shop.js";
+import { getEconomyConfig } from "#modules/economy/service.js";
 import {
   handleGiveXpCommand,
   handleRemoveXpCommand,
   handleSetLevelCommand,
-} from "../../levels/commands/admin.js";
-import { handleLeaderboardCommand } from "../../levels/commands/leaderboard.js";
-import { handleRankCommand } from "../../levels/commands/rank.js";
+} from "#modules/levels/commands/admin.js";
+import { handleLeaderboardCommand } from "#modules/levels/commands/leaderboard.js";
+import { handleRankCommand } from "#modules/levels/commands/rank.js";
 import {
   handleBanCommand,
   handleClearWarnsCommand,
@@ -49,7 +49,7 @@ import {
   handleUntimeoutCommand,
   handleWarnCommand,
   handleWarnsCommand,
-} from "../../moderation/commands/slash.js";
+} from "#modules/moderation/commands/slash.js";
 import {
   handlePingCommand,
   handleServerInfoCommand,

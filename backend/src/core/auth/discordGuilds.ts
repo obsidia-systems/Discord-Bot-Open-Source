@@ -1,5 +1,5 @@
-import { DiscordHttpError } from "../bot/discordHttpError.js";
 import { BoundedTtlMap } from "../cache/boundedTtlMap.js";
+import { DiscordHttpError } from "../discord/discordHttpError.js";
 import { fetchDiscordAsUser } from "./discordUser.js";
 import {
   ADMINISTRATOR_BIT,

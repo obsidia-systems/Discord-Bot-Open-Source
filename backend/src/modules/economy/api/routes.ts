@@ -4,10 +4,11 @@ import type {
 } from "@adobos/shared";
 import type { Client } from "discord.js";
 import { Router } from "express";
-import { guildIdOf } from "../../../core/http/guildContext.js";
-import { leaderboardQuerySchema } from "../../../core/http/schemas.js";
-import { parse, parseQuery } from "../../../core/http/validate.js";
-import { resolveMembersBatch } from "../../../lib/discordMember.js";
+import { z } from "zod";
+import { guildIdOf } from "#core/http/guildContext.js";
+import { leaderboardQuerySchema, stringId } from "#core/http/schemas.js";
+import { defineRoute } from "#core/http/validate.js";
+import { resolveMembersBatch } from "#lib/discordMember.js";
 import {
   getEconomyCasinoConfig,
   updateEconomyCasinoConfig,
@@ -37,6 +38,8 @@ import {
   updateEconomyIncomeSchema,
   updateShopItemSchema,
 } from "./schema.js";
+
+const shopIdParams = z.object({ id: stringId });
 
 async function resolveLeaderboard(
   bot: Client,
@@ -76,156 +79,143 @@ export function economyRoutes(bot: Client): Router {
   const router = Router();
 
   /** GET /api/economy/config */
-  router.get("/config", async (req, res, next) => {
-    try {
+  router.get(
+    "/config",
+    defineRoute({}, async (req, res) => {
       const config = await getEconomyConfig(guildIdOf(req));
       res.json({ config });
-    } catch (error) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   /** PUT /api/economy/config */
-  router.put("/config", async (req, res, next) => {
-    try {
-      const body = parse(updateEconomyConfigSchema, req.body);
-      const config = await updateEconomyConfig({
-        ...body,
-        guildId: guildIdOf(req),
-      });
-      res.json({ config });
-    } catch (error) {
-      next(error);
-    }
-  });
+  router.put(
+    "/config",
+    defineRoute(
+      { body: updateEconomyConfigSchema },
+      async (req, res, valid) => {
+        const config = await updateEconomyConfig({
+          ...valid.body,
+          guildId: guildIdOf(req),
+        });
+        res.json({ config });
+      },
+    ),
+  );
 
   /** GET /api/economy/income */
-  router.get("/income", async (req, res, next) => {
-    try {
+  router.get(
+    "/income",
+    defineRoute({}, async (req, res) => {
       const config = await getEconomyIncomeConfig(guildIdOf(req));
       res.json({ config });
-    } catch (error) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   /** PUT /api/economy/income */
-  router.put("/income", async (req, res, next) => {
-    try {
-      const body = parse(updateEconomyIncomeSchema, req.body);
-      const config = await updateEconomyIncomeConfig({
-        ...body,
-        guildId: guildIdOf(req),
-      });
-      res.json({ config });
-    } catch (error) {
-      next(error);
-    }
-  });
+  router.put(
+    "/income",
+    defineRoute(
+      { body: updateEconomyIncomeSchema },
+      async (req, res, valid) => {
+        const config = await updateEconomyIncomeConfig({
+          ...valid.body,
+          guildId: guildIdOf(req),
+        });
+        res.json({ config });
+      },
+    ),
+  );
 
   /** GET /api/economy/casino */
-  router.get("/casino", async (req, res, next) => {
-    try {
+  router.get(
+    "/casino",
+    defineRoute({}, async (req, res) => {
       const config = await getEconomyCasinoConfig(guildIdOf(req));
       res.json({ config });
-    } catch (error) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   /** PUT /api/economy/casino */
-  router.put("/casino", async (req, res, next) => {
-    try {
-      const body = parse(updateEconomyCasinoSchema, req.body);
-      const config = await updateEconomyCasinoConfig({
-        ...body,
-        guildId: guildIdOf(req),
-      });
-      res.json({ config });
-    } catch (error) {
-      next(error);
-    }
-  });
+  router.put(
+    "/casino",
+    defineRoute(
+      { body: updateEconomyCasinoSchema },
+      async (req, res, valid) => {
+        const config = await updateEconomyCasinoConfig({
+          ...valid.body,
+          guildId: guildIdOf(req),
+        });
+        res.json({ config });
+      },
+    ),
+  );
 
   /** GET /api/economy/shop/items */
-  router.get("/shop/items", async (req, res, next) => {
-    try {
+  router.get(
+    "/shop/items",
+    defineRoute({}, async (req, res) => {
       const items = await listShopItems(guildIdOf(req));
       res.json({ items });
-    } catch (error) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   /** POST /api/economy/shop/items */
-  router.post("/shop/items", async (req, res, next) => {
-    try {
-      const body = parse(createShopItemSchema, req.body);
+  router.post(
+    "/shop/items",
+    defineRoute({ body: createShopItemSchema }, async (req, res, valid) => {
       const item = await createShopItem({
-        ...body,
+        ...valid.body,
         guildId: guildIdOf(req),
       });
       res.status(201).json({ item });
-    } catch (error) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   /** PUT /api/economy/shop/items/:id */
-  router.put("/shop/items/:id", async (req, res, next) => {
-    try {
-      const body = parse(updateShopItemSchema, req.body);
-      const item = await updateShopItem(req.params.id, {
-        ...body,
-        guildId: guildIdOf(req),
-      });
-      res.json({ item });
-    } catch (error) {
-      next(error);
-    }
-  });
+  router.put(
+    "/shop/items/:id",
+    defineRoute(
+      { params: shopIdParams, body: updateShopItemSchema },
+      async (req, res, valid) => {
+        const item = await updateShopItem(valid.params.id, {
+          ...valid.body,
+          guildId: guildIdOf(req),
+        });
+        res.json({ item });
+      },
+    ),
+  );
 
   /** DELETE /api/economy/shop/items/:id */
-  router.delete("/shop/items/:id", async (req, res, next) => {
-    try {
-      await deleteShopItem(req.params.id, guildIdOf(req));
+  router.delete(
+    "/shop/items/:id",
+    defineRoute({ params: shopIdParams }, async (req, res, valid) => {
+      await deleteShopItem(valid.params.id, guildIdOf(req));
       res.json({ ok: true });
-    } catch (error) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   /** GET /api/economy/leaderboard?limit=100 */
-  router.get("/leaderboard", async (req, res, next) => {
-    void (async () => {
-      try {
-        const guildId = guildIdOf(req);
-        const { limit: rawLimit } = parseQuery(
-          leaderboardQuerySchema,
-          req.query,
-        );
-        const limit = rawLimit ?? 100;
-        const payload = await resolveLeaderboard(bot, guildId, limit);
-        res.json(payload);
-      } catch (error) {
-        next(error);
-      }
-    })();
-  });
+  router.get(
+    "/leaderboard",
+    defineRoute({ query: leaderboardQuerySchema }, async (req, res, valid) => {
+      const limit = valid.query.limit ?? 100;
+      const payload = await resolveLeaderboard(bot, guildIdOf(req), limit);
+      res.json(payload);
+    }),
+  );
 
   /** POST /api/economy/funds — override admin de saldos */
-  router.post("/funds", async (req, res, next) => {
-    try {
-      const body = parse(adjustEconomyFundsSchema, req.body);
+  router.post(
+    "/funds",
+    defineRoute({ body: adjustEconomyFundsSchema }, async (req, res, valid) => {
       const result = await adjustEconomyFunds({
-        ...body,
+        ...valid.body,
         guildId: guildIdOf(req),
       });
       res.json(result);
-    } catch (error) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   return router;
 }

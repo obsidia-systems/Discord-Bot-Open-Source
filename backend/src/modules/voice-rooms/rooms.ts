@@ -19,7 +19,7 @@ import {
   StringSelectMenuBuilder,
   type VoiceChannel,
 } from "discord.js";
-import { logger } from "../../core/log.js";
+import { logger } from "#core/log.js";
 import { VoiceRoomsError } from "./service.js";
 
 const OWNER_ALLOW = [

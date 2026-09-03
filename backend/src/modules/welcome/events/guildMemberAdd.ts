@@ -1,9 +1,9 @@
 import { AttachmentBuilder, type GuildMember } from "discord.js";
 import { eq } from "drizzle-orm";
-import { logger } from "../../../core/log.js";
-import { renderWelcomeCard } from "../../../core/workers/welcomeCardPool.js";
-import { getDb, one } from "../../../db/client.js";
-import { welcomeSettings } from "../../../db/schema.js";
+import { logger } from "#core/log.js";
+import { renderWelcomeCard } from "#core/workers/welcomeCardPool.js";
+import { getDb, one } from "#db/client.js";
+import { welcomeSettings } from "#db/schema.js";
 import { isWelcomeSendChannel } from "../channel.js";
 import { disableWelcomeSettings, parseTextLayersJson } from "../service.js";
 import {

@@ -7,8 +7,8 @@ import {
 } from "@adobos/shared";
 import type { Client } from "discord.js";
 import { eq } from "drizzle-orm";
-import { getDb, one } from "../../db/client.js";
-import { autoRoles, guildSettings } from "../../db/schema.js";
+import { getDb, one } from "#db/client.js";
+import { autoRoles, guildSettings } from "#db/schema.js";
 import { assertAssignableRoleIds } from "./assignable.js";
 import { AutoRoleError } from "./errors.js";
 

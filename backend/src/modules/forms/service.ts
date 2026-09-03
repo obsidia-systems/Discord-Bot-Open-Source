@@ -20,9 +20,9 @@ import {
   normalizeSnowflakeIdList,
 } from "@adobos/shared";
 import { and, count, desc, eq } from "drizzle-orm";
-import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
-import { getDb, one } from "../../db/client.js";
-import { formResponses, guildForms, guildSettings } from "../../db/schema.js";
+import { BoundedTtlMap } from "#core/cache/boundedTtlMap.js";
+import { getDb, one } from "#db/client.js";
+import { formResponses, guildForms, guildSettings } from "#db/schema.js";
 
 export class FormsError extends Error {
   constructor(

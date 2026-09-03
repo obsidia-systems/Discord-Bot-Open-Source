@@ -3,11 +3,7 @@ import {
   STREAM_ALERT_TEMPLATE_MAX,
 } from "@adobos/shared";
 import { z } from "zod";
-import {
-  boolish,
-  snowflake,
-  snowflakeNull,
-} from "../../../core/http/schemas.js";
+import { boolish, snowflake, snowflakeNull } from "#core/http/schemas.js";
 
 export const createStreamAlertSchema = z.object({
   platform: z.enum(STREAM_ALERT_PLATFORMS),

@@ -4,8 +4,8 @@ import type {
   PartialUser,
   User,
 } from "discord.js";
-import { logger } from "../../../core/log.js";
-import { findReactionRole, toEmojiKey } from "../../../db/reaction-roles.js";
+import { logger } from "#core/log.js";
+import { findReactionRole, toEmojiKey } from "#db/reaction-roles.js";
 import { isRoleAssignableInGuild } from "../assignable.js";
 
 type ReactionLike = MessageReaction | PartialMessageReaction;

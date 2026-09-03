@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { guildIdOf } from "../../../core/http/guildContext.js";
-import { HttpError } from "../../../core/http/httpError.js";
-import { parse } from "../../../core/http/validate.js";
+import { guildIdOf } from "#core/http/guildContext.js";
+import { HttpError } from "#core/http/httpError.js";
+import { defineRoute } from "#core/http/validate.js";
 import {
   assignCurrentGuild,
   createCheckoutSession,
@@ -22,62 +22,56 @@ function userIdOf(req: Parameters<typeof guildIdOf>[0]): string {
 export function billingRoutes(): Router {
   const router = Router();
 
-  router.get("/", async (req, res, next) => {
-    try {
+  router.get(
+    "/",
+    defineRoute({}, async (req, res) => {
       res.json(
         await getBillingStatus({
           userId: userIdOf(req),
           guildId: guildIdOf(req),
         }),
       );
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.post("/checkout", async (req, res, next) => {
-    try {
-      const body = parse(billingCheckoutSchema, req.body ?? {});
+  router.post(
+    "/checkout",
+    defineRoute({ body: billingCheckoutSchema }, async (req, res, valid) => {
       res.json(
         await createCheckoutSession({
           userId: userIdOf(req),
           guildId: guildIdOf(req),
-          tier: body.tier,
+          tier: valid.body.tier,
         }),
       );
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.post("/portal", async (req, res, next) => {
-    try {
+  router.post(
+    "/portal",
+    defineRoute({}, async (req, res) => {
       res.json(await createPortalSession({ userId: userIdOf(req) }));
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.post("/assign", async (req, res, next) => {
-    try {
+  router.post(
+    "/assign",
+    defineRoute({}, async (req, res) => {
       await assignCurrentGuild({
         userId: userIdOf(req),
         guildId: guildIdOf(req),
       });
       res.json({ ok: true });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.post("/unassign", async (req, res, next) => {
-    try {
+  router.post(
+    "/unassign",
+    defineRoute({}, async (req, res) => {
       await unassignGuildFromUser(guildIdOf(req), userIdOf(req));
       res.json({ ok: true });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   return router;
 }

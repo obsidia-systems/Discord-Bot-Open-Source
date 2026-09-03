@@ -1,6 +1,6 @@
 import type { AutoModFilterKey, AutoModFilters } from "@adobos/shared";
 import { AUTO_MOD_FILTER_LABELS } from "@adobos/shared";
-import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
+import { BoundedTtlMap } from "#core/cache/boundedTtlMap.js";
 
 export interface AutoModHit {
   key: AutoModFilterKey;

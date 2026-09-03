@@ -7,7 +7,7 @@ import {
   type PartialMessage,
   PermissionFlagsBits,
 } from "discord.js";
-import { logger } from "../../core/log.js";
+import { logger } from "#core/log.js";
 import { enforceAutoModHit } from "./enforce.js";
 import { evaluateAutoModFilters } from "./filters.js";
 import { nativeRuleKeyFromName } from "./nativeRules.js";

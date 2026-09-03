@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { snowflakeList } from "../../../core/http/schemas.js";
+import { snowflakeList } from "#core/http/schemas.js";
 
 export const updateSystemCommandsSchema = z.object({
   commands: z.array(

@@ -4,7 +4,7 @@ import type {
   NonThreadGuildBasedChannel,
   PartialMessage,
 } from "discord.js";
-import { logger } from "../../core/log.js";
+import { logger } from "#core/log.js";
 import { clearGiveawayMessageByDiscordId } from "./service.js";
 
 export async function onGiveawayMessageDelete(

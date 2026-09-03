@@ -6,7 +6,7 @@ import {
   type Guild,
   type GuildTextBasedChannel,
 } from "discord.js";
-import { requireHttpUrl, resolveEmbedMedia } from "../../lib/embedMedia.js";
+import { requireHttpUrl, resolveEmbedMedia } from "#lib/embedMedia.js";
 
 export interface SanctionDmContext {
   userMention: string;

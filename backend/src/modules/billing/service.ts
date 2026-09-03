@@ -20,15 +20,15 @@ import {
   listGuildIdsForSubscription,
   setTierForSubscriptionGuilds,
   upsertGuildEntitlement,
-} from "../../core/entitlements/service.js";
-import { HttpError } from "../../core/http/httpError.js";
-import { logger } from "../../core/log.js";
-import { getDb, one } from "../../db/client.js";
+} from "#core/entitlements/service.js";
+import { HttpError } from "#core/http/httpError.js";
+import { logger } from "#core/log.js";
+import { getDb, one } from "#db/client.js";
 import {
   billingCustomers,
   type SubscriptionRow,
   subscriptions,
-} from "../../db/schema.js";
+} from "#db/schema.js";
 import {
   invoiceSubscriptionId,
   isPaidStripeStatus,

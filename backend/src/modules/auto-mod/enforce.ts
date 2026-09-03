@@ -1,8 +1,8 @@
 import type { AutoModConfig } from "@adobos/shared";
 import { AUTO_MOD_FILTER_LABELS, type AutoModFilterKey } from "@adobos/shared";
 import type { Client, GuildMember, Message, User } from "discord.js";
-import { logger } from "../../core/log.js";
-import { executeModAction } from "../moderation/service.js";
+import { logger } from "#core/log.js";
+import { executeModAction } from "#modules/moderation/service.js";
 import { dispatchAutoModAlert } from "./logs.js";
 import { applyAutoModPunishments } from "./punishments.js";
 

@@ -14,14 +14,14 @@ import {
   normalizeWarnDecayDays,
 } from "@adobos/shared";
 import { and, eq, gte, sql } from "drizzle-orm";
-import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
-import { getDb, one } from "../../db/client.js";
+import { BoundedTtlMap } from "#core/cache/boundedTtlMap.js";
+import { getDb, one } from "#db/client.js";
 import {
   actionLogsConfig,
   autoModConfig,
   guildSettings,
   warnings,
-} from "../../db/schema.js";
+} from "#db/schema.js";
 
 export class AutoModError extends Error {
   constructor(

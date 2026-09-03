@@ -15,11 +15,8 @@ import {
   type GuildAuditLogsEntry,
   type User,
 } from "discord.js";
-import { logger } from "../../core/log.js";
-import {
-  resolveMembersBatch,
-  resolveUserPreview,
-} from "../../lib/discordMember.js";
+import { logger } from "#core/log.js";
+import { resolveMembersBatch, resolveUserPreview } from "#lib/discordMember.js";
 import { consolidateAuditLogs } from "./consolidateAuditLogs.js";
 import { ModerationError } from "./service.js";
 

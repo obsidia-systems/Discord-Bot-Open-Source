@@ -1,6 +1,6 @@
 import type { Reminder } from "@adobos/shared";
 import { ChannelType, type Client, type TextBasedChannel } from "discord.js";
-import { logger } from "../../core/log.js";
+import { logger } from "#core/log.js";
 import {
   bumpReminderAttempt,
   deleteReminderById,

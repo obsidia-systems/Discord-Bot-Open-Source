@@ -1,4 +1,4 @@
-import type { GuildContext, StoredSession } from "../core/auth/types.js";
+import type { GuildContext, StoredSession } from "#core/auth/types.js";
 
 declare global {
   namespace Express {

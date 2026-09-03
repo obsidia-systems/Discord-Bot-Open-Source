@@ -1,5 +1,5 @@
 import { GatewayIntentBits } from "discord.js";
-import type { AdobosModule } from "../../core/modules/types.js";
+import type { AdobosModule } from "#core/modules/types.js";
 import { welcomeSettingsRoutes } from "./api/routes.js";
 import { onGuildMemberAdd } from "./events/guildMemberAdd.js";
 

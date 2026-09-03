@@ -12,8 +12,8 @@ import {
   type GuildMember,
   PermissionFlagsBits,
 } from "discord.js";
-import { can } from "../../core/entitlements/service.js";
-import { logger } from "../../core/log.js";
+import { can } from "#core/entitlements/service.js";
+import { logger } from "#core/log.js";
 import { resolveAlertChannel, sendAntiRaidAlert } from "./alerts.js";
 
 const AUDIT_TO_NUKE: Partial<Record<AuditLogEvent, NukeAction>> = {

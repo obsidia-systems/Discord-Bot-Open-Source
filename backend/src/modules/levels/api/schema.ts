@@ -6,7 +6,7 @@ import {
   snowflake,
   snowflakeList,
   snowflakeNull,
-} from "../../../core/http/schemas.js";
+} from "#core/http/schemas.js";
 
 const levelsRewardSchema = z.object({
   id: z.number().int().positive().optional(),

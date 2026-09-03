@@ -11,14 +11,14 @@ import {
   normalizeStarboardEmojis,
 } from "@adobos/shared";
 import { and, count, eq } from "drizzle-orm";
-import { getDb, one } from "../../db/client.js";
+import { getDb, one } from "#db/client.js";
 import {
   guildSettings,
   type StarboardPostRow,
   type StarboardSettingsRow,
   starboardPosts,
   starboardSettings,
-} from "../../db/schema.js";
+} from "#db/schema.js";
 
 export class StarboardError extends Error {
   constructor(

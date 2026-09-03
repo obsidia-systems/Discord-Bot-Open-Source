@@ -1,6 +1,6 @@
 import { parentPort } from "node:worker_threads";
-import type { BuildWelcomeCardOptions } from "../../modules/welcome/card/WelcomeCardBuilder.js";
-import { buildWelcomeCard } from "../../modules/welcome/card/WelcomeCardBuilder.js";
+import type { BuildWelcomeCardOptions } from "#modules/welcome/card/WelcomeCardBuilder.js";
+import { buildWelcomeCard } from "#modules/welcome/card/WelcomeCardBuilder.js";
 
 interface JobMessage {
   id: number;

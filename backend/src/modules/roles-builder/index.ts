@@ -1,4 +1,4 @@
-import type { AdobosModule } from "../../core/modules/types.js";
+import type { AdobosModule } from "#core/modules/types.js";
 import { rolesBuilderRoutes } from "./api/routes.js";
 
 export const rolesBuilderModule: AdobosModule = {

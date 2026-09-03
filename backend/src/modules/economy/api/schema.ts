@@ -4,7 +4,7 @@ import {
   nonNegInt,
   snowflake,
   snowflakeOpt,
-} from "../../../core/http/schemas.js";
+} from "#core/http/schemas.js";
 
 export const updateEconomyConfigSchema = z.object({
   isActive: z.boolean().optional(),

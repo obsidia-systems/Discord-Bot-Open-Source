@@ -1,6 +1,6 @@
 import type { Guild, GuildAuditLogsEntry, GuildMember } from "discord.js";
-import { logger } from "../../core/log.js";
-import type { ModuleContext } from "../../core/modules/types.js";
+import { logger } from "#core/log.js";
+import type { ModuleContext } from "#core/modules/types.js";
 import { onAntiNukeAudit } from "./nuke.js";
 import { onAntiRaidMemberAdd } from "./raid.js";
 import { getAntiRaidSettings } from "./service.js";

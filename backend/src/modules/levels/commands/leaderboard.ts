@@ -1,6 +1,6 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import { EmbedBuilder, MessageFlags } from "discord.js";
-import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
+import { consumeInteractionEphemeral } from "#modules/system-commands/ephemeral.js";
 import { getLevelsConfigCached, listLeaderboardRows } from "../service.js";
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral } as const;

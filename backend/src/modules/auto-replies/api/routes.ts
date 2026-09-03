@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { guildIdOf } from "../../../core/http/guildContext.js";
-import { recordId } from "../../../core/http/schemas.js";
-import { parse } from "../../../core/http/validate.js";
+import { guildIdOf } from "#core/http/guildContext.js";
+import { idParams } from "#core/http/schemas.js";
+import { defineRoute } from "#core/http/validate.js";
 import {
   createAutoReply,
   deleteAutoReply,
@@ -13,49 +13,43 @@ import { createAutoReplySchema, updateAutoReplySchema } from "./schema.js";
 export function autoRepliesRoutes(): Router {
   const router = Router();
 
-  router.get("/", async (req, res, next) => {
-    try {
+  router.get(
+    "/",
+    defineRoute({}, async (req, res) => {
       res.json(await listAutoRepliesConfig(guildIdOf(req)));
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.post("/", async (req, res, next) => {
-    try {
-      const reply = await createAutoReply(
-        parse(createAutoReplySchema, req.body ?? {}),
-        guildIdOf(req),
-      );
+  router.post(
+    "/",
+    defineRoute({ body: createAutoReplySchema }, async (req, res, valid) => {
+      const reply = await createAutoReply(valid.body, guildIdOf(req));
       res.status(201).json({ reply });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.patch("/:id", async (req, res, next) => {
-    try {
-      const id = parse(recordId, req.params.id);
-      const reply = await updateAutoReply(
-        id,
-        parse(updateAutoReplySchema, req.body ?? {}),
-        guildIdOf(req),
-      );
-      res.json({ reply });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+  router.patch(
+    "/:id",
+    defineRoute(
+      { params: idParams, body: updateAutoReplySchema },
+      async (req, res, valid) => {
+        const reply = await updateAutoReply(
+          valid.params.id,
+          valid.body,
+          guildIdOf(req),
+        );
+        res.json({ reply });
+      },
+    ),
+  );
 
-  router.delete("/:id", async (req, res, next) => {
-    try {
-      const id = parse(recordId, req.params.id);
-      await deleteAutoReply(id, guildIdOf(req));
+  router.delete(
+    "/:id",
+    defineRoute({ params: idParams }, async (req, res, valid) => {
+      await deleteAutoReply(valid.params.id, guildIdOf(req));
       res.status(204).send();
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   return router;
 }

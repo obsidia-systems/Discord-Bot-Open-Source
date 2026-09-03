@@ -3,14 +3,32 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "imports": {
+    "#core/*": {
+      "adobos-src": "./src/core/*",
+      "default": "./dist/core/*"
+    },
+    "#modules/*": {
+      "adobos-src": "./src/modules/*",
+      "default": "./dist/modules/*"
+    },
+    "#db/*": {
+      "adobos-src": "./src/db/*",
+      "default": "./dist/db/*"
+    },
+    "#lib/*": {
+      "adobos-src": "./src/lib/*",
+      "default": "./dist/lib/*"
+    }
+  },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "NODE_OPTIONS=\"--conditions=adobos-src\" tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx src/db/migrate.ts"
+    "db:migrate": "NODE_OPTIONS=\"--conditions=adobos-src\" tsx src/db/migrate.ts"
   },
   "dependencies": {
     "@adobos/shared": "workspace:*",

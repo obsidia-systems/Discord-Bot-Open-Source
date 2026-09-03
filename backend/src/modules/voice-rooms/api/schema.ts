@@ -5,7 +5,7 @@ import {
   nonNegInt,
   snowflake,
   snowflakeNull,
-} from "../../../core/http/schemas.js";
+} from "#core/http/schemas.js";
 
 const actionsSchema = z
   .object(

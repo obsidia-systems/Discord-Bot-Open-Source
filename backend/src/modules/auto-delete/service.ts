@@ -15,10 +15,10 @@ import {
   normalizeScheduledTimezone,
 } from "@adobos/shared";
 import { eq } from "drizzle-orm";
-import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
-import { logger } from "../../core/log.js";
-import { getDb, one } from "../../db/client.js";
-import { autoDeleteConfig, guildSettings } from "../../db/schema.js";
+import { BoundedTtlMap } from "#core/cache/boundedTtlMap.js";
+import { logger } from "#core/log.js";
+import { getDb, one } from "#db/client.js";
+import { autoDeleteConfig, guildSettings } from "#db/schema.js";
 import { prunePendingForConfig } from "./pending.js";
 
 export class AutoDeleteError extends Error {

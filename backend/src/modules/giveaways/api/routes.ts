@@ -1,8 +1,8 @@
 import type { Client } from "discord.js";
 import { Router } from "express";
-import { guildIdOf } from "../../../core/http/guildContext.js";
-import { idParams } from "../../../core/http/schemas.js";
-import { defineRoute } from "../../../core/http/validate.js";
+import { guildIdOf } from "#core/http/guildContext.js";
+import { idParams } from "#core/http/schemas.js";
+import { defineRoute } from "#core/http/validate.js";
 import {
   cancelGiveawayNow,
   createAndPublishGiveaway,

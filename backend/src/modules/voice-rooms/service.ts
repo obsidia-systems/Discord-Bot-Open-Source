@@ -16,14 +16,14 @@ import {
   VOICE_ROOM_GENERATORS_MAX,
 } from "@adobos/shared";
 import { and, eq } from "drizzle-orm";
-import { getDb, one } from "../../db/client.js";
+import { getDb, one } from "#db/client.js";
 import {
   guildSettings,
   type VoiceRoomGeneratorRow,
   type VoiceRoomRow,
   voiceRoomGenerators,
   voiceRooms,
-} from "../../db/schema.js";
+} from "#db/schema.js";
 
 export class VoiceRoomsError extends Error {
   constructor(

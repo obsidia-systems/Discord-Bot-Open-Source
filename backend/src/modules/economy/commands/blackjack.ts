@@ -7,8 +7,8 @@ import {
   type Client,
   EmbedBuilder,
 } from "discord.js";
-import { logger } from "../../../core/log.js";
-import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
+import { logger } from "#core/log.js";
+import { consumeInteractionEphemeral } from "#modules/system-commands/ephemeral.js";
 import {
   createShoe,
   dealerShouldHit,

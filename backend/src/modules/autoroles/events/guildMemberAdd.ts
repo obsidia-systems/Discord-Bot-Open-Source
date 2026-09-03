@@ -1,5 +1,5 @@
 import type { GuildMember } from "discord.js";
-import { logger } from "../../../core/log.js";
+import { logger } from "#core/log.js";
 import { isRoleAssignableInGuild } from "../assignable.js";
 import { getAutoJoinRoles } from "../autoJoin.js";
 

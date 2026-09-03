@@ -1,8 +1,9 @@
 import type { Client } from "discord.js";
 import { Router } from "express";
-import { guildIdOf } from "../../../core/http/guildContext.js";
-import { snowflake } from "../../../core/http/schemas.js";
-import { parse } from "../../../core/http/validate.js";
+import { z } from "zod";
+import { guildIdOf } from "#core/http/guildContext.js";
+import { snowflake } from "#core/http/schemas.js";
+import { defineRoute } from "#core/http/validate.js";
 import {
   createGuildRole,
   deleteGuildRole,
@@ -16,59 +17,69 @@ import {
   updateRolePositionsSchema,
 } from "./schema.js";
 
+const roleIdParams = z.object({ roleId: snowflake });
+
 /** Rutas: GET /list · POST /create · PATCH /positions · PATCH|DELETE /:roleId. */
 export function rolesBuilderRoutes(client: Client): Router {
   const router = Router();
 
-  router.get("/list", async (req, res, next) => {
-    try {
-      const data = await listGuildRoles(client, guildIdOf(req));
-      res.json(data);
-    } catch (error) {
-      next(error);
-    }
-  });
+  router.get(
+    "/list",
+    defineRoute({}, async (req, res) => {
+      res.json(await listGuildRoles(client, guildIdOf(req)));
+    }),
+  );
 
-  router.post("/create", async (req, res, next) => {
-    try {
-      const input = parse(createGuildRoleSchema, req.body);
-      const data = await createGuildRole(client, input, guildIdOf(req));
+  router.post(
+    "/create",
+    defineRoute({ body: createGuildRoleSchema }, async (req, res, valid) => {
+      const data = await createGuildRole(client, valid.body, guildIdOf(req));
       res.status(201).json(data);
-    } catch (error) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.patch("/positions", async (req, res, next) => {
-    try {
-      const { positions } = parse(updateRolePositionsSchema, req.body);
-      const data = await updateRolePositions(client, positions, guildIdOf(req));
-      res.json(data);
-    } catch (error) {
-      next(error);
-    }
-  });
+  router.patch(
+    "/positions",
+    defineRoute(
+      { body: updateRolePositionsSchema },
+      async (req, res, valid) => {
+        const data = await updateRolePositions(
+          client,
+          valid.body.positions,
+          guildIdOf(req),
+        );
+        res.json(data);
+      },
+    ),
+  );
 
-  router.patch("/:roleId", async (req, res, next) => {
-    try {
-      const roleId = parse(snowflake, req.params.roleId);
-      const input = parse(updateGuildRoleSchema, req.body ?? {});
-      const data = await updateGuildRole(client, roleId, input, guildIdOf(req));
-      res.json(data);
-    } catch (error) {
-      next(error);
-    }
-  });
+  router.patch(
+    "/:roleId",
+    defineRoute(
+      { params: roleIdParams, body: updateGuildRoleSchema },
+      async (req, res, valid) => {
+        const data = await updateGuildRole(
+          client,
+          valid.params.roleId,
+          valid.body,
+          guildIdOf(req),
+        );
+        res.json(data);
+      },
+    ),
+  );
 
-  router.delete("/:roleId", async (req, res, next) => {
-    try {
-      const roleId = parse(snowflake, req.params.roleId);
-      const data = await deleteGuildRole(client, roleId, guildIdOf(req));
+  router.delete(
+    "/:roleId",
+    defineRoute({ params: roleIdParams }, async (req, res, valid) => {
+      const data = await deleteGuildRole(
+        client,
+        valid.params.roleId,
+        guildIdOf(req),
+      );
       res.json(data);
-    } catch (error) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   return router;
 }

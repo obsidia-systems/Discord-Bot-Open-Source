@@ -13,8 +13,8 @@ import {
   type OmitPartialGroupDMChannel,
   type VoiceState,
 } from "discord.js";
-import { BoundedTtlMap } from "../../core/cache/boundedTtlMap.js";
-import { logger } from "../../core/log.js";
+import { BoundedTtlMap } from "#core/cache/boundedTtlMap.js";
+import { logger } from "#core/log.js";
 import { scheduleLiveLeaderboardRefresh } from "./liveLeaderboard.js";
 import {
   addUserXp,

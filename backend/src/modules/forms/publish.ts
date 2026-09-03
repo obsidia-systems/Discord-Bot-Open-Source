@@ -10,8 +10,8 @@ import {
   EmbedBuilder,
   type TextChannel,
 } from "discord.js";
-import { channelBelongsToGuild } from "../../core/http/channelScope.js";
-import { resolveEmbedMedia } from "../../lib/embedMedia.js";
+import { channelBelongsToGuild } from "#core/http/channelScope.js";
+import { resolveEmbedMedia } from "#lib/embedMedia.js";
 import {
   FormsError,
   getForm,

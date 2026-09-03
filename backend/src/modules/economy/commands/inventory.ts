@@ -4,13 +4,13 @@ import type {
 } from "discord.js";
 import { EmbedBuilder } from "discord.js";
 import { and, eq } from "drizzle-orm";
-import { getDb } from "../../../db/client.js";
+import { getDb } from "#db/client.js";
 import {
   economyOwnedChannels,
   economyOwnedRoles,
   economyUserBoosts,
-} from "../../../db/schema.js";
-import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
+} from "#db/schema.js";
+import { consumeInteractionEphemeral } from "#modules/system-commands/ephemeral.js";
 import { EconomyError } from "../service.js";
 import { EPHEMERAL, visibility } from "./visibility.js";
 

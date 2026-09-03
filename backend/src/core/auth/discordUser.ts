@@ -1,4 +1,4 @@
-import { DiscordHttpError } from "../bot/discordHttpError.js";
+import { DiscordHttpError } from "../discord/discordHttpError.js";
 import { logger } from "../log.js";
 import { decryptSecret, encryptSecret } from "./crypto.js";
 import { deleteSession, updateSessionTokens } from "./sessionStore.js";

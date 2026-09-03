@@ -12,15 +12,15 @@ import {
   PermissionFlagsBits,
   type TextChannel,
 } from "discord.js";
-import { logger } from "../../core/log.js";
-import { getDb } from "../../db/client.js";
+import { logger } from "#core/log.js";
+import { getDb } from "#db/client.js";
 import {
   economyOwnedChannels,
   economyOwnedRoles,
   economyPurchases,
   economyUserBoosts,
-} from "../../db/schema.js";
-import { getLevelsConfig } from "../levels/service.js";
+} from "#db/schema.js";
+import { getLevelsConfig } from "#modules/levels/service.js";
 import { debitShopPurchase, refundShopPurchase } from "./funds.js";
 import { EconomyError, getEconomyConfig } from "./service.js";
 import { getShopItem } from "./shopService.js";

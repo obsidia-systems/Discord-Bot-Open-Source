@@ -14,7 +14,7 @@ import {
   EmbedBuilder,
   StringSelectMenuBuilder,
 } from "discord.js";
-import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
+import { consumeInteractionEphemeral } from "#modules/system-commands/ephemeral.js";
 import { pickRandom, randomBelow, randomInclusive } from "../casino/rng.js";
 import { assertCooldownAvailable, setCooldownMinutes } from "../cooldowns.js";
 import {

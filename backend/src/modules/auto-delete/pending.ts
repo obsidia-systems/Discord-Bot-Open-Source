@@ -1,10 +1,10 @@
 import type { AutoDeleteConfig } from "@adobos/shared";
 import { type Client, DiscordAPIError } from "discord.js";
 import { and, eq, lte, notInArray } from "drizzle-orm";
-import { logger } from "../../core/log.js";
-import { getDb } from "../../db/client.js";
-import { autoDeletePending } from "../../db/schema.js";
-import { rememberBotMessageDeletes } from "../action-logs/audit.js";
+import { logger } from "#core/log.js";
+import { getDb } from "#db/client.js";
+import { autoDeletePending } from "#db/schema.js";
+import { rememberBotMessageDeletes } from "#modules/action-logs/audit.js";
 
 const DUE_BATCH = 50;
 

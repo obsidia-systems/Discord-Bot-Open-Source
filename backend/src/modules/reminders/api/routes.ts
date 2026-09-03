@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { guildIdOf } from "../../../core/http/guildContext.js";
-import { recordId } from "../../../core/http/schemas.js";
-import { parse } from "../../../core/http/validate.js";
+import { guildIdOf } from "#core/http/guildContext.js";
+import { idParams } from "#core/http/schemas.js";
+import { defineRoute } from "#core/http/validate.js";
 import {
   deleteReminder,
   listRemindersConfig,
@@ -12,33 +12,34 @@ import { updateReminderSettingsSchema } from "./schema.js";
 export function remindersRoutes(): Router {
   const router = Router();
 
-  router.get("/", async (req, res, next) => {
-    try {
+  router.get(
+    "/",
+    defineRoute({}, async (req, res) => {
       res.json(await listRemindersConfig(guildIdOf(req)));
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.patch("/settings", async (req, res, next) => {
-    try {
-      const body = parse(updateReminderSettingsSchema, req.body ?? {});
-      const settings = await updateReminderSettings(body, guildIdOf(req));
-      res.json({ settings });
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+  router.patch(
+    "/settings",
+    defineRoute(
+      { body: updateReminderSettingsSchema },
+      async (req, res, valid) => {
+        const settings = await updateReminderSettings(
+          valid.body,
+          guildIdOf(req),
+        );
+        res.json({ settings });
+      },
+    ),
+  );
 
-  router.delete("/:id", async (req, res, next) => {
-    try {
-      const id = parse(recordId, req.params.id);
-      await deleteReminder(id, guildIdOf(req), undefined, true);
+  router.delete(
+    "/:id",
+    defineRoute({ params: idParams }, async (req, res, valid) => {
+      await deleteReminder(valid.params.id, guildIdOf(req), undefined, true);
       res.status(204).send();
-    } catch (error: unknown) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   return router;
 }

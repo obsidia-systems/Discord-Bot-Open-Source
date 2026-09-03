@@ -18,8 +18,8 @@ import {
   loadImage,
   type SKRSContext2D,
 } from "@napi-rs/canvas";
-import { logger } from "../../../core/log.js";
-import { resolvePublicUploadPath } from "../../../lib/dataPaths.js";
+import { logger } from "#core/log.js";
+import { resolvePublicUploadPath } from "#lib/dataPaths.js";
 
 /** Lienzo fijo 1920×1080 (coincide con sliders del panel). */
 export const CARD_WIDTH = WELCOME_CARD_WIDTH;

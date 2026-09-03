@@ -9,7 +9,7 @@ import {
   StringSelectMenuBuilder,
   type StringSelectMenuInteraction,
 } from "discord.js";
-import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
+import { consumeInteractionEphemeral } from "#modules/system-commands/ephemeral.js";
 import { type RouletteBetType, resolveRouletteBet } from "../casino/payouts.js";
 import {
   pushRouletteHistory,

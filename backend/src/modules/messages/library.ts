@@ -10,8 +10,8 @@ import type {
 } from "@adobos/shared";
 import type { Client } from "discord.js";
 import { desc, eq } from "drizzle-orm";
-import { getDb, one } from "../../db/client.js";
-import { sentEmbeds } from "../../db/schema.js";
+import { getDb, one } from "#db/client.js";
+import { sentEmbeds } from "#db/schema.js";
 import {
   deleteDiscordMessage,
   type EmbedUploadedFiles,

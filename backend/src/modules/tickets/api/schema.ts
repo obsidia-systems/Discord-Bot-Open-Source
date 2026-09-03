@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { snowflakeList, snowflakeNull } from "../../../core/http/schemas.js";
+import { snowflakeList, snowflakeNull } from "#core/http/schemas.js";
 
 const panelButtonSchema = z.object({
   typeKey: z.string().min(1).max(32),

@@ -3,7 +3,7 @@ import {
   EmbedBuilder,
   MessageFlags,
 } from "discord.js";
-import { consumeInteractionEphemeral } from "../../system-commands/ephemeral.js";
+import { consumeInteractionEphemeral } from "#modules/system-commands/ephemeral.js";
 import { syncLevelsProgress } from "../events.js";
 import {
   addUserXp,

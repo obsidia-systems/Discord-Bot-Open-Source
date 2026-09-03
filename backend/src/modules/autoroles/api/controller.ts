@@ -29,19 +29,19 @@ import { eq } from "drizzle-orm";
 import {
   fetchChannelInGuild,
   rethrowAsChannelError,
-} from "../../../core/http/channelScope.js";
-import { getDb, one } from "../../../db/client.js";
+} from "#core/http/channelScope.js";
+import { getDb, one } from "#db/client.js";
 import {
   deleteReactionRolesForMessage,
   emojiKeyToResolvable,
   upsertReactionRoles,
-} from "../../../db/reaction-roles.js";
-import { guildSettings, reactionRolesMenus } from "../../../db/schema.js";
+} from "#db/reaction-roles.js";
+import { guildSettings, reactionRolesMenus } from "#db/schema.js";
 import {
   EmbedMediaError,
   requireHttpUrl,
   resolveEmbedMedia,
-} from "../../../lib/embedMedia.js";
+} from "#lib/embedMedia.js";
 import { assertAssignableRoleIds } from "../assignable.js";
 import { AutoRoleError } from "../errors.js";
 

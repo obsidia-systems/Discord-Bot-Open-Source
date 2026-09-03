@@ -1,10 +1,10 @@
 import { buildFormResponsesCsv } from "@adobos/shared";
 import type { Client } from "discord.js";
 import { Router } from "express";
-import { channelBelongsToGuild } from "../../../core/http/channelScope.js";
-import { guildIdOf } from "../../../core/http/guildContext.js";
-import { recordId } from "../../../core/http/schemas.js";
-import { parse } from "../../../core/http/validate.js";
+import { channelBelongsToGuild } from "#core/http/channelScope.js";
+import { guildIdOf } from "#core/http/guildContext.js";
+import { idParams } from "#core/http/schemas.js";
+import { defineRoute } from "#core/http/validate.js";
 import { publishFormMessage } from "../publish.js";
 import {
   createForm,
@@ -16,38 +16,31 @@ import {
 } from "../service.js";
 import { createFormSchema, updateFormSchema } from "./schema.js";
 
-function parseFormId(raw: string): number {
-  return parse(recordId, raw);
-}
-
 export function formsRoutes(bot: Client): Router {
   const router = Router();
 
-  router.get("/", async (req, res, next) => {
-    try {
+  router.get(
+    "/",
+    defineRoute({}, async (req, res) => {
       const forms = await listForms(guildIdOf(req));
       res.json({ forms });
-    } catch (error) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.post("/", async (req, res, next) => {
-    try {
-      const body = parse(createFormSchema, req.body ?? {});
-      const form = await createForm(body, guildIdOf(req));
+  router.post(
+    "/",
+    defineRoute({ body: createFormSchema }, async (req, res, valid) => {
+      const form = await createForm(valid.body, guildIdOf(req));
       res.status(201).json({ form });
-    } catch (error) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.get("/:id/responses.csv", async (req, res, next) => {
-    try {
-      const formId = parseFormId(req.params.id);
+  router.get(
+    "/:id/responses.csv",
+    defineRoute({ params: idParams }, async (req, res, valid) => {
       const guildId = guildIdOf(req);
-      const form = await getForm(formId, guildId);
-      const responses = await listFormResponses(formId, guildId);
+      const form = await getForm(valid.params.id, guildId);
+      const responses = await listFormResponses(valid.params.id, guildId);
       const csv = buildFormResponsesCsv(form, responses);
       const safeName = (form.modalTitle || "form")
         .replace(/[^\w.-]+/g, "_")
@@ -55,71 +48,73 @@ export function formsRoutes(bot: Client): Router {
       res.setHeader("Content-Type", "text/csv; charset=utf-8");
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename="${safeName}-${formId}.csv"`,
+        `attachment; filename="${safeName}-${valid.params.id}.csv"`,
       );
       res.send(csv);
-    } catch (error) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.get("/:id/responses", async (req, res, next) => {
-    try {
-      const formId = parseFormId(req.params.id);
-      const responses = await listFormResponses(formId, guildIdOf(req));
-      res.json({ responses });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.post("/:id/publish", async (req, res, next) => {
-    try {
-      const formId = parseFormId(req.params.id);
-      const body = parse(updateFormSchema, req.body ?? {});
-      const result = await publishFormMessage(
-        bot,
-        formId,
+  router.get(
+    "/:id/responses",
+    defineRoute({ params: idParams }, async (req, res, valid) => {
+      const responses = await listFormResponses(
+        valid.params.id,
         guildIdOf(req),
-        body,
       );
-      res.json(result);
-    } catch (error) {
-      next(error);
-    }
-  });
+      res.json({ responses });
+    }),
+  );
 
-  router.get("/:id", async (req, res, next) => {
-    try {
-      const formId = parseFormId(req.params.id);
-      const form = await getForm(formId, guildIdOf(req));
+  router.post(
+    "/:id/publish",
+    defineRoute(
+      { params: idParams, body: updateFormSchema },
+      async (req, res, valid) => {
+        const result = await publishFormMessage(
+          bot,
+          valid.params.id,
+          guildIdOf(req),
+          valid.body,
+        );
+        res.json(result);
+      },
+    ),
+  );
+
+  router.get(
+    "/:id",
+    defineRoute({ params: idParams }, async (req, res, valid) => {
+      const form = await getForm(valid.params.id, guildIdOf(req));
       res.json({ form });
-    } catch (error) {
-      next(error);
-    }
-  });
+    }),
+  );
 
-  router.patch("/:id", async (req, res, next) => {
-    try {
-      const formId = parseFormId(req.params.id);
-      const body = parse(updateFormSchema, req.body ?? {});
-      const form = await updateForm(formId, body, guildIdOf(req));
-      res.json({ form });
-    } catch (error) {
-      next(error);
-    }
-  });
+  router.patch(
+    "/:id",
+    defineRoute(
+      { params: idParams, body: updateFormSchema },
+      async (req, res, valid) => {
+        const form = await updateForm(
+          valid.params.id,
+          valid.body,
+          guildIdOf(req),
+        );
+        res.json({ form });
+      },
+    ),
+  );
 
-  router.delete("/:id", async (req, res, next) => {
-    try {
-      const formId = parseFormId(req.params.id);
-      const meta = await deleteForm(formId, guildIdOf(req));
+  router.delete(
+    "/:id",
+    defineRoute({ params: idParams }, async (req, res, valid) => {
+      const guildId = guildIdOf(req);
+      const meta = await deleteForm(valid.params.id, guildId);
       if (bot.isReady() && meta.publishedChannelId && meta.publishedMessageId) {
         try {
           const channel = await bot.channels.fetch(meta.publishedChannelId);
           if (
             channel &&
-            channelBelongsToGuild(channel, guildIdOf(req)) &&
+            channelBelongsToGuild(channel, guildId) &&
             channel.isTextBased() &&
             "messages" in channel
           ) {
@@ -132,10 +127,8 @@ export function formsRoutes(bot: Client): Router {
         }
       }
       res.status(204).send();
-    } catch (error) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   return router;
 }

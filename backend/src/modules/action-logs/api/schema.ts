@@ -1,9 +1,5 @@
 import { z } from "zod";
-import {
-  snowflake,
-  snowflakeList,
-  snowflakeNull,
-} from "../../../core/http/schemas.js";
+import { snowflake, snowflakeList, snowflakeNull } from "#core/http/schemas.js";
 
 const channelsMappingSchema = z.object({
   messages: snowflake.nullable().optional(),

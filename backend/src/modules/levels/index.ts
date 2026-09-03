@@ -1,5 +1,5 @@
 import { GatewayIntentBits } from "discord.js";
-import type { AdobosModule } from "../../core/modules/types.js";
+import type { AdobosModule } from "#core/modules/types.js";
 import { levelsRoutes } from "./api/routes.js";
 import { registerLevelsListeners } from "./events.js";
 

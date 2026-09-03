@@ -1,4 +1,4 @@
-import type { AdobosModule } from "../../core/modules/types.js";
+import type { AdobosModule } from "#core/modules/types.js";
 import { guildAssetsRoutes } from "./api/routes.js";
 
 /** Assets del guild para el panel (canales, roles, emojis). Infra de UI. */

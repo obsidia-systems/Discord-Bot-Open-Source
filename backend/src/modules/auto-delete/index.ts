@@ -1,8 +1,8 @@
 import { GatewayIntentBits } from "discord.js";
-import { onShutdown, registerJob } from "../../core/lifecycle.js";
-import { logger } from "../../core/log.js";
-import type { AdobosModule } from "../../core/modules/types.js";
-import { isWorkerLeader } from "../../core/runtime/index.js";
+import { onShutdown, registerJob } from "#core/lifecycle.js";
+import { logger } from "#core/log.js";
+import type { AdobosModule } from "#core/modules/types.js";
+import { isWorkerLeader } from "#core/runtime/index.js";
 import { autoDeleteRoutes } from "./api/routes.js";
 import { registerAutoDeleteListeners } from "./events.js";
 import { processDueCountdownDeletes } from "./pending.js";

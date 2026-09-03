@@ -25,19 +25,16 @@ import {
   type TextChannel,
 } from "discord.js";
 import { and, desc, eq } from "drizzle-orm";
-import { logger } from "../../core/log.js";
-import { getDb, one } from "../../db/client.js";
+import { logger } from "#core/log.js";
+import { getDb, one } from "#db/client.js";
 import {
   autorolesRegistry,
   guildSettings,
   modLogs,
   warnings,
-} from "../../db/schema.js";
-import {
-  safeMemberAvatarURL,
-  safeUserAvatarURL,
-} from "../../lib/discordMember.js";
-import { getEmbedTemplate } from "../messages/templates/service.js";
+} from "#db/schema.js";
+import { safeMemberAvatarURL, safeUserAvatarURL } from "#lib/discordMember.js";
+import { getEmbedTemplate } from "#modules/messages/templates/service.js";
 import {
   applySanctionTextVars,
   buildEmbedFromPayload,
