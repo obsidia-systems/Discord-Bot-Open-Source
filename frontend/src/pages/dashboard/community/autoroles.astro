@@ -1,11 +1,3 @@
 ---
-import DashboardLayout from "../../../layouts/DashboardLayout.astro";
-import { AutoRoleBuilder } from "../../../features/autoroles";
+return Astro.redirect("/dashboard/roles/autoroles");
 ---
-
-<DashboardLayout
-  title="Autoroles"
-  description="Log of active menus, compact creation, and roles on join."
->
-  <AutoRoleBuilder client:load />
-</DashboardLayout>

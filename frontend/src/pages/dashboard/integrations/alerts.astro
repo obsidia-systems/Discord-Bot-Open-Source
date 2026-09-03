@@ -1,0 +1,11 @@
+---
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { StreamAlertsDashboard } from "../../../features/stream-alerts";
+---
+
+<DashboardLayout
+  title="Stream Alerts"
+  description="Alerts in Discord when a channel goes live."
+>
+  <StreamAlertsDashboard client:load />
+</DashboardLayout>

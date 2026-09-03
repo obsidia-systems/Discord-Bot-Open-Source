@@ -22,7 +22,6 @@ import {
   MessageSquareText,
   Mic2,
   Palette,
-  Pickaxe,
   Puzzle,
   Radio,
   Reply,
@@ -32,12 +31,9 @@ import {
   Shield,
   ShieldAlert,
   ShieldBan,
-  Sparkles,
   Star,
   Store,
-  Swords,
   Tags,
-  Target,
   Terminal,
   Ticket,
   Trash2,
@@ -71,8 +67,9 @@ export interface NavCategoryConfig {
 
 /**
  * Single source of truth for the dashboard menu.
- * `href` values are kept stable on purpose and do not necessarily mirror the
- * category structure (page files still live under `pages/dashboard/<domain>/…`).
+ * `href` values mirror the category structure: each item lives at
+ * `pages/dashboard/<category id>/…`. Renamed routes keep a redirect stub at
+ * their previous path so old links don't break.
  */
 export const dashboardNav: NavCategoryConfig[] = [
   {
@@ -125,13 +122,13 @@ export const dashboardNav: NavCategoryConfig[] = [
       },
       {
         label: "Scheduled Messages",
-        href: "/dashboard/automation/scheduled",
+        href: "/dashboard/messages/scheduled",
         icon: CalendarClock,
         blurb: "Post to a channel at a fixed time.",
       },
       {
         label: "Auto-Replies",
-        href: "/dashboard/automation/auto-replies",
+        href: "/dashboard/messages/auto-replies",
         icon: Reply,
         blurb: "Automatic response to a keyword.",
       },
@@ -212,7 +209,7 @@ export const dashboardNav: NavCategoryConfig[] = [
     items: [
       {
         label: "Anti-Raid & Anti-Nuke",
-        href: "/dashboard/moderation/anti-raid",
+        href: "/dashboard/security/anti-raid",
         icon: ShieldBan,
         blurb: "Join floods, lockdown and anti-nuke limits.",
       },
@@ -225,13 +222,13 @@ export const dashboardNav: NavCategoryConfig[] = [
     items: [
       {
         label: "Autoroles",
-        href: "/dashboard/community/autoroles",
+        href: "/dashboard/roles/autoroles",
         icon: HandMetal,
         blurb: "Roles by reaction, menu or button.",
       },
       {
         label: "Roles Builder",
-        href: "/dashboard/community/roles-builder",
+        href: "/dashboard/roles/roles-builder",
         icon: Palette,
         blurb: "Create and edit roles: color, permissions, hierarchy.",
       },
@@ -350,44 +347,9 @@ export const dashboardNav: NavCategoryConfig[] = [
     items: [
       {
         label: "Stream Alerts",
-        href: "/dashboard/plugins/alerts",
+        href: "/dashboard/integrations/alerts",
         icon: Radio,
         blurb: "Twitch, YouTube and Kick when going live.",
-      },
-      {
-        label: "Minecraft",
-        href: "/dashboard/plugins/minecraft",
-        icon: Pickaxe,
-        soon: true,
-        blurb: "Server status and RCON commands.",
-      },
-      {
-        label: "Osu!",
-        href: "/dashboard/plugins/osu",
-        icon: Target,
-        soon: true,
-        blurb: "Rooms, maps, replays and skins.",
-      },
-      {
-        label: "Valorant",
-        href: "/dashboard/plugins/valorant",
-        icon: Swords,
-        soon: true,
-        blurb: "Store, night market and trackers.",
-      },
-      {
-        label: "Free Games",
-        href: "/dashboard/plugins/free-games",
-        icon: Gift,
-        soon: true,
-        blurb: "Epic Games, Steam and deals.",
-      },
-      {
-        label: "Gachas",
-        href: "/dashboard/plugins/gachas",
-        icon: Sparkles,
-        soon: true,
-        blurb: "Genshin, WuWa, NTE and builds.",
       },
     ],
   },

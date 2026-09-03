@@ -1,0 +1,11 @@
+---
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { RolesBuilderDashboard } from "../../../features/roles-builder";
+---
+
+<DashboardLayout
+  title="Roles Builder"
+  description="Create and edit Discord roles from the dashboard."
+>
+  <RolesBuilderDashboard client:load />
+</DashboardLayout>

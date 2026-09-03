@@ -141,6 +141,13 @@
       "when": 1788398400000,
       "tag": "0019_giveaways",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1788402000000,
+      "tag": "0020_drop_plugin_pokemon_config",
+      "breakpoints": true
     }
   ]
 }

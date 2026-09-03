@@ -1,11 +1,3 @@
 ---
-import DashboardLayout from "../../../layouts/DashboardLayout.astro";
-import { RolesBuilderDashboard } from "../../../features/roles-builder";
+return Astro.redirect("/dashboard/roles/roles-builder");
 ---
-
-<DashboardLayout
-  title="Roles Builder"
-  description="Create and edit Discord roles from the dashboard."
->
-  <RolesBuilderDashboard client:load />
-</DashboardLayout>

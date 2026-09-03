@@ -1,0 +1,11 @@
+---
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import { AntiRaidDashboard } from "../../../features/anti-raid";
+---
+
+<DashboardLayout
+  title="Anti-Raid"
+  description="Join floods, emergency lockdown, and Anti-Nuke (Pro)."
+>
+  <AntiRaidDashboard client:load />
+</DashboardLayout>

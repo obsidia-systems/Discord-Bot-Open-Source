@@ -1122,34 +1122,6 @@ export const economyCasino = pgTable("economy_casino", {
 export type EconomyCasinoRow = typeof economyCasino.$inferSelect;
 export type NewEconomyCasinoRow = typeof economyCasino.$inferInsert;
 
-/**
- * Config del plugin Pokémon por guild.
- */
-export const pluginPokemonConfig = pgTable("plugin_pokemon_config", {
-  guildId: text("guild_id")
-    .primaryKey()
-    .references(() => guildSettings.guildId, { onDelete: "cascade" }),
-  isActive: boolean("is_active").notNull().default(false),
-  defaultGeneration: integer("default_generation").notNull().default(9),
-  language: text("language").notNull().default("es"),
-  embedColor: text("embed_color").notNull().default("#EF4444"),
-  forceEphemeral: boolean("force_ephemeral")
-    .notNull()
-    .default(true),
-  /** string[] JSON — lista blanca de canales. */
-  allowedChannels: text("allowed_channels").notNull().default("[]"),
-  /** string[] JSON — lista blanca de roles (vacía = everyone). */
-  allowedRoles: text("allowed_roles").notNull().default("[]"),
-  /** PokemonCommandsEnabled JSON. */
-  commands: text("commands").notNull().default("{}"),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
-
-export type PluginPokemonConfigRow = typeof pluginPokemonConfig.$inferSelect;
-export type NewPluginPokemonConfigRow = typeof pluginPokemonConfig.$inferInsert;
-
 /** Usuarios del panel (OAuth Discord). */
 export const panelUsers = pgTable("panel_users", {
   userId: text("user_id").primaryKey(),

@@ -1,11 +1,3 @@
 ---
-import DashboardLayout from "../../../layouts/DashboardLayout.astro";
-import { ScheduledDashboard } from "../../../features/scheduled-messages";
+return Astro.redirect("/dashboard/messages/scheduled");
 ---
-
-<DashboardLayout
-  title="Scheduled Messages"
-  description="Announcements in a channel at a fixed time."
->
-  <ScheduledDashboard client:load />
-</DashboardLayout>
