@@ -1,9 +1,11 @@
 import type { Client, Guild } from "discord.js";
+import { resolveMembersBatch } from "#lib/discordMember.js";
 import type {
   BotGateway,
   ChannelSummary,
   EmojiSummary,
   GuildSummary,
+  MemberProfile,
   RoleSummary,
   StickerSummary,
 } from "./botGateway.js";
@@ -132,5 +134,12 @@ export class LocalClientGateway implements BotGateway {
       (await guild.channels.fetch(channelId).catch(() => null));
     if (!channel || channel.guildId !== guildId) return;
     await channel.delete(reason).catch(() => null);
+  }
+
+  async resolveMembers(
+    guildId: string,
+    userIds: string[],
+  ): Promise<Map<string, MemberProfile>> {
+    return resolveMembersBatch(this.guild(guildId), this.client, userIds);
   }
 }

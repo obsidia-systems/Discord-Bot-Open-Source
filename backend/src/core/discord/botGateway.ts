@@ -49,6 +49,14 @@ export interface StickerSummary {
   url: string;
 }
 
+/** Nombre/avatar frescos de un miembro (o del usuario global si no es miembro). */
+export interface MemberProfile {
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
+
 export interface BotGateway {
   /** El gateway/Client está conectado. El adaptador REST devuelve siempre true. */
   isReady(): boolean;
@@ -69,4 +77,13 @@ export interface BotGateway {
     channelId: string,
     reason?: string,
   ): Promise<void>;
+  /**
+   * Nombre/avatar frescos de varios usuarios (precarga por lotes). Clave = userId.
+   * Prioriza el perfil de servidor (apodo / avatar Nitro) cuando el usuario es
+   * miembro del guild.
+   */
+  resolveMembers(
+    guildId: string,
+    userIds: string[],
+  ): Promise<Map<string, MemberProfile>>;
 }

@@ -1,5 +1,6 @@
 import { isWelcomeSendChannelType } from "@adobos/shared";
-import type { Channel, Client, SendableChannels } from "discord.js";
+import type { SendableChannels } from "discord.js";
+import type { BotGateway } from "#core/discord/botGateway.js";
 import { HttpError } from "#core/http/httpError.js";
 
 export function isWelcomeSendChannel(
@@ -14,11 +15,11 @@ export function isWelcomeSendChannel(
 }
 
 export async function assertGuildWelcomeChannel(
-  bot: Client,
+  gateway: BotGateway,
   guildId: string,
   channelId: string,
 ): Promise<void> {
-  if (!bot.isReady()) {
+  if (!gateway.isReady()) {
     throw new HttpError(
       "The Discord bot is not connected.",
       503,
@@ -26,34 +27,18 @@ export async function assertGuildWelcomeChannel(
     );
   }
 
-  let channel: Channel | null;
-  try {
-    channel = await bot.channels.fetch(channelId);
-  } catch {
-    throw new HttpError(
-      "Couldn't fetch the channel. Check the ID and the bot's permissions.",
-      404,
-      "CHANNEL_FETCH_FAILED",
-    );
-  }
-
+  // `getChannel` ya exige que el canal pertenezca a este guild → `null` cubre
+  // "no existe" y "no es de este servidor".
+  const channel = await gateway.getChannel(guildId, channelId);
   if (!channel) {
-    throw new HttpError("Channel not found.", 404, "CHANNEL_NOT_FOUND");
-  }
-
-  const channelGuildId =
-    "guildId" in channel && typeof channel.guildId === "string"
-      ? channel.guildId
-      : null;
-  if (!channelGuildId || channelGuildId !== guildId) {
     throw new HttpError(
-      "The channel does not belong to this server.",
-      403,
-      "CHANNEL_GUILD_MISMATCH",
+      "The channel was not found in this server.",
+      404,
+      "CHANNEL_NOT_FOUND",
     );
   }
 
-  if (!isWelcomeSendChannel(channel)) {
+  if (!isWelcomeSendChannelType(channel.type)) {
     throw new HttpError(
       "The channel does not support text messages.",
       400,

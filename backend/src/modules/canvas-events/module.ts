@@ -25,17 +25,21 @@ export const canvasEventsModule: AdobosModule = {
 
     ctx.route(
       "/api/bot/leave",
-      canvasEventSettingsRoutes("leave", ctx.client),
+      canvasEventSettingsRoutes("leave", ctx.botGateway),
       {
         feature: "welcome",
       },
     );
-    ctx.route("/api/bot/ban", canvasEventSettingsRoutes("ban", ctx.client), {
-      feature: "welcome",
-    });
+    ctx.route(
+      "/api/bot/ban",
+      canvasEventSettingsRoutes("ban", ctx.botGateway),
+      {
+        feature: "welcome",
+      },
+    );
     ctx.route(
       "/api/bot/boost",
-      canvasEventSettingsRoutes("boost", ctx.client),
+      canvasEventSettingsRoutes("boost", ctx.botGateway),
       {
         feature: "welcome",
       },

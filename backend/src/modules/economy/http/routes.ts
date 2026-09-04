@@ -2,13 +2,12 @@ import type {
   EconomyLeaderboardEntry,
   EconomyLeaderboardResponse,
 } from "@adobos/shared";
-import type { Client } from "discord.js";
 import { Router } from "express";
 import { z } from "zod";
+import type { BotGateway } from "#core/discord/botGateway.js";
 import { guildIdOf } from "#core/http/guildContext.js";
 import { leaderboardQuerySchema, stringId } from "#core/http/schemas.js";
 import { defineRoute } from "#core/http/validate.js";
-import { resolveMembersBatch } from "#lib/discordMember.js";
 import {
   getEconomyCasinoConfig,
   updateEconomyCasinoConfig,
@@ -42,19 +41,15 @@ import {
 const shopIdParams = z.object({ id: stringId });
 
 async function resolveLeaderboard(
-  bot: Client,
+  gateway: BotGateway,
   guildId: string,
   limit: number,
 ): Promise<EconomyLeaderboardResponse> {
   const rows = await listEconomyLeaderboardRows(guildId, limit);
   const total = await getEconomyLeaderboardTotal(guildId);
-  const guild =
-    bot.guilds.cache.get(guildId) ??
-    (await bot.guilds.fetch(guildId).catch(() => null));
 
-  const resolved = await resolveMembersBatch(
-    guild,
-    bot,
+  const resolved = await gateway.resolveMembers(
+    guildId,
     rows.map((row) => row.userId),
   );
 
@@ -75,7 +70,7 @@ async function resolveLeaderboard(
   return { entries, total };
 }
 
-export function economyRoutes(bot: Client): Router {
+export function economyRoutes(gateway: BotGateway): Router {
   const router = Router();
 
   /** GET /api/economy/config */
@@ -200,7 +195,7 @@ export function economyRoutes(bot: Client): Router {
     "/leaderboard",
     defineRoute({ query: leaderboardQuerySchema }, async (req, res, valid) => {
       const limit = valid.query.limit ?? 100;
-      const payload = await resolveLeaderboard(bot, guildIdOf(req), limit);
+      const payload = await resolveLeaderboard(gateway, guildIdOf(req), limit);
       res.json(payload);
     }),
   );

@@ -34,7 +34,7 @@ export const economyModule: AdobosModule = {
   id: "economy",
   name: "Economy",
   register(ctx) {
-    ctx.route("/api/economy", economyRoutes(ctx.client), {
+    ctx.route("/api/economy", economyRoutes(ctx.botGateway), {
       feature: "economy",
     });
     ctx.button(BUY_BUTTON_PREFIX, (interaction) =>
