@@ -8,8 +8,8 @@ import type {
   SendEmbedResponse,
   SentEmbedRecord,
 } from "@adobos/shared";
-import type { Client } from "discord.js";
 import { desc, eq } from "drizzle-orm";
+import type { BotGateway } from "#core/discord/botGateway.js";
 import { getDb, one } from "#db/client.js";
 import { sentEmbeds } from "#db/schema.js";
 import {
@@ -66,7 +66,7 @@ function toSentRecord(
 }
 
 export async function getEmbedLibrary(
-  bot: Client,
+  gateway: BotGateway,
   guildIdRaw?: string,
 ): Promise<EmbedLibraryResponse> {
   const guildId = resolveGuildId(guildIdRaw);
@@ -76,14 +76,12 @@ export async function getEmbedLibrary(
     .where(eq(sentEmbeds.guildId, guildId))
     .orderBy(desc(sentEmbeds.createdAt));
 
-  const guild = bot.guilds.cache.get(guildId);
-  const sentMessages = rows.map((row) => {
-    const channel = guild?.channels.cache.get(row.channelId);
-    return toSentRecord(
-      row,
-      channel && "name" in channel ? String(channel.name) : null,
-    );
-  });
+  const channelNames = new Map(
+    (await gateway.listChannels(guildId)).map((c) => [c.id, c.name]),
+  );
+  const sentMessages = rows.map((row) =>
+    toSentRecord(row, channelNames.get(row.channelId) ?? null),
+  );
 
   const { templates } = await listEmbedTemplates(guildId);
 
@@ -91,17 +89,17 @@ export async function getEmbedLibrary(
 }
 
 export async function sendAndRegisterEmbed(
-  bot: Client,
+  gateway: BotGateway,
   input: SendEmbedRequest,
   uploaded: EmbedUploadedFiles = {},
   guildIdRaw?: string,
 ): Promise<SendEmbedResponse> {
   const guildId = resolveGuildId(guildIdRaw);
-  return await sendEmbedMessage(bot, input, uploaded, guildId);
+  return await sendEmbedMessage(gateway, input, uploaded, guildId);
 }
 
 export async function editSentEmbed(
-  bot: Client,
+  gateway: BotGateway,
   id: string,
   input: EditSentEmbedRequest,
   uploaded: EmbedUploadedFiles = {},
@@ -135,7 +133,7 @@ export async function editSentEmbed(
   };
 
   const { orphaned, snapshot } = await editEmbedMessage(
-    bot,
+    gateway,
     row.channelId,
     row.messageId,
     payload,
@@ -174,7 +172,7 @@ export async function editSentEmbed(
 }
 
 export async function deleteSentEmbed(
-  bot: Client,
+  gateway: BotGateway,
   id: string,
   guildIdRaw?: string,
 ): Promise<DeleteSentEmbedResponse> {
@@ -188,7 +186,7 @@ export async function deleteSentEmbed(
   }
 
   const { orphaned } = await deleteDiscordMessage(
-    bot,
+    gateway,
     row.channelId,
     row.messageId,
     guildId,

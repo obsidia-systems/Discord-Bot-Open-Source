@@ -1,5 +1,5 @@
-import type { Client } from "discord.js";
 import { Router } from "express";
+import type { BotGateway } from "#core/discord/botGateway.js";
 import { guildIdOf } from "#core/http/guildContext.js";
 import { defineRoute } from "#core/http/validate.js";
 import { sendAndRegisterEmbed } from "../library.js";
@@ -7,14 +7,14 @@ import { sendTextMessage } from "./controller.js";
 import { sendEmbedSchema, sendMessageSchema } from "./schema.js";
 import { optionalEmbedUpload, uploadedFromRequest } from "./upload.js";
 
-export function messageRoutes(bot: Client): Router {
+export function messageRoutes(gateway: BotGateway): Router {
   const router = Router();
 
   router.post(
     "/",
     defineRoute({ body: sendMessageSchema }, async (req, res, valid) => {
       const result = await sendTextMessage(
-        bot,
+        gateway,
         { channelId: valid.body.channelId, content: valid.body.content },
         guildIdOf(req),
       );
@@ -28,7 +28,7 @@ export function messageRoutes(bot: Client): Router {
     optionalEmbedUpload,
     defineRoute({ body: sendEmbedSchema }, async (req, res, valid) => {
       const result = await sendAndRegisterEmbed(
-        bot,
+        gateway,
         valid.body,
         uploadedFromRequest(req),
         guildIdOf(req),

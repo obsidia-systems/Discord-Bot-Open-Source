@@ -82,6 +82,28 @@ export class BotGatewayError extends Error {
   }
 }
 
+/**
+ * URLs de media resueltas del primer embed **ya publicado** — sirven para
+ * persistir `attachment://` como la URL CDN definitiva. `undefined` = sin embed.
+ */
+export interface PublishedEmbedMedia {
+  authorIconUrl?: string;
+  thumbnailUrl?: string;
+  imageUrl?: string;
+  footerIconUrl?: string;
+}
+
+export interface SentMessageResult {
+  messageId: string;
+  channelId: string;
+  embedMedia?: PublishedEmbedMedia;
+}
+
+export interface EditMessageResult {
+  orphaned: boolean;
+  embedMedia?: PublishedEmbedMedia;
+}
+
 export interface BotGateway {
   /** El gateway/Client está conectado. El adaptador REST devuelve siempre true. */
   isReady(): boolean;
@@ -119,7 +141,7 @@ export interface BotGateway {
     guildId: string,
     channelId: string,
     message: OutgoingMessage,
-  ): Promise<{ messageId: string; channelId: string }>;
+  ): Promise<SentMessageResult>;
   /**
    * Edita un mensaje del bot. `orphaned` si Discord ya no lo tiene (10008).
    */
@@ -128,7 +150,7 @@ export interface BotGateway {
     channelId: string,
     messageId: string,
     message: OutgoingMessage,
-  ): Promise<{ orphaned: boolean }>;
+  ): Promise<EditMessageResult>;
   /** Borra un mensaje. `orphaned` si ya no existía (10008). */
   deleteMessage(
     guildId: string,

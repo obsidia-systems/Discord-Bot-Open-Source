@@ -22,10 +22,10 @@ function textChannel(over: Record<string, unknown> = {}) {
     id: "c1",
     guildId: "g1",
     isTextBased: () => true,
-    send: vi.fn(async () => ({ id: "msg-1", channelId: "c1" })),
+    send: vi.fn(async () => ({ id: "msg-1", channelId: "c1", embeds: [] })),
     messages: {
       fetch: vi.fn(async () => ({
-        edit: vi.fn(async () => ({})),
+        edit: vi.fn(async () => ({ embeds: [] })),
         delete: vi.fn(async () => ({})),
       })),
     },

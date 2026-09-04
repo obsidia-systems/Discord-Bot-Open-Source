@@ -2,7 +2,9 @@ import {
   AttachmentBuilder,
   type Client,
   DiscordAPIError,
+  type Embed,
   type Guild,
+  type Message,
   type MessageCreateOptions,
   type MessageEditOptions,
   type SendableChannels,
@@ -16,6 +18,7 @@ import {
   type GuildSummary,
   type MemberProfile,
   type OutgoingMessage,
+  type PublishedEmbedMedia,
   type RoleSummary,
   type StickerSummary,
 } from "./botGateway.js";
@@ -27,6 +30,17 @@ function toFiles(
 ): AttachmentBuilder[] | undefined {
   if (!files?.length) return undefined;
   return files.map((f) => new AttachmentBuilder(f.data, { name: f.name }));
+}
+
+function embedMediaOf(message: Message): PublishedEmbedMedia | undefined {
+  const embed: Embed | undefined = message.embeds[0];
+  if (!embed) return undefined;
+  return {
+    authorIconUrl: embed.author?.iconURL,
+    thumbnailUrl: embed.thumbnail?.url,
+    imageUrl: embed.image?.url,
+    footerIconUrl: embed.footer?.iconURL,
+  };
 }
 
 /**
@@ -198,7 +212,11 @@ export class LocalClientGateway implements BotGateway {
     guildId: string,
     channelId: string,
     message: OutgoingMessage,
-  ): Promise<{ messageId: string; channelId: string }> {
+  ): Promise<{
+    messageId: string;
+    channelId: string;
+    embedMedia?: PublishedEmbedMedia;
+  }> {
     const channel = await this.sendableChannel(guildId, channelId);
     const sent = await channel.send({
       content: message.content,
@@ -207,7 +225,11 @@ export class LocalClientGateway implements BotGateway {
       files: toFiles(message.files),
       allowedMentions: message.allowedMentions,
     } as MessageCreateOptions);
-    return { messageId: sent.id, channelId: sent.channelId };
+    return {
+      messageId: sent.id,
+      channelId: sent.channelId,
+      embedMedia: embedMediaOf(sent),
+    };
   }
 
   async editMessage(
@@ -215,17 +237,17 @@ export class LocalClientGateway implements BotGateway {
     channelId: string,
     messageId: string,
     message: OutgoingMessage,
-  ): Promise<{ orphaned: boolean }> {
+  ): Promise<{ orphaned: boolean; embedMedia?: PublishedEmbedMedia }> {
     const channel = await this.sendableChannel(guildId, channelId);
     try {
       const target = await channel.messages.fetch(messageId);
-      await target.edit({
+      const edited = await target.edit({
         content: message.content ?? null,
         embeds: message.embeds ?? [],
         components: message.components ?? [],
         files: toFiles(message.files),
       } as MessageEditOptions);
-      return { orphaned: false };
+      return { orphaned: false, embedMedia: embedMediaOf(edited) };
     } catch (error) {
       if (error instanceof DiscordAPIError && error.code === UNKNOWN_MESSAGE) {
         return { orphaned: true };

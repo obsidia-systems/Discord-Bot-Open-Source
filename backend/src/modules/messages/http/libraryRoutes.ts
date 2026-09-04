@@ -1,6 +1,6 @@
-import type { Client } from "discord.js";
 import { Router } from "express";
 import { z } from "zod";
+import type { BotGateway } from "#core/discord/botGateway.js";
 import { guildIdOf } from "#core/http/guildContext.js";
 import { stringId } from "#core/http/schemas.js";
 import { defineRoute } from "#core/http/validate.js";
@@ -15,13 +15,13 @@ import { optionalEmbedUpload, uploadedFromRequest } from "./upload.js";
 
 const sentIdParams = z.object({ id: stringId });
 
-export function embedLibraryRoutes(bot: Client): Router {
+export function embedLibraryRoutes(gateway: BotGateway): Router {
   const router = Router();
 
   router.get(
     "/library",
     defineRoute({}, async (req, res) => {
-      res.json(await getEmbedLibrary(bot, guildIdOf(req)));
+      res.json(await getEmbedLibrary(gateway, guildIdOf(req)));
     }),
   );
 
@@ -30,7 +30,7 @@ export function embedLibraryRoutes(bot: Client): Router {
     optionalEmbedUpload,
     defineRoute({ body: sendEmbedSchema }, async (req, res, valid) => {
       const result = await sendAndRegisterEmbed(
-        bot,
+        gateway,
         valid.body,
         uploadedFromRequest(req),
         guildIdOf(req),
@@ -46,7 +46,7 @@ export function embedLibraryRoutes(bot: Client): Router {
       { params: sentIdParams, body: editSentEmbedSchema },
       async (req, res, valid) => {
         const result = await editSentEmbed(
-          bot,
+          gateway,
           valid.params.id,
           valid.body,
           uploadedFromRequest(req),
@@ -61,7 +61,7 @@ export function embedLibraryRoutes(bot: Client): Router {
     "/sent/:id",
     defineRoute({ params: sentIdParams }, async (req, res, valid) => {
       const result = await deleteSentEmbed(
-        bot,
+        gateway,
         valid.params.id,
         guildIdOf(req),
       );

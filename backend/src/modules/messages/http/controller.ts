@@ -23,14 +23,15 @@ import {
   type AttachmentBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ChannelType,
-  type Client,
-  DiscordAPIError,
   EmbedBuilder,
-  type Message,
-  type SendableChannels,
 } from "discord.js";
 import { eq } from "drizzle-orm";
+import type {
+  BotGateway,
+  OutgoingMessage,
+  PublishedEmbedMedia,
+} from "#core/discord/botGateway.js";
+import { BotGatewayError } from "#core/discord/botGateway.js";
 import { getDb, one } from "#db/client.js";
 import { guildSettings, sentEmbeds } from "#db/schema.js";
 import {
@@ -51,17 +52,8 @@ export class MessageSendError extends Error {
   }
 }
 
-function isSendableChannel(channel: unknown): channel is SendableChannels {
-  return (
-    typeof channel === "object" &&
-    channel !== null &&
-    "send" in channel &&
-    typeof (channel as SendableChannels).send === "function"
-  );
-}
-
-function assertBotReady(bot: Client): void {
-  if (!bot.isReady()) {
+function assertBotReady(gateway: BotGateway): void {
+  if (!gateway.isReady()) {
     throw new MessageSendError(
       "The Discord bot is not connected.",
       503,
@@ -82,53 +74,25 @@ function assertChannelId(channelId: string): string {
   return trimmed;
 }
 
-async function resolveSendableChannel(
-  bot: Client,
-  channelId: string,
-  expectedGuildId: string,
-): Promise<SendableChannels> {
-  let channel: Awaited<ReturnType<typeof bot.channels.fetch>>;
-  try {
-    channel = await bot.channels.fetch(channelId);
-  } catch {
-    throw new MessageSendError(
-      "Couldn't fetch the channel. Check the ID and the bot's permissions.",
-      404,
-      "CHANNEL_FETCH_FAILED",
-    );
-  }
+/** AttachmentBuilder (buffer) → forma que espera el puerto. */
+function toOutgoingFiles(files: AttachmentBuilder[]): OutgoingMessage["files"] {
+  if (files.length === 0) return undefined;
+  return files.map((file) => ({
+    name: file.name ?? "file",
+    data: file.attachment as Buffer,
+  }));
+}
 
-  if (!channel) {
-    throw new MessageSendError("Channel not found.", 404, "CHANNEL_NOT_FOUND");
+/** `BotGatewayError` (canal) pasa tal cual; el resto → 502 con `code`. */
+function rethrowSend(error: unknown, code: string, verb: string): never {
+  if (error instanceof MessageSendError || error instanceof BotGatewayError) {
+    throw error;
   }
-
-  const channelGuildId =
-    "guildId" in channel && typeof channel.guildId === "string"
-      ? channel.guildId
-      : null;
-  if (!channelGuildId || channelGuildId !== expectedGuildId) {
-    throw new MessageSendError(
-      "The channel does not belong to this server.",
-      403,
-      "CHANNEL_GUILD_MISMATCH",
-    );
-  }
-
-  if (
-    channel.type === ChannelType.GuildCategory ||
-    channel.type === ChannelType.GuildVoice ||
-    channel.type === ChannelType.GuildStageVoice ||
-    channel.type === ChannelType.GuildForum ||
-    !isSendableChannel(channel)
-  ) {
-    throw new MessageSendError(
-      "The channel does not support text messages.",
-      400,
-      "CHANNEL_NOT_TEXT",
-    );
-  }
-
-  return channel;
+  throw new MessageSendError(
+    error instanceof Error ? error.message : `Couldn't ${verb} the message.`,
+    502,
+    code,
+  );
 }
 
 function optionalHttpUrl(
@@ -248,9 +212,8 @@ interface PreparedEmbed {
 function preparedToSnapshot(
   prepared: PreparedEmbed,
   input: SendEmbedRequest,
-  message: Message,
+  media: PublishedEmbedMedia | undefined,
 ): EmbedPayload {
-  const sent = message.embeds[0];
   return {
     content: prepared.content,
     title: prepared.title,
@@ -260,17 +223,14 @@ function preparedToSnapshot(
     authorName: prepared.authorName,
     authorIconUrl: persistEmbedMediaUrl(
       input.authorIconUrl,
-      sent?.author?.iconURL,
+      media?.authorIconUrl,
     ),
-    thumbnailUrl: persistEmbedMediaUrl(
-      input.thumbnailUrl,
-      sent?.thumbnail?.url,
-    ),
-    imageUrl: persistEmbedMediaUrl(input.imageUrl, sent?.image?.url),
+    thumbnailUrl: persistEmbedMediaUrl(input.thumbnailUrl, media?.thumbnailUrl),
+    imageUrl: persistEmbedMediaUrl(input.imageUrl, media?.imageUrl),
     footerText: prepared.footerText,
     footerIconUrl: persistEmbedMediaUrl(
       input.footerIconUrl,
-      sent?.footer?.iconURL,
+      media?.footerIconUrl,
     ),
     timestamp: prepared.includeTimestamp,
     fields: prepared.fields.length ? prepared.fields : undefined,
@@ -465,11 +425,11 @@ async function ensureGuildRow(guildId: string): Promise<void> {
 
 /** Envía un mensaje de texto simple a un canal de Discord. */
 export async function sendTextMessage(
-  bot: Client,
+  gateway: BotGateway,
   input: SendMessageRequest,
   expectedGuildId: string,
 ): Promise<SendMessageResponse> {
-  assertBotReady(bot);
+  assertBotReady(gateway);
   const channelId = assertChannelId(input.channelId);
   const content = input.content.trim();
 
@@ -489,146 +449,120 @@ export async function sendTextMessage(
     );
   }
 
-  const channel = await resolveSendableChannel(bot, channelId, expectedGuildId);
-
   try {
-    const message = await channel.send({ content });
-    return {
-      ok: true,
-      messageId: message.id,
-      channelId: message.channelId,
-    };
+    const sent = await gateway.sendMessage(expectedGuildId, channelId, {
+      content,
+    });
+    return { ok: true, messageId: sent.messageId, channelId: sent.channelId };
   } catch (error: unknown) {
-    const detail =
-      error instanceof Error ? error.message : "Error desconocido al enviar.";
-    throw new MessageSendError(detail, 502, "SEND_FAILED");
+    rethrowSend(error, "SEND_FAILED", "send");
   }
 }
 
 /** Construye un EmbedBuilder (+ botones Link opcionales) y lo envía al canal. */
 export async function sendEmbedMessage(
-  bot: Client,
+  gateway: BotGateway,
   input: SendEmbedRequest,
   uploaded: EmbedUploadedFiles = {},
   expectedGuildId: string,
 ): Promise<SendEmbedResponse> {
-  assertBotReady(bot);
+  assertBotReady(gateway);
   const channelId = assertChannelId(input.channelId);
   const prepared = prepareEmbed(input, uploaded);
-  const channel = await resolveSendableChannel(bot, channelId, expectedGuildId);
 
+  let sent: Awaited<ReturnType<BotGateway["sendMessage"]>>;
   try {
-    const message = await channel.send({
+    sent = await gateway.sendMessage(expectedGuildId, channelId, {
       content: prepared.content,
-      embeds: prepared.embed ? [prepared.embed] : undefined,
-      components: prepared.components,
-      files: prepared.files.length > 0 ? prepared.files : undefined,
+      embeds: prepared.embed ? [prepared.embed.toJSON()] : undefined,
+      components: prepared.components?.map((row) => row.toJSON()),
+      files: toOutgoingFiles(prepared.files),
     });
-
-    const guildId = expectedGuildId;
-    let sentId: string | undefined;
-    if (/^\d{17,20}$/.test(guildId)) {
-      await ensureGuildRow(guildId);
-      sentId = randomUUID();
-      const snapshot = preparedToSnapshot(prepared, input, message);
-      const now = new Date();
-      await getDb()
-        .insert(sentEmbeds)
-        .values({
-          id: sentId,
-          guildId,
-          channelId: message.channelId,
-          messageId: message.id,
-          title: prepared.title ?? prepared.content?.slice(0, 80) ?? null,
-          embedData: JSON.stringify(snapshot),
-          createdAt: now,
-          updatedAt: now,
-        });
-    }
-
-    return {
-      ok: true,
-      messageId: message.id,
-      channelId: message.channelId,
-      sentId,
-    };
   } catch (error: unknown) {
-    if (error instanceof MessageSendError) throw error;
-    const detail =
-      error instanceof Error ? error.message : "Error desconocido al enviar.";
-    throw new MessageSendError(detail, 502, "SEND_FAILED");
+    rethrowSend(error, "SEND_FAILED", "send");
   }
-}
 
-function isUnknownMessage(error: unknown): boolean {
-  return error instanceof DiscordAPIError && error.code === 10008;
+  const guildId = expectedGuildId;
+  let sentId: string | undefined;
+  if (/^\d{17,20}$/.test(guildId)) {
+    await ensureGuildRow(guildId);
+    sentId = randomUUID();
+    const snapshot = preparedToSnapshot(prepared, input, sent.embedMedia);
+    const now = new Date();
+    await getDb()
+      .insert(sentEmbeds)
+      .values({
+        id: sentId,
+        guildId,
+        channelId: sent.channelId,
+        messageId: sent.messageId,
+        title: prepared.title ?? prepared.content?.slice(0, 80) ?? null,
+        embedData: JSON.stringify(snapshot),
+        createdAt: now,
+        updatedAt: now,
+      });
+  }
+
+  return {
+    ok: true,
+    messageId: sent.messageId,
+    channelId: sent.channelId,
+    sentId,
+  };
 }
 
 /** Edita un mensaje embed existente en Discord. */
 export async function editEmbedMessage(
-  bot: Client,
+  gateway: BotGateway,
   channelIdRaw: string,
   messageIdRaw: string,
   input: SendEmbedRequest,
   uploaded: EmbedUploadedFiles = {},
   expectedGuildId: string,
 ): Promise<{ orphaned: boolean; snapshot?: EmbedPayload }> {
-  assertBotReady(bot);
+  assertBotReady(gateway);
   const channelId = assertChannelId(channelIdRaw);
   if (!/^\d{17,20}$/.test(messageIdRaw.trim())) {
     throw new MessageSendError("Invalid messageId.", 400, "INVALID_MESSAGE_ID");
   }
   const messageId = messageIdRaw.trim();
   const prepared = prepareEmbed(input, uploaded);
-  const channel = await resolveSendableChannel(bot, channelId, expectedGuildId);
 
   try {
-    const message = await channel.messages.fetch(messageId);
-    const edited = await message.edit({
-      content: prepared.content ?? null,
-      embeds: prepared.embed ? [prepared.embed] : [],
-      components: prepared.components ?? [],
-      files: prepared.files.length > 0 ? prepared.files : undefined,
-    });
+    const { orphaned, embedMedia } = await gateway.editMessage(
+      expectedGuildId,
+      channelId,
+      messageId,
+      {
+        content: prepared.content,
+        embeds: prepared.embed ? [prepared.embed.toJSON()] : [],
+        components: prepared.components?.map((row) => row.toJSON()) ?? [],
+        files: toOutgoingFiles(prepared.files),
+      },
+    );
+    if (orphaned) return { orphaned: true };
     return {
       orphaned: false,
-      snapshot: preparedToSnapshot(prepared, input, edited),
+      snapshot: preparedToSnapshot(prepared, input, embedMedia),
     };
   } catch (error: unknown) {
-    if (isUnknownMessage(error)) {
-      return { orphaned: true };
-    }
-    throw new MessageSendError(
-      error instanceof Error ? error.message : "Couldn't edit the message.",
-      502,
-      "EDIT_FAILED",
-    );
+    rethrowSend(error, "EDIT_FAILED", "edit");
   }
 }
 
 /** Borra un mensaje en Discord; `orphaned` si ya no existía (10008). */
 export async function deleteDiscordMessage(
-  bot: Client,
+  gateway: BotGateway,
   channelIdRaw: string,
   messageIdRaw: string,
   expectedGuildId: string,
 ): Promise<{ orphaned: boolean }> {
-  assertBotReady(bot);
+  assertBotReady(gateway);
   const channelId = assertChannelId(channelIdRaw);
   const messageId = messageIdRaw.trim();
-  const channel = await resolveSendableChannel(bot, channelId, expectedGuildId);
   try {
-    const message = await channel.messages.fetch(messageId);
-    await message.delete();
-    return { orphaned: false };
+    return await gateway.deleteMessage(expectedGuildId, channelId, messageId);
   } catch (error: unknown) {
-    if (isUnknownMessage(error)) {
-      return { orphaned: true };
-    }
-    throw new MessageSendError(
-      error instanceof Error ? error.message : "Couldn't delete the message.",
-      502,
-      "DELETE_FAILED",
-    );
+    rethrowSend(error, "DELETE_FAILED", "delete");
   }
 }

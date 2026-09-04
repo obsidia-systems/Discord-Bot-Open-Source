@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import type { Client } from "discord.js";
 import { Router } from "express";
 import multer from "multer";
 import { guildIdOf } from "#core/http/guildContext.js";
@@ -89,7 +88,7 @@ function assertSniffedTemplateFiles(
   }
 }
 
-export function embedTemplateRoutes(_bot: Client): Router {
+export function embedTemplateRoutes(): Router {
   const router = Router();
 
   router.get(

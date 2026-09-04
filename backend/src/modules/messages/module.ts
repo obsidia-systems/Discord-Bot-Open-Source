@@ -7,13 +7,13 @@ export const messagesModule: AdobosModule = {
   id: "messages",
   name: "Messages",
   register(ctx) {
-    ctx.route("/api/messages", messageRoutes(ctx.client), {
+    ctx.route("/api/messages", messageRoutes(ctx.botGateway), {
       feature: "messages",
     });
-    ctx.route("/api/embeds/templates", embedTemplateRoutes(ctx.client), {
+    ctx.route("/api/embeds/templates", embedTemplateRoutes(), {
       feature: "messages",
     });
-    ctx.route("/api/embeds", embedLibraryRoutes(ctx.client), {
+    ctx.route("/api/embeds", embedLibraryRoutes(ctx.botGateway), {
       feature: "messages",
     });
   },
