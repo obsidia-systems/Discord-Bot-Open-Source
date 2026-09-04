@@ -142,6 +142,7 @@ export function scheduledMessagesRoutes(gateway: BotGateway): Router {
     "/:id/send-now",
     defineRoute({ params: idParams }, async (req, res, valid) => {
       const message = await sendScheduledMessageNow(
+        gateway,
         valid.params.id,
         guildIdOf(req),
       );

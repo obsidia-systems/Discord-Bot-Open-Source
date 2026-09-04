@@ -8,6 +8,8 @@ import {
   EmbedBuilder,
   type TextChannel,
 } from "discord.js";
+import { type BotGateway, BotGatewayError } from "#core/discord/botGateway.js";
+import { attachmentsToOutgoingFiles } from "#core/discord/outgoing.js";
 import { logger } from "#core/log.js";
 import { defineQueue } from "#core/queue/index.js";
 import { resolveEmbedMedia } from "#lib/embedMedia.js";
@@ -159,16 +161,23 @@ async function deactivateInvalid(message: ScheduledMessage): Promise<void> {
   });
 }
 
+const INVALID_CHANNEL_CODES = new Set([
+  "CHANNEL_NOT_FOUND",
+  "CHANNEL_NOT_SENDABLE",
+  "GUILD_NOT_FOUND",
+]);
+
 /**
  * Envío inmediato (panel «Enviar ahora»). No consume el one-shot.
- * Si el canal no sirve, pausa el job y lanza.
+ * Si el canal no sirve, pausa el job y lanza. Va por el puerto (no por el
+ * `Client` del job) para que funcione también en el rol `api`.
  */
 export async function sendScheduledMessageNow(
+  gateway: BotGateway,
   messageId: number,
   guildId: string,
 ): Promise<ScheduledMessage> {
-  const client = botClient;
-  if (!client) {
+  if (!gateway.isReady()) {
     throw new ScheduledMessagesError(
       "The bot is not ready.",
       503,
@@ -176,22 +185,38 @@ export async function sendScheduledMessageNow(
     );
   }
   const message = await getScheduledMessage(messageId, guildId);
-  const result = await deliverScheduledMessage(client, message);
-  if (result === "invalid_channel") {
-    await deactivateInvalid(message);
-    throw new ScheduledMessagesError(
-      "The destination channel is no longer valid. This message was paused.",
-      400,
-      "INVALID_CHANNEL",
+  const payload = buildSendPayload(message);
+
+  try {
+    await gateway.sendMessage(guildId, message.channelId, {
+      content: payload.content,
+      embeds: payload.embeds.map((embed) => embed.toJSON()),
+      files: attachmentsToOutgoingFiles(payload.files ?? []),
+      allowedMentions: payload.allowedMentions,
+    });
+  } catch (error) {
+    if (
+      error instanceof BotGatewayError &&
+      INVALID_CHANNEL_CODES.has(error.code)
+    ) {
+      await deactivateInvalid(message);
+      throw new ScheduledMessagesError(
+        "The destination channel is no longer valid. This message was paused.",
+        400,
+        "INVALID_CHANNEL",
+      );
+    }
+    logger.warn(
+      { err: error },
+      `scheduled-messages: send-now failed (id=${message.id})`,
     );
-  }
-  if (result !== "sent") {
     throw new ScheduledMessagesError(
       "Couldn't send the message.",
       502,
       "SEND_FAILED",
     );
   }
+
   const sentAt = new Date();
   await applyScheduledMessageTick(message.id, message.guildId, {
     lastSentAt: sentAt,
