@@ -1,7 +1,6 @@
 import { buildFormResponsesCsv } from "@adobos/shared";
-import type { Client } from "discord.js";
 import { Router } from "express";
-import { channelBelongsToGuild } from "#core/http/channelScope.js";
+import type { BotGateway } from "#core/discord/botGateway.js";
 import { guildIdOf } from "#core/http/guildContext.js";
 import { idParams } from "#core/http/schemas.js";
 import { defineRoute } from "#core/http/validate.js";
@@ -16,7 +15,7 @@ import {
 import { publishFormMessage } from "../publish.js";
 import { createFormSchema, updateFormSchema } from "./schema.js";
 
-export function formsRoutes(bot: Client): Router {
+export function formsRoutes(gateway: BotGateway): Router {
   const router = Router();
 
   router.get(
@@ -71,7 +70,7 @@ export function formsRoutes(bot: Client): Router {
       { params: idParams, body: updateFormSchema },
       async (req, res, valid) => {
         const result = await publishFormMessage(
-          bot,
+          gateway,
           valid.params.id,
           guildIdOf(req),
           valid.body,
@@ -109,22 +108,18 @@ export function formsRoutes(bot: Client): Router {
     defineRoute({ params: idParams }, async (req, res, valid) => {
       const guildId = guildIdOf(req);
       const meta = await deleteForm(valid.params.id, guildId);
-      if (bot.isReady() && meta.publishedChannelId && meta.publishedMessageId) {
-        try {
-          const channel = await bot.channels.fetch(meta.publishedChannelId);
-          if (
-            channel &&
-            channelBelongsToGuild(channel, guildId) &&
-            channel.isTextBased() &&
-            "messages" in channel
-          ) {
-            await channel.messages
-              .delete(meta.publishedMessageId)
-              .catch(() => null);
-          }
-        } catch {
-          /* mensaje ya borrado o sin permisos */
-        }
+      if (
+        gateway.isReady() &&
+        meta.publishedChannelId &&
+        meta.publishedMessageId
+      ) {
+        await gateway
+          .deleteMessage(
+            guildId,
+            meta.publishedChannelId,
+            meta.publishedMessageId,
+          )
+          .catch(() => null);
       }
       res.status(204).send();
     }),

@@ -28,10 +28,10 @@ import {
 import { eq } from "drizzle-orm";
 import type {
   BotGateway,
-  OutgoingMessage,
   PublishedEmbedMedia,
 } from "#core/discord/botGateway.js";
 import { BotGatewayError } from "#core/discord/botGateway.js";
+import { attachmentsToOutgoingFiles } from "#core/discord/outgoing.js";
 import { getDb, one } from "#db/client.js";
 import { guildSettings, sentEmbeds } from "#db/schema.js";
 import {
@@ -72,15 +72,6 @@ function assertChannelId(channelId: string): string {
     );
   }
   return trimmed;
-}
-
-/** AttachmentBuilder (buffer) → forma que espera el puerto. */
-function toOutgoingFiles(files: AttachmentBuilder[]): OutgoingMessage["files"] {
-  if (files.length === 0) return undefined;
-  return files.map((file) => ({
-    name: file.name ?? "file",
-    data: file.attachment as Buffer,
-  }));
 }
 
 /** `BotGatewayError` (canal) pasa tal cual; el resto → 502 con `code`. */
@@ -476,7 +467,7 @@ export async function sendEmbedMessage(
       content: prepared.content,
       embeds: prepared.embed ? [prepared.embed.toJSON()] : undefined,
       components: prepared.components?.map((row) => row.toJSON()),
-      files: toOutgoingFiles(prepared.files),
+      files: attachmentsToOutgoingFiles(prepared.files),
     });
   } catch (error: unknown) {
     rethrowSend(error, "SEND_FAILED", "send");
@@ -537,7 +528,7 @@ export async function editEmbedMessage(
         content: prepared.content,
         embeds: prepared.embed ? [prepared.embed.toJSON()] : [],
         components: prepared.components?.map((row) => row.toJSON()) ?? [],
-        files: toOutgoingFiles(prepared.files),
+        files: attachmentsToOutgoingFiles(prepared.files),
       },
     );
     if (orphaned) return { orphaned: true };

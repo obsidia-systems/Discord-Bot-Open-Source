@@ -6,11 +6,10 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ChannelType,
-  type Client,
   EmbedBuilder,
-  type TextChannel,
 } from "discord.js";
-import { channelBelongsToGuild } from "#core/http/channelScope.js";
+import type { BotGateway, OutgoingMessage } from "#core/discord/botGateway.js";
+import { attachmentsToOutgoingFiles } from "#core/discord/outgoing.js";
 import { resolveEmbedMedia } from "#lib/embedMedia.js";
 import {
   FormsError,
@@ -25,12 +24,12 @@ function embedColorInt(hex: string): number {
 }
 
 export async function publishFormMessage(
-  bot: Client,
+  gateway: BotGateway,
   formId: number,
   guildId?: string,
   input?: UpdateFormRequest,
 ): Promise<PublishFormResponse> {
-  if (!bot.isReady()) {
+  if (!gateway.isReady()) {
     throw new FormsError(
       "The Discord bot is not connected.",
       503,
@@ -64,9 +63,7 @@ export async function publishFormMessage(
     );
   }
 
-  const channel = await bot.channels
-    .fetch(form.publishChannelId)
-    .catch(() => null);
+  const channel = await gateway.getChannel(form.guildId, form.publishChannelId);
   if (
     !channel ||
     (channel.type !== ChannelType.GuildText &&
@@ -78,18 +75,12 @@ export async function publishFormMessage(
       "INVALID_PUBLISH_CHANNEL",
     );
   }
-  if (!channelBelongsToGuild(channel, form.guildId)) {
-    throw new FormsError(
-      "The publish channel does not belong to this server.",
-      403,
-      "CHANNEL_GUILD_MISMATCH",
-    );
-  }
 
-  const reception = await bot.channels
-    .fetch(form.receptionChannelId)
-    .catch(() => null);
-  if (!reception || !channelBelongsToGuild(reception, form.guildId)) {
+  const reception = await gateway.getChannel(
+    form.guildId,
+    form.receptionChannelId,
+  );
+  if (!reception) {
     throw new FormsError(
       "The reception channel does not belong to this server.",
       403,
@@ -97,7 +88,6 @@ export async function publishFormMessage(
     );
   }
 
-  const textChannel = channel as TextChannel;
   const openCustomId = `${FORM_OPEN_PREFIX}${form.id}`.slice(0, 100);
 
   const files: AttachmentBuilder[] = [];
@@ -154,35 +144,47 @@ export async function publishFormMessage(
       .setStyle(ButtonStyle.Primary),
   );
 
-  let messageId = form.publishedMessageId;
-  let channelId = form.publishedChannelId ?? form.publishChannelId;
-
-  const payload = {
-    embeds: [embed],
-    components: [row],
-    files: files.length > 0 ? files : undefined,
+  const payload: OutgoingMessage = {
+    embeds: [embed.toJSON()],
+    components: [row.toJSON()],
+    files: attachmentsToOutgoingFiles(files),
   };
 
-  if (
-    form.publishedMessageId &&
-    form.publishedChannelId === form.publishChannelId
-  ) {
-    const existing = await textChannel.messages
-      .fetch(form.publishedMessageId)
-      .catch(() => null);
-    if (existing) {
-      await existing.edit(payload);
-      messageId = existing.id;
-      channelId = textChannel.id;
+  const publishChannelId = form.publishChannelId;
+  let messageId = form.publishedMessageId;
+  let channelId = form.publishedChannelId ?? publishChannelId;
+
+  const canEditInPlace =
+    Boolean(form.publishedMessageId) &&
+    form.publishedChannelId === publishChannelId;
+
+  if (canEditInPlace && form.publishedMessageId) {
+    const { orphaned } = await gateway.editMessage(
+      form.guildId,
+      publishChannelId,
+      form.publishedMessageId,
+      payload,
+    );
+    if (!orphaned) {
+      messageId = form.publishedMessageId;
+      channelId = publishChannelId;
     } else {
-      const sent = await textChannel.send(payload);
-      messageId = sent.id;
-      channelId = textChannel.id;
+      const sent = await gateway.sendMessage(
+        form.guildId,
+        publishChannelId,
+        payload,
+      );
+      messageId = sent.messageId;
+      channelId = sent.channelId;
     }
   } else {
-    const sent = await textChannel.send(payload);
-    messageId = sent.id;
-    channelId = textChannel.id;
+    const sent = await gateway.sendMessage(
+      form.guildId,
+      publishChannelId,
+      payload,
+    );
+    messageId = sent.messageId;
+    channelId = sent.channelId;
   }
 
   const next = await setFormPublishedMessage(
@@ -199,11 +201,7 @@ export async function publishFormMessage(
 }
 
 /** @deprecated — API multi-formulario. */
-export async function publishFormsMessage(
-  _bot: Client,
-  _guildId?: string,
-  _input?: UpdateFormRequest,
-): Promise<PublishFormResponse> {
+export async function publishFormsMessage(): Promise<PublishFormResponse> {
   throw new FormsError(
     "Use publishFormMessage(formId). The forms API is now multi-form.",
     400,
