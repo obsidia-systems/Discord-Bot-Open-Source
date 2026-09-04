@@ -1,6 +1,7 @@
 import type { CreateGiveawayRequest, Giveaway } from "@adobos/shared";
 import { canEnterGiveaway, giveawayEntryGateReason } from "@adobos/shared";
-import type { Client, GuildMember } from "discord.js";
+import type { GuildMember } from "discord.js";
+import type { BotGateway } from "#core/discord/botGateway.js";
 import { logger } from "#core/log.js";
 import {
   announceGiveawayWinners,
@@ -18,7 +19,7 @@ import {
 } from "./domain/giveaways.js";
 
 export async function createAndPublishGiveaway(input: {
-  bot: Client;
+  gateway: BotGateway;
   guildId: string;
   createdBy: string;
   body: CreateGiveawayRequest;
@@ -30,7 +31,7 @@ export async function createAndPublishGiveaway(input: {
   });
   if (giveaway.status !== "running") return giveaway;
   try {
-    const messageId = await upsertGiveawayMessage(input.bot, giveaway);
+    const messageId = await upsertGiveawayMessage(input.gateway, giveaway);
     await setGiveawayMessageId(giveaway.id, messageId);
     return { ...giveaway, messageId };
   } catch (error: unknown) {
@@ -51,7 +52,7 @@ export async function createAndPublishGiveaway(input: {
 }
 
 export async function startGiveawayMessage(
-  bot: Client,
+  gateway: BotGateway,
   giveawayId: number,
   guildId: string,
 ): Promise<Giveaway> {
@@ -60,18 +61,18 @@ export async function startGiveawayMessage(
     guildId,
     action: "start",
   });
-  const messageId = await upsertGiveawayMessage(bot, started);
+  const messageId = await upsertGiveawayMessage(gateway, started);
   await setGiveawayMessageId(started.id, messageId);
   return { ...started, messageId };
 }
 
 export async function republishGiveaway(
-  bot: Client,
+  gateway: BotGateway,
   giveawayId: number,
   guildId: string,
 ): Promise<Giveaway> {
   const current = await getGiveawayById(giveawayId, guildId);
-  const messageId = await upsertGiveawayMessage(bot, {
+  const messageId = await upsertGiveawayMessage(gateway, {
     ...current,
     messageId: null,
   });
@@ -80,7 +81,7 @@ export async function republishGiveaway(
 }
 
 export async function joinGiveawayFromMember(input: {
-  bot: Client;
+  gateway: BotGateway;
   giveawayId: number;
   member: GuildMember;
 }): Promise<{ joined: boolean; giveaway: Giveaway }> {
@@ -110,27 +111,27 @@ export async function joinGiveawayFromMember(input: {
   const result = await toggleGiveawayEntry(giveaway.id, input.member.id);
   const fresh = await getGiveawayById(giveaway.id);
   const live = { ...fresh, entryCount: result.entryCount };
-  await upsertGiveawayMessage(input.bot, live).catch((error: unknown) => {
+  await upsertGiveawayMessage(input.gateway, live).catch((error: unknown) => {
     logger.warn({ err: error }, "giveaways: couldn't update the message");
   });
   return { joined: result.joined, giveaway: live };
 }
 
 export async function endGiveawayNow(input: {
-  bot: Client;
+  gateway: BotGateway;
   giveawayId: number;
   guildId: string;
 }): Promise<Giveaway> {
-  await requireGuild(input.bot, input.guildId);
+  await requireGuild(input.gateway, input.guildId);
   const ended = await applyGiveawayAction({
     giveawayId: input.giveawayId,
     guildId: input.guildId,
     action: "end",
   });
   const settings = await getGiveawaySettings(input.guildId);
-  await upsertGiveawayMessage(input.bot, ended).catch(() => undefined);
+  await upsertGiveawayMessage(input.gateway, ended).catch(() => undefined);
   await announceGiveawayWinners({
-    bot: input.bot,
+    gateway: input.gateway,
     giveaway: ended,
     settings,
     newWinnerIds: ended.winnerIds,
@@ -140,7 +141,7 @@ export async function endGiveawayNow(input: {
 }
 
 export async function cancelGiveawayNow(input: {
-  bot: Client;
+  gateway: BotGateway;
   giveawayId: number;
   guildId: string;
 }): Promise<Giveaway> {
@@ -149,12 +150,12 @@ export async function cancelGiveawayNow(input: {
     guildId: input.guildId,
     action: "cancel",
   });
-  await upsertGiveawayMessage(input.bot, cancelled).catch(() => undefined);
+  await upsertGiveawayMessage(input.gateway, cancelled).catch(() => undefined);
   return cancelled;
 }
 
 export async function rerollGiveawayNow(input: {
-  bot: Client;
+  gateway: BotGateway;
   giveawayId: number;
   guildId: string;
 }): Promise<Giveaway> {
@@ -164,9 +165,9 @@ export async function rerollGiveawayNow(input: {
     action: "reroll",
   });
   const settings = await getGiveawaySettings(input.guildId);
-  await upsertGiveawayMessage(input.bot, rerolled).catch(() => undefined);
+  await upsertGiveawayMessage(input.gateway, rerolled).catch(() => undefined);
   await announceGiveawayWinners({
-    bot: input.bot,
+    gateway: input.gateway,
     giveaway: rerolled,
     settings,
     newWinnerIds: rerolled.winnerIds,

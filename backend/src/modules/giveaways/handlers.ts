@@ -4,6 +4,7 @@ import {
   type GuildMember,
   MessageFlags,
 } from "discord.js";
+import { LocalClientGateway } from "#core/discord/localClientGateway.js";
 import { joinGiveawayFromMember } from "./actions.js";
 import { GiveawaysError } from "./domain/giveaways.js";
 
@@ -43,7 +44,7 @@ export async function onGiveawayJoinButton(
   await interaction.deferReply(EPHEMERAL);
   try {
     const result = await joinGiveawayFromMember({
-      bot: interaction.client,
+      gateway: new LocalClientGateway(interaction.client),
       giveawayId,
       member,
     });

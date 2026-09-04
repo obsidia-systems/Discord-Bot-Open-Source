@@ -157,4 +157,12 @@ export interface BotGateway {
     channelId: string,
     messageId: string,
   ): Promise<{ orphaned: boolean }>;
+  /**
+   * DM a un usuario. Best-effort: no lanza si el usuario tiene los DMs cerrados
+   * o no se puede resolver. `sent` indica si llegó.
+   */
+  sendDirectMessage(
+    userId: string,
+    message: OutgoingMessage,
+  ): Promise<{ sent: boolean }>;
 }

@@ -17,7 +17,7 @@ export const giveawaysModule: AdobosModule = {
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
   register(ctx) {
     bindGiveawaysScheduler(ctx.client);
-    ctx.route("/api/giveaways", giveawaysRoutes(ctx.client), {
+    ctx.route("/api/giveaways", giveawaysRoutes(ctx.botGateway), {
       feature: "giveaways",
     });
     ctx.button(GIVEAWAY_JOIN_PREFIX, (interaction) =>

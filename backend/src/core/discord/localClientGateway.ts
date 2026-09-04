@@ -273,4 +273,23 @@ export class LocalClientGateway implements BotGateway {
       throw error;
     }
   }
+
+  async sendDirectMessage(
+    userId: string,
+    message: OutgoingMessage,
+  ): Promise<{ sent: boolean }> {
+    try {
+      const user = await this.client.users.fetch(userId);
+      await user.send({
+        content: message.content,
+        embeds: message.embeds,
+        components: message.components,
+        files: toFiles(message.files),
+        allowedMentions: message.allowedMentions,
+      } as MessageCreateOptions);
+      return { sent: true };
+    } catch {
+      return { sent: false };
+    }
+  }
 }

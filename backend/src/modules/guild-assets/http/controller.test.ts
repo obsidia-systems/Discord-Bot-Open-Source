@@ -61,6 +61,7 @@ function fakeGateway(over: Partial<BotGateway> = {}): BotGateway {
     sendMessage: async () => ({ messageId: "m", channelId: "c" }),
     editMessage: async () => ({ orphaned: false }),
     deleteMessage: async () => ({ orphaned: false }),
+    sendDirectMessage: async () => ({ sent: true }),
     ...over,
   };
 }

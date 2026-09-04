@@ -5,38 +5,26 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ChannelType,
-  type Client,
   EmbedBuilder,
-  type Guild,
-  type TextChannel,
 } from "discord.js";
-import { channelBelongsToGuild } from "#core/http/channelScope.js";
+import type { BotGateway, ChannelSummary } from "#core/discord/botGateway.js";
 import { logger } from "#core/log.js";
 import { GiveawaysError } from "./domain/giveaways.js";
 
-function asTextChannel(channel: unknown): TextChannel | null {
-  if (
-    channel &&
-    typeof channel === "object" &&
-    "type" in channel &&
-    ((channel as { type: number }).type === ChannelType.GuildText ||
-      (channel as { type: number }).type === ChannelType.GuildAnnouncement) &&
-    "send" in channel
-  ) {
-    return channel as TextChannel;
-  }
-  return null;
+function isGiveawayTextChannel(channel: ChannelSummary | null): boolean {
+  return (
+    channel !== null &&
+    (channel.type === ChannelType.GuildText ||
+      channel.type === ChannelType.GuildAnnouncement)
+  );
 }
 
 export async function requireGuild(
-  bot: Client,
+  gateway: BotGateway,
   guildId: string,
-): Promise<Guild> {
-  const cached = bot.guilds.cache.get(guildId);
-  if (cached) return cached;
-  try {
-    return await bot.guilds.fetch(guildId);
-  } catch {
+): Promise<void> {
+  const guild = await gateway.getGuild(guildId);
+  if (!guild) {
     throw new GiveawaysError(
       "The bot is not in this server.",
       400,
@@ -45,22 +33,22 @@ export async function requireGuild(
   }
 }
 
-export async function fetchGiveawayChannel(
-  bot: Client,
+/** Valida que el canal del sorteo existe, es de este guild y admite texto. */
+export async function requireGiveawayChannel(
+  gateway: BotGateway,
   giveaway: Giveaway,
-): Promise<TextChannel> {
-  const channel = await bot.channels
-    .fetch(giveaway.channelId)
-    .catch(() => null);
-  const text = asTextChannel(channel);
-  if (!text || !channelBelongsToGuild(text, giveaway.guildId)) {
+): Promise<void> {
+  const channel = await gateway.getChannel(
+    giveaway.guildId,
+    giveaway.channelId,
+  );
+  if (!isGiveawayTextChannel(channel)) {
     throw new GiveawaysError(
       "The giveaway channel is not valid.",
       400,
       "INVALID_CHANNEL",
     );
   }
-  return text;
 }
 
 export function giveawayEmbed(giveaway: Giveaway): EmbedBuilder {
@@ -112,37 +100,38 @@ export function giveawayComponents(
 }
 
 export async function upsertGiveawayMessage(
-  bot: Client,
+  gateway: BotGateway,
   giveaway: Giveaway,
 ): Promise<string> {
-  const channel = await fetchGiveawayChannel(bot, giveaway);
+  await requireGiveawayChannel(gateway, giveaway);
   const payload = {
-    embeds: [giveawayEmbed(giveaway)],
-    components: giveawayComponents(giveaway),
+    embeds: [giveawayEmbed(giveaway).toJSON()],
+    components: giveawayComponents(giveaway).map((row) => row.toJSON()),
   };
   if (giveaway.messageId) {
-    const existing = await channel.messages
-      .fetch(giveaway.messageId)
-      .catch(() => null);
-    if (existing) {
-      await existing.edit(payload);
-      return existing.id;
-    }
+    const { orphaned } = await gateway.editMessage(
+      giveaway.guildId,
+      giveaway.channelId,
+      giveaway.messageId,
+      payload,
+    );
+    if (!orphaned) return giveaway.messageId;
   }
-  const sent = await channel.send(payload);
-  return sent.id;
+  const sent = await gateway.sendMessage(
+    giveaway.guildId,
+    giveaway.channelId,
+    payload,
+  );
+  return sent.messageId;
 }
 
 export async function announceGiveawayWinners(input: {
-  bot: Client;
+  gateway: BotGateway;
   giveaway: Giveaway;
   settings: GiveawaySettings;
   newWinnerIds: string[];
   isReroll: boolean;
 }): Promise<void> {
-  const channel = await fetchGiveawayChannel(input.bot, input.giveaway).catch(
-    () => null,
-  );
   const mentions =
     input.newWinnerIds.length > 0
       ? input.newWinnerIds.map((id) => `<@${id}>`).join(" ")
@@ -154,29 +143,24 @@ export async function announceGiveawayWinners(input: {
   const text = input.isReroll
     ? `${ping}Reroll of **${input.giveaway.prize}**: ${mentions}`
     : `${ping}Giveaway **${input.giveaway.prize}** — winner(s): ${mentions}`;
-  if (channel) {
-    await channel
-      .send({
-        content: text.slice(0, 2000),
-        allowedMentions: {
-          users: input.newWinnerIds,
-          roles: input.settings.pingRoleId ? [input.settings.pingRoleId] : [],
-        },
-      })
-      .catch((error: unknown) => {
-        logger.warn({ err: error }, "giveaways: announcement failed");
-      });
-  }
+
+  await input.gateway
+    .sendMessage(input.giveaway.guildId, input.giveaway.channelId, {
+      content: text.slice(0, 2000),
+      allowedMentions: {
+        users: input.newWinnerIds,
+        roles: input.settings.pingRoleId ? [input.settings.pingRoleId] : [],
+      },
+    })
+    .catch((error: unknown) => {
+      logger.warn({ err: error }, "giveaways: announcement failed");
+    });
+
   if (input.settings.dmWinners) {
     for (const userId of input.newWinnerIds) {
-      try {
-        const user = await input.bot.users.fetch(userId);
-        await user.send(
-          `You won the giveaway **${input.giveaway.prize}** in a server.`,
-        );
-      } catch {
-        // DMs cerrados
-      }
+      await input.gateway.sendDirectMessage(userId, {
+        content: `You won the giveaway **${input.giveaway.prize}** in a server.`,
+      });
     }
   }
 }

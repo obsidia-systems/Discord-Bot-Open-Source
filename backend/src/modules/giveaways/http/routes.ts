@@ -1,5 +1,5 @@
-import type { Client } from "discord.js";
 import { Router } from "express";
+import type { BotGateway } from "#core/discord/botGateway.js";
 import { guildIdOf } from "#core/http/guildContext.js";
 import { idParams } from "#core/http/schemas.js";
 import { defineRoute } from "#core/http/validate.js";
@@ -30,7 +30,7 @@ function actorIdOf(req: Parameters<typeof guildIdOf>[0]): string {
   return id;
 }
 
-export function giveawaysRoutes(bot: Client): Router {
+export function giveawaysRoutes(gateway: BotGateway): Router {
   const router = Router();
 
   router.get(
@@ -65,7 +65,7 @@ export function giveawaysRoutes(bot: Client): Router {
     "/",
     defineRoute({ body: createGiveawaySchema }, async (req, res, valid) => {
       const giveaway = await createAndPublishGiveaway({
-        bot,
+        gateway,
         guildId: guildIdOf(req),
         createdBy: actorIdOf(req),
         body: valid.body,
@@ -87,7 +87,7 @@ export function giveawaysRoutes(bot: Client): Router {
     "/:id/end",
     defineRoute({ params: idParams }, async (req, res, valid) => {
       const giveaway = await endGiveawayNow({
-        bot,
+        gateway,
         giveawayId: valid.params.id,
         guildId: guildIdOf(req),
       });
@@ -99,7 +99,7 @@ export function giveawaysRoutes(bot: Client): Router {
     "/:id/cancel",
     defineRoute({ params: idParams }, async (req, res, valid) => {
       const giveaway = await cancelGiveawayNow({
-        bot,
+        gateway,
         giveawayId: valid.params.id,
         guildId: guildIdOf(req),
       });
@@ -111,7 +111,7 @@ export function giveawaysRoutes(bot: Client): Router {
     "/:id/reroll",
     defineRoute({ params: idParams }, async (req, res, valid) => {
       const giveaway = await rerollGiveawayNow({
-        bot,
+        gateway,
         giveawayId: valid.params.id,
         guildId: guildIdOf(req),
       });
@@ -123,7 +123,7 @@ export function giveawaysRoutes(bot: Client): Router {
     "/:id/publish",
     defineRoute({ params: idParams }, async (req, res, valid) => {
       const giveaway = await republishGiveaway(
-        bot,
+        gateway,
         valid.params.id,
         guildIdOf(req),
       );

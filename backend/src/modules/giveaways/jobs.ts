@@ -1,4 +1,5 @@
 import type { Client } from "discord.js";
+import { LocalClientGateway } from "#core/discord/localClientGateway.js";
 import { logger } from "#core/log.js";
 import { defineQueue } from "#core/queue/index.js";
 import { endGiveawayNow, startGiveawayMessage } from "./actions.js";
@@ -29,10 +30,14 @@ export async function processGiveaway(job: DueJob): Promise<void> {
   if (!client?.isReady()) throw new Error("giveaways: bot no listo");
 
   if (job.status === "scheduled") {
-    await startGiveawayMessage(client, job.id, job.guildId);
+    await startGiveawayMessage(
+      new LocalClientGateway(client),
+      job.id,
+      job.guildId,
+    );
   } else {
     await endGiveawayNow({
-      bot: client,
+      gateway: new LocalClientGateway(client),
       giveawayId: job.id,
       guildId: job.guildId,
     });
