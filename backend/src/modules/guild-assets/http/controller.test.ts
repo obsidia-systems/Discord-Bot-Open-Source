@@ -57,6 +57,10 @@ function fakeGateway(over: Partial<BotGateway> = {}): BotGateway {
     ],
     getChannel: async () => null,
     deleteChannel: async () => {},
+    resolveMembers: async () => new Map(),
+    sendMessage: async () => ({ messageId: "m", channelId: "c" }),
+    editMessage: async () => ({ orphaned: false }),
+    deleteMessage: async () => ({ orphaned: false }),
     ...over,
   };
 }

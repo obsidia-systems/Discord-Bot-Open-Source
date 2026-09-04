@@ -57,6 +57,31 @@ export interface MemberProfile {
   avatarUrl: string | null;
 }
 
+/**
+ * Contenido de un mensaje a enviar/editar. `embeds` / `components` van ya en
+ * JSON (p. ej. `EmbedBuilder.toJSON()`), no como builders. Los adjuntos se pasan
+ * como buffers con nombre.
+ */
+export interface OutgoingMessage {
+  content?: string;
+  embeds?: unknown[];
+  components?: unknown[];
+  files?: { name: string; data: Buffer }[];
+  allowedMentions?: unknown;
+}
+
+/** Error del puerto con forma HTTP (status + code), como los errores de módulo. */
+export class BotGatewayError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code: string,
+  ) {
+    super(message);
+    this.name = "BotGatewayError";
+  }
+}
+
 export interface BotGateway {
   /** El gateway/Client está conectado. El adaptador REST devuelve siempre true. */
   isReady(): boolean;
@@ -86,4 +111,28 @@ export interface BotGateway {
     guildId: string,
     userIds: string[],
   ): Promise<Map<string, MemberProfile>>;
+  /**
+   * Envía un mensaje a un canal del guild. Lanza `BotGatewayError` si el canal
+   * no existe, no es de este guild o no admite mensajes.
+   */
+  sendMessage(
+    guildId: string,
+    channelId: string,
+    message: OutgoingMessage,
+  ): Promise<{ messageId: string; channelId: string }>;
+  /**
+   * Edita un mensaje del bot. `orphaned` si Discord ya no lo tiene (10008).
+   */
+  editMessage(
+    guildId: string,
+    channelId: string,
+    messageId: string,
+    message: OutgoingMessage,
+  ): Promise<{ orphaned: boolean }>;
+  /** Borra un mensaje. `orphaned` si ya no existía (10008). */
+  deleteMessage(
+    guildId: string,
+    channelId: string,
+    messageId: string,
+  ): Promise<{ orphaned: boolean }>;
 }

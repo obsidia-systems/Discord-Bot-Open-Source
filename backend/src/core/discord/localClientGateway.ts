@@ -1,14 +1,33 @@
-import type { Client, Guild } from "discord.js";
+import {
+  AttachmentBuilder,
+  type Client,
+  DiscordAPIError,
+  type Guild,
+  type MessageCreateOptions,
+  type MessageEditOptions,
+  type SendableChannels,
+} from "discord.js";
 import { resolveMembersBatch } from "#lib/discordMember.js";
-import type {
-  BotGateway,
-  ChannelSummary,
-  EmojiSummary,
-  GuildSummary,
-  MemberProfile,
-  RoleSummary,
-  StickerSummary,
+import {
+  type BotGateway,
+  BotGatewayError,
+  type ChannelSummary,
+  type EmojiSummary,
+  type GuildSummary,
+  type MemberProfile,
+  type OutgoingMessage,
+  type RoleSummary,
+  type StickerSummary,
 } from "./botGateway.js";
+
+const UNKNOWN_MESSAGE = 10008;
+
+function toFiles(
+  files: OutgoingMessage["files"],
+): AttachmentBuilder[] | undefined {
+  if (!files?.length) return undefined;
+  return files.map((f) => new AttachmentBuilder(f.data, { name: f.name }));
+}
 
 /**
  * Adaptador de `BotGateway` sobre el `Client` vivo de discord.js.
@@ -141,5 +160,95 @@ export class LocalClientGateway implements BotGateway {
     userIds: string[],
   ): Promise<Map<string, MemberProfile>> {
     return resolveMembersBatch(this.guild(guildId), this.client, userIds);
+  }
+
+  private async sendableChannel(
+    guildId: string,
+    channelId: string,
+  ): Promise<SendableChannels> {
+    const guild = this.guild(guildId);
+    if (!guild) {
+      throw new BotGatewayError(
+        "The bot is not in that server.",
+        404,
+        "GUILD_NOT_FOUND",
+      );
+    }
+    const channel =
+      guild.channels.cache.get(channelId) ??
+      (await guild.channels.fetch(channelId).catch(() => null));
+    if (!channel || channel.guildId !== guildId) {
+      throw new BotGatewayError(
+        "The channel is not in this server.",
+        404,
+        "CHANNEL_NOT_FOUND",
+      );
+    }
+    if (!channel.isTextBased() || !("send" in channel)) {
+      throw new BotGatewayError(
+        "The channel does not accept messages.",
+        400,
+        "CHANNEL_NOT_SENDABLE",
+      );
+    }
+    return channel as SendableChannels;
+  }
+
+  async sendMessage(
+    guildId: string,
+    channelId: string,
+    message: OutgoingMessage,
+  ): Promise<{ messageId: string; channelId: string }> {
+    const channel = await this.sendableChannel(guildId, channelId);
+    const sent = await channel.send({
+      content: message.content,
+      embeds: message.embeds,
+      components: message.components,
+      files: toFiles(message.files),
+      allowedMentions: message.allowedMentions,
+    } as MessageCreateOptions);
+    return { messageId: sent.id, channelId: sent.channelId };
+  }
+
+  async editMessage(
+    guildId: string,
+    channelId: string,
+    messageId: string,
+    message: OutgoingMessage,
+  ): Promise<{ orphaned: boolean }> {
+    const channel = await this.sendableChannel(guildId, channelId);
+    try {
+      const target = await channel.messages.fetch(messageId);
+      await target.edit({
+        content: message.content ?? null,
+        embeds: message.embeds ?? [],
+        components: message.components ?? [],
+        files: toFiles(message.files),
+      } as MessageEditOptions);
+      return { orphaned: false };
+    } catch (error) {
+      if (error instanceof DiscordAPIError && error.code === UNKNOWN_MESSAGE) {
+        return { orphaned: true };
+      }
+      throw error;
+    }
+  }
+
+  async deleteMessage(
+    guildId: string,
+    channelId: string,
+    messageId: string,
+  ): Promise<{ orphaned: boolean }> {
+    const channel = await this.sendableChannel(guildId, channelId);
+    try {
+      const target = await channel.messages.fetch(messageId);
+      await target.delete();
+      return { orphaned: false };
+    } catch (error) {
+      if (error instanceof DiscordAPIError && error.code === UNKNOWN_MESSAGE) {
+        return { orphaned: true };
+      }
+      throw error;
+    }
   }
 }
