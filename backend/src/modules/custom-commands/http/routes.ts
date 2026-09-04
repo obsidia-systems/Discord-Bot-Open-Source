@@ -1,5 +1,5 @@
-import type { Client } from "discord.js";
 import { Router } from "express";
+import type { BotGateway } from "#core/discord/botGateway.js";
 import { guildIdOf } from "#core/http/guildContext.js";
 import { idParams } from "#core/http/schemas.js";
 import { defineRoute } from "#core/http/validate.js";
@@ -19,15 +19,18 @@ import {
   updateCustomCommandSchema,
 } from "./schema.js";
 
-async function syncOrThrow(bot: Client, guildId: string): Promise<number> {
-  if (!bot.isReady()) {
+async function syncOrThrow(
+  gateway: BotGateway,
+  guildId: string,
+): Promise<number> {
+  if (!gateway.isReady()) {
     throw new CustomCommandsError(
       "The bot is not connected. The command was saved; use Re-sync when the bot is ready.",
       503,
       "BOT_NOT_READY",
     );
   }
-  return await syncGuildSlashCommands(bot, guildId);
+  return await syncGuildSlashCommands(guildId);
 }
 
 function isSyncSoftFail(error: unknown): error is CustomCommandsError {
@@ -37,7 +40,7 @@ function isSyncSoftFail(error: unknown): error is CustomCommandsError {
   );
 }
 
-export function customCommandsRoutes(bot: Client): Router {
+export function customCommandsRoutes(gateway: BotGateway): Router {
   const router = Router();
 
   router.get(
@@ -51,7 +54,7 @@ export function customCommandsRoutes(bot: Client): Router {
   router.post(
     "/sync",
     defineRoute({}, async (req, res) => {
-      const count = await syncOrThrow(bot, guildIdOf(req));
+      const count = await syncOrThrow(gateway, guildIdOf(req));
       res.json({ ok: true, count });
     }),
   );
@@ -64,7 +67,7 @@ export function customCommandsRoutes(bot: Client): Router {
         const guildId = guildIdOf(req);
         const command = await createCustomCommand(valid.body, guildId);
         try {
-          const count = await syncOrThrow(bot, guildId);
+          const count = await syncOrThrow(gateway, guildId);
           res.status(201).json({ command, synced: true, count });
         } catch (error) {
           if (isSyncSoftFail(error)) {
@@ -99,7 +102,7 @@ export function customCommandsRoutes(bot: Client): Router {
           guildId,
         );
         try {
-          await syncOrThrow(bot, guildId);
+          await syncOrThrow(gateway, guildId);
           res.json({ command, synced: true });
         } catch (error) {
           if (isSyncSoftFail(error)) {
@@ -124,7 +127,7 @@ export function customCommandsRoutes(bot: Client): Router {
           guildId,
         );
         try {
-          await syncOrThrow(bot, guildId);
+          await syncOrThrow(gateway, guildId);
           res.json({ command, synced: true });
         } catch (error) {
           if (isSyncSoftFail(error)) {
@@ -142,7 +145,7 @@ export function customCommandsRoutes(bot: Client): Router {
     defineRoute({ params: idParams }, async (req, res, valid) => {
       const guildId = guildIdOf(req);
       await deleteCustomCommand(valid.params.id, guildId);
-      await syncOrThrow(bot, guildId);
+      await syncOrThrow(gateway, guildId);
       res.status(204).send();
     }),
   );

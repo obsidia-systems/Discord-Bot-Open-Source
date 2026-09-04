@@ -14,7 +14,7 @@ export const systemCommandsModule: AdobosModule = {
   name: "System Commands",
   intents: [GatewayIntentBits.Guilds],
   register(ctx) {
-    ctx.route("/api/system-commands", systemCommandsRoutes(ctx.client), {
+    ctx.route("/api/system-commands", systemCommandsRoutes(), {
       feature: "system-commands",
     });
     ctx.autocomplete("buy", handleBuyAutocomplete);

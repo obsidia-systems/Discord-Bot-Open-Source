@@ -62,10 +62,14 @@ function toSlashBody(
 /**
  * Bulk-overwrite **solo customs activos** en el guild.
  * Los nativos van por `syncGlobalCommands`.
+ *
+ * `client` es opcional: solo se usa para la comparación previa (evitar un PUT
+ * si nada cambió) leyendo el caché de comandos del guild. Sin él (rol `api`),
+ * se fuerza el PUT. El id de app y el token salen de env / REST.
  */
 export async function syncGuildSlashCommands(
-  client: Client,
   guildId?: string,
+  client?: Client,
 ): Promise<number> {
   const rest = createDiscordRest();
   if (!rest) {
@@ -93,7 +97,7 @@ export async function syncGuildSlashCommands(
     );
 
   try {
-    const guild = client.guilds.cache.get(gid);
+    const guild = client?.guilds.cache.get(gid);
     const current = await guild?.commands.fetch();
     if (current && !commandsNeedSync(current, body)) {
       logger.info(`custom-commands: sin cambios (${body.length}) guild=${gid}`);

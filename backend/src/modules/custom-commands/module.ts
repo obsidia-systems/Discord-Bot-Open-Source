@@ -14,13 +14,13 @@ export const customCommandsModule: AdobosModule = {
   register(ctx) {
     setReservedSlashCommandNames(listSystemCommandNames());
 
-    ctx.route("/api/custom-commands", customCommandsRoutes(ctx.client), {
+    ctx.route("/api/custom-commands", customCommandsRoutes(ctx.botGateway), {
       feature: "custom-commands",
     });
     ctx.fallbackChat(handleCustomChatCommand);
 
     ctx.on("guildCreate", (guild) => {
-      void syncGuildSlashCommands(ctx.client, guild.id).catch((error) => {
+      void syncGuildSlashCommands(guild.id, ctx.client).catch((error) => {
         logger.warn(
           { err: error },
           `custom-commands: sync on join failed guild=${guild.id}`,

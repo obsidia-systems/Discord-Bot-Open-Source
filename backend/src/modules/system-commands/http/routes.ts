@@ -1,4 +1,3 @@
-import type { Client } from "discord.js";
 import { Router } from "express";
 import { guildIdOf } from "#core/http/guildContext.js";
 import { defineRoute } from "#core/http/validate.js";
@@ -8,7 +7,7 @@ import {
 } from "../domain/system-commands.js";
 import { updateSystemCommandsSchema } from "./schema.js";
 
-export function systemCommandsRoutes(_bot: Client): Router {
+export function systemCommandsRoutes(): Router {
   const router = Router();
 
   /** GET /api/system-commands */
