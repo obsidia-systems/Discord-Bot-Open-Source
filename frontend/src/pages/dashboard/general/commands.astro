@@ -1,12 +1,13 @@
 ---
 export const prerender = false;
 import DashboardLayout from "../../../layouts/DashboardLayout.astro";
-// import { SystemCommandsIsland } from "../../../components/providers/islands";
+import { SystemCommandsIsland } from "../../../components/providers/islands";
 ---
 
 <DashboardLayout
   title="System Commands"
   description="Control which built-in commands are active and which roles are allowed to use them."
+  compactContent
 >
-  <!-- <SystemCommandsIsland client:load/> -->
+  <SystemCommandsIsland client:load />
 </DashboardLayout>

@@ -34,17 +34,15 @@ import { ToastBanner } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import {
   CircleDollarSign,
-  ClipboardList,
-  Eye,
   Gavel,
+  LayoutDashboard,
   Loader2,
   Power,
   PowerOff,
   Save,
   Search,
-  Terminal,
-  TrendingUp,
-  Wrench,
+  Settings,
+  Users,
 } from "lucide-react";
 import { queryKeys } from "@/lib/query/keys";
 import { useGuildQuery } from "@/lib/query/useGuildQuery";
@@ -54,38 +52,41 @@ type CategoryFilter = "all" | SystemCommandCategory;
 
 const CATEGORY_FILTERS: Array<{ id: CategoryFilter; label: string }> = [
   { id: "all", label: "All" },
+  { id: "general", label: SYSTEM_COMMAND_CATEGORY_LABELS.general },
   { id: "moderation", label: SYSTEM_COMMAND_CATEGORY_LABELS.moderation },
-  { id: "levels", label: SYSTEM_COMMAND_CATEGORY_LABELS.levels },
+  { id: "community", label: SYSTEM_COMMAND_CATEGORY_LABELS.community },
   { id: "economy", label: SYSTEM_COMMAND_CATEGORY_LABELS.economy },
-  { id: "utilities", label: SYSTEM_COMMAND_CATEGORY_LABELS.utilities },
 ];
 
-const CATEGORY_STYLES: Record<
+const CATEGORY_STYLES: Partial<Record<
   SystemCommandCategory,
-  { badge: string; icon: typeof Gavel }
-> = {
+  { badge: string; icon: typeof Gavel; iconColor: string; iconSurface: string }
+>> = {
+  general: {
+    badge: "bg-slate-500/15 text-slate-700 dark:text-slate-300 border-slate-500/30",
+    icon: LayoutDashboard,
+    iconColor: "text-slate-600 dark:text-slate-300",
+    iconSurface: "border-slate-500/30 bg-slate-500/10",
+  },
   moderation: {
     badge: "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30",
     icon: Gavel,
+    iconColor: "text-red-700 dark:text-red-300",
+    iconSurface: "border-red-500/30 bg-red-500/10",
   },
-  levels: {
+  community: {
     badge:
       "bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30",
-    icon: TrendingUp,
+    icon: Users,
+    iconColor: "text-violet-700 dark:text-violet-300",
+    iconSurface: "border-violet-500/30 bg-violet-500/10",
   },
   economy: {
     badge:
       "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
     icon: CircleDollarSign,
-  },
-  forms: {
-    badge:
-      "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30",
-    icon: ClipboardList,
-  },
-  utilities: {
-    badge: "bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30",
-    icon: Wrench,
+    iconColor: "text-emerald-700 dark:text-emerald-300",
+    iconSurface: "border-emerald-500/30 bg-emerald-500/10",
   },
 };
 
@@ -95,39 +96,62 @@ function uniqueIds(ids: string[]): string[] {
   return [...new Set(ids.filter(Boolean))];
 }
 
-function commandsFingerprint(commands: SystemCommandConfig[]): string {
-  return JSON.stringify(
-    commands.map((c) => ({
-      commandName: c.name,
-      enabled: c.enabled,
-      allowedRoles: [...c.allowedRoles].sort(),
-      ignoredChannels: [...(c.ignoredChannels ?? [])].sort(),
-      ephemeral: c.ephemeral,
-    })),
+function CommandsSkeleton() {
+  const block = (className: string) => (
+    <div
+      className={`motion-safe:animate-pulse rounded-sm bg-muted/70 ${className}`}
+      aria-hidden="true"
+    />
+  );
+
+  return (
+    <div className="space-y-8" aria-busy="true" aria-live="polite" aria-label="Loading commands">
+      <span className="sr-only">Loading commands…</span>
+      <header className="space-y-3">
+        {block("h-3 w-32")}
+        {block("h-9 w-52")}
+        {block("h-4 w-full max-w-[40rem]")}
+        {block("h-4 w-3/4 max-w-[32rem]")}
+      </header>
+      <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-card/55 p-3 sm:flex-row">
+        {block("h-10 w-full sm:max-w-sm")}
+        {block("h-10 w-full sm:w-72")}
+      </div>
+      <div className="overflow-hidden rounded-lg border border-border/70 bg-card">
+        {Array.from({ length: 6 }, (_, index) => (
+          <div key={index} className="flex items-center gap-4 border-b border-border/70 p-4 last:border-0">
+            {block("size-9 shrink-0 rounded-md")}
+            <div className="min-w-0 flex-1 space-y-2">
+              {block("h-4 w-32")}
+              {block("h-3 w-full max-w-[28rem]")}
+            </div>
+            {block("hidden h-6 w-20 sm:block")}
+            {block("h-9 w-24")}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
 export function SystemCommandsDashboard() {
   const [commands, setCommands] = useState<SystemCommandConfig[]>([]);
-  const [savedFingerprint, setSavedFingerprint] = useState("");
   const [roles, setRoles] = useState<GuildRoleAsset[]>([]);
   const [channels, setChannels] = useState<GuildChannelAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [category, setCategory] = useState<CategoryFilter>("all");
   const [configuringName, setConfiguringName] = useState<string | null>(null);
+  const [configuringSnapshot, setConfiguringSnapshot] =
+    useState<SystemCommandConfig | null>(null);
   const [bulkRoles, setBulkRoles] = useState<string[]>([]);
   const [bulkChannels, setBulkChannels] = useState<string[]>([]);
   const [toast, setToast] = useState<{
     variant: "success" | "error";
     message: string;
   } | null>(null);
-
-  const dirty = useMemo(
-    () => commandsFingerprint(commands) !== savedFingerprint,
-    [commands, savedFingerprint],
-  );
 
   const configuring = useMemo(
     () => commands.find((c) => c.name === configuringName) ?? null,
@@ -153,7 +177,6 @@ export function SystemCommandsDashboard() {
   useEffect(() => {
     if (!listQuery.data) return;
     setCommands(listQuery.data.list);
-    setSavedFingerprint(commandsFingerprint(listQuery.data.list));
     setRoles(listQuery.data.assets.roles ?? []);
     setChannels(listQuery.data.assets.channels ?? []);
     setLoading(false);
@@ -178,8 +201,15 @@ export function SystemCommandsDashboard() {
     setBulkChannels([]);
   }, [category]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     return commands.filter((cmd) => {
       if (category !== "all" && cmd.category !== category) return false;
       if (!q) return true;
@@ -188,91 +218,160 @@ export function SystemCommandsDashboard() {
         cmd.description.toLowerCase().includes(q)
       );
     });
-  }, [commands, category, query]);
+  }, [commands, category, debouncedQuery]);
+
+  function commandPayload(nextCommands: SystemCommandConfig[]) {
+    return nextCommands.map((c) => ({
+      commandName: c.name,
+      enabled: c.enabled,
+      allowedRoles: c.allowedRoles,
+      ignoredChannels: c.ignoredChannels ?? [],
+      ephemeral: c.ephemeral,
+    }));
+  }
+
+  async function persistCommands(
+    nextCommands: SystemCommandConfig[],
+    successMessage: string,
+    rollbackCommands?: SystemCommandConfig[],
+  ): Promise<boolean> {
+    setSaving(true);
+    setToast(null);
+    try {
+      const next = await saveSystemCommands(commandPayload(nextCommands));
+      setCommands(next);
+      setToast({ variant: "success", message: successMessage });
+      return true;
+    } catch (error) {
+      if (rollbackCommands) setCommands(rollbackCommands);
+      setToast({
+        variant: "error",
+        message:
+          error instanceof Error ? error.message : "Couldn't save.",
+      });
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleToggle(name: string, enabled: boolean): void {
+    const previous = commands;
+    const next = commands.map((command) =>
+      command.name === name ? { ...command, enabled } : command,
+    );
+    setCommands(next);
+    void persistCommands(next, "Command status updated.", previous);
+  }
+
+  function enableCategory(cat: SystemCommandCategory, enabled: boolean): void {
+    const previous = commands;
+    const next = commands.map((command) =>
+      command.category === cat ? { ...command, enabled } : command,
+    );
+    setCommands(next);
+    void persistCommands(
+      next,
+      `${SYSTEM_COMMAND_CATEGORY_LABELS[cat]} commands updated.`,
+      previous,
+    );
+  }
+
+  function applyBulkToCategory(cat: SystemCommandCategory): void {
+    const previous = commands;
+    const next = commands.map((command) =>
+      command.category === cat
+        ? {
+            ...command,
+            allowedRoles:
+              bulkRoles.length > 0
+                ? uniqueIds([...command.allowedRoles, ...bulkRoles])
+                : command.allowedRoles,
+            ignoredChannels:
+              bulkChannels.length > 0
+                ? uniqueIds([
+                    ...(command.ignoredChannels ?? []),
+                    ...bulkChannels,
+                  ])
+                : (command.ignoredChannels ?? []),
+          }
+        : command,
+    );
+    setCommands(next);
+    void persistCommands(
+      next,
+      `${SYSTEM_COMMAND_CATEGORY_LABELS[cat]} permissions updated.`,
+      previous,
+    );
+  }
 
   function patchCommand(
     name: string,
     patch: Partial<
       Pick<
         SystemCommandConfig,
-        "enabled" | "allowedRoles" | "ignoredChannels" | "ephemeral"
+        "allowedRoles" | "ignoredChannels" | "ephemeral"
       >
     >,
   ): void {
     setCommands((prev) =>
-      prev.map((c) => (c.name === name ? { ...c, ...patch } : c)),
+      prev.map((command) =>
+        command.name === name ? { ...command, ...patch } : command,
+      ),
     );
   }
 
-  function patchCategoryCommands(
-    cat: SystemCommandCategory,
-    mapper: (cmd: SystemCommandConfig) => SystemCommandConfig,
-  ): void {
-    setCommands((prev) =>
-      prev.map((c) => (c.category === cat ? mapper(c) : c)),
-    );
-  }
-
-  function enableCategory(cat: SystemCommandCategory, enabled: boolean): void {
-    patchCategoryCommands(cat, (c) => ({ ...c, enabled }));
-  }
-
-  function applyBulkToCategory(cat: SystemCommandCategory): void {
-    patchCategoryCommands(cat, (c) => ({
-      ...c,
-      allowedRoles:
-        bulkRoles.length > 0
-          ? uniqueIds([...c.allowedRoles, ...bulkRoles])
-          : c.allowedRoles,
-      ignoredChannels:
-        bulkChannels.length > 0
-          ? uniqueIds([...(c.ignoredChannels ?? []), ...bulkChannels])
-          : (c.ignoredChannels ?? []),
-    }));
-    setToast({
-      variant: "success",
-      message: `Cambios aplicados a ${SYSTEM_COMMAND_CATEGORY_LABELS[cat]}. Recuerda guardar.`,
-    });
-  }
-
-  async function handleSave(): Promise<void> {
-    setSaving(true);
-    setToast(null);
-    try {
-      const next = await saveSystemCommands(
-        commands.map((c) => ({
-          commandName: c.name,
-          enabled: c.enabled,
-          allowedRoles: c.allowedRoles,
-          ignoredChannels: c.ignoredChannels ?? [],
-          ephemeral: c.ephemeral,
-        })),
+  function closeConfiguration(): void {
+    if (configuringSnapshot) {
+      setCommands((prev) =>
+        prev.map((command) =>
+          command.name === configuringSnapshot.name
+            ? configuringSnapshot
+            : command,
+        ),
       );
-      setCommands(next);
-      setSavedFingerprint(commandsFingerprint(next));
-      setToast({ variant: "success", message: "Changes saved." });
-    } catch (error) {
-      setToast({
-        variant: "error",
-        message:
-          error instanceof Error ? error.message : "Couldn't save.",
-      });
-    } finally {
-      setSaving(false);
+    }
+    setConfiguringName(null);
+    setConfiguringSnapshot(null);
+  }
+
+  async function saveConfiguration(): Promise<void> {
+    if (!configuring) return;
+    const saved = await persistCommands(
+      commands,
+      `/${configuring.name} settings saved.`,
+    );
+    if (saved) {
+      setConfiguringName(null);
+      setConfiguringSnapshot(null);
     }
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center gap-2 py-24 text-muted-foreground">
-        <Loader2 className="size-5 animate-spin" />
-        Loading commands…
-      </div>
-    );
+    return <CommandsSkeleton />;
   }
 
+  const enabledCommandCount = commands.filter((command) => command.enabled).length;
+  const restrictedCommandCount = commands.filter(
+    (command) =>
+      command.allowedRoles.length > 0 ||
+      (command.ignoredChannels ?? []).length > 0,
+  ).length;
+  const activeAreaCount = new Set(
+    commands
+      .filter((command) => command.enabled)
+      .map((command) => command.category),
+  ).size;
+  const enabledPercentage = commands.length
+    ? Math.round((enabledCommandCount / commands.length) * 100)
+    : 0;
+  const activeCategoryIndex = Math.max(
+    0,
+    CATEGORY_FILTERS.findIndex((filter) => filter.id === category),
+  );
+
   return (
-    <div className="relative space-y-6 pb-24">
+    <div className="relative flex flex-col gap-6">
       {toast ? (
         <ToastBanner
           variant={toast.variant}
@@ -281,18 +380,74 @@ export function SystemCommandsDashboard() {
         />
       ) : null}
 
-      <header className="space-y-1 lg:hidden">
-        <div className="flex items-center gap-2">
-          <Terminal className="size-5 text-primary" />
-          <h1 className="text-2xl font-semibold tracking-tight">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <p className="font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-primary">
+            General / Commands
+          </p>
+          <h1 className="mt-2 font-display text-3xl font-extrabold tracking-tight">
             System Commands
           </h1>
+          <p className="mt-2 max-w-[60ch] text-sm leading-relaxed text-muted-foreground">
+            Control which built-in commands are available in this server and
+            who can use them.
+          </p>
         </div>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Control which built-in commands are active and which roles are
-          allowed to use them.
-        </p>
+        <div className="shrink-0 text-xs text-muted-foreground">
+          Commands are registered globally
+        </div>
       </header>
+
+      <div className="grid grid-cols-1 divide-y divide-border/70 rounded-lg border border-border/70 bg-card/55 sm:grid-cols-[1.35fr_1fr_1fr] sm:divide-x sm:divide-y-0">
+        <div className="min-w-0 px-4 py-4 sm:px-5">
+          <div className="flex items-baseline justify-between gap-4">
+            <p className="font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+              Enabled commands
+            </p>
+            <p className="font-mono text-xs text-muted-foreground">
+              {enabledPercentage}%
+            </p>
+          </div>
+          <p className="mt-1 font-mono text-2xl font-semibold tracking-tight text-primary">
+            {enabledCommandCount} <span className="text-muted-foreground">/ {commands.length}</span>
+          </p>
+          <div
+            className="mt-3 h-1 overflow-hidden rounded-full bg-muted"
+            role="progressbar"
+            aria-label="Enabled commands"
+            aria-valuemin={0}
+            aria-valuemax={commands.length}
+            aria-valuenow={enabledCommandCount}
+          >
+            <div
+              className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
+              style={{ width: `${enabledPercentage}%` }}
+            />
+          </div>
+        </div>
+        <div className="px-4 py-4 sm:px-5">
+          <p className="font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+            Restricted
+          </p>
+          <p className="mt-1 font-mono text-2xl font-semibold tracking-tight">
+            {restrictedCommandCount}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            With role or channel rules
+          </p>
+        </div>
+        <div className="px-4 py-4 sm:px-5">
+          <p className="font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+            Active areas
+          </p>
+          <p className="mt-1 font-mono text-2xl font-semibold tracking-tight">
+            {activeAreaCount}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Sidebar categories in use
+          </p>
+        </div>
+      </div>
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="relative w-full max-w-md">
@@ -306,20 +461,35 @@ export function SystemCommandsDashboard() {
             aria-label="Search commands"
           />
         </div>
-        <Tabs>
-          <TabsList className="h-auto flex-wrap justify-start">
-            {CATEGORY_FILTERS.map((f) => (
-              <TabsTrigger
-                key={f.id}
-                active={category === f.id}
-                className="text-xs sm:text-sm"
-                onClick={() => setCategory(f.id)}
-              >
-                {f.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+        <div className="w-full overflow-x-auto lg:w-auto">
+          <Tabs>
+            <TabsList className="relative grid h-10 min-w-[30rem] grid-cols-5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-inset)] p-0.5 text-[var(--text-muted)]">
+              <span
+                className="pointer-events-none absolute inset-y-0.5 left-0.5 z-0 rounded-[var(--radius-xs)] border border-[var(--border-strong)] bg-[var(--bg-raised)] shadow-[var(--shadow-hard-neutral-hover)] transition-[transform,background-color,border-color,box-shadow] duration-[var(--dur-base)] ease-[var(--ease-snap)] motion-reduce:transition-none"
+                style={{
+                  width: "calc((100% - 0.25rem) / 5)",
+                  transform: `translateX(${activeCategoryIndex * 100}%)`,
+                }}
+                aria-hidden="true"
+              />
+              {CATEGORY_FILTERS.map((f) => (
+                <TabsTrigger
+                  key={f.id}
+                  active={category === f.id}
+                  className={cn(
+                    "relative z-10 h-9 rounded-[var(--radius-xs)] px-3 font-sans text-xs font-medium normal-case tracking-normal transition-[color,background-color] duration-[var(--dur-fast)]",
+                    category === f.id
+                      ? "bg-transparent text-[var(--text-primary)] shadow-none"
+                      : "bg-transparent text-[var(--text-muted)] hover:bg-transparent hover:text-[var(--text-primary)]",
+                  )}
+                  onClick={() => setCategory(f.id)}
+                >
+                  {f.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        </div>
       </div>
 
       {category !== "all" ? (
@@ -329,8 +499,8 @@ export function SystemCommandsDashboard() {
               Bulk Actions for {SYSTEM_COMMAND_CATEGORY_LABELS[category]}
             </CardTitle>
             <CardDescription>
-              Affects only the commands in this category in local state.
-              Press Save Changes to persist.
+              Changes are staged locally for this category. Save when you are
+              ready to persist them.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -340,6 +510,7 @@ export function SystemCommandsDashboard() {
                 variant="outline"
                 size="sm"
                 onClick={() => enableCategory(category, true)}
+                disabled={saving}
               >
                 <Power className="size-4" />
                 Enable All
@@ -349,6 +520,7 @@ export function SystemCommandsDashboard() {
                 variant="outline"
                 size="sm"
                 onClick={() => enableCategory(category, false)}
+                disabled={saving}
               >
                 <PowerOff className="size-4" />
                 Disable All
@@ -375,7 +547,9 @@ export function SystemCommandsDashboard() {
             <Button
               type="button"
               onClick={() => applyBulkToCategory(category)}
-              disabled={bulkRoles.length === 0 && bulkChannels.length === 0}
+              disabled={
+                saving || (bulkRoles.length === 0 && bulkChannels.length === 0)
+              }
             >
               Apply to the category
             </Button>
@@ -390,55 +564,68 @@ export function SystemCommandsDashboard() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="overflow-hidden rounded-lg border border-border/70 bg-card">
           {filtered.map((cmd) => {
-            const style = CATEGORY_STYLES[cmd.category];
+            const style = CATEGORY_STYLES[cmd.category] ?? CATEGORY_STYLES.general!;
             const Icon = style.icon;
-            return (
-              <Card
-                key={cmd.name}
-                className={cn("flex flex-col", !cmd.enabled && "opacity-70")}
+      return (
+        <div
+          key={cmd.name}
+          className={cn(
+            "flex flex-col gap-2 border-b border-border/70 p-2 transition-colors last:border-0 sm:flex-row sm:items-center sm:gap-3",
+            !cmd.enabled && "bg-muted/15",
+          )}
               >
-                <CardHeader className="space-y-2 pb-0">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 space-y-2">
-                      <Badge
-                        className={cn(
-                          "gap-1 font-normal normal-case tracking-normal",
-                          style.badge,
-                        )}
-                      >
-                        <Icon className="size-3" />
-                        {SYSTEM_COMMAND_CATEGORY_LABELS[cmd.category]}
-                      </Badge>
-                      <CardTitle className="font-mono text-base">
-                        /{cmd.name}
-                      </CardTitle>
-                    </div>
-                    <Switch
-                      checked={cmd.enabled}
-                      onCheckedChange={(enabled) =>
-                        patchCommand(cmd.name, { enabled })
-                      }
-                      aria-label={`Enable /${cmd.name}`}
-                    />
+                <div
+                  className={cn(
+                    "grid size-7 shrink-0 place-items-center rounded-md border",
+                    style.iconSurface,
+                    style.iconColor,
+                  )}
+                >
+                  <Icon className="size-3.5" aria-hidden />
+                </div>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span className="font-mono text-sm font-semibold text-foreground">
+                      /{cmd.name}
+                    </span>
                   </div>
-                  <CardDescription className="line-clamp-2 text-sm leading-relaxed">
+                  <p className="line-clamp-2 text-sm leading-4 text-muted-foreground">
                     {cmd.description}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="mt-auto pt-4">
+                  </p>
+                </div>
+                <div className="flex items-center justify-between gap-4 sm:justify-end">
+                  <Badge
+                    className={cn(
+                      "font-mono text-[10px] font-bold uppercase tracking-[0.12em]",
+                      style.badge,
+                    )}
+                  >
+                    {SYSTEM_COMMAND_CATEGORY_LABELS[cmd.category]}
+                  </Badge>
+                  <Switch
+                    checked={cmd.enabled}
+                    disabled={saving}
+                    onCheckedChange={(enabled) => handleToggle(cmd.name, enabled)}
+                    aria-label={`${cmd.enabled ? "Disable" : "Enable"} /${cmd.name}`}
+                  />
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full"
-                    onClick={() => setConfiguringName(cmd.name)}
+                    size="icon"
+                    aria-label={`Configure /${cmd.name}`}
+                    title={`Configure /${cmd.name}`}
+                    disabled={saving}
+                    onClick={() => {
+                      setConfiguringName(cmd.name);
+                      setConfiguringSnapshot(cmd);
+                    }}
                   >
-                    <Eye className="size-4" />
-                    Configure Command
+                    <Settings className="size-4" aria-hidden />
                   </Button>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             );
           })}
         </div>
@@ -447,7 +634,7 @@ export function SystemCommandsDashboard() {
       <Sheet
         open={Boolean(configuring)}
         onOpenChange={(open) => {
-          if (!open) setConfiguringName(null);
+          if (!open) closeConfiguration();
         }}
         title={
           configuring ? (
@@ -461,9 +648,11 @@ export function SystemCommandsDashboard() {
           <Button
             type="button"
             className="w-full"
-            onClick={() => setConfiguringName(null)}
+            onClick={() => void saveConfiguration()}
+            disabled={saving}
           >
-            Save command changes
+            {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+            Save
           </Button>
         }
       >
@@ -573,30 +762,6 @@ export function SystemCommandsDashboard() {
         ) : null}
       </Sheet>
 
-      <div
-        className={cn(
-          "fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80",
-          (!dirty || configuring) && "pointer-events-none opacity-0",
-        )}
-      >
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
-          <p className="text-sm text-muted-foreground">
-            You have unsaved changes.
-          </p>
-          <Button
-            type="button"
-            onClick={() => void handleSave()}
-            disabled={saving || !dirty}
-          >
-            {saving ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Save className="size-4" />
-            )}
-            Save Changes
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }

@@ -9,9 +9,10 @@ import { Button } from "../components/ui/button";
 interface Props {
   title: string;
   description?: string;
+  compactContent?: boolean;
 }
 
-const { title, description } = Astro.props;
+const { title, description, compactContent } = Astro.props;
 const panel = Astro.locals.panel;
 if (!panel) {
   return Astro.redirect("/");
@@ -81,7 +82,7 @@ const missingBot = Boolean(selectedGuild && !selectedGuild.botPresent);
               <Button href="/auth/invite" reload>Add to a server</Button>
             </div>
           ) : (
-            <main class="min-h-full px-[var(--dash-pad)] py-[var(--dash-pad)]">
+            <main class:list={["px-[var(--dash-pad)] py-[var(--dash-pad)]", !compactContent && "min-h-full"]}>
               <slot />
             </main>
           )
