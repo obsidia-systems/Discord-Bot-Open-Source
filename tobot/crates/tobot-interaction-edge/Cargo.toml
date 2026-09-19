@@ -1,0 +1,19 @@
+[package]
+name = "tobot-interaction-edge"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+time.workspace = true
+tobot-core = { path = "../tobot-core" }
+tobot-discord-adapter = { path = "../tobot-discord-adapter" }
+tobot-envelope = { path = "../tobot-envelope" }
+tobot-persistence = { path = "../tobot-persistence" }
+uuid.workspace = true
+
+[lints]
+workspace = true

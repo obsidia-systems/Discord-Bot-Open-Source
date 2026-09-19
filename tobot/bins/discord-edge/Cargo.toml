@@ -8,10 +8,18 @@ publish.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+serde_json.workspace = true
+time.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+tobot-discord-adapter = { path = "../../crates/tobot-discord-adapter" }
 tobot-envelope = { path = "../../crates/tobot-envelope" }
+tobot-interaction-edge = { path = "../../crates/tobot-interaction-edge" }
+tobot-persistence = { path = "../../crates/tobot-persistence" }
+twilight-gateway.workspace = true
+twilight-model.workspace = true
+uuid.workspace = true
 
 [lints]
 workspace = true

@@ -22,6 +22,18 @@ pub struct ClaimedOutboxEntry {
     pub fencing_token: i64,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum InteractionAcceptance {
+    Accepted,
+    Duplicate,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum InteractionAcknowledgement {
+    Acknowledged,
+    Deferred,
+}
+
 impl Store {
     /// # Errors
     ///
@@ -63,6 +75,159 @@ impl Store {
         .execute(&self.pool)
         .await?;
         Ok(result.rows_affected() == 1)
+    }
+
+    /// Atomically records a new interaction receipt and its durable fact.
+    /// The initial Discord callback deliberately happens after this commit.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if either the receipt, inbox, or outbox write cannot
+    /// be committed together.
+    pub async fn accept_interaction_event(
+        &self,
+        context: TenantContext,
+        interaction_id: &str,
+        receipt_id: Uuid,
+        expires_at: OffsetDateTime,
+        event: &EventEnvelope,
+        raw: &[u8],
+    ) -> Result<InteractionAcceptance, sqlx::Error> {
+        let mut transaction = self.pool.begin().await?;
+        let receipt_inserted = sqlx::query(
+            "INSERT INTO edge.interaction_receipt \
+             (receipt_id, tenant_id, interaction_id, state, expires_at) \
+             VALUES ($1, $2, $3, 'Reserved', $4) \
+             ON CONFLICT (tenant_id, interaction_id) DO NOTHING",
+        )
+        .bind(receipt_id)
+        .bind(context.tenant_id.as_uuid())
+        .bind(interaction_id)
+        .bind(expires_at)
+        .execute(&mut *transaction)
+        .await?
+        .rows_affected()
+            == 1;
+
+        if !receipt_inserted {
+            transaction.commit().await?;
+            return Ok(InteractionAcceptance::Duplicate);
+        }
+
+        let inbox_inserted = sqlx::query(
+            "INSERT INTO edge.event_inbox (event_id, tenant_id, schema_name, schema_version, raw_envelope) \
+             VALUES ($1, $2, $3, $4, $5) ON CONFLICT (event_id) DO NOTHING",
+        )
+        .bind(event.event_id)
+        .bind(context.tenant_id.as_uuid())
+        .bind(&event.schema_name)
+        .bind(i32::from(event.schema_version))
+        .bind(raw)
+        .execute(&mut *transaction)
+        .await?
+        .rows_affected()
+            == 1;
+
+        if !inbox_inserted {
+            return Err(sqlx::Error::Protocol(
+                "interaction receipt has conflicting event identity".to_owned(),
+            ));
+        }
+
+        sqlx::query(
+            "INSERT INTO edge.event_outbox (outbox_id, tenant_id, event_id, topic, partition_key, envelope) \
+             VALUES ($1, $2, $3, $4, $5, $6)",
+        )
+        .bind(Uuid::now_v7())
+        .bind(context.tenant_id.as_uuid())
+        .bind(event.event_id)
+        .bind(&event.schema_name)
+        .bind(context.tenant_id.as_uuid())
+        .bind(raw)
+        .execute(&mut *transaction)
+        .await?;
+        transaction.commit().await?;
+
+        Ok(InteractionAcceptance::Accepted)
+    }
+
+    /// Records a successful initial interaction callback exactly once. The
+    /// expected Reserved state makes a stale/duplicate caller harmless.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the acknowledgement receipt cannot be
+    /// updated.
+    pub async fn record_interaction_acknowledgement(
+        &self,
+        receipt_id: Uuid,
+        acknowledgement: InteractionAcknowledgement,
+        acknowledged_at: OffsetDateTime,
+    ) -> Result<bool, sqlx::Error> {
+        let state = match acknowledgement {
+            InteractionAcknowledgement::Acknowledged => "Acknowledged",
+            InteractionAcknowledgement::Deferred => "Deferred",
+        };
+        let result = sqlx::query(
+            "UPDATE edge.interaction_receipt \
+             SET state = $2, acknowledgement_at = $3, acknowledgement_error = NULL \
+             WHERE receipt_id = $1 AND state = 'Reserved' AND expires_at > $3",
+        )
+        .bind(receipt_id)
+        .bind(state)
+        .bind(acknowledged_at)
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected() == 1)
+    }
+
+    /// Leaves the durable receipt visible for reconciliation without storing
+    /// raw provider errors or credentials.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the failed acknowledgement cannot be
+    /// recorded.
+    pub async fn record_interaction_acknowledgement_failure(
+        &self,
+        receipt_id: Uuid,
+        error_class: &str,
+    ) -> Result<bool, sqlx::Error> {
+        let result = sqlx::query(
+            "UPDATE edge.interaction_receipt SET acknowledgement_error = $2 \
+             WHERE receipt_id = $1 AND state = 'Reserved'",
+        )
+        .bind(receipt_id)
+        .bind(error_class)
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected() == 1)
+    }
+
+    /// Resolves only an active guild installation. Gateway payload fields are
+    /// correlation data, never authorization by themselves.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the installation context cannot be read.
+    pub async fn resolve_active_guild_tenant(
+        &self,
+        application_id: &str,
+        guild_id: &str,
+    ) -> Result<Option<TenantContext>, sqlx::Error> {
+        let tenant_id = sqlx::query_scalar::<_, Uuid>(
+            "SELECT tenant_id FROM installation.tenant \
+             WHERE tenant_type = 'Guild' AND provider_tenant_ref = $1 \
+               AND application_id = $2 AND state = 'Active'",
+        )
+        .bind(guild_id)
+        .bind(application_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(tenant_id.map(|tenant_id| TenantContext {
+            tenant_id: TenantId::from_uuid(tenant_id),
+            tenant_type: tobot_core::TenantType::Guild,
+        }))
     }
 
     /// Writes the receipt and its outbox fact in one transaction. The tenant

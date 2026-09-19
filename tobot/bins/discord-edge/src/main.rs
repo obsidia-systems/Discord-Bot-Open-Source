@@ -1,9 +1,15 @@
-//! Gateway-only Edge process. It intentionally exposes no Discord interaction
-//! webhook route; that ingress mode is mutually exclusive with S0.
+//! Gateway-only Discord Edge. It has no public interaction-webhook listener.
 
 use anyhow::Context;
-use tobot_envelope::EventEnvelope;
-use tracing::info;
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+use tobot_discord_adapter::{InteractionCallback, TwilightTransport};
+use tobot_envelope::{EventEnvelope, TraceContext};
+use tobot_interaction_edge::{InteractionEdge, ProbeAcknowledgement};
+use tobot_persistence::Store;
+use tracing::{info, warn};
+use twilight_gateway::{Event, EventTypeFlags, Intents, Shard, ShardId, StreamExt as _};
+use twilight_model::gateway::payload::incoming::InteractionCreate;
+use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -13,19 +19,121 @@ async fn main() -> anyhow::Result<()> {
         .init();
     let application_id = std::env::var("TOBOT_DISCORD_APPLICATION_ID")
         .context("missing TOBOT_DISCORD_APPLICATION_ID")?;
-    let _token =
+    let bot_token =
         std::env::var("TOBOT_DISCORD_BOT_TOKEN").context("missing TOBOT_DISCORD_BOT_TOKEN")?;
-    info!(%application_id, ingress = "gateway", "discord edge starting");
+    let database_url = std::env::var("TOBOT_DATABASE_URL").context("missing TOBOT_DATABASE_URL")?;
+    let store = Store::connect(&database_url)
+        .await
+        .context("discord edge database unavailable")?;
+    let interaction_edge =
+        InteractionEdge::new(store.clone(), TwilightTransport::new(bot_token.clone()));
+    let mut shard = Shard::new(ShardId::ONE, bot_token, Intents::GUILDS);
 
-    // Twilight Gateway wiring belongs here. The parsed envelope API is kept
-    // ready now so provider types never leak into subsequent modules.
-    tokio::signal::ctrl_c().await?;
+    info!(%application_id, ingress = "gateway", shard = 0, "discord edge starting");
+    while let Some(next_event) = shard.next_event(EventTypeFlags::all()).await {
+        let event = match next_event {
+            Ok(event) => event,
+            Err(error) => {
+                warn!(error = %error, shard = shard.id().number(), "gateway event error");
+                continue;
+            }
+        };
+
+        let Event::InteractionCreate(interaction) = event else {
+            continue;
+        };
+        let Some(session) = shard.session() else {
+            warn!(
+                shard = shard.id().number(),
+                "interaction received without a gateway session"
+            );
+            continue;
+        };
+
+        if let Err(error) = accept_interaction(
+            &interaction_edge,
+            &store,
+            &application_id,
+            shard.id().number(),
+            session.id(),
+            session.sequence(),
+            *interaction,
+        )
+        .await
+        {
+            warn!(error = %error, shard = shard.id().number(), "interaction ingress failed");
+        }
+    }
+
     Ok(())
 }
 
-#[allow(dead_code)]
-fn validate_gateway_receipt(raw: &[u8]) -> anyhow::Result<()> {
-    let parsed = EventEnvelope::parse_s0(raw)?;
-    let _key = parsed.event.gateway_deduplication_key();
+async fn accept_interaction(
+    interaction_edge: &InteractionEdge<TwilightTransport>,
+    store: &Store,
+    configured_application_id: &str,
+    shard_id: u32,
+    session_id: &str,
+    gateway_sequence: u64,
+    interaction: InteractionCreate,
+) -> anyhow::Result<()> {
+    let interaction = interaction.0;
+    let application_id = interaction.application_id.to_string();
+    if application_id != configured_application_id {
+        anyhow::bail!("received interaction for an unexpected application");
+    }
+    let guild_id = interaction
+        .guild_id
+        .map(|id| id.to_string())
+        .context("S0 diagnostic interaction must originate from a guild")?;
+    let context = store
+        .resolve_active_guild_tenant(&application_id, &guild_id)
+        .await?
+        .context("interaction belongs to no active installed guild")?;
+    let now = OffsetDateTime::now_utc();
+    let timestamp = now.format(&Rfc3339)?;
+    let correlation_id = Uuid::now_v7();
+    let event = EventEnvelope {
+        event_id: Uuid::now_v7(),
+        schema_name: "InteractionAccepted".to_owned(),
+        schema_version: 1,
+        occurred_at: timestamp.clone(),
+        received_at: timestamp,
+        application_id,
+        guild_id: Some(guild_id),
+        shard_id: Some(shard_id),
+        session_id: Some(session_id.to_owned()),
+        gateway_sequence: Some(gateway_sequence),
+        correlation_id,
+        causation_id: None,
+        trace_context: TraceContext {
+            trace_id: correlation_id.to_string(),
+            span_id: Uuid::now_v7().to_string(),
+        },
+        // Do not persist Discord's interaction token or the unbounded raw
+        // Gateway payload. The provider identifiers are sufficient for S0.
+        payload: serde_json::json!({
+            "interaction_id": interaction.id.to_string(),
+            "kind": "S0DiagnosticInteraction"
+        }),
+    };
+    let raw = serde_json::to_vec(&event)?;
+    let callback = InteractionCallback {
+        application_id: interaction.application_id.get(),
+        interaction_id: interaction.id.get(),
+        interaction_token: interaction.token,
+        ephemeral: true,
+    };
+    let outcome = interaction_edge
+        .accept_and_acknowledge(
+            context,
+            callback,
+            &event,
+            &raw,
+            ProbeAcknowledgement::Deferred,
+            now,
+        )
+        .await?;
+    info!(?outcome, event_id = %event.event_id, "interaction receipt processed");
     Ok(())
 }
