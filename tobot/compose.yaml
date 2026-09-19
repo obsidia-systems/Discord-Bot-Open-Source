@@ -10,6 +10,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    networks: [data]
 
   redis:
     image: redis:8-alpine
@@ -19,6 +20,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    networks: [data]
 
   migrate:
     build: .
@@ -28,6 +30,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks: [data]
 
   control-plane:
     build: .
@@ -45,6 +48,7 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+    networks: [data, public]
 
   discord-edge:
     build: .
@@ -58,6 +62,7 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+    networks: [data, edge_delivery]
 
   delivery:
     build: .
@@ -73,24 +78,28 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+    networks: [data, edge_delivery]
 
   app:
     image: node:26-bookworm-slim
     working_dir: /workspace
     command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm --filter @tobot/app dev --host 0.0.0.0"
     volumes: [".:/workspace"]
+    networks: [public]
 
   www:
     image: node:26-bookworm-slim
     working_dir: /workspace
     command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm --filter @tobot/www dev --host 0.0.0.0"
     volumes: [".:/workspace"]
+    networks: [public]
 
   docs:
     image: node:26-bookworm-slim
     working_dir: /workspace
     command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm --filter @tobot/docs dev --host 0.0.0.0"
     volumes: [".:/workspace"]
+    networks: [public]
 
   caddy:
     image: caddy:2-alpine
@@ -99,6 +108,14 @@ services:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
     depends_on: [app, www, docs, control-plane]
+    networks: [public]
 
 volumes:
   caddy_data:
+
+networks:
+  data:
+    internal: true
+  edge_delivery:
+    internal: true
+  public: {}
