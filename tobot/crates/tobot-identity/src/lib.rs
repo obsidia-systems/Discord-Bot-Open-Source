@@ -33,6 +33,10 @@ pub enum IdentityError {
     AlreadyConsumed,
     #[error("OAuth state does not match")]
     StateMismatch,
+    #[error("OAuth redirect URI does not match the transaction")]
+    RedirectMismatch,
+    #[error("OAuth scopes do not match the transaction")]
+    ScopeMismatch,
     #[error("CSRF proof does not match the active session")]
     InvalidCsrf,
     #[error("session is expired or revoked")]
@@ -62,7 +66,13 @@ impl OAuthTransaction {
     /// # Errors
     ///
     /// Rejects a replay, expired transaction, or state mismatch.
-    pub fn consume(&mut self, state: &str, now: SystemTime) -> Result<(), IdentityError> {
+    pub fn consume(
+        &mut self,
+        state: &str,
+        redirect_uri: &str,
+        scopes: &[String],
+        now: SystemTime,
+    ) -> Result<(), IdentityError> {
         if now > self.expires_at {
             return Err(IdentityError::Expired);
         }
@@ -71,6 +81,12 @@ impl OAuthTransaction {
         }
         if self.state.as_bytes().ct_eq(state.as_bytes()).unwrap_u8() != 1 {
             return Err(IdentityError::StateMismatch);
+        }
+        if self.redirect_uri != redirect_uri {
+            return Err(IdentityError::RedirectMismatch);
+        }
+        if self.scopes != scopes {
+            return Err(IdentityError::ScopeMismatch);
         }
         self.consumed_at = Some(now);
         Ok(())
@@ -120,6 +136,21 @@ impl AuthorizationSession {
         Ok(())
     }
 
+    /// Validates the server-side session and slides only its idle expiry. The
+    /// absolute expiry remains anchored to the original issuance time.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the session is revoked or any expiry has passed.
+    pub fn authorize_and_refresh(&mut self, now: SystemTime) -> Result<(), IdentityError> {
+        if self.revoked_at.is_some() || now > self.idle_expires_at || now > self.absolute_expires_at
+        {
+            return Err(IdentityError::SessionInactive);
+        }
+        self.idle_expires_at = (now + SESSION_IDLE_TTL).min(self.absolute_expires_at);
+        Ok(())
+    }
+
     pub fn revoke(&mut self, now: SystemTime) {
         self.revoked_at = Some(now);
     }
@@ -148,9 +179,23 @@ mod tests {
             URL_SAFE_NO_PAD.encode(Sha256::digest(transaction.code_verifier.as_bytes()))
         );
         let state = transaction.state.clone();
-        assert!(transaction.consume(&state, now).is_ok());
+        assert!(
+            transaction
+                .consume(
+                    &state,
+                    "https://app.tobot.test/auth/discord/callback",
+                    &["identify".into()],
+                    now
+                )
+                .is_ok()
+        );
         assert_eq!(
-            transaction.consume(&state, now),
+            transaction.consume(
+                &state,
+                "https://app.tobot.test/auth/discord/callback",
+                &["identify".into()],
+                now
+            ),
             Err(IdentityError::AlreadyConsumed)
         );
     }
@@ -168,6 +213,45 @@ mod tests {
         assert_eq!(
             session.verify_mutation(&session.csrf_proof, now),
             Err(IdentityError::SessionInactive)
+        );
+    }
+
+    #[test]
+    fn idle_refresh_cannot_extend_the_absolute_session_lifetime() {
+        let now = SystemTime::UNIX_EPOCH;
+        let mut session = AuthorizationSession::new(now);
+        let near_absolute_expiry = session.absolute_expires_at - Duration::from_hours(1);
+        session.idle_expires_at = session.absolute_expires_at - Duration::from_mins(30);
+        assert!(session.authorize_and_refresh(near_absolute_expiry).is_ok());
+        assert_eq!(session.idle_expires_at, session.absolute_expires_at);
+    }
+
+    #[test]
+    fn callback_binding_rejects_scope_or_redirect_substitution() {
+        let now = SystemTime::UNIX_EPOCH;
+        let mut transaction = OAuthTransaction::new(
+            "https://app.tobot.test/auth/discord/callback".into(),
+            vec!["identify".into()],
+            now,
+        );
+        let state = transaction.state.clone();
+        assert_eq!(
+            transaction.consume(
+                &state,
+                "https://evil.example/auth/discord/callback",
+                &["identify".into()],
+                now
+            ),
+            Err(IdentityError::RedirectMismatch)
+        );
+        assert_eq!(
+            transaction.consume(
+                &state,
+                "https://app.tobot.test/auth/discord/callback",
+                &["guilds".into()],
+                now
+            ),
+            Err(IdentityError::ScopeMismatch)
         );
     }
 }
