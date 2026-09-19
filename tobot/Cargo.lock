@@ -2438,6 +2438,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tobot-secret-store"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "base64",
+ "reqwest",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "tokio"
 version = "1.53.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

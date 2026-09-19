@@ -14,6 +14,7 @@ members = [
   "crates/tobot-interaction-edge",
   "crates/tobot-outbox",
   "crates/tobot-persistence",
+  "crates/tobot-secret-store",
 ]
 resolver = "3"
 
