@@ -9,7 +9,7 @@ services:
 
   vault-init:
     image: hashicorp/vault:1.21
-    entrypoint: ["/bin/sh", "-ec"]
+    entrypoint: ["/bin/sh", "-c"]
     command: >-
       export VAULT_ADDR=http://vault:8200;
       export VAULT_TOKEN=$${TOBOT_VAULT_DEV_ROOT_TOKEN};
