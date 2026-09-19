@@ -2295,6 +2295,7 @@ dependencies = [
  "sqlx",
  "tobot-config",
  "tobot-persistence",
+ "tobot-secret-store",
  "tokio",
  "tower-http",
  "tracing",

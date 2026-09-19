@@ -23,6 +23,7 @@ pub trait SecretStore: Send + Sync {
     async fn decrypt(&self, ciphertext: &str, context: &[u8]) -> Result<Vec<u8>, SecretStoreError>;
 }
 
+#[derive(Clone)]
 pub struct VaultTransitStore {
     client: reqwest::Client,
     address: String,

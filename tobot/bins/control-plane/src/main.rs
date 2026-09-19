@@ -13,6 +13,7 @@ use axum::{
 };
 use tobot_config::ControlPlaneConfig;
 use tobot_persistence::Store;
+use tobot_secret_store::VaultTransitStore;
 use tower_http::{
     request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer},
     set_header::SetResponseHeaderLayer,
@@ -25,6 +26,7 @@ const REQUEST_ID: &str = "x-request-id";
 #[derive(Clone)]
 struct AppState {
     store: Store,
+    _secret_store: VaultTransitStore,
 }
 
 #[tokio::main]
@@ -41,7 +43,16 @@ async fn main() -> anyhow::Result<()> {
     let store = Store::connect(config.database_url.expose_for_adapter())
         .await
         .context("control-plane database is unavailable")?;
-    let app = router(AppState { store });
+    let secret_store = VaultTransitStore::new(
+        &config.vault_addr,
+        config.vault_token.expose_for_adapter().to_owned(),
+        config.vault_transit_key.clone(),
+    )
+    .context("invalid Vault Transit configuration")?;
+    let app = router(AppState {
+        store,
+        _secret_store: secret_store,
+    });
 
     info!(bind = %address, origin = %config.public_origin, "control plane starting");
     let listener = tokio::net::TcpListener::bind(address).await?;
