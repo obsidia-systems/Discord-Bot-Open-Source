@@ -90,9 +90,12 @@ async fn live() -> StatusCode {
 }
 
 async fn ready(State(state): State<AppState>) -> StatusCode {
-    match sqlx::query("SELECT 1").execute(state.store.pool()).await {
-        Ok(_) => StatusCode::NO_CONTENT,
-        Err(_) => StatusCode::SERVICE_UNAVAILABLE,
+    let database_ready = sqlx::query("SELECT 1").execute(state.store.pool()).await.is_ok();
+    let vault_ready = state._secret_store.health().await.is_ok();
+    if database_ready && vault_ready {
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
     }
 }
 

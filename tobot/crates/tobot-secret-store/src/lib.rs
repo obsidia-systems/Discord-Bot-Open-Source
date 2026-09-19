@@ -74,6 +74,24 @@ impl VaultTransitStore {
             .ciphertext
             .ok_or(SecretStoreError::InvalidResponse)
     }
+
+    /// # Errors
+    ///
+    /// Returns an unavailable error when Vault cannot report a healthy,
+    /// unsealed status through its internal health endpoint.
+    pub async fn health(&self) -> Result<(), SecretStoreError> {
+        let response = self
+            .client
+            .get(format!("{}/v1/sys/health", self.address))
+            .send()
+            .await
+            .map_err(|_| SecretStoreError::Unavailable)?;
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            Err(SecretStoreError::Unavailable)
+        }
+    }
 }
 
 #[derive(Serialize)]
