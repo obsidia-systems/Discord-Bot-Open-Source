@@ -9,13 +9,16 @@ services:
 
   vault-init:
     image: hashicorp/vault:1.21
-    entrypoint: ["/bin/sh", "-c"]
-    command: >-
-      export VAULT_ADDR=http://vault:8200;
-      export VAULT_TOKEN=$${TOBOT_VAULT_DEV_ROOT_TOKEN};
-      until vault status >/dev/null 2>&1; do sleep 1; done;
-      vault secrets enable -path=tobot-transit transit 2>/dev/null || true;
-      vault write -f tobot-transit/keys/tobot-oauth >/dev/null
+    entrypoint: []
+    command:
+      - /bin/sh
+      - -ec
+      - >-
+        export VAULT_ADDR=http://vault:8200;
+        export VAULT_TOKEN=$${TOBOT_VAULT_DEV_ROOT_TOKEN};
+        until vault status >/dev/null 2>&1; do sleep 1; done;
+        vault secrets enable -path=tobot-transit transit 2>/dev/null || true;
+        vault write -f tobot-transit/keys/tobot-oauth >/dev/null
     environment:
       TOBOT_VAULT_DEV_ROOT_TOKEN: ${TOBOT_VAULT_DEV_ROOT_TOKEN:?set TOBOT_VAULT_DEV_ROOT_TOKEN}
     depends_on: [vault]

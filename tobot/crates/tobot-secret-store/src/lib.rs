@@ -115,7 +115,10 @@ impl SecretStore for VaultTransitStore {
         }
         let response = self
             .client
-            .post(format!("{}/v1/tobot-transit/decrypt/{}", self.address, self.key))
+            .post(format!(
+                "{}/v1/tobot-transit/decrypt/{}",
+                self.address, self.key
+            ))
             .header("X-Vault-Token", &self.token)
             .json(&TransitRequest {
                 plaintext: None,
