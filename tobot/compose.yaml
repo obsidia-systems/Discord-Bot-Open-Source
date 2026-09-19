@@ -1,4 +1,26 @@
 services:
+  vault:
+    image: hashicorp/vault:1.21
+    command: ["server", "-dev", "-dev-root-token-id=${TOBOT_VAULT_DEV_ROOT_TOKEN:?set TOBOT_VAULT_DEV_ROOT_TOKEN}"]
+    environment:
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    cap_add: [IPC_LOCK]
+    networks: [secrets]
+
+  vault-init:
+    image: hashicorp/vault:1.21
+    entrypoint: ["/bin/sh", "-ec"]
+    command: >-
+      export VAULT_ADDR=http://vault:8200;
+      export VAULT_TOKEN=$${TOBOT_VAULT_DEV_ROOT_TOKEN};
+      until vault status >/dev/null 2>&1; do sleep 1; done;
+      vault secrets enable -path=tobot-transit transit 2>/dev/null || true;
+      vault write -f tobot-transit/keys/tobot-oauth >/dev/null
+    environment:
+      TOBOT_VAULT_DEV_ROOT_TOKEN: ${TOBOT_VAULT_DEV_ROOT_TOKEN:?set TOBOT_VAULT_DEV_ROOT_TOKEN}
+    depends_on: [vault]
+    networks: [secrets]
+
   postgres:
     image: postgres:16-alpine
     environment:
@@ -44,12 +66,17 @@ services:
       TOBOT_DISCORD_APPLICATION_ID: ${TOBOT_DISCORD_APPLICATION_ID:?set TOBOT_DISCORD_APPLICATION_ID}
       TOBOT_DISCORD_CLIENT_ID: ${TOBOT_DISCORD_CLIENT_ID:?set TOBOT_DISCORD_CLIENT_ID}
       TOBOT_DISCORD_CLIENT_SECRET: ${TOBOT_DISCORD_CLIENT_SECRET:?set TOBOT_DISCORD_CLIENT_SECRET}
+      TOBOT_VAULT_ADDR: ${TOBOT_VAULT_ADDR:-http://vault:8200}
+      TOBOT_VAULT_TOKEN: ${TOBOT_VAULT_TOKEN:?set TOBOT_VAULT_TOKEN}
+      TOBOT_VAULT_TRANSIT_KEY: ${TOBOT_VAULT_TRANSIT_KEY:-tobot-oauth}
     depends_on:
       migrate:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
-    networks: [data, public]
+      vault-init:
+        condition: service_completed_successfully
+    networks: [data, public, secrets]
 
   discord-edge:
     build: .
@@ -120,3 +147,5 @@ networks:
   edge_delivery:
     internal: true
   public: {}
+  secrets:
+    internal: true

@@ -25,6 +25,9 @@ pub struct ControlPlaneConfig {
     pub discord_application_id: String,
     pub discord_client_id: String,
     pub discord_client_secret: Secret,
+    pub vault_addr: String,
+    pub vault_token: Secret,
+    pub vault_transit_key: String,
 }
 
 #[derive(Clone)]
@@ -70,6 +73,9 @@ impl ControlPlaneConfig {
             discord_application_id: required("TOBOT_DISCORD_APPLICATION_ID")?,
             discord_client_id: required("TOBOT_DISCORD_CLIENT_ID")?,
             discord_client_secret: Secret(required("TOBOT_DISCORD_CLIENT_SECRET")?),
+            vault_addr: required("TOBOT_VAULT_ADDR")?,
+            vault_token: Secret(required("TOBOT_VAULT_TOKEN")?),
+            vault_transit_key: required("TOBOT_VAULT_TRANSIT_KEY")?,
         })
     }
 }
