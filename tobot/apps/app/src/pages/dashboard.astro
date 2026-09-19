@@ -1,0 +1,5 @@
+---
+const session = Astro.cookies.get("tobot_session");
+if (!session) return Astro.redirect("/auth/login");
+---
+<main><h1>Tobot dashboard</h1><p>Loading your authorized guilds.</p></main>

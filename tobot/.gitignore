@@ -1,0 +1,7 @@
+/target
+/apps/*/node_modules
+/apps/*/dist
+/apps/*/.astro
+.env
+.env.*
+!.env.example

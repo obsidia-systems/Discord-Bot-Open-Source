@@ -1,0 +1,16 @@
+[package]
+name = "tobot-persistence"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+sqlx.workspace = true
+tobot-core = { path = "../tobot-core" }
+tobot-envelope = { path = "../tobot-envelope" }
+uuid.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,12 @@
+[
+  {
+    "schema_name": "GatewayEventAccepted",
+    "schema_version": 1,
+    "notes": "Technical Gateway receipt; the deduplication identity is application_id, shard_id, session_id and gateway_sequence."
+  },
+  {
+    "schema_name": "InteractionAccepted",
+    "schema_version": 1,
+    "notes": "Published only after an idempotent Gateway-mode interaction reservation; acknowledgement does not wait for publication."
+  }
+]

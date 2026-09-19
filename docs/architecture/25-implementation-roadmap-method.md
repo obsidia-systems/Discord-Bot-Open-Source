@@ -63,7 +63,9 @@ Do **not** wait on cluster extracts. Do **not** paste ownership tables.
 
 When a slice is next, open `roadmap/Sxx-*.md` and read **only** the RFC list in 26 for that slice. That is the first time crates, tables, commands, and tests are named.
 
-Do not draft S2 while S0 is unplanned. Do not pre-write S1–S8 implementation.
+Cadence: **plan one slice → implement that slice → plan the next.** Do not pre-write S0–S8. A Plan-mode pass that turns the slice file into tasks is part of that slice, not a reason to draft later slices.
+
+Do not draft S1 while S0 is unplanned or unimplemented. Do not pre-write S1–S8 implementation.
 
 ### 3.3 Spine (for the sequence only)
 

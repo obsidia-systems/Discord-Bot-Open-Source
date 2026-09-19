@@ -103,6 +103,18 @@ S0 ships the shell. Every later slice ships **one** Discord path and **one** `ap
 
 Co-location is allowed early. Merging Gateway with Billing, or putting the bot token on Control API, is not.
 
-## 6. Next
+## 6. Cadence
+
+Do **not** write S0–S8 plans up front. The sequence in §1 is the backlog. The plan file is written when that slice is next.
+
+For each slice:
+
+1. Plan mode: read only that slice’s RFC list, write `roadmap/Sxx-*.md`, break it into tasks.
+2. Agent mode: implement those tasks until the twin-track outcome in §1 is true.
+3. Only then open the next slice’s plan. Adjust 26 if S0 taught a sequencing fact (for example skip S4).
+
+S0 is done enough to start S1 when a test guild can install, an interaction is ACK’d, an operator can log in on `app.*`, and a killed worker does not lose accepted work. S0 does not need every §6.2 process or the full dashboard.
+
+## 7. Next
 
 Write `roadmap/S00-platform-skeleton.md` using the S0 reading list above. Do not plan S1 in the same pass.

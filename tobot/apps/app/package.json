@@ -1,0 +1,1 @@
+{"name":"@tobot/app","private":true,"type":"module","scripts":{"build":"astro build","check":"astro check"},"dependencies":{"@astrojs/node":"11.1.6","@astrojs/react":"6.0.6","astro":"7.3.3","react":"19.3.0","react-dom":"19.3.0"},"devDependencies":{"typescript":"5.9.3"}}
