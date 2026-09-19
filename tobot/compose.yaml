@@ -1,0 +1,86 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tobot
+      POSTGRES_PASSWORD: development-only
+      POSTGRES_DB: tobot
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tobot -d tobot"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    build: .
+    command: ["/usr/local/bin/tobot-migrate"]
+    env_file: ${TOBOT_ENV_FILE:-.env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  control-plane:
+    build: .
+    command: ["/usr/local/bin/tobot-control-plane"]
+    env_file: ${TOBOT_ENV_FILE:-.env}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  discord-edge:
+    build: .
+    command: ["/usr/local/bin/tobot-discord-edge"]
+    env_file: ${TOBOT_ENV_FILE:-.env}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  delivery:
+    build: .
+    command: ["/usr/local/bin/tobot-delivery"]
+    env_file: ${TOBOT_ENV_FILE:-.env}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  app:
+    image: node:26-bookworm-slim
+    working_dir: /workspace
+    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm --filter @tobot/app dev --host 0.0.0.0"
+    volumes: [".:/workspace"]
+
+  www:
+    image: node:26-bookworm-slim
+    working_dir: /workspace
+    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm --filter @tobot/www dev --host 0.0.0.0"
+    volumes: [".:/workspace"]
+
+  docs:
+    image: node:26-bookworm-slim
+    working_dir: /workspace
+    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm --filter @tobot/docs dev --host 0.0.0.0"
+    volumes: [".:/workspace"]
+
+  caddy:
+    image: caddy:2-alpine
+    ports: ["443:443"]
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on: [app, www, docs, control-plane]
+
+volumes:
+  caddy_data:

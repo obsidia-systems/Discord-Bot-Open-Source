@@ -1,1 +1,1 @@
-{"name":"@tobot/docs","private":true,"type":"module","scripts":{"build":"astro build","check":"astro check"},"devDependencies":{"astro":"7.3.3","typescript":"5.9.3"}}
+{"name":"@tobot/docs","private":true,"type":"module","scripts":{"build":"astro build","check":"astro check"},"devDependencies":{"@astrojs/check":"0.9.10","astro":"7.3.3","typescript":"5.9.3"}}

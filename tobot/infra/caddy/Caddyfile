@@ -1,0 +1,22 @@
+{
+  auto_https off
+}
+
+https://app.tobot.test {
+  tls internal
+  handle /api/* { reverse_proxy control-plane:8080 }
+  handle /auth/* { reverse_proxy control-plane:8080 }
+  handle /install/* { reverse_proxy control-plane:8080 }
+  handle /health/* { reverse_proxy control-plane:8080 }
+  reverse_proxy app:4321
+}
+
+https://www.tobot.test {
+  tls internal
+  reverse_proxy www:4321
+}
+
+https://docs.tobot.test {
+  tls internal
+  reverse_proxy docs:4321
+}

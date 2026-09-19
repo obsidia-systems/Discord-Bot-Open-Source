@@ -3,6 +3,7 @@ members = [
   "bins/control-plane",
   "bins/delivery",
   "bins/discord-edge",
+  "bins/migrate",
   "crates/tobot-config",
   "crates/tobot-core",
   "crates/tobot-envelope",

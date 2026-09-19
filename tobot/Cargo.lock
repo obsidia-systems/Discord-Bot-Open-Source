@@ -1702,6 +1702,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tobot-migrate"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "tobot-persistence",
+ "tokio",
+]
+
+[[package]]
 name = "tobot-persistence"
 version = "0.1.0"
 dependencies = [
