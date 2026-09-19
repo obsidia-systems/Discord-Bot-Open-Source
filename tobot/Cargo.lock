@@ -1850,6 +1850,10 @@ name = "tobot-delivery"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "time",
+ "tobot-bus",
+ "tobot-outbox",
+ "tobot-persistence",
  "tokio",
  "tracing",
  "tracing-subscriber",

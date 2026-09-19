@@ -9,8 +9,12 @@ publish.workspace = true
 [dependencies]
 anyhow.workspace = true
 tokio.workspace = true
+time.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+tobot-bus = { path = "../../crates/tobot-bus" }
+tobot-outbox = { path = "../../crates/tobot-outbox" }
+tobot-persistence = { path = "../../crates/tobot-persistence" }
 
 [lints]
 workspace = true
