@@ -1,5 +1,5 @@
 [package]
-name = "tobot-persistence"
+name = "tobot-outbox"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -8,9 +8,11 @@ publish.workspace = true
 
 [dependencies]
 sqlx.workspace = true
+thiserror.workspace = true
 time.workspace = true
-tobot-core = { path = "../tobot-core" }
+tobot-bus = { path = "../tobot-bus" }
 tobot-envelope = { path = "../tobot-envelope" }
+tobot-persistence = { path = "../tobot-persistence" }
 uuid.workspace = true
 
 [lints]
