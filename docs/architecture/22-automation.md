@@ -16,13 +16,14 @@ Custom Commands and Personal Reminders share interaction, time, message, asset, 
 | Reminder settings, definitions, schedules, occurrences, and history | Reminder Service | Interaction Edge, time capability, Schedule wake-up capability, Delivery, Activity Log |
 | Command and reminder messages | Delivery Orchestrator | Message Catalog, Asset, Discord Capability, Discord Transport |
 
-An administrative dashboard, Discord command group, or worker queue is an adapter, not a domain owner.
+An administrative dashboard, Discord command group, or worker queue is an adapter, not a domain owner. Custom Command Definition, Application Command Registry, and Custom Command Runtime remain three modules because Registry is a Discord provider surface and Runtime is the interaction hot path (DR-019). Declarative workflows are a separate module and MUST NOT absorb this split or this template language.
 
 ### 33.2 Explicit non-goals
 
 This specification does not provide:
 
 - Arbitrary JavaScript, Lua, Python, shell, WebAssembly, or user-supplied executable code.
+- Language-native object codecs over template, compiled-plan, or job bytes.
 - Arbitrary HTTP requests, web scraping, database queries, environment access, or secret access.
 - Invocation of arbitrary built-in bot commands or recursive custom commands.
 - A general workflow builder with unconstrained branching, loops, or resource mutation.
@@ -96,7 +97,7 @@ Cooldown state is durable or stored in an atomic TTL capability with an authorit
 
 ### 33.10 Sandboxed template and expression model
 
-Templates compile at publication into a declarative bounded representation. Supported operations are typed variable insertion, formatting, finite conditional selection, bounded string transformation, and selection from authored message variants. The evaluator has hard limits for input bytes, node count, nesting depth, output bytes, evaluation time, and memory.
+Templates compile at publication into a declarative bounded representation. Supported operations are typed variable insertion, formatting, finite conditional selection, bounded string transformation, and selection from authored message variants. The evaluator has hard limits for input bytes, node count, nesting depth, output bytes, evaluation time, and memory. Compiled plans are admitted only through a versioned schema parse; language-native object codecs over untrusted bytes are forbidden (DR-037).
 
 There are no loops, recursion, dynamic evaluation, reflection, file reads, environment reads, network calls, database access, module loading, timers, nondeterministic functions, or hidden service commands. Random authored variants, if admitted, use a deterministic or durably committed choice keyed by invocation and revision.
 
@@ -246,7 +247,7 @@ A failed Discord projection cannot resurrect execution or erase the durable defi
 
 ### 33.25 Custom-command history and audit
 
-History records definition changes, actor, expected revision, publication, activation, projection generation, conflicts, invocation decision class, action outcomes, deletion occurrences, and administrative repair. Argument values, rendered private content, DMs, and protected variables are excluded from ordinary Activity Log entries.
+History records definition changes, actor, expected revision, publication, activation, projection generation, conflicts, invocation decision class, action outcomes, deletion occurrences, and administrative repair. Argument values, rendered private content, DMs, and protected variables are excluded from ordinary Activity Log entries and from span attributes.
 
 Authorized invocation inspection uses protected references and field-level privacy. Aggregate metrics do not identify members, argument strings, target IDs, or message content.
 
@@ -304,7 +305,7 @@ Retry never reads mutable current content to alter an existing occurrence. Editi
 
 ### 33.33 Earliest-due wake-up and claiming
 
-Reminder Service maintains earliest useful due state and receives wake-ups through a portable scheduling capability. Periodic bounded reconciliation covers missed wake-ups, expired leases, clock correction, and restored dependencies.
+Reminder Service maintains earliest useful due state and receives wake-ups through Schedule's portable scheduling capability. Schedule's bounded due-row sweep covers missed wake-ups. Owner-side reconciliation covers expired leases, clock correction, and restored dependencies after a due-work signal; it does not replace the platform sweep.
 
 Workers claim a limited due page ordered by intended instant and tenant fairness. Each claim records lease expiry and fencing token. Claim does not equal delivery. Before dispatch the worker reloads cancellation state, occurrence generation, deadline, owner and tenant state, and frozen route policy.
 
@@ -388,7 +389,7 @@ Definition, revision, occurrence, delivery attempt, origin reference, protected 
 
 Custom Command and Reminder services publish structured facts for definition changes, projection results, invocation decision classes, reminder creation and mutation, occurrence states, administrative actions, and terminal failures. Activity Log owns tenant audit presentation and optional Discord log delivery.
 
-Argument values, reminder text, DM content, user timezone, protected target data, and rendered private responses are excluded from ordinary logs. Authorized detailed inspection remains with the owning service and is independently audited.
+Argument values, reminder text, DM content, user timezone, protected target data, and rendered private responses are excluded from ordinary logs and from span attributes. Authorized detailed inspection remains with the owning service and is independently audited (DR-038).
 
 ### 33.44 Reconciliation
 

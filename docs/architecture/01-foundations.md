@@ -7,7 +7,7 @@
 | Attribute | Value |
 |---|---|
 | Status | Normative architecture specification |
-| Architecture model | Greenfield, distributed, event-driven microservices |
+| Architecture model | Greenfield, distributed, event-driven services composed of logical modules |
 | Initial product scope | Discord communication platform, lifecycle messaging, manual messages, rich messages, scheduled messages, automatic replies, moderation, automatic moderation, activity logs, Discord audit access, retention cleanup, anti-raid detection, anti-nuke detection, recoverable guild containment, automatic role policies, self-service role panels, governed role-resource administration, engagement progression, starboards, giveaways, forms, temporary voice rooms, double-entry virtual currency, policy-driven income, catalog commerce, durable guild entitlements, recoverable virtual-currency games, support entry panels, ticket policy, durable support cases, private support resources, privacy-governed transcripts, provider-neutral external integrations, durable live-stream alerts, governed custom application commands, durable personal reminders, Discord user authentication, application installation health, provider-neutral commercial billing, platform entitlements and limits, AI Credit accounting, governed AI operations and characters, permanently free portable template packages, and declarative workflows |
 | Deployment scope | Containers, orchestrators, virtual machines, and mixed environments |
 | Technology policy | Vendor-neutral ports, portable protocols, replaceable infrastructure adapters |
@@ -72,7 +72,7 @@ The architecture covers eleven product domains and the platform capabilities req
    - Versioned tenant currency policy, wallet and bank accounts, double-entry postings, holds, transfers, explicit tax destinations, adjustments, and wealth projections.
    - Fixed claims, streaks, role salary plans, jobs, crimes, optional robbery, and activity-income requests expressed as policy-driven earning actions.
    - Versioned catalogs, categories, eligibility and purchase limits, finite stock, durable purchase orders, payment settlement, and independently fulfilled rewards.
-   - Durable entitlements for roles, private channels, progression or economy boosts, manual fulfillment, expiry, revocation, and bounded reconciliation.
+   - Durable entitlements for roles, private channels, progression or economy boosts, manual fulfillment, expiry, revocation, and bounded reconciliation. Public contracts are `GuildRewardEntitlement`; module 7.35 is not deleted (DR-066).
    - Durable casino sessions and wagers for admitted virtual-currency games, cryptographically secure outcomes, immutable settlement, recoverable interaction state, and responsible-play controls.
 
 8. **Support and Ticketing**
@@ -97,21 +97,21 @@ The architecture covers eleven product domains and the platform capabilities req
    - Safe reuse of Message Catalog, Delivery, Asset, Discord Capability, Activity Log, and shared scheduling primitives without a general-purpose script engine.
 
 11. **Platform Access, Commercial Products, AI, Templates, and Workflows**
-   - Discord OAuth authentication with single-use authorization state, protected provider tokens, secure application sessions, revocation generations, and fresh server-side guild authorization.
-   - Discord guild and user installation contexts, minimal module-derived permissions, provider-observed presence, application-command convergence, per-module capability health, degraded operation, and non-destructive repair.
+   - Discord OAuth authentication with single-use authorization state, PKCE S256 on every authorization-code login and install, protected provider tokens, opaque server-side application sessions, host-only `SameSite=Lax` session cookie on `app.*`, idle 12 hours and absolute 7 days, CSRF Origin plus synchronizer or double-submit on cookie-authenticated mutations, and fresh server-side guild and commercial authorization that ignores client-supplied `paid`, `entitled`, and Discord permission-bit claims. High-risk dashboard commands require a step-up within 5 Clock-port minutes (DR-049).
+   - Discord guild and user installation contexts, a Discord Installation-owned TENANT registry with `tenant_type` `Guild` or `User`, minimal module-derived permissions (never Administrator as default or repair shortcut), authorize URLs generated from the enabled-module manifest with platform `client_id` and named presets, per-module capability health, degraded operation, and non-destructive repair. Aggregate `Installed` is every required enabled-module capability `Healthy`; bot presence is not that aggregate. Command-only modules mark bot presence `NotRequired` (DR-047). Named guild install and repair lock `guild_id` and set `disable_guild_select` (DR-050). `tenant_id` is not a Discord snowflake and is not `billing_owner_id` (DR-059).
    - Versioned plans, capacity and module add-ons, capacity tiers, bundles, perks, promotions, and one-time AI Credit packs expressed through a provider-neutral commercial catalog.
-   - Provider-neutral checkout, subscriptions, invoices, refunds, disputes, tax evidence, grace periods, billing ownership, asynchronous event processing, and reconciliation.
-   - Platform feature entitlements and effective limits kept separate from guild virtual-economy entitlements, XP levels, perks, and AI Credit balances.
-   - Source-aware AI Credit lots, reservation, actual-usage settlement, release, refund, expiry, spending controls, and provider-cost abstraction.
-   - Provider-neutral AI operations for text, images, processing, OCR, transcription, moderation, workflow actions, and disclosed AI characters with privacy, safety, concurrency, and cost controls.
+   - Provider-neutral checkout, subscriptions, invoices, refunds, disputes, tax evidence, Billing `PastDue` and `grace_until`, Platform Entitlement `Grace`, billing ownership, asynchronous event processing, and reconciliation. There is no domain Customer aggregate; `BILLING_OWNER` is the payer identity. A provider Customer object is mapping evidence (DR-055). Dunning is a Billing generation of catalog-pinned collection attempts on one Open renewal invoice; exhaustion at `grace_until` restricts the subscription and does not rewrite Invoice `Paid` (DR-056). Mid-period subscription changes pin a Billing proration quote in integer minor units; a provider preview is not the amount (DR-057). A mixed Recurring+OneTime bundle splits into two sibling orders under a checkout group; one hosted session MUST NOT span both modes (DR-051, DR-058). A commercial order is a frozen Billing intent; a checkout attempt is one hosted-session generation. Browser return pages and provider session-completed observations are not fulfillment (DR-051). A commercial refund is a separate append-only Billing aggregate; it MUST NOT rewrite Invoice `Paid` or Order `Fulfilled` (DR-052). A commercial dispute is a separate Billing aggregate; Open freezes affected grants; it is not a refund and MUST NOT rewrite Invoice `Paid` or Order `Fulfilled` (DR-053). Applied commercial and promotional grants are Entitlement-owned `GRANT_SOURCE` rows; Billing MUST NOT write lots (DR-054). `PastDue` is not entitled; feature admission reads Entitlement (DR-046).
+   - Platform feature entitlements and effective limits kept separate from guild virtual-economy entitlements, XP levels, perks, and AI Credit balances. Public money-plane contracts set `schema_family` `VirtualPayment`, `CommercialPayment`, or `AiCreditReservation` (DR-065).
+   - Source-aware AI Credit lots, reservation, actual-usage settlement, release, refund, expiry, spending controls, and provider-cost abstraction. Lot `expires_at` is frozen from grant terms; purchased packs are non-expiring unless those terms say otherwise. Reservation TTL is 15 Clock-port minutes and MUST NOT silently release while a billable outcome may exist (DR-061).
+   - Provider-neutral AI operations for text, images, processing, OCR, transcription, moderation, workflow actions, and disclosed AI characters with privacy, safety, concurrency, cost controls, and prompt-injection isolation: retrieved content cannot select tools or grant capabilities (DR-031). Provider 429 is `RateLimited` and MAY retry; a timeout after the request is transmitted is `Uncertain` and MUST NOT blind-retry or release (DR-062). Durable AI bodies live in Asset; `input_ref` and `result_ref` are Execution-owned protected content, not `asset_id`. Character conversation is a bounded turn list, not Support Archive and not a vector store (DR-063).
    - A permanently free marketplace of reviewed, portable configuration templates with dependency and permission manifests, target preflight, durable installation, ownership-aware rollback, reputation, and abuse controls.
-   - Versioned declarative workflows using canonical triggers, deterministic conditions, typed owner-service actions, finite execution graphs, durable partial outcomes, replay governance, and AI action charging only where used.
+   - Versioned declarative workflows using canonical triggers, deterministic conditions, typed owner-service actions, finite execution graphs, durable partial outcomes, replay governance, HTTP webhook triggers authenticated through Provider Event Edge (§32.14), and AI action charging only where used.
 
 The following platform responsibilities are also in scope because the product modules cannot safely implement them independently:
 
 - Discord Gateway sessions, intents, shards, reconnects, and resumes.
-- Discord interactions and their acknowledgement deadlines.
-- Discord HTTP transport and rate-limit coordination.
+- Discord interactions and their acknowledgement deadlines. Outgoing interaction webhooks verify Discord Ed25519 over the exact raw body before parse.
+- Discord HTTP transport and rate-limit coordination. The Discord bot token is mounted only on Gateway Edge and Discord Transport.
 - Destination classification and effective-permission evaluation.
 - Durable event ingestion, idempotency, retries, reconciliation, and dead-letter handling.
 - Message validation, variable rendering, mention safety, assets, and image rendering.
@@ -138,9 +138,9 @@ The following platform responsibilities are also in scope because the product mo
 | Low latency | Gateway ingestion MUST remain independent of image rendering, database reporting, and Discord HTTP latency. |
 | Scalability | Gateway, interaction, matching, scheduling, rendering, and delivery capacity MUST scale independently. |
 | Maintainability | Product modules MUST depend on stable domain contracts, not Discord SDK types or infrastructure clients. |
-| Portability | Infrastructure dependencies MUST be accessed through explicit ports and MUST have replaceable adapters. |
-| Tenant isolation | Every guild-owned record, cache entry, event, asset, and delivery MUST carry an explicit tenant boundary. |
-| Safety | Rate limits, invalid requests, permissions, mentions, remote media, and secrets MUST be centrally governed. |
+| Portability | Infrastructure dependencies MUST be accessed through explicit ports and MUST have replaceable adapters. Canonical envelopes are versioned JSON; unknown additive fields MUST be tolerated. Live readers accept majors N and N-1 (DR-048). Owner-schema tables are not that contract; breaking private DDL during a rolling deploy MUST follow expand/contract (DR-064). |
+| Tenant isolation | Every tenant-scoped record, cache entry, event, asset, and delivery MUST carry an explicit tenant boundary. First-product `tenant_type` is `Guild` or `User`. `tenant_id` is platform identity owned by Discord Installation, not a Discord snowflake (DR-059). Tenant-scoped reads and mutations MUST include a tenant predicate bound from authenticated context; missing or mismatched predicates fail closed. Queries MUST be parameterized. |
+| Safety | Rate limits, invalid requests, permissions, mentions, remote media, and secrets MUST be centrally governed. Untrusted server-side fetches MUST pin destination IPs and deny private and metadata ranges. Dashboard HTML MUST encode untrusted text and send Content-Security-Policy. Retrieved guild, form, and provider content MUST NOT select AI tools or grant capabilities. Install and repair MUST request the minimal union of enabled-module named permissions; Administrator MUST NOT be default or a repair shortcut. First-product interaction ingress is Gateway; that mode MUST NOT admit interaction webhook HTTP. Outgoing interaction webhooks, if selected later, MUST verify Discord Ed25519 over the exact raw body before parse. Metrics scrape MUST be internal-only. Template, workflow, custom-command, and job bytes MUST be admitted only through versioned schema parse. Span attributes MUST use the same field allowlist as logs; prompts and reminder text MUST NOT be copied into traces. The session cookie is host-only on `app.*` with `SameSite=Lax`; idle 12 hours and absolute 7 days; `www` and `docs.*` are sessionless. |
 | Explainability | Every production delivery MUST be traceable to an event or command, configuration revision, rendered definition, and attempt history. |
 | Evolvability | New modules MUST be able to consume canonical events and emit actions without changing the Discord edge. |
 
@@ -202,11 +202,109 @@ Service-level objectives are operational targets, not Discord guarantees.
 
 No service may meet a latency objective by bypassing durability, authorization, mention safety, rate-limit coordination, or tenant isolation.
 
+Due-work claim leases map onto that recovery objective (DR-060). First-product `lease_ttl` is 15 Clock-port seconds and MUST fall in 5 through 30 inclusive. Heartbeat interval MUST be at most one-third of `lease_ttl` using integer division toward zero. `lease_ttl` plus successor claim latency MUST be strictly below 60 Clock-port seconds. Gateway shard leases and Voice session leases are not this catalog. Lease expiry is Clock-port comparison on the claimed row, not a Durable Timer registration (DR-009, DR-023).
+
+#### Decision Record DR-060
+
+**Status:** Accepted.
+
+**Decision:** Due-work claim `lease_ttl` is 15 Clock-port seconds, range 5 through 30. Heartbeat is at most one-third of TTL. Recovery after worker loss stays strictly below 60 seconds. Gateway and Voice session leases are excluded. Stale fencing tokens MUST NOT write.
+
+**Rejected Alternative:** TTL equal to 60 seconds; infinite leases; registering every lease expiry with Schedule; applying this catalog to Gateway shard or Voice session leases.
+
+#### Decision Record DR-061
+
+**Status:** Accepted.
+
+**Decision:** Lot `expires_at` is frozen at mint. Purchased packs are non-expiring unless terms require otherwise. New reservations skip expired lots. Open allocations survive lot expiry until settlement. Reservation TTL is 15 Clock-port minutes and MUST NOT auto-release; TTL without a confirmed outcome becomes `Uncertain`. Uncertainty deadline is 24 Clock-port hours then `Disputed`.
+
+**Rejected Alternative:** Silent TTL release; expiring reserved allocations in place; FIFO ignoring earlier `expires_at`; dashboard-posted lot expiry.
+
+#### Decision Record DR-062
+
+**Status:** Accepted.
+
+**Decision:** AI provider attempts classify `RateLimited`, `TimeoutNotSent`, `TimeoutAfterSend`, `ConfirmedFailure`, `ConfirmedResult`, and `Uncertain`. HTTP 429 is `RateLimited`, not `Uncertain`, and MAY retry after Retry-After. Timeout after transmit is `Uncertain` and MUST NOT release or blind-retry. Timeout before transmit is `TimeoutNotSent` and MAY retry.
+
+**Rejected Alternative:** Treating 429 as `Uncertain`; releasing on response timeout; copying Discord 429 delays as domain constants; auto-fallback after unknown outcome.
+
+#### Decision Record DR-063
+
+**Status:** Accepted.
+
+**Decision:** Asset is the sole durable byte store. AI Execution owns `AI_PROTECTED_CONTENT`; `input_ref` and `result_ref` are that identity, not `asset_id`. OCR and transcription are purposes on that aggregate. AI Character owns `AI_CONVERSATION` and bounded turns that reference protected content and MUST NOT store bodies. Support Archive remains distinct. No first-product vector store.
+
+**Rejected Alternative:** Asset as conversation or OCR authority; Execution or Character as a second object store; Support Archive for character history; `asset_id` as `input_ref`; embeddings as a first-product aggregate.
+
+#### Decision Record DR-064
+
+**Status:** Accepted.
+
+**Decision:** Owner-schema tables are not integration contracts. Breaking private DDL during a rolling deploy MUST expand, dual-write, contract, then drop. Envelope N-1 is not that window. Soak before drop is 24 Clock-port hours after the last replica of that owner neither reads nor writes the old shape.
+
+**Rejected Alternative:** In-place rename or DROP while an old binary still runs; using envelope `schema_version` as table version; production schema-push as migration authority; `SELECT *` as the live mapper.
+
+#### Decision Record DR-065
+
+**Status:** Accepted.
+
+**Decision:** Public money-plane contracts MUST set `schema_family` to `VirtualPayment`, `CommercialPayment`, or `AiCreditReservation`. `schema_name` keeps the §8.6 leaf. An unprefixed `Payment`, `Reservation`, or money `Catalog` type is forbidden.
+
+**Rejected Alternative:** One shared Payment contract; renaming §8.6 leaves in this revision; treating stock reservation as `VirtualPayment`; treating `CatalogPublished` as `CommercialPayment`; treating AI Credit reservation as a monetary hold.
+
+#### Decision Record DR-066
+
+**Status:** Accepted.
+
+**Decision:** The guild commerce-reward owner remains module 7.35 and is not deleted. Its public contracts are `GuildRewardEntitlement`. Platform Entitlement remains `PlatformEntitlement`. An unprefixed public type `Entitlement` is forbidden.
+
+**Rejected Alternative:** Deleting module 7.35; merging with Platform Entitlement; renaming Platform Entitlement; treating `GRANT_SOURCE` as a guild reward.
+
+#### Decision Record DR-067
+
+**Status:** Accepted.
+
+**Decision:** Payment-provider HTTP callbacks MUST terminate at Provider Event Edge and follow the 9.36 ACK/inbox path. HTTP success ACK is allowed only after a durable Edge ingress receipt. Duplicates ACK success and reuse that receipt. Invalid, expired, or unknown generation MUST NOT ACK success. ACK MUST NOT wait for Billing apply, `GRANT_SOURCE`, entitlement projection, or lot mint. Billing MUST NOT open a public payment webhook listener. DR-022 receipt-versus-fulfillment glossary is unchanged.
+
+**Rejected Alternative:** Billing as the public webhook listener; ACK after entitlement projection; ACK before durable ingress; treating Edge ACK as `GRANT_SOURCE` apply.
+
+#### Decision Record DR-068
+
+**Status:** Accepted.
+
+**Decision:** Role Policy and Assignment is the sole platform client of Discord Transport for member-role add and remove. Those operations are one-role add or remove, never a replace of the member's complete role list. Moderation Cases remains the owner of punitive member-role desired state: quarantine present or absent, dangerous-role absent, and other case-owned role relations. Cases publishes those relations as assignment intents with a Cases ownership key and MUST NOT call Transport for member-role add or remove. Timeout, kick, ban, unban, purge, slowmode, and channel lock remain Cases through Transport. Role Resource remains the sole writer of guild-role catalog mutations and MUST NOT add or remove member roles. Assignment MUST NOT author punitive desired state or reinterpret a Cases-owned relation as automatic or self-service ownership. For the same guild, member, and role, Cases or security ownership outranks automatic and self-service ownership. Discord hierarchy and bot capability are rechecked immediately before each Transport mutation. DR-014 catalog ownership and DR-020 `protected_targets` ownership are unchanged.
+
+**Rejected Alternative:** Cases and Assignment both calling Transport for member-role mutations; replacing the member's complete role list; Assignment authoring punitive desired state; Role Resource adding or removing member roles; merging Cases ownership into auto-role policy.
+
+#### Decision Record DR-069
+
+**Status:** Accepted.
+
+**Decision:** Public entitlement contracts are only `GuildRewardEntitlement*` for module 7.35 and `PlatformEntitlement*` for module 7.55. An envelope whose `schema_name` is unprefixed `Entitlement` or any other Entitlement-shaped name MUST fail closed at parse. Platform Entitlement MUST reject `GuildRewardEntitlement*` at inbox apply. Module 7.35 MUST reject `PlatformEntitlement*` leaves and MUST NOT apply `GRANT_SOURCE`. Consumers MUST NOT infer the plane from payload fields. The private `ENTITLEMENT` table remains guild-reward storage and MUST NOT be Platform Entitlement's journal. DR-066 ownership and public names are unchanged.
+
+**Rejected Alternative:** Guessing guild versus platform from payload; applying unprefixed `Entitlement*` into either journal; sharing one Entitlement inbox; treating `ENTITLEMENT` as Platform Entitlement storage.
+
+#### Decision Record DR-070
+
+**Status:** Accepted.
+
+**Decision:** `Disputed` is a Ledger reservation review state, not an AI Execution operation state. While a reservation is `Uncertain` or `Disputed`, the paired operation MUST remain `Uncertain`. The operation machine MUST NOT gain a `Disputed` state. Reservation `Disputed` MUST NOT be treated as capture, release, refund, operation `Failed`, operation `Succeeded`, or settlement. The operation MAY leave `Uncertain` only after Ledger accepts a confirmed usage or absence receipt into `Capturing` or `Releasing`. Query and dashboard MUST NOT present a `Disputed` reservation as a completed operation. DR-061 deadlines and DR-062 attempt classes are unchanged.
+
+**Rejected Alternative:** Adding operation `Disputed`; auto-failing the operation when the reservation becomes `Disputed`; treating `Disputed` as `Released` or `Captured`; dashboard settlement from `Disputed`.
+
 ## 3. Architecture decisions
 
 ### 3.1 Distributed service architecture
 
-The system uses independently deployable microservices organized around workload and consistency boundaries. It MUST NOT create one service for every user-facing screen. A service boundary is justified when it owns at least one of the following:
+The system is a set of independently deployable **services**. Each service hosts one or more **modules**. The first production deployment is already distributed. It is not a single-process application, and it is not one process per module.
+
+A **module** is the unit of ownership: aggregates, inbox, outbox, invariants, and forbidden dependencies. The catalog in [02-service-topology.md](02-service-topology.md) §7 and the map in [14-invariants-and-boundaries.md](14-invariants-and-boundaries.md) §25 list modules. A module MUST NOT be read as a requirement to deploy a dedicated process.
+
+A **service** is the unit of deployment: a process or container that MAY be replicated and assigned to cells. A service MAY host many strongly related modules. Calls between modules that share a service MAY be in-process. They MUST still respect module ownership: no shared writable tables, no bypass of the owning module's authorization, and no cross-module SQL. Breaking changes to an owner's private tables during a rolling deploy MUST follow expand/contract (DR-064).
+
+The initial service set in [02-service-topology.md](02-service-topology.md) §6.2 exists from day one to protect Gateway health, Discord HTTP fairness, dashboard isolation, and money or credential blast radius under many guilds and high traffic. Additional services MAY be split out later only when a hosted group of modules fails a test below. Distribution of the initial set MUST NOT wait for that failure.
+
+A new **service** boundary is justified when the work it would host owns at least one of the following:
 
 - An external protocol lifecycle.
 - A distinct scaling profile.
@@ -214,14 +312,26 @@ The system uses independently deployable microservices organized around workload
 - A transactional data boundary.
 - CPU-, memory-, or network-intensive work that must not affect Gateway health.
 
+The system MUST NOT create one service for every user-facing screen, and MUST NOT create one service for every module.
+
+Until product files in sections 26–34 are revised, the phrase “the X Service” in those files denotes the **module** named X in §7, not a dedicated process. The host service is the one listed in §6.2.
+
+#### Decision Record DR-001
+
+**Status:** Accepted.
+
+**Decision:** Vocabulary is Module (ownership) and Service (deployable process). A service hosts one or more modules. Initial services group strongly related modules by affinity, plus protocol and money edges required at Discord scale. The Voice Control and Voice Media modules (Discord Voice Gateway and UDP audio) are catalogued and are not deployed until a bot-audio product ships. Temporary voice rooms are a different module and launch with Community.
+
+**Rejected Alternative:** sixty independently deployed processes; a single-process modular monolith whose extraction is deferred until production metrics; using “service” for both a module and a process.
+
 ### 3.2 Governing patterns
 
 The architecture combines:
 
-- **Ports and Adapters** for Discord, persistence, queues, object storage, clocks, and identity.
-- **Event-Driven Architecture** for asynchronous module collaboration.
-- **Inbox and Transactional Outbox** for durable ingestion and publication.
-- **CQRS without full event sourcing** for separate command and query responsibilities.
+- **Ports and Adapters** for Discord, persistence, queues, object storage, clocks, and identity. Clock is the UTC wall-time port ([12-security-observability-deployment.md](12-security-observability-deployment.md) §20, DR-023). The Durable Timer port is the Schedule module's opaque wake-up capability, including the platform due-row sweep ([02-service-topology.md](02-service-topology.md) §7.6, DR-009).
+- **Event-Driven Architecture** for collaboration that crosses a service boundary. Modules that share a service MAY call each other in-process. Cross-service facts use the transactional outbox and durable bus. The first bus adapter is Redis Streams (DR-039). Cross-service commands that require immediate admit or reject use command-HTTP with the §8.2 JSON envelope to the owning host, or in-process in Control Plane (DR-041). Dashboard writes MUST NOT use the guild event bus as their command path. Public bus payloads are facts ([03-canonical-contracts.md](03-canonical-contracts.md) §8.6, DR-006); `*Requested` event names are not instructions.
+- **Inbox and Transactional Outbox** for durable ingestion and publication. Inbox and outbox are sibling tables; internally originated facts insert outbox without an inbox parent (DR-021). The outbox is the publication log. Foreign services MUST NOT read another owner's outbox tables. Intra-service worker claiming MAY use row locks. Inter-service fan-out uses the bus (DR-039).
+- **CQRS without full event sourcing** for separate command and query responsibilities. First-product dashboard freshness is cookie-authenticated REST poll of Query and Status. Server-Sent Events MAY later reuse those projections. A product WebSocket beside Discord Gateway is forbidden (DR-043).
 - **Process Managers** for bounded multi-event workflows such as departure/ban correlation.
 - **Sagas with durable compensation state** for reversible, multi-resource security containment.
 - **Double-Entry Ledger and Reservation Accounting** for virtual-currency movement, holds, settlement, reversal, and auditable balance projections.
@@ -406,11 +516,11 @@ requirementDiagram
     }
 
     element gateway_edge {
-        type: microservice
+        type: service
     }
 
     element delivery_orchestrator {
-        type: microservice
+        type: service
     }
 
     element service_ports {
@@ -418,31 +528,31 @@ requirementDiagram
     }
 
     element moderation_case_service {
-        type: microservice
+        type: service
     }
 
     element auto_moderation_service {
-        type: microservice
+        type: service
     }
 
     element security_incident_service {
-        type: microservice
+        type: service
     }
 
     element containment_orchestrator {
-        type: microservice
+        type: service
     }
 
     element role_assignment_service {
-        type: microservice
+        type: service
     }
 
     element role_panel_service {
-        type: microservice
+        type: service
     }
 
     element role_resource_service {
-        type: microservice
+        type: service
     }
 
     element community_services {

@@ -6,7 +6,9 @@
 
 ### 13.1 Guild partition rule
 
-All guild-scoped canonical events use `guild_id` as their event-bus partition key. This provides ordered consumption within a guild without imposing global ordering.
+All guild-scoped canonical events use `guild_id` as their event-bus partition key. This provides ordered consumption within a guild without imposing global ordering. The first bus adapter is Redis Streams. Stream identity is `guild_id` or a stable hash bucket; it is not a Redis Pub/Sub channel (DR-039).
+
+Guild-scoped storage access uses the same tenant bound. Reads and mutations MUST include a tenant predicate from authenticated context, not solely from the partition key or a client-supplied identifier (DR-033).
 
 DM and user-installation events use a deterministic installation or user partition key. Events without a guild that belong only to shard zero MUST still receive a stable partition key.
 
@@ -31,7 +33,7 @@ Each cell contains domain consumers, delivery workers, caches, and data partitio
 - Security observations are admitted in guild-event order, while threshold crossing requires an atomic counter reservation and unique semantic crossing key rather than reliance on bus order alone.
 - One fenced containment transition may mutate a guild at a time; unrelated member sanctions remain independently concurrent through Moderation Cases.
 - A restore transition follows the operation that applied the state and may not overtake incomplete apply steps.
-- Role assignment ordering is scoped by guild, member, role, and ownership group. Conflicting desired states serialize; unrelated members remain concurrent.
+- Role assignment ordering is scoped by guild, member, role, and ownership group. Conflicting desired states serialize; Cases or security ownership outranks automatic and self-service for the same relation (DR-068). Unrelated members remain concurrent.
 - Role panel publication and interaction resolution serialize by panel identity and revision, while assignment execution remains independently scalable.
 - Role-resource hierarchy mutations serialize per guild. Single-role field mutations serialize per role and reject a stale hierarchy or role fingerprint.
 - Role deletion publishes dependency invalidation after the provider outcome is confirmed; consumers mark affected policies and mappings unhealthy idempotently.
@@ -53,7 +55,7 @@ Each cell contains domain consumers, delivery workers, caches, and data partitio
 - Support case commands serialize by case version. Claim, unclaim, close, reopen, waiting, escalation, and participant mutations cannot overtake one another.
 - Support resource mutations serialize by case generation and provider resource; access changes may batch but remain individually observable.
 - Transcript finalization serializes by case resource generation and source watermark, while capture events preserve provider message order within the support resource partition.
-- Integration-definition publication serializes by tenant and alert identity, while canonical external identity resolution serializes by provider and normalized locator without coupling unrelated tenants.
+- Integration-definition publication serializes by tenant and alert identity, while `STREAM_CANONICAL_IDENTITY` resolution serializes by provider and normalized locator without coupling unrelated tenants.
 - Provider callback messages preserve provider message identity and source generation. Arrival order is not trusted as event time order; session transitions use source precedence, provider occurrence time, durable receipt time, and aggregate version.
 - Provider subscription operations serialize by provider, canonical identity, event type, credential scope, and transport generation. Shared desired claims may change concurrently, but exactly one fenced operation reconciles the provider resource.
 - Poll claims serialize by provider, canonical identity, credential scope, and due generation. Batches execute concurrently within provider budgets, while a losing fencing token cannot publish a conclusive observation.
@@ -92,7 +94,7 @@ Each cell contains domain consumers, delivery workers, caches, and data partitio
 - Buckets MUST include the relevant major resource identity.
 - A `429` MUST be retried only after the provider-specified delay.
 - Global and per-route limits MUST be coordinated across all transport replicas using shared state or deterministic request ownership.
-- Queue admission and fair scheduling MUST prevent one guild from monopolizing transport capacity.
+- Queue admission and fair scheduling MUST prevent one guild from monopolizing transport capacity. Weighted fair queuing SHOULD; other work-conserving tenant isolation MAY (DR-024).
 - Interaction callback endpoints are governed separately from the normal bot global limit but still require responsible rate handling.
 
 ### 14.4 Invalid-request budget
@@ -130,7 +132,7 @@ The architecture follows these current Discord requirements:
 - Gateway connections require heartbeat, Identify or Resume behavior, shard coordination, and approved intents: [Discord Gateway](https://docs.discord.com/developers/events/gateway).
 - HTTP rate limits are dynamic, use route buckets and major resources, and require honoring `Retry-After`: [Discord Rate Limits](https://docs.discord.com/developers/topics/rate-limits).
 - Message creation requires explicit payload validation, safe `allowed_mentions`, and operation-specific permissions: [Discord Message Resource](https://docs.discord.com/developers/resources/message).
-- Interactions require an initial response within three seconds and have time-bounded follow-up tokens: [Discord Interactions](https://docs.discord.com/developers/interactions/receiving-and-responding).
+- Interactions require an initial response within three seconds and have time-bounded follow-up tokens: [Discord Interactions](https://docs.discord.com/developers/interactions/receiving-and-responding). First-product ingress is Gateway `INTERACTION_CREATE`; Gateway and webhook ingestion are mutually exclusive and MUST NOT run concurrently (DR-042). Outgoing webhook mode, if selected later, MUST verify Ed25519 (`X-Signature-Ed25519`, `X-Signature-Timestamp`) over the exact raw body before parse (DR-034).
 - Channel behavior differs across text channels, announcements, threads, forums, media, DMs, voice, and stage channels: [Discord Channel Resource](https://docs.discord.com/developers/resources/channel).
 - Voice uses a separate WebSocket and UDP protocol and must remain isolated from normal message delivery: [Discord Voice](https://docs.discord.com/developers/topics/voice-connections).
 - Moderation permissions combine permission flags with Discord's role hierarchy for applicable actions: [Discord Permissions](https://docs.discord.com/developers/topics/permissions).
@@ -237,7 +239,7 @@ The architecture follows these current Discord requirements:
 
 ### 14.14 Integration and stream-alert provider controls
 
-- Provider webhook or event-stream ingress uses a dedicated public trust boundary. Every message is authenticated from exact transport bytes and current secret or connection generation, checked for timestamp freshness and replay identity, size-bounded, and durably admitted before domain processing.
+- Provider webhook or event-stream ingress uses a dedicated public trust boundary. Every message is authenticated from exact transport bytes and current secret or connection generation, checked for timestamp freshness and replay identity, size-bounded, and durably admitted before domain processing. Tenant HTTP workflow triggers use this same boundary (DR-028).
 - Provider callbacks are acknowledged within the provider's current deadline independently from Discord work. A callback handler never performs provider polling, message rendering, Discord delivery, or tenant-wide fan-out inline.
 - Provider event delivery is assumed at least once and may be duplicated, delayed, reordered, revoked, or interrupted. Provider message identity suppresses transport duplicates; provider session identity and alert occurrence identity suppress semantic duplicates.
 - Twitch EventSub stream-online and stream-offline coverage is keyed by canonical broadcaster identity. Webhook signatures, message identifiers, timestamps, retry markers, verification challenges, and revocations follow the current Twitch contract; a revocation changes coverage state and does not imply the broadcaster is offline.
@@ -247,7 +249,7 @@ The architecture follows these current Discord requirements:
 - An undocumented or unstable provider endpoint is disabled by default in production unless its legal use, authentication, response contract, quota behavior, monitoring, circuit policy, and fail-safe behavior are explicitly approved. Failure of such an adapter is unavailable or inconclusive, never offline.
 - Credentials are held by a dedicated secret capability and referenced by opaque generation. Provider tokens, client secrets, API keys, webhook secrets, refresh tokens, and raw authorization headers never enter configuration events, logs, metric labels, delivery context, or tenant-readable models.
 - Credential pools enforce tenant authorization, provider terms, rate and quota budgets, rotation, revocation, least scope, and blast-radius separation. Public provider access is still circuit-broken and rate-governed.
-- Provider redirect targets, thumbnails, avatars, and watch URLs are untrusted external data. Only admitted HTTPS origins and schemes are rendered; remote media passes through Asset Service policy or is omitted, and Discord never receives a server-side credential-bearing URL.
+- Provider redirect targets, thumbnails, avatars, and watch URLs are untrusted external data. Only admitted HTTPS origins and schemes are rendered; remote media passes through Asset Service policy or is omitted, and Discord never receives a server-side credential-bearing URL. Server-side fetches of those URLs pin destination IPs and deny private and metadata ranges (DR-029).
 - Stream-alert messages pass current Discord content, embed, attachment, destination, and permission validation after rendering. Allowed mentions default to none; role, everyone, or here mentions require explicit alert policy, current administrator authority, tenant allowlist, cooldown, and anti-spam budgets.
 - Discord HTTP rate limits are governed from returned bucket and retry metadata, not guessed fixed constants. The shared transport coordinates route, channel, webhook, global, guild fairness, and invalid-request budgets across all modules.
 - Creating an announcement uses a stable internal delivery identity and a provider-supported nonce where applicable. If the response is lost, Delivery reconciles before retry; webhook sends that must return a durable message binding use a confirmed-response mode supported by the current Discord contract.
@@ -281,12 +283,13 @@ The architecture follows these current Discord requirements:
 - Guild discovery uses only the minimum identity scopes required by the dashboard. The returned guild permission bitfield excludes channel overwrites and implicit permission behavior, so it cannot authorize a channel, role, moderation, or delivery effect.
 - Installation policy models Discord integration contexts explicitly. Guild installation may request a bot user and application commands; user installation may expose only capabilities supported by its current application context. Product services depend on capability results rather than hard-coded scope assumptions.
 - `applications.commands` is an application authorization capability and does not imply bot-user presence. Bot presence, application authorization, command projection, Gateway coverage, and module permissions are independently observed.
-- Install and repair links request the union of permissions required by the selected enabled modules, never administrator permission as a shortcut. Optional modules do not inflate the default permission request.
+- Install and repair links request the union of named permissions required by currently enabled modules, never Administrator as default or as a shortcut when a named bit is missing. Disabled and optional modules do not inflate the request. An incomplete manifest fails closed rather than substituting Administrator (DR-032).
 - A guild selection constraint reduces user error but is not authorization. The callback guild, current actor authority, application identity, installation generation, and provider-observed presence must agree before activation.
 - Removed or degraded installation state stops only effects whose required capabilities are absent. Accepted durable work remains visible, retries wait for a relevant state change, and configuration is not deleted.
 - Workflow actions that produce Discord effects pass through the same owning services, Delivery, capability preflight, mention policy, rate limits, invalid-request budget, ownership proof, and reconciliation as an equivalent direct action.
 - Workflow recursion lineage and effect budgets prevent feedback loops caused by the bot's own messages, role changes, support events, webhooks, and module outcomes. A workflow cannot multiply one event into unbounded Discord requests.
 - AI character matching never requires the Message Content privileged intent unless the published channel and invocation mode explicitly depends on message content and the application has completed the applicable Discord approval and privacy review. Mention or slash-command invocation is preferred where it satisfies the product behavior.
+- Retrieved guild, form, and provider content cannot select AI tools or grant capabilities. AI tools are an allowlisted catalog of typed commands reauthorized by owning services (DR-031).
 - Character responses are rate-limited by tenant, character, actor, channel, destination, and application-wide Discord budgets. Slow AI execution is acknowledged or deferred through Interaction Edge or handled from durable Gateway ingestion; it never holds a Gateway dispatch loop.
 - Optional persona webhooks are created, rotated, stored, and deleted through application-owned resource workflows. Webhook presentation cannot impersonate a real user, moderator, official notice, or another application and does not alter authorization identity.
 - AI-generated text, embeds, images, attachments, components, and links undergo the same post-render Discord validation, allowed-mention denial, size constraints, media scanning, destination capability checks, and anti-spam admission as authored content.
@@ -300,15 +303,15 @@ The architecture follows these current Discord requirements:
 | Provider transient | Selected 5xx and connection establishment failures | Exponential backoff with jitter and attempt ceiling | RetryScheduled |
 | Outcome uncertain | Connection lost after request transmission | Reconcile before retry | OutcomeUncertain |
 | Invalid authentication | Invalid or revoked token | No retry; open global circuit | PermanentlyFailed and critical alert |
-| Permission blocked | Missing send, embed, attach, history, reaction, or thread permission | Refresh capability once; no repeated retry without state change | Blocked |
-| Unknown destination | Deleted channel, thread, message, or webhook | No retry; tombstone projection | Blocked or PermanentlyFailed |
+| Permission blocked | Missing send, embed, attach, history, reaction, or thread permission | Refresh capability once; no retry of the same intent. Owner admits a new intent after correction | Blocked |
+| Unknown destination | Deleted channel, thread, message, or webhook | No retry of the same intent; tombstone projection; owner may admit a new intent to a live destination | Blocked or PermanentlyFailed |
 | Invalid payload | Provider or platform validation failure | No retry with same revision | PermanentlyFailed |
 | Expired interaction | Initial or follow-up token expired | No retry | PermanentlyFailed |
 | Asset transient | Temporary storage or network failure | Bounded retry before delivery deadline | RetryScheduled |
 | Asset permanent | Unsafe URL, bad signature, unsupported format, oversized input | No retry | PermanentlyFailed |
 | Render transient | Worker crash or temporary capacity rejection | Retry in a different healthy worker within deadline | RetryScheduled |
 | Render permanent | Invalid design, memory bound, output byte ceiling | No retry with same revision | PermanentlyFailed |
-| Tenant quota | Delivery or storage quota exceeded | No automatic retry until quota state changes | Blocked |
+| Tenant quota | Delivery or storage quota exceeded | No automatic retry of the same intent until quota state changes; owner admits a new intent | Blocked |
 | Moderation hierarchy conflict | Actor or bot no longer outranks the target | No retry with the same authority snapshot | Rejected or Blocked |
 | Concurrent target change | Roles, timeout, membership, channel overwrite, or message state changed after preflight | Refresh once and reevaluate the command precondition | Rejected, Skipped, or RetryScheduled |
 | Native rule capacity | Discord rejects Auto Moderation synchronization because current trigger limits are exhausted | No blind retry; preserve last confirmed binding and require policy resolution | Blocked |
@@ -395,6 +398,7 @@ The architecture follows these current Discord requirements:
 | AI provider outcome uncertain | A billable result or usage may exist but response confirmation is absent | Preserve reservation and reconcile before retry release or capture | OutcomeUncertain |
 | Template effect partial | One or more required owner-service operations are blocked failed or uncertain | Preserve step receipts; repair or compensate only eligible owned effects | Partial |
 | Workflow loop or fan-out violation | Lineage depth visited set or worst-case effect budget exceeds policy | Reject or stop before the next effect; do not retry unchanged revision | Rejected or DeadLetter |
+| Poison delivery intent | Attempts, deadline, or reconciliation evidence window exhausted; payload repeatedly fails classification | No automatic retry; persist dead letter | DeadLetter |
 
 Retries MUST be bounded by both attempt count and absolute deadline. A dead-letter record MUST contain a normalized reason, owning service, next operator action, and replay eligibility. Blind replay of dead-letter traffic is forbidden.
 
@@ -445,6 +449,8 @@ Every asynchronous boundary has a finite capacity.
 | Command registry | One fenced projection generation per application installation, complete-snapshot size bounds, conflict admission, provider rate budgets, and drift-reconciliation backpressure |
 | Custom-command runtime | Interaction-deadline admission, tenant-definition-actor cooldown scopes, bounded argument and variable size, finite action count, and Delivery isolation |
 | Reminders | Earliest-due wake-ups, occurrence-generation fencing, bounded recurrence expansion, per-owner and tenant quotas, route attempt ceilings, and reconciliation lookahead |
+| Durable timers | Schedule bounded due-row sweep for every registration, owner leases and fencing, explicit misfire, cancellation by generation, and observable lag |
+| Due-work claims | `lease_ttl` 15 Clock-port seconds (range 5–30), heartbeat at most one-third of TTL, higher fencing token on reclaim, Clock-port expiry on the row, no Durable Timer per lease |
 | Identity and sessions | Bounded OAuth transactions, callback exchange concurrency, session-generation cache, revocation fan-out, per-account and per-origin abuse limits |
 | Discord installation | One active mutation generation per installation context, bounded provider inspections, coalesced capability refresh, command-registry coordination, and tenant fairness |
 | Commercial billing | Provider-account and object partitioning, idempotent checkout admission, finite webhook buffers, subscription ordering, separate reconciliation pools, and no checkout priority over event intake |
@@ -455,4 +461,22 @@ Every asynchronous boundary has a finite capacity.
 | Workflows | Compiled trigger indexes, execution and recursion admission, per-tenant workflow trigger destination and action limits, finite graph size, and downstream owner fairness |
 | AI characters | Compiled channel matching, per-character actor and channel cooldowns, context-size ceilings, AI and Discord queue isolation, and tenant spending budgets |
 
-Priority classes MAY distinguish interaction responses, direct user commands, lifecycle messages, automatic replies, schedules, and bulk administrative work. Priority MUST NOT bypass Discord rate limits or permanently starve lower classes. Weighted fair queuing SHOULD be used across tenants.
+Priority classes MAY distinguish interaction responses, direct user commands, lifecycle messages, automatic replies, schedules, and bulk administrative work. Priority MUST NOT bypass Discord rate limits or permanently starve lower classes. Tenant fairness is MUST for Delivery admission and shared Discord HTTP: one tenant MUST NOT monopolize those queues. Weighted fair queuing SHOULD be used; it is one acceptable algorithm, not the only one. Token-bucket, deficit round-robin, or other work-conserving tenant isolation MAY satisfy the MUST if it prevents monopolization.
+
+#### Decision Record DR-024
+
+**Status:** Accepted.
+
+**Decision:** Tenant fairness is MUST for Delivery claim and admission and for shared Discord HTTP. One tenant's burst MUST NOT consume all Delivery capacity or monopolize Transport. Weighted fair queuing SHOULD be used. Token-bucket, deficit round-robin, or other work-conserving tenant isolation MAY satisfy the MUST. Priority classes MUST NOT bypass Discord rate limits or permanently starve lower classes. WFQ is not elevated to MUST.
+
+**Rejected Alternative:** Elevating WFQ to MUST; treating fairness as optional because WFQ is SHOULD; FIFO-only shared queues without tenant isolation.
+
+#### Decision Record DR-060
+
+**Status:** Accepted.
+
+**Decision:** Due-work claim leases use `lease_ttl` 15 Clock-port seconds (range 5–30). Heartbeat is at most one-third of TTL. The 60-second worker-loss SLO stays strictly below 60 seconds. Gateway and Voice session leases are not this catalog.
+
+**Rejected Alternative:** TTL of 60 seconds; applying this catalog to Gateway shard leases; a Durable Timer per lease expiry.
+
+**Risk:** a hot guild can starve others until Delivery and Transport implement a documented fairness algorithm. Pre-MVP for multi-tenant Delivery.

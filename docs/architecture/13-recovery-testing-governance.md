@@ -9,16 +9,17 @@
 - Gateway shards fail independently.
 - Render saturation cannot make Gateway heartbeats late.
 - Voice failure cannot consume text delivery capacity.
-- One tenant's burst cannot consume all delivery capacity.
+- One tenant's burst cannot consume all delivery or shared Discord HTTP capacity. Tenant fairness is MUST; WFQ is one acceptable algorithm (DR-024).
+- Due-work claim leases expire in 15 Clock-port seconds (range 5–30) so a lost worker's work is reclaimable strictly below 60 seconds. Gateway shard leases are not that catalog (DR-060).
 - One destination's rate-limit bucket cannot block unrelated destinations.
 - Read projection failure cannot block configuration writes or delivery.
-- Event-bus outage causes durable outbox accumulation, not silent loss.
+- Event-bus outage causes durable outbox accumulation, not silent loss. The dispatcher resumes from committed outbox rows after the bus returns.
 
 ### 21.2 Recovery procedures
 
 **Gateway replica loss:**
 
-1. The shard lease expires or is released.
+1. The shard lease expires or is released. Gateway shard leases follow Discord session heartbeat and are not the due-work 15-second catalog (DR-060).
 2. A healthy replica claims the shard using a fencing token.
 3. The replica resumes the stored session when valid.
 4. Replayed events enter the normal inbox deduplication path.
@@ -26,10 +27,11 @@
 
 **Event bus outage:**
 
-1. Services continue committing aggregates and local outbox rows while storage is healthy.
+1. Services continue committing aggregates and local outbox rows while storage is healthy. Internally originated facts still insert outbox without an inbox parent.
 2. Outbox backlog and age trigger alerts.
-3. Publishers retry with bounded backoff.
+3. The dispatcher retries publish to Redis Streams with bounded backoff. Interaction ACK does not wait on that publish.
 4. After recovery, fair publication prevents one service or tenant from flooding consumers.
+5. Consumers resume from inbox deduplication and their partition cursors. They do not scan a foreign owner's outbox tables.
 
 **Discord HTTP degradation:**
 
@@ -57,7 +59,7 @@
 
 **Containment worker loss:**
 
-1. The current lease expires and a healthy worker claims the operation with a higher fencing token.
+1. The current lease expires and a healthy worker claims the operation with a higher fencing token. Due-work `lease_ttl` is 15 Clock-port seconds (DR-060).
 2. The worker loads the immutable plan, snapshots, step attempts, and last confirmed provider results.
 3. Any transmitted but unconfirmed step is reconciled against current provider state before retry.
 4. Eligible pending steps resume within the original operation deadline and provider budgets.
@@ -142,6 +144,14 @@
 3. A paid order recreates only missing reward occurrences; it never captures payment again.
 4. Reward workers resume independently and Commerce derives the current partial or fulfilled summary from their facts.
 5. Expired stock reservations release only when payment capture is proven absent or cancelled.
+
+**Billing provider-event or fulfillment worker loss:**
+
+1. A replacement loads the durable provider-event receipt. Duplicate callbacks return the prior acknowledgement class without repeating commercial transitions.
+2. HTTP acknowledgement remains bound to that receipt; it never waits for entitlement projection or grant-source publication.
+3. Commercial fulfillment resumes from verified provider object state and object-ordering rules. A received event that is stale, duplicate, or unsupported stays ignored.
+4. A paid or granted commercial effect is not reversed because acknowledgement retry or worker restart redelivers the webhook.
+5. Browser success or return pages remain non-authoritative.
 
 **Entitlement worker loss or expiry uncertainty:**
 
@@ -266,7 +276,7 @@
 
 1. Writes stop rather than acknowledge non-durable work.
 2. Read services may serve marked stale projections within policy.
-3. Restore uses tested backups and point-in-time recovery.
+3. Restore uses tested backups and point-in-time recovery. PITR restore MUST apply the same versioned migrations as the binary generation; mixing an unrestored old table shape with a contracted binary fails closed (DR-064).
 4. Inbox, aggregate, and outbox consistency is verified before consumers resume.
 
 **Object storage degradation:**
@@ -287,7 +297,7 @@ Back up authoritative service databases, object metadata, source assets, commerc
 | Layer | Required coverage |
 |---|---|
 | Domain unit | Lifecycle decisions, variable semantics, matcher precedence, recurrence, misfire, moderation authorization, escalation transitions, native ownership, cleanup selection, attribution confidence, security detector precedence, incident latching, containment planning, restoration conflict handling, role-policy precedence, assignment ownership, panel action compilation, role privilege deltas, deterministic XP decisions, voice eligibility segmentation, starboard contribution reduction, giveaway lifecycle and draw selection, form version and review rules, temporary-room lifecycle planning, balanced postings, holds, transfer tax, income formulas, cooldown and streak rules, salary stacking, stock reservation, purchase state, entitlement compensation, casino rule engines, wager settlement, support-policy precedence, panel option binding, capacity reservation, case transitions, staff authorization, access compilation, transcript coverage, provider capability precedence, identity normalization, observation classification, session transitions, source conflict handling, alert suppression, command schema conflict resolution, access precedence, typed argument binding, atomic cooldowns, bounded template evaluation, civil-time resolution, recurrence expansion, reminder races, and error classification |
-| Contract | Every public event and command version, additive compatibility, malformed payload rejection |
+| Contract | Every public event and command version, additive compatibility, malformed payload rejection, unknown-field tolerance, versioned JSON envelope parse, N and N-1 live window, and unsupported-major fail-closed |
 | Adapter conformance | Relational, event bus, TTL, object storage, clock, secure randomness, identity, Discord transport, provider identity, provider event transport, provider observation, quota, and provider subscription ports |
 | Component | Inbox/outbox atomicity, lease fencing, idempotency, journal and projection atomicity, stock reservation, durable game recovery, support capacity and number allocation, resource saga recovery, archive capture, provider replay protection, subscription convergence, observation fencing, transition-occurrence atomicity, complete command-registry composition, command projection reconciliation, invocation and cooldown atomicity, reminder occurrence fencing, recurrence generation, asset validation, and render bounds |
 | Integration | Service database and bus interactions under retries and duplicate delivery |
@@ -297,23 +307,47 @@ Back up authoritative service databases, object metadata, source assets, commerc
 | Load | Gateway bursts, auto-reply matching, schedule fan-out, raid join bursts, audit-action bursts, containment fan-out, member-role assignment bursts, panel interactions, XP event storms, voice reconnect storms, reaction flapping, giveaway entry spikes and close snapshots, concurrent form submissions and exports, room-creation races, transfer contention, hot-account and hot-stock contention, salary fan-out, shop purchase spikes, entitlement expiry waves, casino action bursts, support-open races at cap boundaries, panel interaction bursts, access-change fan-out, transcript message and attachment volume, provider callback bursts, hot canonical identities, poll batch and pagination limits, quota exhaustion, event-to-alert fan-out, metadata flapping, alert delivery bursts, command registry rebuilds, mass guild joins, command invocation bursts, hot cooldown scopes, reminder creation spikes, synchronized due occurrences, recurrence expansion, cancellation races, automation timers, reconciliation scans, hierarchy contention, render saturation, and rate-limit fairness |
 | Security | Tenant escape, SSRF, upload bombs, mention injection, token leakage, authorization bypass, exemption abuse, forged internal observations, break-glass misuse, cross-guild containment, forged role panel room shop game support integration command and reminder routing, sensitive self-assignment, role-ownership violation, XP farming and forged awards, giveaway manipulation and redraw abuse, form identity or response disclosure, malicious attachments, room takeover, forged ledger commands, balance or stock tampering, duplicate settlement, cooldown bypass, self-transfer and collusion abuse, entitlement takeover, predictable randomness, forced redraw, support cap bypass, staff impersonation, unauthorized participant access, resource ownership forgery, transcript disclosure, provider signature bypass, replay, callback confusion, credential leakage, quota abuse, URL redirect abuse, cross-tenant identity disclosure, fake live events, unowned message cleanup, reserved-command shadowing, registry overwrite races, template escape, arbitrary action execution, argument injection, cooldown-key abuse, reminder text disclosure, forged cancellation, recurrence amplification, and privilege escalation |
 
+Clock in Adapter conformance is the §20 Clock port (DR-023), distinct from Durable Timer. Identity, Discord transport, and provider ports are module adapters; they are not additional §20 infrastructure products.
+
 ### 22.2 Mandatory invariants under test
 
 - Duplicate inbox delivery does not duplicate the domain decision.
 - Duplicate outbox publication does not duplicate the delivery intent.
+- An internally originated fact commits an outbox row without an inbox parent.
+- A foreign service cannot apply a canonical fact by reading another owner's outbox tables; application is inbox plus partition cursor after the bus.
+- The first consumer group cannot mark an outbox row consumed for other groups.
+- Redis Pub/Sub is rejected as the Durable Event Bus. Redis Streams used as the bus MUST NOT share a cache-evictable instance with the TTL or window port.
+- Interaction acknowledgement succeeds without waiting for bus publish.
+- Canonical event and command envelopes parse as versioned JSON; unknown additive fields are tolerated; a language-native object codec is rejected as the envelope contract.
+- Live application of envelope majors is N and N-1; N-2 and other unsupported majors are recorded and fail closed; a producer MUST NOT emit a new major before consumers of that family can read it; N-1 remains readable at least 14 Clock-port days after the last N-1 producer.
+- Private DDL tests proving a DROP or in-place rename while an old binary of that owner still runs is rejected, that envelope N-1 is not the private-table soak, that `SELECT *` is rejected as a live mapper, that production schema-push is rejected, that a service cannot ALTER another owner's schema, and that a PITR restore of an old table shape against a contracted binary fails closed (DR-064).
+- Dashboard mutations admit or reject over Control API HTTP, then in-process or command-HTTP to the owning host; they MUST NOT be written to Redis Streams as commands.
+- Control API MUST NOT open a per-module HTTP or gRPC client mesh.
+- Command-HTTP to an owning host returns admit or reject without waiting for a Discord effect.
+- gRPC is rejected as the first-product inter-service command adapter.
+- First-product interaction ingress is Gateway `INTERACTION_CREATE`; webhook HTTP is rejected while Gateway mode is selected.
+- Gateway and outgoing-webhook interaction ingress MUST NOT run concurrently.
+- Interaction acknowledgement or defer completes without waiting for bus publish and within Discord's 3-second budget.
+- First-product dashboard freshness is REST poll of Query and Status; a product WebSocket to the dashboard is rejected.
+- SSE, if present, authenticates with the session cookie and MUST NOT place the session identifier in a query string or carry commands.
+- Session cookie is host-only on `app.*`; `www` and `docs.*` MUST NOT receive it, host OAuth, or admit commands. The `www` login control is a GET navigation to `app.*` login.
+- HTTP acknowledgement of a payment-provider event after durable ingress receipt does not activate entitlements or mark an order fulfilled.
+- An injected or process-local Clock cannot substitute for Schedule's due-row sweep.
+- A hot tenant cannot starve another tenant's Delivery or shared Discord HTTP work.
 - Concurrent delivery workers cannot both own a valid fenced lease.
 - A timed-out create-message request enters reconciliation before retry.
 - A published message revision never changes.
+- A blocked delivery intent never mutates pinned destination or revision fields and never returns to `Pending`.
 - A schedule occurrence key is unique.
 - A cooldown reservation is atomic across replicas.
 - A guild cannot reference another guild's asset.
 - A test delivery cannot emit broad mentions.
 - A renderer cannot exceed its declared CPU, memory, input, or output budget.
-- A `403` stops repeated delivery until capability state changes.
+- A `403` marks the delivery intent `Blocked`. That intent is not retried. Capability correction admits a new intent with a new idempotency key.
 - A `429` is not retried before Discord's specified delay.
 - A moderator who passes dashboard authorization but fails execution-time hierarchy cannot create a provider mutation.
-- An actor permission, bot permission, protected-role decision, and Discord hierarchy decision remain independently explainable.
-- One native Auto Moderation execution event and one related message event create at most one semantic incident and one sanction request.
+- An actor permission, bot permission, protected-role decision, and Discord hierarchy decision remain independently explainable. The protected-role decision is Moderation Cases policy, not Capability-owned configuration (DR-020).
+- One native Auto Moderation execution event and one related message event create at most one semantic incident and one member-sanction request. Platform-owned deletion is independent, idempotent by incident and message, and is requested only after duplicate-sanction suppression.
 - A platform-owned rule cannot duplicate an effect owned by a Discord-native rule.
 - Applied moderation remains applied when its DM or activity notification fails.
 - Warning clearance and case redaction do not delete immutable case history.
@@ -412,6 +446,7 @@ Back up authoritative service databases, object metadata, source assets, commerc
 - Concurrent provider-subscription reconcilers cannot both own a valid mutation lease or adopt mismatched provider resources.
 - An uncertain provider subscription create or delete is reconciled before retry and cannot create an untracked duplicate subscription.
 - A losing observation fencing token cannot publish a conclusive result after a newer claim completes.
+- Due-work lease tests proving `lease_ttl` outside 5 through 30 Clock-port seconds is rejected, that a worker that stops heartbeating yields the row before 60 Clock-port seconds, that a superseded fencing token cannot write, that lease expiry is not registered as a Durable Timer, and that Gateway shard leases are not forced onto the 15-second catalog.
 - A partial batch, missing page, timeout, quota denial, parse failure, or provider error cannot be classified as offline.
 - Many tenant alerts for one canonical provider identity share an observation only when credential, terms, and privacy scope permit it, while each tenant transition remains isolated.
 - Reordered online, metadata, and offline evidence cannot let an older record overwrite a newer conclusive session version.
@@ -422,7 +457,7 @@ Back up authoritative service databases, object metadata, source assets, commerc
 - An uncertain Discord alert create, edit, or delete is reconciled before retry.
 - Refresh coalescing applies only the newest accepted metadata revision and cannot exceed the configured edit budget.
 - Offline cleanup deletes only the exact application-owned message binding for the matching alert occurrence and lifecycle generation.
-- Provider secrets, API keys, tokens, signatures, and raw authorization headers never appear in domain contracts, delivery context, logs, metrics, or tenant read models.
+- Provider secrets, API keys, tokens, signatures, and raw authorization headers never appear in domain contracts, delivery context, logs, metrics, traces, or tenant read models.
 - Two command owners cannot publish the same application installation, command type, and normalized name without an explicit resolved ownership rule.
 - A Discord bulk overwrite contains the complete current desired registry and cannot erase commands contributed by another owner.
 - An uncertain command create, edit, delete, or overwrite is reconciled before retry.
@@ -431,7 +466,7 @@ Back up authoritative service databases, object metadata, source assets, commerc
 - A process restart or replica race cannot reset or bypass an active custom-command cooldown.
 - Ignore, deny, allow, user, role, channel, age-restricted, entitlement, and bot rules produce one deterministic explainable decision.
 - Custom-command argument values are bound only from the signed typed interaction option tree and revalidated against the pinned schema.
-- A published custom-command template cannot execute arbitrary code, network requests, filesystem access, database queries, recursive expansion, or another command.
+- A published custom-command template cannot execute arbitrary code, network requests, filesystem access, database queries, recursive expansion, or another command. Compiled-plan and job bytes that skip versioned schema parse, or that are reconstructed with a language-native object codec, are rejected.
 - Each custom-command response action has a unique occurrence and cannot repeat after confirmed delivery merely because another action failed.
 - A custom-command definition remains durable and visibly projection-degraded when Discord registration fails.
 - Auto-delete targets only the exact application-owned response binding and survives worker restart through a durable deadline.
@@ -442,22 +477,50 @@ Back up authoritative service databases, object metadata, source assets, commerc
 - Recurrence expansion creates at most one occurrence per reminder, schedule generation, and intended instant.
 - Daylight-saving gaps and overlaps follow the published ambiguity policy and never silently create duplicate or missing occurrences.
 - A DM failure cannot expose reminder content in a channel unless the frozen route policy explicitly permits that fallback.
+- Reminder body text and invocation arguments never appear as span attributes.
 - Reminder retry exhaustion preserves a terminal record and does not silently delete the reminder history.
 - Reminder content and argument values never appear in metric labels or ordinary activity summaries.
-- OAuth state, redirect, proof-key, callback replay, scope escalation, identity conflict, session rotation, idle expiry, absolute expiry, and revocation-generation tests.
-- Guild discovery tests proving that cached permission bits and frontend visibility cannot authorize a sensitive owner-service command.
-- Discord installation context, minimal permission union, bot-presence, application-command-only, degraded module, removal, repair generation, and callback-without-presence tests.
+- OAuth state, redirect, PKCE S256 (including confidential-client and missing-verifier rejection), callback replay, scope escalation, identity conflict, session rotation, idle expiry of 12 Clock-port hours, absolute expiry of 7 Clock-port days, `SameSite=Lax` cookie, rejection of `SameSite=None` and `Strict`, cookie Max-Age not treated as authority, named login-audit catalog without tokens, and revocation-generation tests.
+- Cookie-authenticated dashboard mutations rejected without a matching Origin allowlist check and CSRF proof; Origin-only and SameSite-only evidence insufficient; GET MUST NOT mutate.
+- Ordinary mutations fail closed when Discord Capability is older than 60 Clock-port seconds and no inspect is available. High-risk commands fail without live revalidation and without a step-up generation within 5 Clock-port minutes. Discovery observations older than 15 Clock-port minutes MUST NOT authorize.
+- Dashboard live-status tests proving first-product freshness is REST poll of Query and Status, that a product WebSocket is rejected, and that SSE, if present, rejects a query-string session identifier and MUST NOT carry commands.
+- Browser-origin tests proving the session cookie is host-only on `app.*`, that `www` and `docs.*` cannot receive it or complete OAuth, that a parent-domain session cookie is rejected, and that the `www` login control is a GET navigation to `app.*` login.
+- Guild discovery tests proving that cached permission bits and frontend visibility cannot authorize a sensitive owner-service command. Commands that post `paid`, `entitled`, or Discord permission bitfields MUST still revalidate Billing, Entitlement, and Discord Capability and MUST fail closed when that revalidation is unavailable.
+- Discord installation context, minimal permission union, per-module capability health, command-only `NotRequired`, degraded module, removal, repair generation, and callback-without-Installed tests. Observing the bot user MUST NOT mark the aggregate `Installed`. The OAuth callback MUST commit `Verifying` without waiting on presence, capability, and registry inspects. Install and repair URLs MUST NOT request Administrator by default, as a repair shortcut, or because a module manifest is incomplete; disabled modules MUST NOT inflate the bitfield. Named guild install and repair URLs MUST include `guild_id` and `disable_guild_select=true`. A `client_id`-only Default Install Settings URL MUST be rejected. Callback `guild_id` and `permissions` MUST NOT authorize. A dashboard-posted authorize URL MUST be rejected. Command-only `UserInstall` / guild-commands presets MUST omit the `permissions` query parameter.
+- TENANT registry tests proving Discord Installation mints or reuses `tenant_id`, that `tenant_type` other than `Guild` or `User` fails closed, that a Discord snowflake cannot be stored as `tenant_id`, that Identity and Billing cannot insert TENANT, that a second Active tenant for the same type and provider ref is rejected, that Installation `Removed` does not delete TENANT, and that a product module cannot insert a registry row.
+- Tenant-isolation tests proving a read or mutation of a tenant-scoped aggregate, projection, cache entry, or object key with a missing, mismatched, or client-only `tenant_id` returns zero rows or is rejected, and that a globally unique primary key without the authenticated tenant predicate is insufficient.
+- Interaction webhook tests proving missing, stale, or invalid Ed25519 signatures, and bodies parsed before verification, are rejected; Discord PING is verified the same way; Gateway mode does not admit the webhook HTTP path.
+- First-product Gateway interaction tests proving `INTERACTION_CREATE` is handed to Interaction Edge without waiting on bus publish, that webhook HTTP is rejected in that mode, and that Gateway and webhook ingress cannot run together.
+- Secret-mount tests proving Control API and Domain workers start without the Discord bot token, Identity cannot read the bot token, and Transport and Gateway Edge receive it only as a distinct credential class.
+- Metrics-endpoint tests proving scrape paths are rejected from the public internet and the dashboard origin, and that liveness and readiness bodies omit tenant identifiers and secrets.
 - Commercial catalog compatibility, immutable term pinning, bundle expansion, product retirement, regional availability, currency, tax-reference, and upgrade or downgrade effective-time tests.
 - Payment-provider contract tests for signature rejection, raw-body verification, duplicate event, out-of-order event, delayed payment, incomplete checkout, renewal, failed invoice, cancellation, pause, refund, dispute, portal authorization, and provider reconciliation.
-- Tests proving that browser success or return pages cannot activate entitlements and that one commercial order creates at most one semantic fulfillment per grant source.
-- Platform entitlement projection, source lineage, add-on aggregation, perk separation, cache invalidation, overage admission, grace expiry, downgrade preservation, and module-local atomic usage tests.
-- AI Credit lot, grant, expiry, deterministic consumption, concurrent reservation, actual capture, remainder release, failed-operation release, refund, adjustment, spending ceiling, journal balance, and uncertain-outcome reconciliation tests.
-- AI provider adapter tests for credential isolation, input and output moderation, privacy incompatibility, rate limit, timeout, circuit, fallback, usage normalization, billable blocked output, and no blind retry after uncertainty.
-- AI character tests for tenant and character context isolation, automated disclosure, webhook identity, member-impersonation denial, channel policy, cooldown, concurrency, spending limit, retention deletion, and Delivery mention safety.
-- Template validation, secret and code rejection, permission manifest, dependency conflict, resource ceiling, review state, rating eligibility, fraud signal, target preflight, idempotent install, partial repair, ownership-aware rollback, and external-edit conflict tests.
+- Tests proving that HTTP acknowledgement after a durable provider-event receipt does not activate entitlements, capture payment, or mark an order fulfilled, and that browser success or return pages cannot activate entitlements. One commercial order creates at most one semantic fulfillment per grant source. Replay of the same `semantic_key` while the order is `Open` MUST NOT create a second Open order. A second non-terminal checkout attempt MUST be rejected. CheckoutAttempt `Completed` and Stripe `checkout.session.completed` MUST NOT mark the order `Fulfilled`. A GET `success_url` or landing-page retrieve of a Checkout Session MUST NOT fulfill. An order whose expanded lines require both Recurring and OneTime hosted modes MUST fail closed at admit. A new attempt after `Completed` MUST be rejected until verified provider state classifies that session as non-fulfilling.
+- Commercial refund tests proving a succeeded refund MUST NOT rewrite Invoice `Paid` or Order `Fulfilled`, that adapter HTTP success on create-refund is not domain `Succeeded`, that succeeded amounts cannot exceed remaining refundable, that a dashboard-posted `refunded` flag is not authority, that Billing MUST NOT write AI Credit lots, that guild-shop §30.28 is not this machine, and that a pending refund MUST NOT auto-succeed when a qualifying dispute is `Open`, `NeedsResponse`, or `UnderReview`.
+- Commercial dispute tests proving `Open` publishes grant-source freeze, that Invoice `Paid` and Order `Fulfilled` are not rewritten, that a dispute is not stored as a refund row, that create-refund against an open dispute is rejected, that webhook ACK is not `Won` or `Lost`, that an early fraud warning does not open `COMMERCIAL_DISPUTE`, and that accept and evidence-submit fail without high-risk step-up.
+- Grant-source tests proving Billing commercial facts do not write AI Credit lots, that Entitlement applies `GRANT_SOURCE` before projection, that modules cannot admit from `GRANT_SOURCE.state` as paid, that Ledger rejects lot mutations that are not Entitlement AI-credit grant-source facts, and that a dashboard-posted grant-source is not entitlement.
+- Billing-owner tests proving there is no Customer aggregate, that a second Account-type owner for the same platform account is rejected, that two Active bindings on one Discord installation are rejected, that a dashboard-posted provider customer identifier cannot become `BILLING_OWNER`, that one Active `PROVIDER_CUSTOMER_MAPPING` cannot attach to two owners, and that `TAX_EVIDENCE` is not rewritten in place.
+- Dunning tests proving a retry does not mint a CommercialOrder or a second invoice identity, that an attempt due at or after `grace_until` is rejected, that adapter collect HTTP is not invoice `Paid`, that `invoice.payment_failed` ACK is not subscription `Restricted`, that a second Open generation for the same period is rejected, that collection is skipped while a qualifying dispute is open, and that `grace_until` without Paid marks the invoice `Uncollectible` and the subscription `Restricted`.
+- Proration tests proving `TimeBalance` uses integer division toward zero, that a provider preview cannot replace the pinned `delta`, that a dashboard-posted proration amount is rejected, that positive `delta` does not activate the upgrade before invoice `Paid`, that negative `delta` is not stored as `COMMERCIAL_REFUND`, that OneTime lines in the change fail closed, and that floating-point or decimal domain money is rejected.
+- Mixed-cadence split tests proving a Recurring+OneTime Bundle admits a `CHECKOUT_GROUP` and two sibling orders, that a single order mixing both modes is still rejected, that OneTime `Creating` is rejected while Recurring is `Open`, that mixed Recurring intervals fail closed, that group `Partial` does not mint `COMMERCIAL_REFUND`, and that one hosted session spanning both modes is rejected.
+- Platform entitlement projection, source lineage, add-on aggregation, perk separation, cache invalidation, overage admission, Billing `PastDue` versus Entitlement `Grace`, grace expiry, downgrade preservation, and module-local atomic usage tests. Admission from subscription `PastDue` without a grant-source projection MUST fail. Invariant 152 `reconciled` MUST NOT authorize features.
+- AI Credit lot, grant, expiry, deterministic consumption, concurrent reservation, actual capture, remainder release, failed-operation release, refund, adjustment, spending ceiling, journal balance, and uncertain-outcome reconciliation tests. A new reservation MUST reject lots whose `expires_at` is at or before Clock now. Open allocations MUST survive lot expiry until settlement. Reservation TTL without a confirmed outcome MUST enter `Uncertain` and MUST NOT `Release`. FIFO that ignores earlier `expires_at` MUST fail. A dashboard-posted lot expiry MUST be rejected. Uncertain remaining after 24 Clock-port hours MUST enter `Disputed` (DR-061). Reservation `Disputed` MUST NOT capture, release, fail, or settle the paired operation; the operation MUST remain `Uncertain` and MUST NOT gain a `Disputed` state; Query MUST NOT present `Disputed` as completed (DR-070).
+- AI provider adapter tests for credential isolation, input and output moderation, privacy incompatibility, rate limit, timeout, circuit, fallback, usage normalization, billable blocked output, and no blind retry after uncertainty. HTTP 429 MUST classify `RateLimited` and MUST NOT enter `Uncertain` or release. `TimeoutNotSent` MAY retry within `max_attempts` 3. `TimeoutAfterSend` MUST enter operation `Uncertain`, MUST NOT release, MUST NOT blind-retry, and MUST NOT auto-fallback. A 5xx without not-accepted proof MUST NOT be `ConfirmedFailure`. Discord 429 delay numbers MUST NOT be the AI adapter delay (DR-062).
+- AI character tests for tenant and character context isolation, automated disclosure, webhook identity, member-impersonation denial, channel policy, cooldown, concurrency, spending limit, retention deletion, and Delivery mention safety. Conversation turns MUST reference `protected_content_id` and MUST NOT store bodies. A 21st turn MUST drop the oldest. Support Archive MUST NOT accept character history. `asset_id` MUST NOT authorize an AI operation as `input_ref`. OCR MUST persist source and text as protected content purposes, not a second blob aggregate. An embeddings table MUST be rejected (DR-063).
+- Template validation, secret and code rejection, permission manifest, dependency conflict, resource ceiling, review state, rating eligibility, fraud signal, target preflight, idempotent install, partial repair, ownership-aware rollback, and external-edit conflict tests. Native object codecs and deserialize-then-validate of package bytes are rejected.
 - Marketplace tests proving that price, checkout, subscription, paid placement, commercial entitlement, AI Credit, guild currency, plan, add-on, bundle, and perk state cannot gate template discovery or installation and that no creator payout path exists.
-- Workflow compilation tests for cycles, unreachable nodes, bounded expansion, recursion lineage, worst-case effect budget, typed action authorization, deterministic conditions, trigger deduplication, concurrent execution, partial failure, compensation, uncertainty, dead letter, and replay without repeated confirmed effects.
+- Workflow compilation tests for cycles, unreachable nodes, bounded expansion, recursion lineage, worst-case effect budget, typed action authorization, deterministic conditions, trigger deduplication, concurrent execution, partial failure, compensation, uncertainty, dead letter, and replay without repeated confirmed effects. Graph and job bytes that skip versioned schema parse are rejected.
+- Workflow HTTP trigger tests proving unsigned callbacks, query-string-only secrets, unknown endpoint generations, stale timestamps, and replayed message identities are rejected before execution admission, and that a durable Edge receipt exists before HTTP acknowledgement.
+- SSRF tests proving a hostname-allowlisted URL is rejected when the resolved or redirected IP is loopback, link-local, RFC1918, IPv6 ULA, or a cloud-metadata address, and that each redirect hop re-pins.
+- Dashboard XSS tests proving script and markup in form answers, AI output, template metadata, and provider titles are encoded or sanitized; Content-Security-Policy is present on dashboard HTML; `'unsafe-inline'` and `'unsafe-eval'` are not the script policy.
+- Prompt-injection tests proving retrieved guild, form, or provider text cannot widen the AI tool catalog, overwrite system instructions, skip owning-service reauthorization, or execute a Discord or HTTP effect that is not a typed reauthorized command.
+- Trace-field tests proving span attributes reject AI prompts, model output, reminder body text, form answers, message content, and invocation arguments, and that the trace exporter uses the same field allowlist as structured logs.
 - Cross-domain tests proving that guild virtual currency, guild reward entitlements, XP levels, commercial billing, platform entitlements, perks, and AI Credits cannot be substituted through any API or event contract.
+- Money-plane contract tests proving `PurchasePaymentCaptured` without `schema_family` `VirtualPayment` is rejected, that it cannot be applied as commercial fulfillment, that a Billing payment event without `schema_family` `CommercialPayment` is rejected, that an AI Credit reservation fact without `schema_family` `AiCreditReservation` is rejected, that an unprefixed public type named `Payment` or `Reservation` is rejected, that `CatalogPublished` cannot be applied as §8.43, and that `StockReserved` cannot be applied as `VirtualPayment` or `AiCreditReservation` (DR-065).
+- Guild-reward contract tests proving an unprefixed public type `Entitlement` is rejected, that `GuildRewardEntitlementRequested` cannot be applied as a Platform Entitlement snapshot, that module 7.35 still owns the guild commerce-reward lifecycle, and that `GRANT_SOURCE` cannot be stored as a guild reward aggregate (DR-066).
+- Entitlement-prefix tests proving `schema_name` `Entitlement` or any other unprefixed Entitlement-shaped name fails closed at parse, that Platform Entitlement rejects `GuildRewardEntitlement*` at inbox apply, that module 7.35 rejects `PlatformEntitlement*` leaves, that payload fields cannot select the plane, and that the private `ENTITLEMENT` table cannot be applied as Platform Entitlement storage (DR-069).
+- Payment-ingress tests proving HTTP success ACK is issued only after a durable Provider Event Edge ingress receipt, that ACK completes before Billing apply, `GRANT_SOURCE`, entitlement projection, or lot mint, that a duplicate authenticated callback ACK success without a second `GRANT_SOURCE` apply, that invalid or expired generation MUST NOT ACK success, and that a public Billing payment webhook listener is rejected (DR-067).
+- Member-role writer tests proving Cases cannot call Transport for add or remove, that quarantine and dangerous-role effects are assignment intents with a Cases ownership key, that Assignment executes one-role add or remove, that a replace of the member's complete role list is rejected, that Assignment cannot author punitive desired state, and that Cases or security ownership outranks automatic and self-service for the same guild, member, and role (DR-068).
 
 ### 22.3 Mermaid verification policy
 
@@ -498,12 +561,14 @@ A new module normally consumes canonical events and creates domain commands or d
 
 ### 23.2 Contract evolution
 
-- Additive optional fields are backward-compatible.
+- Additive optional fields are backward-compatible and stay on the same major.
 - Renaming, removing, or changing semantics requires a new major schema version.
-- Producers support the current version and the defined previous-version window.
+- Producers support the current major and, until expand/contract completes, MAY still emit N-1. Consumers of a `schema_name` family MUST read N and N-1 until N-1 is retired.
+- A new major MUST NOT be produced until every consumer of that family can read it.
+- N-1 MUST remain readable until every producer emits N and then for at least 14 Clock-port days (DR-048).
 - Consumers record unsupported versions rather than silently discarding them.
 - Public contracts include ownership, change history, compatibility tests, and deprecation dates.
-- Database schemas are private implementation details and are not integration contracts.
+- Database schemas are private implementation details and are not integration contracts. Envelope N-1 is not a substitute for expand/contract DDL of private tables. Breaking private DDL during a rolling deploy MUST expand, dual-write while mixed binaries of that owner run, contract, then drop after 24 Clock-port hours (range 1–72) once every replica of that owner neither reads nor writes the old shape. Live mappers MUST NOT `SELECT *`. Versioned forward migrations are the authority; production schema-push is forbidden. A service MUST NOT ALTER another owner's schema. PITR restore MUST apply the same versioned migrations as the binary generation (DR-064).
 
 ### 23.3 Architecture decision records
 

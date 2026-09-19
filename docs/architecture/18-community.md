@@ -22,7 +22,7 @@ The services share canonical identities, authorization, timers, Delivery, Asset,
 flowchart LR
     Events[Canonical Discord events]
     Commands[Authorized commands and interactions]
-    Clock[Durable timer occurrences]
+    Timers[Durable timer occurrences]
 
     XP[Engagement Progression]
     Star[Starboard]
@@ -44,9 +44,9 @@ flowchart LR
     Commands --> Give
     Commands --> Forms
     Commands --> Rooms
-    Clock --> Give
-    Clock --> Rooms
-    Clock --> XP
+    Timers --> Give
+    Timers --> Rooms
+    Timers --> XP
 
     XP --> Roles
     XP --> Delivery
@@ -275,7 +275,7 @@ Giveaway completion distinguishes `drawn`, `announced`, `partially fulfilled`, a
 - Deleting the announcement message does not delete the giveaway; it orphans the projection and offers authorized recreation.
 - Deleting the destination blocks further public effects while entry and draw state remain authoritative.
 - Deleting or invalidating a prize role blocks that fulfillment and consumes the normal role dependency workflow; it never triggers another draw.
-- A timer outage applies the published close misfire rule. An overdue open giveaway closes from its original boundary or requires operator review; it does not silently admit entries until worker recovery.
+- A timer outage applies the published close misfire rule. An overdue open giveaway closes from its original boundary or requires operator review; it does not silently admit entries until worker recovery. Close and start dues are Durable Timer registrations; lost wake-ups are recovered by the platform due-row sweep.
 - A cancellation after entries exist retains minimum audit facts and applies the published participant notification policy.
 - Retention may pseudonymize entrant and winner identities after fulfillment and dispute windows while preserving aggregate counts and draw integrity facts.
 
@@ -345,7 +345,7 @@ Review commands carry expected submission version. The winning transaction appen
 
 Accepted-role assignment, reviewer-channel notification, respondent completion, review result, and escalation are independent occurrences with unique semantic keys. A configured accepted role is requested through Role Policy and Assignment only after the matching terminal review event. Notification failure never changes submission or review state.
 
-Response notifications render only allowlisted questions and privacy classes. Long values are truncated for presentation with an authorized link to the full response; they are not split into uncontrolled message storms. Mention policy is explicit and previews suppress broad mentions.
+Response notifications render only allowlisted questions and privacy classes. Long values are truncated for presentation with an authorized link to the full response; they are not split into uncontrolled message storms. Mention policy is explicit and previews suppress broad mentions. Dashboard and export rendering treat submitted answers as untrusted text (DR-030).
 
 If a mapped role, channel, message definition, or reviewer group becomes invalid, the form version becomes degraded for that effect. New submissions may continue only when publication policy declares the dependency optional; otherwise admission is paused with a clear health reason.
 
@@ -409,7 +409,7 @@ Owner departure, guild departure, sanction, or eligibility loss invalidates cont
 
 ### 29.33 Empty detection, timers, and cleanup
 
-An active room becomes empty only from canonical voice-state projection after excluding bots or ignored identities according to policy. Entering empty state increments a timer generation and schedules one durable occurrence. Any eligible rejoin changes room version and cancels or invalidates that generation.
+An active room becomes empty only from canonical voice-state projection after excluding bots or ignored identities according to policy. Entering empty state increments a timer generation and schedules one durable occurrence with Schedule's wake-up capability. Any eligible rejoin changes room version and cancels or invalidates that generation.
 
 At due time, the worker reloads live room membership, aggregate version, ownership mode, resource bindings, and provider capability. It skips stale occurrences and begins a fenced cleanup operation only if the room is still eligible.
 

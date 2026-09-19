@@ -142,6 +142,8 @@ erDiagram
     }
 ```
 
+`MODERATION_POLICY_REVISION.protected_targets` is the protected-user and protected-role product policy (DR-020). Discord Capability MUST NOT write this aggregate.
+
 ### 12.6 Activity, audit correlation, and retention cleanup model
 
 ```mermaid
@@ -497,7 +499,7 @@ The unique incident key contains tenant, detector rule, semantic subject, respon
 
 ### 12.8 Role policy, panel, assignment, and resource model
 
-Role Policy and Assignment owns policy, desired member-role relation, assignment, timer, and reconciliation records. Role Panel owns panel, revision, mapping, provider binding, projection, and health records. Role Resource owns administrative mutation history. Discord Capability owns only rebuildable live role and member-role projections.
+Role Policy and Assignment owns policy, desired member-role relation, assignment, timer, and reconciliation records, including Cases-owned punitive intents it executes. Role Panel owns panel, revision, mapping, `ROLE_PANEL_PUBLICATION`, `ROLE_PANEL_PROVIDER_BINDING`, projection, and health records. Role Resource owns administrative mutation history and the rebuildable `DISCORD_ROLE_PROJECTION` guild-role catalog (DR-014). Discord Capability owns rebuildable guild, member, channel, overwrite, member-role, and permission reports used for preflight; it MUST NOT write `DISCORD_ROLE_PROJECTION`. Discord remains provider-authoritative for live role bytes. Moderation Cases owns punitive desired state and MUST NOT call Transport for member-role add or remove (DR-068).
 
 ```mermaid
 erDiagram
@@ -508,9 +510,9 @@ erDiagram
     ROLE_POLICY_REVISION ||--o{ ROLE_ASSIGNMENT_INTENT : plans
     ROLE_PANEL ||--|{ ROLE_PANEL_REVISION : versions
     ROLE_PANEL_REVISION ||--|{ ROLE_PANEL_MAPPING : contains
-    ROLE_PANEL_REVISION ||--o{ PANEL_PUBLICATION : projects
-    PANEL_PUBLICATION ||--o{ PANEL_EFFECT_RECEIPT : records
-    ROLE_PANEL ||--o| PANEL_PROVIDER_BINDING : binds
+    ROLE_PANEL_REVISION ||--o{ ROLE_PANEL_PUBLICATION : projects
+    ROLE_PANEL_PUBLICATION ||--o{ PANEL_EFFECT_RECEIPT : records
+    ROLE_PANEL ||--o| ROLE_PANEL_PROVIDER_BINDING : binds
     ROLE_PANEL_MAPPING ||--o{ ROLE_ASSIGNMENT_INTENT : requests
     ROLE_PANEL_MAPPING ||--o{ ROLE_RELATION_CLAIM : may_create
     ROLE_RELATION_CLAIM ||--o{ ROLE_ASSIGNMENT_INTENT : produces
@@ -522,6 +524,7 @@ erDiagram
     TENANT ||--o{ ROLE_RESOURCE_MUTATION : requests
     ROLE_RESOURCE_MUTATION ||--o{ ROLE_RESOURCE_ATTEMPT : executes
     ROLE_RESOURCE_MUTATION ||--o| ROLE_RESOURCE_RECONCILIATION : may_require
+    TENANT ||--o{ DISCORD_ROLE_PROJECTION : catalogs
 
     ROLE_POLICY {
         string policy_id PK
@@ -600,7 +603,7 @@ erDiagram
         string health
     }
 
-    PANEL_PUBLICATION {
+    ROLE_PANEL_PUBLICATION {
         string publication_id PK
         string panel_id FK
         string revision_id FK
@@ -622,7 +625,7 @@ erDiagram
         string error_code
     }
 
-    PANEL_PROVIDER_BINDING {
+    ROLE_PANEL_PROVIDER_BINDING {
         string binding_id PK
         string panel_id FK
         string channel_id
@@ -734,6 +737,19 @@ erDiagram
         datetime expires_at
         datetime resolved_at
     }
+
+    DISCORD_ROLE_PROJECTION {
+        string projection_id PK
+        string tenant_id FK
+        string provider_role_id
+        string name
+        json permissions
+        int position
+        boolean managed
+        string fingerprint
+        string observed_revision
+        datetime rebuilt_at
+    }
 ```
 
-The role-assignment idempotency key contains tenant, member, role, desired state, ownership key, policy revision, and source event or occurrence identity. A newer policy may supersede pending work, but confirmed history is never rewritten. Panel transport keys are unique within one revision. Provider role and message identifiers are references, not aggregate keys across tenants.
+The role-assignment idempotency key contains tenant, member, role, desired state, ownership key, policy revision, and source event or occurrence identity. A newer policy may supersede pending work, but confirmed history is never rewritten. Panel transport keys are unique within one revision. Provider role and message identifiers are references, not aggregate keys across tenants. `DISCORD_ROLE_PROJECTION` is unique per tenant and provider role identity and is written only by Role Resource. `ROLE_PANEL_PUBLICATION` is Role Panel's publication aggregate (DR-015). It is not Support Panel's `SUPPORT_PANEL_PUBLICATION`.

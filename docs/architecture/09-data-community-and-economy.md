@@ -617,7 +617,7 @@ Entrant, contributor, form member, XP member, and room principal identifiers are
 
 ### 12.10 Economy, commerce, entitlement, and casino models
 
-Monetary records use integer minor virtual units. Floating-point values are forbidden for balances, prices, stakes, postings, percentages, and payout settlement. Percentage and multiplier policies store bounded rational or fixed-scale decimal parameters and one explicit rounding rule.
+Monetary records use integer minor virtual units. Floating-point values are forbidden for balances, prices, stakes, postings, percentages, and payout settlement. Percentage and multiplier policies store bounded rational or fixed-scale decimal parameters and one explicit rounding rule. Commercial billing and AI Credits follow the same integer-minor rule on isolated planes (DR-016) and MUST NOT share this journal.
 
 ```mermaid
 erDiagram
@@ -1037,6 +1037,8 @@ erDiagram
         datetime completed_at
     }
 ```
+
+`CATALOG` and `PURCHASE_ORDER.payment_reservation_id` are guild-shop virtual commerce. Public capture facts are `VirtualPayment`. This `CATALOG` is not §8.43 commercial catalog (DR-065). The `ENTITLEMENT` row is the guild commerce-reward aggregate; public contracts are `GuildRewardEntitlement`. Module 7.35 is not deleted. It is not Platform Entitlement (DR-066). Unprefixed `Entitlement*` names MUST fail closed at parse. This table MUST NOT be Platform Entitlement's journal (DR-069).
 
 ```mermaid
 erDiagram

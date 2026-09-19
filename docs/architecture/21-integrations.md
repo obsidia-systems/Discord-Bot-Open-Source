@@ -59,6 +59,8 @@ An adapter cannot select Discord content, mention policy, tenant limits, transit
 
 ### 32.5 Canonical external identity
 
+This aggregate is `STREAM_CANONICAL_IDENTITY` (DR-017). It is not Identity's `PLATFORM_EXTERNAL_IDENTITY`.
+
 Configuration resolves user input into a provider-issued stable channel or broadcaster identifier whenever the provider supplies one. The identity record separates:
 
 - Stable canonical ID.
@@ -68,13 +70,13 @@ Configuration resolves user input into a provider-issued stable channel or broad
 - Credential or public-access scope used for resolution.
 - Resolution status, timestamp, adapter contract, and provider capability revision.
 
-URL parsing admits only provider-approved hosts, schemes, and path forms. Video URLs, clip URLs, playlists, unrelated hosts, embedded credentials, fragments with hidden parameters, redirects to unapproved origins, and ambiguous search results are rejected. A provider rename updates an alias or identity metadata revision; it does not create a new identity unless the provider stable ID changes.
+URL parsing admits only provider-approved hosts, schemes, and path forms. Video URLs, clip URLs, playlists, unrelated hosts, embedded credentials, fragments with hidden parameters, redirects to unapproved origins, and ambiguous search results are rejected. A server-side fetch during resolution MUST pin the destination IP per hop and deny private, link-local, and cloud-metadata ranges (DR-029). A provider rename updates an alias or identity metadata revision; it does not create a new identity unless the provider stable ID changes.
 
 ### 32.6 Alert definition aggregate
 
 A Stream Alert has a stable tenant identity and immutable revisions. A published revision defines:
 
-- Canonical external identity reference.
+- `STREAM_CANONICAL_IDENTITY` reference.
 - Discord destination class and identifier.
 - Online message definition.
 - Optional offline message definition.
@@ -90,7 +92,7 @@ Drafts are mutable. Published revisions are immutable. Editing creates a new rev
 
 ### 32.7 Uniqueness, limits, and entitlement
 
-At minimum, accidental duplicates are rejected when one tenant attempts to publish the same canonical external identity with an equivalent destination and lifecycle purpose. Multiple destinations or intentionally distinct presentations MAY be admitted as separate alerts when the tenant policy and entitlement permit them.
+At minimum, accidental duplicates are rejected when one tenant attempts to publish the same `STREAM_CANONICAL_IDENTITY` with an equivalent destination and lifecycle purpose. Multiple destinations or intentionally distinct presentations MAY be admitted as separate alerts when the tenant policy and entitlement permit them.
 
 Limits may apply by tenant, provider, canonical identity, active alert, destination, credential scope, subscription resource, test occurrence, and delivery burst. The administration API returns used, reserved, effective, and maximum capacity with a reason and reset or correction path where applicable. Client-side counts are informative only; enablement uses an authoritative transaction.
 
@@ -167,9 +169,29 @@ Provider Event Edge routes an incoming request or stream message through an opaq
 4. Validate provider timestamp, message type, endpoint condition, and replay identity.
 5. Handle a provider verification challenge according to its contract.
 6. Atomically store the authenticated ingress receipt and normalized event before successful acknowledgement whenever required by the loss model.
-7. Publish asynchronously to External Live Signal Service.
+7. Publish asynchronously to the owning consumer: External Live Signal for stream-alert endpoint generations; Workflow for tenant workflow trigger generations (DR-028); Billing for payment-provider endpoint generations (DR-067).
 
 Unknown message types are recorded with bounded metadata and acknowledged or rejected according to the provider contract. They never default to an online event. Provider retries reuse the same receipt.
+
+Tenant HTTP workflow triggers use this same processing order (DR-028). Provider Event Edge terminates those callbacks. After the ingress receipt, Edge publishes to the owning consumer: External Live Signal for stream-alert endpoint generations; Workflow for tenant workflow trigger generations; Billing for payment-provider endpoint generations (DR-067). A workflow callback MUST NOT become a live-session observation. A payment-provider callback MUST NOT become a live-session observation and MUST NOT wait for entitlement projection before HTTP ACK. Workflow and Billing consume the authenticated ingress fact asynchronously. Unsigned tenant webhooks are forbidden. A secret solely in the query string or URL path is not sufficient authentication. Billing MUST NOT open a public payment webhook listener.
+
+#### Decision Record DR-028
+
+**Status:** Accepted.
+
+**Decision:** Every tenant HTTP workflow trigger MUST terminate at Provider Event Edge and follow this section's processing order: opaque endpoint generation, signature or authenticated connection over exact transport bytes, timestamp freshness, replay identity, and a durable ingress receipt before HTTP acknowledgement. After that receipt, Edge publishes to Workflow, not External Live Signal. Workflow MUST NOT open a private public HTTP listener or treat URL possession as authentication.
+
+**Rejected Alternative:** Unsigned tenant webhook URLs; query-string or path secret as the only control; Workflow verifying public HTTP itself.
+
+Payment-provider HTTP callbacks follow DR-067: Edge ACK/inbox as in 9.36; Billing is the consumer, not a public listener.
+
+#### Decision Record DR-067
+
+**Status:** Accepted.
+
+**Decision:** Payment-provider HTTP callbacks MUST terminate at Provider Event Edge and follow the 9.36 ACK/inbox path. HTTP success ACK is allowed only after a durable Edge ingress receipt. Duplicates ACK success and reuse that receipt. Invalid, expired, or unknown generation MUST NOT ACK success. ACK MUST NOT wait for Billing apply, `GRANT_SOURCE`, entitlement projection, or lot mint. Billing MUST NOT open a public payment webhook listener. DR-022 receipt-versus-fulfillment glossary is unchanged.
+
+**Rejected Alternative:** Billing as the public webhook listener; ACK after entitlement projection; ACK before durable ingress; treating Edge ACK as `GRANT_SOURCE` apply.
 
 ### 32.15 Provider subscription desired state
 
@@ -222,7 +244,7 @@ Only conclusive live, offline, or unchanged evidence may directly advance the li
 
 ### 32.20 External live-session aggregate
 
-The aggregate key is provider, canonical external identity, and provider session identity. It retains state, first evidence, provider start time, last conclusive evidence, terminal evidence, accepted metadata revisions, source precedence, event and observation references, and optimistic version.
+The aggregate key is provider, `STREAM_CANONICAL_IDENTITY`, and provider session identity. It retains state, first evidence, provider start time, last conclusive evidence, terminal evidence, accepted metadata revisions, source precedence, event and observation references, and optimistic version.
 
 Unknown means no conclusive current state. Live candidate means evidence has not yet met confirmation policy. Live means online transition is confirmed. Ending candidate means an offline signal needs corroboration. Ended means terminal policy is satisfied. Stale means the freshness boundary elapsed without conclusive evidence. Conflicted means authoritative sources disagree beyond the resolution window.
 

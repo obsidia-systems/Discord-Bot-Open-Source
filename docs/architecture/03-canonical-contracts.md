@@ -6,17 +6,54 @@
 
 All contracts MUST be schema-versioned, backward-readable for a defined compatibility window, and transported using a language-neutral serialization format. Unknown additive fields MUST be tolerated. Breaking semantic changes require a new major schema version.
 
+The first-product envelope codec is versioned JSON (UTF-8) for canonical events and commands on the outbox, inbox, and Durable Event Bus (DR-040). The live compatibility window is the current major `schema_version` N and exactly one prior major N-1 (DR-048).
+
+#### Decision Record DR-040
+
+**Status:** Accepted.
+
+**Decision:** Canonical event and command envelopes MUST be versioned JSON (UTF-8). Unknown additive fields MUST be tolerated. Breaking semantic changes require a new major schema version. Discord Gateway and webhook bodies and payment-provider callbacks remain the exact raw bytes until after signature verification; they are not this envelope codec. Language-native object codecs MUST NOT be the envelope contract. Protobuf MAY be added later as a second adapter only when a measured internal hot path is encoding-bound and unknown additive fields remain tolerated. Protobuf MUST NOT replace JSON as the first-product envelope and MUST NOT encode Discord or Stripe raw-body surfaces. gRPC-first remains rejected.
+
+**Rejected Alternative:** Protobuf-first envelopes; language-native unmarshal as the contract; JSON or Protobuf of Discord or Stripe bodies before signature verification; treating Content-Type alone as schema.
+
+#### Decision Record DR-041
+
+**Status:** Accepted.
+
+**Decision:** Immediate admit/reject of a §8.2 command across hosts uses command-HTTP with the versioned JSON envelope to the owning host, or in-process when the owner shares Control Plane. After admission the owner publishes facts through §8.1. The command RPC MUST NOT remain open until a Discord effect. The guild event bus MUST NOT carry dashboard commands. gRPC is not the first-product command adapter.
+
+**Rejected Alternative:** gRPC-first command path; gRPC-Web from the dashboard; a client per module; dashboard writes on Redis Streams; holding RPC open until Discord effect; durable command as the default for billing, install, or destructive admit.
+
+#### Decision Record DR-042
+
+**Status:** Accepted.
+
+**Decision:** First-product interaction ingress is Gateway `INTERACTION_CREATE`. `InteractionAccepted` follows Gateway session authenticity. Outgoing webhook mode remains a later mutually exclusive choice under DR-034. The two modes MUST NOT run concurrently. The 3-second acknowledgement MUST NOT wait on bus publication of this fact.
+
+**Rejected Alternative:** Webhook-first; concurrent Gateway and webhook; bus-then-ACK.
+
+#### Decision Record DR-048
+
+**Status:** Accepted.
+
+**Decision:** The live compatibility window for canonical event and command envelopes, including command-HTTP, is the current major `schema_version` N and exactly one prior major N-1. Additive fields stay on the same major and MUST be tolerated (DR-040). A new major MUST follow expand/contract: consumers that read N and N-1 deploy first; producers emit the new major only after every consumer of that `schema_name` family can read it. N-1 MUST remain readable until every producer of that family emits N and then for at least 14 Clock-port days so outbox, bus, and inbox retries drain. After that window, consumers MUST record an unsupported version and fail closed; they MUST NOT silently discard. SQL MAY retain older envelope bytes for audit; applying them as live facts outside N and N-1 is the same fail-closed path. Discord and payment-provider raw bodies are not this window. N-2 MUST NOT be a live application target.
+
+**Rejected Alternative:** Supporting only the current major during a rolling deploy; keeping every historical major on the live path; retiring N-1 before mixed-version hosts and in-flight outbox drain; silently dropping unsupported versions.
+
+Owner-schema tables are not this envelope window. Breaking private DDL follows DR-064.
+
 ### 8.1 Event envelope
 
 | Field | Required | Meaning |
 |---|---:|---|
 | event_id | Yes | Globally unique platform event identifier |
 | schema_name | Yes | Stable canonical event name |
-| schema_version | Yes | Contract version |
+| schema_family | Conditional | Required on money-plane facts; exactly `VirtualPayment`, `CommercialPayment`, or `AiCreditReservation` (DR-065) |
+| schema_version | Yes | Contract major version (integer). Live readers accept N and N-1 (DR-048). |
 | occurred_at | Yes | Time reported or inferred for the source event |
 | received_at | Yes | Time accepted by the platform edge |
 | application_id | Yes | Discord application identity |
-| guild_id | Conditional | Tenant key for guild-scoped events |
+| guild_id | Conditional | Discord guild snowflake on Guild-type events; not `tenant_id` |
 | shard_id | Conditional | Gateway shard that received the event |
 | session_id | Conditional | Gateway session identity |
 | gateway_sequence | Conditional | Relative event position within the session |
@@ -27,13 +64,22 @@ All contracts MUST be schema-versioned, backward-readable for a defined compatib
 
 The Gateway technical deduplication key is the combination of application, shard, session, and sequence. Domain services MAY add semantic occurrence keys, but MUST NOT replace technical ingestion identity with timestamps alone.
 
+Envelope `guild_id` is Discord correlation for `Guild` tenants. Isolation uses Discord Installation's `tenant_id`. User-type events MUST NOT treat `guild_id` as the tenant predicate. `tenant_id` is not a Discord snowflake (DR-059).
+
+`trace_context` carries distributed identifiers from [12-security-observability-deployment.md](12-security-observability-deployment.md) §18.1. It MUST NOT carry AI prompts, model output, reminder body text, form answers, message content, invocation arguments, or secret material (DR-038).
+
+`occurred_at` and `received_at` are Clock-port UTC instants (DR-023). They are not due-work authority.
+
+`event_id` is the published fact identity written to the owning service's outbox. An outbox row MUST NOT require an inbox parent (DR-021). `causation_id` MAY name an inbox event, a command, or a prior fact. Internally originated facts still carry `correlation_id` and MAY omit a Gateway `session_id` or `gateway_sequence`. Cross-service consumers apply the fact through their own inbox after the bus; they MUST NOT treat a foreign outbox row as their processing cursor (DR-039). Envelope bytes on the outbox and bus are versioned JSON (DR-040). Live application of those bytes uses majors N and N-1 (DR-048). Money-plane facts MUST set `schema_family` to `VirtualPayment`, `CommercialPayment`, or `AiCreditReservation`; `schema_name` remains the §8.6 leaf (DR-065). Entitlement-shaped `schema_name` values are only the §8.6 `GuildRewardEntitlement*` and `PlatformEntitlement*` leaves. Unprefixed `Entitlement*` MUST fail closed at parse. Isolation is by `schema_name` prefix, not a fourth `schema_family` (DR-069).
+
 ### 8.2 Command envelope
 
 | Field | Required | Meaning |
 |---|---:|---|
 | command_id | Yes | Unique command identity |
 | command_name | Yes | Stable operation name |
-| schema_version | Yes | Contract version |
+| schema_family | Conditional | Required on money-plane commands; exactly `VirtualPayment`, `CommercialPayment`, or `AiCreditReservation` (DR-065) |
+| schema_version | Yes | Contract major version (integer). Live readers accept N and N-1 (DR-048). |
 | tenant_id | Conditional | Guild or user installation scope |
 | actor | Yes | Authenticated user, service, or system actor |
 | idempotency_key | Yes for mutation | Stable duplicate-suppression key |
@@ -41,6 +87,12 @@ The Gateway technical deduplication key is the combination of application, shard
 | deadline | Yes | Latest useful processing time |
 | trace_context | Yes | Distributed trace propagation fields |
 | payload | Yes | Typed operation input |
+
+A command is addressed to exactly one owning module. It is not a public domain event. After the owner accepts or rejects it, the owner publishes facts through §8.1. Cross-service admit/reject uses command-HTTP to the owning host, or in-process when the owner shares Control Plane (DR-041).
+
+`tenant_id` on a command names a target scope. It is the Installation registry identity, not a Discord snowflake and not a storage-access proof. The owning module binds the tenant predicate from authenticated context and MUST fail closed when that bound is missing or does not match the named target (DR-033, DR-059).
+
+`trace_context` on a command uses the same field allowlist as structured logs. Payload text MUST NOT be copied into traces (DR-038). Command envelopes on command-HTTP, on the bus, and in durable command storage are versioned JSON (DR-040, DR-041). Money-plane commands MUST set `schema_family` to `VirtualPayment`, `CommercialPayment`, or `AiCreditReservation` (DR-065).
 
 ### 8.3 Message Definition
 
@@ -88,11 +140,13 @@ Invariants:
 |---|---|
 | delivery_id | Stable delivery workflow identity |
 | tenant_id | Guild or installation boundary |
+| effect_kind | Create, edit, delete, react, or an admitted post-send action. Default create. |
 | source_type | Versioned owning-domain source class such as lifecycle, schedule, moderation, community, economy, interaction, or administration |
-| source_id | Source event, command, occurrence, or interaction |
+| source_id | Source event, command, occurrence, incident, or interaction |
 | idempotency_key | Unique effect key |
 | destination | Channel, thread, DM, webhook, or interaction response reference |
-| definition_revision_id | Immutable message revision |
+| target_message_id | Required for delete or edit of an existing provider message |
+| definition_revision_id | Immutable message revision; required for create and catalog edit; omitted for delete of an existing Discord message |
 | configuration_revision_id | Immutable module policy revision |
 | context_reference | Typed render context or immutable snapshot reference |
 | priority | Bounded operational priority class |
@@ -101,9 +155,13 @@ Invariants:
 | retry_policy | Named bounded retry policy |
 | post_send_policy | Independent optional actions |
 
+Destination, effect kind, definition revision, configuration revision, and target message are pinned at admission and MUST NOT change. A blocked intent does not receive a new revision in place. Correction admits a new intent ([05-state-models.md](05-state-models.md) §10.1, DR-012).
+
 ### 8.6 Public domain events
 
 Services publish facts, not imperative instructions. The initial public vocabulary is:
+
+`InteractionAccepted` is published only after Gateway session authenticity (first product, DR-042) or, in later webhook mode, Discord Ed25519 verification of the exact raw body (DR-034). The acknowledgement itself MUST NOT wait on that publication.
 
 | Domain | Events |
 |---|---|
@@ -130,7 +188,10 @@ Services publish facts, not imperative instructions. The initial public vocabula
 | Monetary ledger | CurrencyPolicyPublished, AccountOpened, MonetaryTransactionPosted, FundsHeld, HoldCaptured, HoldReleased, MonetaryTransactionReversed, TransferSettled, BalanceProjectionChanged, AccountFrozen, LedgerReconciled |
 | Earnings | IncomePolicyPublished, IncomeActionAdmitted, IncomeActionSettled, IncomeActionRejected, StreakChanged, SalaryDistributionStarted, SalaryDistributionCompleted, EarningsAnomalyObserved |
 | Commerce | CatalogPublished, ItemRevisionPublished, StockReserved, StockReservationReleased, PurchaseOrderCreated, PurchasePaymentCaptured, PurchaseFulfillmentStarted, PurchasePartiallyFulfilled, PurchaseFulfilled, PurchaseRefundRequested, PurchaseRefunded, PurchaseReconciliationRequired |
-| Entitlements | EntitlementRequested, EntitlementActivated, EntitlementActivationPartial, EntitlementExpiryDue, EntitlementRevoked, EntitlementCompensationConflicted, EntitlementReconciled, ManualFulfillmentCompleted |
+| Billing | CommercialInvoiceOpened, CommercialInvoicePaid, CommercialInvoiceVoided, CommercialInvoiceUncollectible |
+| AI Credits | AiCreditReservationRequested, AiCreditReserved, AiCreditPartiallyCaptured, AiCreditCaptured, AiCreditReleased, AiCreditRefunded, AiCreditUncertain, AiCreditDisputed, AiCreditRejected |
+| Guild reward entitlements | GuildRewardEntitlementRequested, GuildRewardEntitlementActivated, GuildRewardEntitlementActivationPartial, GuildRewardEntitlementExpiryDue, GuildRewardEntitlementRevoked, GuildRewardEntitlementCompensationConflicted, GuildRewardEntitlementReconciled, GuildRewardManualFulfillmentCompleted |
+| Platform entitlements | PlatformEntitlementProjectionPublished, PlatformEntitlementInvalidated, PlatformEntitlementGrantSourceApplied, PlatformEntitlementReconciled |
 | Casino | CasinoPolicyPublished, GameSessionOpened, WagerHoldRequested, GameActionAccepted, GameOutcomeCommitted, WagerSettlementRequested, GameSessionSettled, GameSessionExpired, GameSessionRecovered |
 | Support policy | SupportPolicyPublished, TicketTemplatePublished, TicketTemplateDegraded, SupportCapacityPolicyChanged |
 | Support panel | SupportPanelPublished, SupportPanelPublicationDegraded, SupportPanelDisabled, SupportPanelOrphaned, SupportPanelRepaired, SupportPanelRetired, SupportPanelInteractionAccepted |
@@ -146,11 +207,32 @@ Services publish facts, not imperative instructions. The initial public vocabula
 | Application command registry | ApplicationCommandSnapshotCompiled, ApplicationCommandConflictDetected, ApplicationCommandProjectionRequested, ApplicationCommandProjectionConverged, ApplicationCommandProjectionDegraded, ApplicationCommandDriftDetected, ApplicationCommandBindingChanged |
 | Custom command runtime | CustomCommandInvocationAccepted, CustomCommandInvocationRejected, CustomCommandCooldownReserved, CustomCommandActionRequested, CustomCommandActionCompleted, CustomCommandInvocationPartiallyCompleted, CustomCommandInvocationCompleted |
 | Reminders | ReminderCreated, ReminderRevised, ReminderPaused, ReminderResumed, ReminderCancelled, ReminderOccurrenceScheduled, ReminderOccurrenceDue, ReminderOccurrenceDelivered, ReminderOccurrenceRetryScheduled, ReminderOccurrenceMissed, ReminderOccurrenceDeadLettered, ReminderSnoozed |
-| Delivery | DeliveryQueued, DeliveryAttempted, DeliverySucceeded, DeliveryRetryScheduled, DeliveryBlocked, DeliveryFailed, DeliveryOutcomeUncertain |
+| Delivery | DeliveryQueued, DeliveryAttempted, DeliverySucceeded, DeliveryRetryScheduled, DeliveryBlocked, DeliveryFailed, DeliveryOutcomeUncertain, DeliveryDeadLettered |
 | Asset | AssetFinalized, AssetRejected, AssetReferenced, AssetReleased, AssetDeleted |
 | Render | RenderCompleted, RenderRejected, RenderFailed |
 
+`ExternalIdentityResolved` and `ExternalIdentityInvalidated` are Integration Registry facts about `STREAM_CANONICAL_IDENTITY`. They are not Identity login-link events (DR-017).
+
 Internal implementation events MUST NOT be published as public contracts unless another service has a durable business dependency on them.
+
+Names ending in `Requested` remain **facts**. They mean the publisher has durably recorded that a request was admitted, or that its aggregate now holds a desired downstream effect. They are not §8.2 commands and they are not authorization for the consumer to invent a mutation.
+
+| Kind | Envelope | Path | Consumer rule |
+|---|---|---|---|
+| Command | §8.2 | In-process, or command-HTTP to the owning host (DR-041) | The owner authenticates, checks idempotency, mutates its aggregates, then publishes facts |
+| Domain event | §8.1, including `*Requested` | Outbox then bus | Load the owner's intent or aggregate by stable identity and idempotency. Do not infer a new write from the event name |
+
+Examples: `LifecycleDeliveryRequested` means Lifecycle committed a delivery intent; Delivery loads that intent. `WagerHoldRequested` means Casino recorded that a hold was requested; Monetary Ledger mutates balances only after a §8.2 hold command with the same idempotency key. `ModerationEnforcementRequested` means Auto Moderation recorded an enforcement desire; Moderation Cases accepts a §8.7 action-request command, not a bus-driven sanction.
+
+#### Decision Record DR-006
+
+**Status:** Accepted.
+
+**Decision:** Keep the §8.6 event names. `*Requested` is a fact that a request exists in the publisher. Imperative work uses the command envelope. Consumers MUST NOT treat an event name as an instruction.
+
+**Rejected Alternative:** Renaming the public vocabulary in this revision; publishing commands as public domain events; letting consumers mutate because an event suffix is `Requested`.
+
+Money-plane `schema_family` is DR-065. Guild reward entitlement leaves are DR-066. Other §8.6 leaves, including `PurchasePaymentCaptured` and `CommercialInvoicePaid`, are unchanged.
 
 ### 8.7 Moderation Action Request
 
@@ -171,6 +253,8 @@ Internal implementation events MUST NOT be published as public contracts unless 
 | correlation_id | Yes | End-to-end case, incident, activity, and audit correlation |
 
 An action request MUST describe one provider mutation. Compound operator workflows create multiple explicitly ordered action requests or a bounded process manager; they MUST NOT hide several non-atomic Discord mutations behind one success flag.
+
+`policy_revision_id` identifies Moderation Cases' protected-target policy (DR-020). Discord Capability MAY evaluate a pinned snapshot of that revision; it does not own the revision.
 
 ### 8.8 Moderation Case
 
@@ -213,7 +297,7 @@ Cases are append-only histories. Corrective changes are new case events, notes, 
 | review_state | Unreviewed, confirmed, false positive, policy adjusted, or redacted |
 | correlation_id | Cross-service workflow identity |
 
-One semantic incident may be observed through both a Discord native execution event and a Gateway message event. The incident identity and ownership policy ensure that observation does not become duplicate punishment.
+One semantic incident may be observed through both a Discord native execution event and a Gateway message event. The incident identity and ownership policy ensure that observation does not become duplicate member sanctions or alerts. Platform-owned message deletion is a Delivery intent requested at most once per incident and message after that duplicate check. Auto Moderation does not call Transport.
 
 ### 8.10 Retention Sweep Occurrence
 
@@ -287,7 +371,7 @@ A containment request identifies one immutable plan and one incident or authoriz
 | member_id | Yes | Discord member receiving the desired state |
 | role_id | Yes | Target Discord role |
 | desired_state | Yes | Present or absent |
-| source | Yes | Automatic join policy, panel interaction, expiry, sticky rejoin, reconciliation, or admitted internal workflow |
+| source | Yes | Automatic join policy, panel interaction, expiry, sticky rejoin, reconciliation, Moderation Case punitive relation, or admitted internal workflow |
 | source_event_id | Yes | Canonical event or command identity |
 | policy_revision_id | Yes | Immutable role policy or panel policy governing the decision |
 | ownership_key | Yes | Policy scope allowed to claim or remove this role relationship |
@@ -300,7 +384,7 @@ A containment request identifies one immutable plan and one incident or authoriz
 | idempotency_key | Yes | Semantic duplicate-suppression identity |
 | correlation_id | Yes | Cross-service event, panel, assignment, activity, and audit correlation |
 
-One intent describes one desired member-role relation. Exclusive groups are coordinated as a bounded set of individually observable intents under one group operation; they are not falsely represented as one atomic Discord mutation.
+One intent describes one desired member-role relation. Exclusive groups are coordinated as a bounded set of individually observable intents under one group operation; they are not falsely represented as one atomic Discord mutation. A Moderation Case punitive relation uses this same intent shape with a Cases ownership key. Assignment is the Transport client; Cases MUST NOT add or remove the role (DR-068).
 
 ### 8.14 Role Panel Definition
 
@@ -495,6 +579,8 @@ A hold contains hold identity, account, amount, available-balance reservation, o
 
 A monetary reservation groups one or more account holds created atomically under one owner request. It supports funding policies such as wallet only, bank only, wallet then bank, or an explicitly ordered admitted account set. The group amount equals the sum of its hold lines; capture posts one balanced transaction across all funding accounts, and release terminates every still-active line atomically.
 
+This journal, its holds, and guild-shop purchase capture are the `VirtualPayment` family. They MUST NOT use `CommercialPayment` or `AiCreditReservation`. Stock reservation is inventory, not this family (DR-065).
+
 ### 8.22 Income Action
 
 | Field | Meaning |
@@ -535,7 +621,11 @@ A monetary reservation groups one or more account holds created atomically under
 
 Each reward line pins reward identity, type, immutable parameters, fulfillment owner, required or optional status, ordering dependency, entitlement request, current outcome, compensation policy, and attempt deadline. A purchase summary is derived from payment and reward facts; it is not a substitute for them.
 
-### 8.24 Entitlement Aggregate
+`payment_reservation_id` and `payment_transaction_id` are `VirtualPayment` identities. `PurchasePaymentCaptured` MUST set `schema_family` `VirtualPayment` and MUST NOT be applied as commercial fulfillment (DR-065).
+
+### 8.24 Guild Reward Entitlement Aggregate
+
+This is the guild commerce-reward contract `GuildRewardEntitlement`. Module 7.35 is not deleted. It is not Platform Entitlement and MUST NOT share `schema_name` with §8.45 (DR-066).
 
 | Field | Meaning |
 |---|---|
@@ -554,7 +644,7 @@ Each reward line pins reward identity, type, immutable parameters, fulfillment o
 | version | Optimistic aggregate version |
 | correlation_id | Purchase, effect, expiry, activity, and reconciliation correlation |
 
-Manual fulfillment adds assignee policy, instructions reference, staff case state, evidence receipt, completion actor, and completion time. Delivery of a staff notification is not a completion receipt.
+Manual fulfillment adds assignee policy, instructions reference, staff case state, evidence receipt, completion actor, and completion time. Delivery of a staff notification is not a completion receipt. Public `schema_name` uses the `GuildRewardEntitlement*` leaves in §8.6. An unprefixed public type `Entitlement` is forbidden (DR-066). An envelope whose `schema_name` is unprefixed `Entitlement` or any other Entitlement-shaped name MUST fail closed at parse. This owner MUST reject `PlatformEntitlement*` leaves and MUST NOT apply `GRANT_SOURCE`. Consumers MUST NOT infer guild versus platform from payload fields (DR-069).
 
 ### 8.25 Casino Game Session and Wager
 
@@ -695,6 +785,8 @@ A transcript is a privacy-governed historical artifact, not authoritative suppor
 
 ### 8.31 Canonical External Identity and Provider Capability Profile
 
+This envelope is Integration Registry's `STREAM_CANONICAL_IDENTITY` (DR-017). It is not Identity's `PLATFORM_EXTERNAL_IDENTITY`.
+
 | Field | Meaning |
 |---|---|
 | provider_type | Stable logical provider type independent from adapter implementation |
@@ -718,7 +810,7 @@ The capability profile declares accepted locator classes, stable identifiers, av
 | alert_id | Stable tenant-scoped alert identity |
 | revision_id | Immutable published revision |
 | tenant_id | Guild boundary |
-| provider_identity_ref | Canonical external identity and identity revision |
+| provider_identity_ref | `STREAM_CANONICAL_IDENTITY` and identity revision |
 | destination | Typed Discord destination reference |
 | message_definition_revision_id | Immutable online presentation definition |
 | offline_definition_revision_id | Optional immutable offline presentation definition |
@@ -758,7 +850,7 @@ Provider-specific response bodies are adapter-private. Only the normalized bound
 | Field | Meaning |
 |---|---|
 | session_id | Stable internal session aggregate identity |
-| provider_identity_ref | Canonical external identity |
+| provider_identity_ref | `STREAM_CANONICAL_IDENTITY` |
 | provider_session_id | Provider live-session identity |
 | state | Unknown, candidate, live, ending, ended, stale, or conflicted |
 | confirmation_basis | Event, observation, corroboration, timeout, or operator resolution |
@@ -894,18 +986,18 @@ Provider-specific response bodies are adapter-private. Only the normalized bound
 
 | Field | Meaning |
 |---|---|
-| session_id | Opaque platform session identity; never a Discord token |
-| account_id | Stable platform account linked to the provider subject |
+| session_id | Opaque platform session identity; never a Discord token, never a claims cookie |
+| account_id | Stable platform account linked through `PLATFORM_EXTERNAL_IDENTITY` |
 | credential_generation | Revocation generation against which every request is checked |
 | authentication_strength | Authentication and recent-verification class available to policy |
 | issued_at | Session creation time |
-| idle_expires_at | Sliding inactivity boundary |
-| absolute_expires_at | Non-extendable session boundary |
+| idle_expires_at | Sliding inactivity boundary; 12 Clock-port hours from last authenticated use (DR-049) |
+| absolute_expires_at | Non-extendable session boundary; 7 Clock-port days from `issued_at` (DR-049) |
 | guild_observations | Bounded guild identifiers, owner flags, permission bits, source, observation time, and expiry |
 | state | Active, expired, revoked, compromised, or terminated |
 | correlation_id | OAuth transaction, session, revalidation, and audit correlation |
 
-Guild observations support discovery only. A sensitive command also carries the target tenant, expected aggregate version, required platform capability, and a fresh authorization receipt from the owning service.
+Guild observations support discovery only and MUST NOT be older than 15 Clock-port minutes for presentation. A sensitive command also carries the target tenant, expected aggregate version, required platform capability, and a fresh authorization receipt from the owning service. Ordinary mutations MAY use Discord Capability at most 60 Clock-port seconds stale. High-risk commands require live revalidation and a step-up generation no older than 5 Clock-port minutes (DR-049). The browser cookie carries only `session_id` (DR-018), is host-only on `app.*`, and MUST set `Secure`, `HttpOnly`, and `SameSite=Lax`. Cookie-authenticated mutations present a CSRF proof distinct from that cookie (DR-025). Authorization-code login and install transactions include PKCE S256; the verifier is not a cookie field (DR-026). Client-supplied `paid`, `entitled`, Discord permission bitfields, and guild-discovery observations MUST NOT authorize (DR-027).
 
 ### 8.42 Discord Installation Aggregate
 
@@ -924,6 +1016,12 @@ Guild observations support discovery only. A sensitive command also carries the 
 | state | Not installed, authorization pending, verifying, installed, degraded, removed, or conflicted |
 | version | Optimistic aggregate version |
 
+`requested_permissions` is the frozen minimal union of named bot permissions from currently enabled module manifests. It MUST NOT be Administrator by default, as a repair shortcut, or as a substitute for an incomplete manifest (DR-032).
+
+Named presets for the Discord authorize URL are `GuildInstall`, `UserInstall`, and `GuildRepair`. Installation generates that URL. `client_id` is the platform application identity. When the command names a guild, the URL MUST include `guild_id` and `disable_guild_select=true`. The `permissions` query parameter is present only when `bot` is in `requested_scopes`. Callback `guild_id` and `permissions` are Discord hints, not proofs (DR-050).
+
+`state` is `Installed` only when every required enabled-module result in `module_capabilities` is `Healthy`. `presence_observation` is evidence for modules that require a bot member; it MUST NOT flatten the aggregate. Command-only modules record `NotRequired` for bot presence. Callback receipt is not this `state` (DR-047).
+
 ### 8.43 Commercial Catalog Revision
 
 | Field | Meaning |
@@ -937,13 +1035,18 @@ Guild observations support discovery only. A sensitive command also carries the 
 | effective_from | Earliest order or subscription time that may pin this revision |
 | retired_at | Optional boundary after which no new purchase may pin it |
 | integrity_digest | Canonical revision digest used by checkout and reconciliation |
+| cadence_partition | Recurring components in a Bundle MUST share one billing interval; mixed Recurring+OneTime is publishable and splits at admit (DR-058) |
+
+This is the commercial catalog contract, not guild-shop `CatalogPublished` and not Message Catalog. It is not `VirtualPayment` (DR-065).
 
 ### 8.44 Commercial Order, Subscription, and Payment Event
+
+The payment-event payload on this envelope is the `CommercialPayment` family. `schema_family` MUST be `CommercialPayment`. Guild-shop `PurchasePaymentCaptured` and AI Credit reservation facts MUST NOT use this family (DR-065).
 
 | Field | Meaning |
 |---|---|
 | commercial_id | Stable order, subscription, invoice, refund, or dispute identity |
-| billing_owner_id | Account or organization responsible for billing |
+| billing_owner_id | Account-type or Organization-type payer identity; not a provider Customer object |
 | scope_bindings | Authorized Discord installation scopes funded by the purchase |
 | catalog_revision_set | Immutable product and terms revisions |
 | provider_adapter | Payment adapter class, not domain behavior |
@@ -953,6 +1056,15 @@ Guild observations support discovery only. A sensitive command also carries the 
 | state | Domain-specific commercial lifecycle state |
 | effective_at | Time at which the normalized commercial transition takes effect |
 | correlation_id | Checkout, webhook, reconciliation, entitlement, invoice, and audit correlation |
+| checkout_group_id | Optional parent when a mixed Bundle split into sibling orders; absent on a single-mode order |
+
+Commercial billed amounts, when present on this envelope, are integer minor units of the billed currency (DR-016). Provider decimal strings remain inside protected provider object evidence.
+
+`provider_event_identity` is the provider-event receipt key. HTTP acknowledgement of that receipt is not commercial fulfillment (DR-022). That ACK is issued by Provider Event Edge after a durable ingress row and MUST NOT wait for this commercial payload or for entitlement projection (DR-067). Subscription `state` MAY be `PastDue`; that value is unpaid-period commercial truth and MUST NOT be read as entitled. Feature access is the §8.45 snapshot (DR-046).
+
+Commercial `state` on an order is not checkout-attempt state. Order `Open` waits for verified paid or admitted provider object state. Attempt `Completed` is a hosted-session observation and MUST NOT be copied onto the order as `Fulfilled`. Adapter `client_reference_id` (or equivalent) is `checkout_attempt_id` and is correlation, not proof. `success_url` and `cancel_url` are `app.*` Query routes (DR-051). A mixed Recurring+OneTime Bundle uses `checkout_group_id` on two sibling orders; one hosted session MUST NOT span both modes (DR-058). A later refund uses a distinct refund identity on this envelope and MUST NOT overwrite order or invoice `state` (DR-052).
+
+`billing_owner_id` is the domain payer. Provider `customer` identifiers live in protected object refs and MUST NOT replace it. Checkout attaches or reuses one Active `PROVIDER_CUSTOMER_MAPPING` for that owner, adapter, merchant-account scope, and environment. A dashboard-posted provider customer id is not authority (DR-055).
 
 ### 8.45 Platform Entitlement Snapshot
 
@@ -964,12 +1076,16 @@ Guild observations support discovery only. A sensitive command also carries the 
 | active_features | Stable feature keys with source and validity interval |
 | effective_limits | Limit keys, units, totals, contributors, and enforcement mode |
 | perks | Non-quantitative benefits and validity intervals |
-| source_refs | Subscription, one-time purchase, promotion, compensation, or achievement grants |
+| source_refs | Applied `grant_source_id` values with source kind and validity interval |
 | grace_state | None, payment grace, downgrade overage, suspended, or disputed |
 | computed_at | Projection time |
 | valid_until | Maximum cache lifetime before revalidation |
 
+`grace_state` is Platform Entitlement projection, not Billing subscription `PastDue`. Payment grace MUST be derived from a Billing commercial grant fact that names `PastDue` and `grace_until`, applied into an Entitlement `GRANT_SOURCE` row. Feature admission reads this snapshot, never the subscription row and never `GRANT_SOURCE.state` as paid (DR-046, DR-054). `source_refs` name applied `grant_source_id` values. This snapshot is not `GuildRewardEntitlement` and MUST NOT use those §8.6 leaves (DR-066). Public `schema_name` uses the `PlatformEntitlement*` leaves in §8.6. Platform Entitlement MUST reject `GuildRewardEntitlement*` at inbox apply. An unprefixed `Entitlement*` name MUST fail closed at parse. Consumers MUST NOT infer the plane from payload fields (DR-069).
+
 ### 8.46 AI Credit Reservation and Usage Receipt
+
+This contract is the `AiCreditReservation` family. `schema_family` MUST be `AiCreditReservation`. It is not a monetary hold and not a commercial payment (DR-065).
 
 | Field | Meaning |
 |---|---|
@@ -977,13 +1093,16 @@ Guild observations support discovery only. A sensitive command also carries the 
 | account_id | AI Credit account within one commercial scope |
 | operation_id | Billable AI operation identity |
 | pricing_revision_id | Frozen internal rating rule |
-| estimated_amount | Maximum credits reserved before provider execution |
-| lot_allocations | Source-aware credit lots and reserved amounts |
-| actual_amount | Final rated charge after normalized usage |
-| state | Requested, reserved, partially captured, captured, released, refunded, expired, or disputed |
+| estimated_amount | Maximum AI credit-minors reserved before provider execution |
+| lot_allocations | Source-aware credit lots and reserved amounts in credit-minors |
+| actual_amount | Final rated charge in AI credit-minors after normalized usage and declared rounding |
+| expires_at | Clock-port reservation TTL; first-product 15 minutes from admit |
+| state | Requested, reserved, partially captured, captured, released, refunded, uncertain, disputed, or rejected |
 | provider_usage_receipt | Normalized usage quantities and integrity evidence, never provider credentials |
 | semantic_key | Stable duplicate-prevention identity |
 | correlation_id | Entitlement, spending limit, provider attempt, settlement, refund, and audit correlation |
+
+`estimated_amount` and `actual_amount` are integer credit-minors. Reservation `expires_at` is Clock-port UTC, first-product 15 Clock-port minutes from admit and MUST be at least the operation deadline. Elapsed TTL without a confirmed provider outcome is `Uncertain`, not `Released`. Lot allocation order is earliest lot `expires_at` (null last), then `granted_at`, then `lot_id`. A lot with `expires_at` at or before Clock now is ineligible for a new reservation (DR-061). Reservation `disputed` is Ledger review, not capture, release, or operation settlement (DR-070).
 
 ### 8.47 AI Operation
 
@@ -992,15 +1111,17 @@ Guild observations support discovery only. A sensitive command also carries the 
 | operation_id | Stable idempotent AI request identity |
 | operation_class | Text generation, image generation, image processing, OCR, transcription, moderation, workflow action, or character response |
 | tenant_and_actor_scope | Tenant, user, character, workflow, and purpose boundaries where applicable |
-| input_ref | Protected immutable input reference and privacy classification |
+| input_ref | `protected_content_id` for immutable input; never `asset_id` |
 | model_class | Provider-neutral admitted capability and quality class |
 | policy_snapshot | Moderation, spending, concurrency, retention, fallback, and deadline policy |
 | pricing_revision_id | Frozen AI Credit rating revision |
 | reservation_id | Required credit reservation before a billable provider call |
-| attempts | Bounded provider-adapter attempts and uncertainty state |
-| result_ref | Protected output reference and moderation result |
+| attempts | Bounded provider-adapter attempts with `result_class` `ConfirmedResult`, `ConfirmedFailure`, `RateLimited`, `TimeoutNotSent`, `TimeoutAfterSend`, or `Uncertain` |
+| result_ref | `protected_content_id` for moderated output; never `asset_id` |
 | usage_receipt | Normalized provider usage used for settlement |
 | state | Requested, rejected, reserved, executing, uncertain, succeeded, failed, cancelled, or settled |
+
+Retrieved guild, form, provider, OCR, transcript, and conversation content in `input_ref` is untrusted for tool selection. Admitted tools are an allowlisted catalog of typed commands reauthorized by owning services (DR-031). HTTP 429 is `RateLimited` and MUST NOT be `Uncertain`. `TimeoutAfterSend` maps to operation `Uncertain` and MUST NOT release the reservation. `TimeoutNotSent` and `RateLimited` MAY retry within deadline and `max_attempts` 3 (DR-062). `input_ref` and `result_ref` are `AI_PROTECTED_CONTENT` identities whose bodies live in Asset (DR-063). Operation `state` MUST NOT include `disputed`. Reservation `Disputed` is Ledger-only review and MUST NOT be treated as operation completion (DR-070).
 
 ### 8.48 Template Package and Installation
 
@@ -1016,6 +1137,8 @@ Guild observations support discovery only. A sensitive command also carries the 
 | installation_plan | Ordered typed commands grouped by owning service |
 | effect_receipts | Per-step operation identity, before-state reference, outcome, and ownership evidence |
 | rollback_state | Not requested, compensating, completed, partial, conflicted, or ineligible |
+
+Package bytes are admitted only through a versioned schema parse. Language-native object codecs over untrusted bytes are forbidden (DR-037).
 
 ### 8.49 Workflow Definition and Execution
 
@@ -1033,6 +1156,8 @@ Guild observations support discovery only. A sensitive command also carries the 
 | state | Accepted, rejected, executing, waiting, partially completed, completed, failed, cancelled, compensating, or dead letter |
 | correlation_id | Trigger, schedule, action, downstream effect, replay, and audit correlation |
 
+This envelope is owned by the single Workflow Definition and Runtime module (DR-019). It is not Custom Command Runtime and it does not register Discord application commands. HTTP webhook triggers name the Provider Event Edge ingress receipt, not a public URL. The URL is not authentication (DR-028). Graph and job bytes are admitted only through a versioned schema parse (DR-037).
+
 ### 8.50 AI Character Revision
 
 | Field | Meaning |
@@ -1043,7 +1168,137 @@ Guild observations support discovery only. A sensitive command also carries the 
 | behavior_policy | Bounded instructions, tone, forbidden behavior, and response policy |
 | channel_policy | Allowed destinations, invocation modes, mention policy, and cooldowns |
 | context_policy | Conversation boundaries, maximum history, retrieval sources, and retention |
+| conversation_id | Active `AI_CONVERSATION` isolation key when the revision is responding |
 | moderation_policy | Input and output safety gates and failure behavior |
 | spending_policy | Per-response, daily, monthly, and character AI Credit ceilings |
 | entitlement_policy | Required feature and model-class grants |
 | state | Draft, validating, active, paused, degraded, suspended, or retired |
+
+### 8.51 Durable Wake-up Registration
+
+The Schedule module stores this document. The owner module stores the business occurrence. The registration is not a command to mutate the owner's terminal state.
+
+| Field | Meaning |
+|---|---|
+| registration_id | Unique wake-up identity within Schedule |
+| owner_module | Catalog module that retains business schedule and terminal-state authority |
+| owner_occurrence_id | Owner-scoped occurrence identity |
+| generation | Owner generation that invalidates stale claims |
+| tenant_id | Guild or user installation scope |
+| due_at | Timezone-independent due instant |
+| state | Registered, due, signaled, claimed-by-owner, cancelled, or superseded |
+| correlation_id | Owner occurrence, claim, misfire, and audit correlation |
+
+A due-work signal is a fact that a registration is due. The owner MUST claim its own row before applying misfire policy. Schedule's bounded due-row sweep rebuilds lost signals from these rows.
+
+### 8.52 Commercial Invoice
+
+Billing Orchestrator owns this aggregate. The payment-provider invoice object is evidence, not domain identity.
+
+| Field | Meaning |
+|---|---|
+| invoice_id | Stable platform invoice identity |
+| billing_owner_id | Accountable billing owner |
+| order_id | Optional originating commercial order |
+| subscription_id | Optional originating commercial subscription |
+| currency | Provider-neutral billed currency |
+| total_amount | Issued amount in integer minor units of `currency` |
+| state | Open, paid, void, or uncollectible |
+| issued_at | Domain issuance time from verified provider state or admitted local issuance |
+| due_at | Collection due instant when applicable |
+| paid_at | Collection confirmation time when paid |
+| provider_invoice_ref | Protected adapter object reference; never authoritative identity |
+| source_event_id | Normalized provider event or reconciliation observation that last advanced state |
+| correlation_id | Order, subscription, entitlement, refund, dispute, and audit correlation |
+
+A paid invoice is not mutated into unpaid by a later refund. Refund and dispute remain separate aggregates. A commercial refund has its own `commercial_id` and `state`; it MUST NOT be stored by rewriting Invoice `state` or Order `state` (DR-052). A commercial dispute likewise has its own `commercial_id` and MUST NOT reuse a refund row (DR-053). Dunning retries collect the same Open invoice; they MUST NOT mint a new `invoice_id` or CommercialOrder. `Uncollectible` is the exhausted-collection outcome after `grace_until` without verified Paid (DR-056). A mid-period subscription change pins a `PRORATION_QUOTE`. Positive `delta` uses a distinct Open invoice; negative `delta` is a credit line on the next renewal invoice and MUST NOT rewrite a Paid invoice or open a refund (DR-057). A mixed Recurring+OneTime Bundle admits two sibling orders under one `checkout_group_id`; group `Partial` MUST NOT mint a refund (DR-058).
+
+### 8.53 AI Protected Content
+
+AI Execution owns this aggregate. Asset owns the bytes. `protected_content_id` is `input_ref` and `result_ref`.
+
+| Field | Meaning |
+|---|---|
+| protected_content_id | Stable protected-content identity |
+| tenant_id | Isolation key; not a Discord snowflake |
+| purpose | OperationInput, OperationOutput, OcrSource, OcrText, TranscriptAudio, TranscriptText, or RetrievedContext |
+| privacy_class | Purpose-specific privacy, residency, retention, and training-compatibility |
+| asset_id | Required Asset identity for Available content; never the domain `input_ref` |
+| operation_id | Optional originating AI operation |
+| state | Admitting, available, released, or deleted |
+
+OCR and transcription MUST use `OcrSource`/`OcrText` or `TranscriptAudio`/`TranscriptText` on this aggregate. There is no `OCR_DOCUMENT` blob owner. A Discord CDN URL is not durable content (DR-063).
+
+### 8.54 AI Conversation
+
+AI Character owns this aggregate. Turns reference protected content and MUST NOT store bodies.
+
+| Field | Meaning |
+|---|---|
+| conversation_id | Stable isolation identity |
+| tenant_id | Isolation key |
+| character_id | Owning character |
+| conversation_key | Channel, thread, or user correlation; not the storage tenant predicate |
+| revision_id | Frozen character revision for this window |
+| turn_count | Count of retained turns |
+| state | Active or purged |
+
+First-product window is 20 turns including the current, range 8 through 50. Overflow drops the oldest turn and releases its protected-content reference. Support Archive MUST NOT store this history. A vector or embedding table is not a first-product aggregate (DR-063).
+
+### 8.55 Money-plane contract families
+
+| Family | Plane | Public contracts | MUST NOT |
+|---|---|---|---|
+| `VirtualPayment` | Guild virtual currency | §8.21 journal, holds, and reservation group; §8.23 `payment_reservation_id` / `payment_transaction_id`; 8.6 Monetary ledger leaves and `PurchasePaymentCaptured` | Commercial invoice or order fulfillment; AI Credit lots |
+| `CommercialPayment` | Provider-backed billing | §8.44 payment event, order, and subscription; §8.52 invoice, refund, and dispute; 8.6 Billing leaves | Guild wallet capture; AI Credit reservation |
+| `AiCreditReservation` | Prepaid AI units | §8.46 reservation and usage receipt; 8.6 AI Credits leaves | Monetary hold; commercial payment |
+
+`schema_family` is required on those facts and commands and MUST be exactly one of the three values. `schema_name` remains the §8.6 leaf (DR-006). An unprefixed public type named `Payment`, `Reservation`, or money `Catalog` is forbidden. Guild-shop `CatalogPublished` is Commerce inventory offering, not §8.43 and not `CommercialPayment`. `StockReserved` is inventory. Message Catalog stays `MessageDefinition*`. Module 7.35 is not deleted; its public contracts are `GuildRewardEntitlement` (DR-066). Entitlement isolation is by `schema_name` prefix, not a fourth money-plane `schema_family` (DR-069).
+
+#### Decision Record DR-065
+
+**Status:** Accepted.
+
+**Decision:** Public money-plane contracts MUST set `schema_family` to `VirtualPayment`, `CommercialPayment`, or `AiCreditReservation`. `schema_name` keeps the §8.6 leaf. An unprefixed `Payment`, `Reservation`, or money `Catalog` type is forbidden.
+
+**Rejected Alternative:** One shared Payment contract; renaming §8.6 leaves in this revision; treating stock reservation as `VirtualPayment`; treating `CatalogPublished` as `CommercialPayment`; treating AI Credit reservation as a monetary hold.
+
+#### Decision Record DR-066
+
+**Status:** Accepted.
+
+**Decision:** The guild commerce-reward owner remains module 7.35 and is not deleted. Its public contracts are `GuildRewardEntitlement`. Platform Entitlement remains `PlatformEntitlement`. An unprefixed public type `Entitlement` is forbidden.
+
+**Rejected Alternative:** Deleting module 7.35; merging with Platform Entitlement; renaming Platform Entitlement; treating `GRANT_SOURCE` as a guild reward.
+
+#### Decision Record DR-067
+
+**Status:** Accepted.
+
+**Decision:** Payment-provider HTTP callbacks MUST terminate at Provider Event Edge and follow the 9.36 ACK/inbox path. HTTP success ACK is allowed only after a durable Edge ingress receipt. Duplicates ACK success and reuse that receipt. Invalid, expired, or unknown generation MUST NOT ACK success. ACK MUST NOT wait for Billing apply, `GRANT_SOURCE`, entitlement projection, or lot mint. Billing MUST NOT open a public payment webhook listener. DR-022 receipt-versus-fulfillment glossary is unchanged.
+
+**Rejected Alternative:** Billing as the public webhook listener; ACK after entitlement projection; ACK before durable ingress; treating Edge ACK as `GRANT_SOURCE` apply.
+
+#### Decision Record DR-068
+
+**Status:** Accepted.
+
+**Decision:** Role Policy and Assignment is the sole platform client of Discord Transport for member-role add and remove. Those operations are one-role add or remove, never a replace of the member's complete role list. Moderation Cases remains the owner of punitive member-role desired state: quarantine present or absent, dangerous-role absent, and other case-owned role relations. Cases publishes those relations as assignment intents with a Cases ownership key and MUST NOT call Transport for member-role add or remove. Timeout, kick, ban, unban, purge, slowmode, and channel lock remain Cases through Transport. Role Resource remains the sole writer of guild-role catalog mutations and MUST NOT add or remove member roles. Assignment MUST NOT author punitive desired state or reinterpret a Cases-owned relation as automatic or self-service ownership. For the same guild, member, and role, Cases or security ownership outranks automatic and self-service ownership. Discord hierarchy and bot capability are rechecked immediately before each Transport mutation. DR-014 catalog ownership and DR-020 `protected_targets` ownership are unchanged.
+
+**Rejected Alternative:** Cases and Assignment both calling Transport for member-role mutations; replacing the member's complete role list; Assignment authoring punitive desired state; Role Resource adding or removing member roles; merging Cases ownership into auto-role policy.
+
+#### Decision Record DR-069
+
+**Status:** Accepted.
+
+**Decision:** Public entitlement contracts are only `GuildRewardEntitlement*` for module 7.35 and `PlatformEntitlement*` for module 7.55. An envelope whose `schema_name` is unprefixed `Entitlement` or any other Entitlement-shaped name MUST fail closed at parse. Platform Entitlement MUST reject `GuildRewardEntitlement*` at inbox apply. Module 7.35 MUST reject `PlatformEntitlement*` leaves and MUST NOT apply `GRANT_SOURCE`. Consumers MUST NOT infer the plane from payload fields. The private `ENTITLEMENT` table remains guild-reward storage and MUST NOT be Platform Entitlement's journal. DR-066 ownership and public names are unchanged.
+
+**Rejected Alternative:** Guessing guild versus platform from payload; applying unprefixed `Entitlement*` into either journal; sharing one Entitlement inbox; treating `ENTITLEMENT` as Platform Entitlement storage.
+
+#### Decision Record DR-070
+
+**Status:** Accepted.
+
+**Decision:** `Disputed` is a Ledger reservation review state, not an AI Execution operation state. While a reservation is `Uncertain` or `Disputed`, the paired operation MUST remain `Uncertain`. The operation machine MUST NOT gain a `Disputed` state. Reservation `Disputed` MUST NOT be treated as capture, release, refund, operation `Failed`, operation `Succeeded`, or settlement. The operation MAY leave `Uncertain` only after Ledger accepts a confirmed usage or absence receipt into `Capturing` or `Releasing`. Query and dashboard MUST NOT present a `Disputed` reservation as a completed operation. DR-061 deadlines and DR-062 attempt classes are unchanged.
+
+**Rejected Alternative:** Adding operation `Disputed`; auto-failing the operation when the reservation becomes `Disputed`; treating `Disputed` as `Released` or `Captured`; dashboard settlement from `Disputed`.

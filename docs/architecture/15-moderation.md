@@ -10,12 +10,14 @@ Dashboard pages and application commands are presentation adapters. They do not 
 
 | Product surface | Owning service | Supporting services |
 |---|---|---|
-| Moderation tools | Moderation Case Service | Control API, Interaction Edge, Discord Capability, Discord Transport, Delivery |
+| Moderation tools | Moderation Case Service | Control API, Interaction Edge, Discord Capability, Discord Transport, Delivery, Role Policy and Assignment |
 | Active warnings and sanctions | Moderation Case Service read projection | Query and Status Service |
 | Server audit browser | Discord Audit Query Service | Control API, Discord Capability, Discord Transport |
 | Activity-log configuration and history | Activity Log Service | Query and Status, Message Catalog, Delivery |
 | Automatic moderation configuration and incidents | Auto Moderation Policy Service | Discord Capability, Moderation Cases, Delivery, Activity Log |
 | Countdown deletion and scheduled cleanup | Retention and Cleanup Service | Schedule wake-up capability, Discord Capability, Discord Transport, Activity Log |
+
+**DR-011.** Auto Moderation is not missing Transport. Platform-owned single-message deletion is a Delivery intent; Delivery is the only Auto Moderation client of Discord HTTP for that effect, and Delivery invokes Transport. Auto Moderation MUST NOT open Transport. Retention lists Transport because countdown and sweep deletes are paginated provider enumeration and bulk delete, not product-message intents. Moderation Cases lists Transport for timeout, kick, ban, unban, purge, slowmode, and channel lock. Auto-mod member sanctions still go Cases → Transport for those actions. Member-role add and remove are DR-068: Cases publishes assignment intents; Assignment is the Transport client.
 
 ### 26.2 Moderation action semantics
 
@@ -32,11 +34,19 @@ Dashboard pages and application commands are presentation adapters. They do not 
 | Slowmode | Supported channel | Set a validated slowmode value using an optimistic channel-state precondition | Actor policy and bot channel-management capability | Tenant, command, channel, desired value, observed revision |
 | Lock | Supported channel | Deny the configured send capability for the target principal while preserving every unrelated overwrite bit | Actor policy and bot permission-management capability | Tenant, command, channel, principal, observed overwrite revision |
 | Unlock | Supported channel | Restore only the lock change created by a known lock case when the current overwrite still matches its expected state | Actor policy and bot permission-management capability | Tenant, command, originating lock case, observed overwrite revision |
-| Apply quarantine role | Guild member | Add one policy-approved quarantine role and record ownership without replacing the member's complete role set | Authorized security source or actor, bot role capability, owner protection, hierarchy, protected-target policy | Tenant, incident or command, target, quarantine role, desired present state |
-| Remove quarantine role | Guild member | Remove only a quarantine relation owned by the referenced case or explicitly authorized override | Actor or service authority, bot role capability, hierarchy, ownership reference | Tenant, command, target, originating quarantine case, desired absent state |
-| Remove dangerous roles | Guild member | Remove a bounded snapshotted set of editable roles selected by an anti-nuke policy and report every role outcome independently | Authorized security incident, bot role capability, owner protection, hierarchy, exact dangerous-permission revision | Tenant, incident, target, role set fingerprint, policy revision |
+| Apply quarantine role | Guild member | Publish a Cases-owned present assignment intent for one policy-approved quarantine role without replacing the member's complete role set. Assignment executes the one-role add (DR-068). | Authorized security source or actor, bot role capability, owner protection, hierarchy, protected-target policy | Tenant, incident or command, target, quarantine role, desired present state |
+| Remove quarantine role | Guild member | Publish a Cases-owned absent assignment intent for only a quarantine relation owned by the referenced case or explicitly authorized override. Assignment executes the one-role remove (DR-068). | Actor or service authority, bot role capability, hierarchy, ownership reference | Tenant, command, target, originating quarantine case, desired absent state |
+| Remove dangerous roles | Guild member | Publish Cases-owned absent assignment intents for a bounded snapshotted set of editable roles selected by an anti-nuke policy. Assignment executes each one-role remove and reports every role outcome independently (DR-068). | Authorized security incident, bot role capability, owner protection, hierarchy, exact dangerous-permission revision | Tenant, incident, target, role set fingerprint, policy revision |
 
 Provider limits are validated at command admission and again immediately before transport. The current product baseline accepts moderation reasons no longer than Discord's applicable audit-reason boundary, timeouts no longer than Discord's supported maximum, ban history deletion only within the supported window, purge requests in bounded pages, and slowmode only within the provider-supported range.
+
+#### Decision Record DR-068
+
+**Status:** Accepted.
+
+**Decision:** Role Policy and Assignment is the sole platform client of Discord Transport for member-role add and remove. Those operations are one-role add or remove, never a replace of the member's complete role list. Moderation Cases remains the owner of punitive member-role desired state: quarantine present or absent, dangerous-role absent, and other case-owned role relations. Cases publishes those relations as assignment intents with a Cases ownership key and MUST NOT call Transport for member-role add or remove. Timeout, kick, ban, unban, purge, slowmode, and channel lock remain Cases through Transport. Role Resource remains the sole writer of guild-role catalog mutations and MUST NOT add or remove member roles. Assignment MUST NOT author punitive desired state or reinterpret a Cases-owned relation as automatic or self-service ownership. For the same guild, member, and role, Cases or security ownership outranks automatic and self-service ownership. Discord hierarchy and bot capability are rechecked immediately before each Transport mutation. DR-014 catalog ownership and DR-020 `protected_targets` ownership are unchanged.
+
+**Rejected Alternative:** Cases and Assignment both calling Transport for member-role mutations; replacing the member's complete role list; Assignment authoring punitive desired state; Role Resource adding or removing member roles; merging Cases ownership into auto-role policy.
 
 ### 26.3 Authorization model
 
@@ -45,8 +55,8 @@ Authorization is a conjunction, never a single permission check:
 1. The request is authenticated as a dashboard user, Discord interaction user, or admitted service principal.
 2. The actor belongs to the correct tenant or has an explicitly valid installation context.
 3. The actor has the product capability for the requested action.
-4. The actor satisfies guild owner and role-hierarchy rules for the target.
-5. The target is not denied by protected-user or protected-role policy.
+4. The actor satisfies guild owner and role-hierarchy rules for the target. Those Discord facts come from Discord Capability.
+5. The target is not denied by protected-user or protected-role product policy owned by Moderation Cases. Capability MAY evaluate a pinned snapshot of that policy; it MUST NOT own it (DR-020).
 6. The bot has the required Discord permission.
 7. The bot outranks the target where Discord hierarchy applies.
 8. The destination or resource supports the requested operation.
@@ -126,7 +136,7 @@ Each rule revision defines:
 | Exemptions | Explicit roles, channels, users, bots, webhooks, staff policy, and integration sources |
 | Ownership | Discord native, platform, or observe only |
 | Decision priority | Deterministic ordering when several rules match one event |
-| Actions | Delete or native block, incident creation, warning, timeout, kick, ban, response, or alert |
+| Actions | Delete or native block as content remediation; incident creation; member sanctions (warning, timeout, kick, ban); response or alert. Delete is not a member sanction. |
 | Cooldowns | User, channel, rule, and guild suppression windows |
 | Evidence | Whether content, hash, excerpt, attachment metadata, or no evidence may be retained |
 | Review | Dry-run, staged rollout, sample rate, false-positive workflow, and activation state |
@@ -163,7 +173,14 @@ flowchart TD
     Platform --> MessageEvent[Consume eligible message event]
     MessageEvent --> Evaluate[Evaluate compiled policy snapshot]
     Evaluate --> Incident
-    Incident --> Actions[Request each idempotent configured action]
+    Incident --> Duplicate{Semantic incident already exists}
+    Duplicate -- Yes --> Suppress[Suppress additional member sanctions and alerts]
+    Suppress --> DeleteDue{Platform-owned delete still due for this message}
+    DeleteDue -- Yes --> Actions
+    DeleteDue -- No --> Stop[No further Case request]
+    Duplicate -- No --> Actions[Request each idempotent configured action]
+    Actions --> Case[Member sanctions through Moderation Cases]
+    Actions --> Delete[Platform-owned delete through Delivery]
 
     Observe --> EvaluateOnly[Evaluate and record without effects]
     EvaluateOnly --> Review[False positive and policy review]
@@ -176,6 +193,7 @@ Native synchronization is desired-state reconciliation:
 - Desired and observed hashes detect drift.
 - Rule limits and permission failures produce a blocked policy state.
 - Losing synchronization does not silently transfer ownership to the platform evaluator and cause duplicate enforcement.
+- A duplicate observation of an existing incident suppresses additional member sanctions and alerts before any new Case request. Platform-owned message deletion MAY still be requested when the incident still names that message; it is not a second sanction.
 - A deliberate ownership transition requires a new policy revision and a fenced handoff sequence.
 
 ### 26.9 Incident evidence and review
@@ -293,6 +311,7 @@ Forum and media parents contain posts represented as threads; the policy must st
 
 - Case creation and case outbox publication are atomic.
 - Automatic moderation incident creation and enforcement-request publication are atomic.
+- Automatic moderation duplicate observations suppress additional member sanctions and alerts before a Moderation Action Request. Platform-owned deletion is a distinct Delivery action, idempotent by incident and message. Auto Moderation does not call Transport.
 - Cleanup occurrence checkpoint and deletion-result publication are atomic.
 - Activity record creation and optional delivery-intent publication are atomic.
 - Discord provider mutation and local persistence cannot be one transaction; uncertainty is represented and reconciled.

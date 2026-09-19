@@ -126,6 +126,7 @@ Transaction, postings, balance projection changes, and outbox events commit in o
 
 - Balances, prices, stock, stakes, fines, rewards, taxes, and payouts use bounded integers.
 - Percentage, multiplier, and probability configuration uses bounded rational or fixed-scale decimal representation, never binary floating point.
+- Commercial billed amounts and AI Credits use integer minor units on their own journals (DR-016) and never enter this ledger. Guild-shop capture facts are `VirtualPayment` and MUST NOT use `CommercialPayment` (DR-065).
 - Each rule declares floor, ceiling, nearest, bankers, or exact-divisibility rounding; implicit runtime-language rounding is forbidden.
 - Tax is calculated from the declared gross or net base and stores base, rate, unrounded intermediate representation where needed, rounding mode, and final amount.
 - A zero net transfer, zero payout, or zero fine follows an explicit policy result and is not silently converted to a positive amount.
@@ -214,7 +215,7 @@ A salary plan pins role, mode, formula, schedule or collectable cooldown, stacki
 Supported modes are:
 
 - `Collectable`: an eligible member requests each available salary occurrence.
-- `Scheduled`: a durable occurrence evaluates a bounded member snapshot and requests payouts without member interaction.
+- `Scheduled`: a durable occurrence evaluates a bounded member snapshot and requests payouts without member interaction. The occurrence is a Durable Timer registration with Schedule; lost wake-ups are recovered by the platform due-row sweep.
 
 Supported formulas are bounded fixed amount or percentage of an explicitly named base such as current wallet, current bank, or another admitted projection. Percentage formulas declare snapshot time, cap, rounding, and whether multiple plans compound; compounding on balances modified by the same distribution is forbidden.
 
@@ -338,14 +339,14 @@ Purchase state derives as follows:
 - `Paid`: capture confirmed and reward occurrences committed.
 - `Fulfilling`: at least one required reward remains eligible and active work exists.
 - `PartiallyFulfilled`: at least one required reward is blocked, failed, uncertain, or in compensation conflict.
-- `Fulfilled`: every required reward is active or completed; optional failures are still visible.
+- `Fulfilled`: every required reward is active or completed; optional failures are still visible. The order MAY later enter the refund process manager in §30.28; `Fulfilled` is not a sink.
 - `ReconciliationRequired`: payment, stock, entitlement ownership, or refund cannot be safely resolved automatically.
 
 The member-facing receipt lists each benefit and current outcome. It does not collapse a paid but partially fulfilled order into success.
 
 ### 30.28 Cancellation, compensation, and refund
 
-Cancellation before payment capture releases the monetary reservation and stock reservation. After capture, refund is a process manager:
+Cancellation before payment capture releases the monetary reservation and stock reservation. After capture, refund is a process manager, including when the order is already `Fulfilled` ([05-state-models.md](05-state-models.md) §10.20, DR-007). This manager is guild virtual-currency commerce only. Stripe commercial refunds use `COMMERCIAL_REFUND` in §10.46 (DR-052) and MUST NOT enter this path.
 
 1. Authorize reason, policy, deadline, order version, and refund scope.
 2. Ask each activated required entitlement whether reversal is safe and admitted.
@@ -359,7 +360,7 @@ Refund never edits the capture transaction. It posts a new balanced transaction.
 
 ### 30.29 Role entitlement
 
-A role entitlement defines target role, beneficiary, desired presence, duration, renewal, stacking or replacement behavior, and ownership key. Entitlement Service requests the relation through Role Policy and Assignment with the purchase reward revision as policy evidence.
+A role entitlement is a `GuildRewardEntitlement` grant. It defines target role, beneficiary, desired presence, duration, renewal, stacking or replacement behavior, and ownership key. The Guild Reward Entitlement module requests the relation through Role Policy and Assignment with the purchase reward revision as policy evidence. It is not a Platform Entitlement snapshot (DR-066). Unprefixed `Entitlement*` names MUST fail closed; consumers MUST NOT infer the plane from payload fields (DR-069).
 
 Activation requires live membership, current role existence, bot hierarchy, `MANAGE_ROLES`, non-managed status, prohibited-permission policy, and any reward eligibility recheck. Existing role presence becomes `Unchanged` but ownership is claimed only if policy allows a purchased entitlement to own renewal or later removal.
 
@@ -395,7 +396,7 @@ If manual fulfillment is non-reversible, the catalog must disclose that fact and
 
 Renewal behavior is `ExtendFromCurrentExpiry`, `ExtendFromNow`, `Replace`, `RejectWhileActive`, or owning-domain-specific merge. It is evaluated atomically against the active entitlement lineage and creates a new lifecycle generation.
 
-Expiry occurrences include entitlement, generation, intended time, and semantic key. A due worker reloads state, ownership, external binding, and dependency health. A stale generation is skipped. A valid generation requests idempotent revocation and retains retry state until confirmation.
+Expiry occurrences include entitlement, generation, intended time, and semantic key. They are Durable Timer registrations with Schedule. A due worker reloads state, ownership, external binding, and dependency health. A stale generation is skipped. A valid generation requests idempotent revocation and retains retry state until confirmation.
 
 External administrator changes never disappear into success. If a role relation, channel, overwrite, or boost no longer matches the last confirmed owned state, the service classifies current state as already absent, safe convergence, ownership conflict, or unknown. Destructive compensation requires the first two classes only.
 
@@ -479,7 +480,7 @@ Outcome commit and ledger settlement are separate transactions. The game remains
 
 ### 30.42 Session expiry, abandonment, and recovery
 
-Every interactive session has a durable deadline and generation-bound timer. At expiry, the service reloads the exact committed state and applies the rule revision's outcome:
+Every interactive session has a durable deadline and generation-bound timer registered with Schedule's wake-up capability. At expiry, the service reloads the exact committed state and applies the rule revision's outcome:
 
 - Cancel and release when no random outcome or irreversible player advantage exists.
 - Auto-stand or deterministic dealer completion where blackjack rules disclose it.

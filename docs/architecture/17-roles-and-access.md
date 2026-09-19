@@ -14,7 +14,8 @@
 | Member role-assignment status | Role Policy and Assignment read projection | Query and Status, Activity Log |
 | Panel publication and health | Role Panel Service read projection | Query and Status, Delivery |
 | Role creation, editing, deletion, and hierarchy | Role Resource Service | Control API, Discord Capability, Discord Transport, Discord Audit Query |
-| Live role catalog and assignment capability | Discord Capability Service | Gateway Edge, Discord Transport |
+| Rebuildable guild-role catalog (`DiscordRoleProjection`) | Role Resource Service | Gateway Edge, Discord Transport |
+| Assignment, hierarchy, and permission capability reports | Discord Capability Service | Gateway Edge, Discord Transport |
 
 The administrative routes for these surfaces MUST use distinct bounded-context namespaces and operation-specific authorization. Route composition has a build-time collision check over method and normalized path. No screen or route prefix becomes a service boundary by itself.
 
@@ -124,7 +125,7 @@ Platform verification panels are ordinary self-service role policies and MUST NO
 
 ### 28.7 Delayed and temporary roles
 
-Every delay and expiry is a durable occurrence with intended time, timezone-independent instant, misfire policy, lease, and unique occurrence key.
+Every delay and expiry is a durable occurrence with intended time, timezone-independent instant, misfire policy, lease, and unique occurrence key. The due instant is registered with Schedule's wake-up capability. Lost-signal recovery is the platform due-row sweep, not a process-local clock.
 
 Delay semantics:
 
@@ -177,12 +178,12 @@ The executor handles one desired member-role relation at a time:
 3. Resolve member existence, current roles, target role, managed state, bot hierarchy, sensitive classification, and required permission.
 4. Confirm that the ownership key may request the desired transition.
 5. Return `Unchanged` without a provider request when desired state already holds.
-6. Submit one typed add or remove request through Discord Transport.
+6. Submit one typed add or remove request through Discord Transport. The operation is one role, never a replace of the member's complete role list (DR-068).
 7. Persist confirmed, retryable, blocked, permanent, or uncertain result.
 8. Reconcile uncertainty from current member-role state before retry.
 9. Publish the outcome and schedule expiry only after ownership and provider state are confirmed.
 
-Bulk planning never becomes an unbounded provider batch. Each relation remains independently observable. A provider endpoint that replaces a member's complete role list is not used for ordinary assignment because it could overwrite roles owned by administrators or other modules.
+Bulk planning never becomes an unbounded provider batch. Each relation remains independently observable. A provider endpoint that replaces a member's complete role list is not used for assignment because it could overwrite roles owned by administrators or other modules (DR-068).
 
 ### 28.11 Group and exclusivity semantics
 
@@ -304,7 +305,7 @@ Cross-domain coordination follows these rules:
 
 - Lifecycle Messaging and Role Assignment consume the same canonical member event independently. Welcome delivery never waits for role convergence, and role assignment never depends on welcome success.
 - A versioned role policy may delay access-granting additions while a Security containment operation is active. The containment fact is an input gate; Roles cannot open, resolve, or acknowledge the security incident.
-- Quarantine assignment, dangerous-role removal, and other punitive role changes remain immutable Moderation Cases. Role Assignment does not reinterpret them as self-service ownership.
+- Quarantine assignment, dangerous-role removal, and other punitive role changes remain immutable Moderation Cases desired state. Role Assignment executes the one-role Transport mutation and MUST NOT reinterpret them as self-service or automatic ownership (DR-068).
 - Role deletion or privilege change publishes targeted invalidations to Moderation protected-role policy, Security exemptions and response plans, Auto Moderation exemptions, Role policies, and panel mappings.
 - Activity Log consumes normalized outcomes from every owner and does not become the authority for member-role state.
 - A shared role referenced by multiple domains retains separate policy references and outcome histories; no service updates another service's aggregate directly.
@@ -450,10 +451,20 @@ Member exports and deletion workflows distinguish active authorization state fro
 - Provider role state and local desired state cannot share a transaction; discrepancies are explicit and reconciled.
 - A panel revision is immutable even when its provider projection is degraded.
 - Panel publication receipts do not mutate assignment policy and assignment outcomes do not mutate panel history.
-- Role Resource mutation history is independent from the rebuildable Role Capability projection.
+- Role Resource mutation history is independent from Discord Capability permission and member-role reports. The rebuildable guild-role catalog (`DiscordRoleProjection`) is owned by Role Resource (DR-014). Capability and Assignment MAY read it or keep disposable local copies; they MUST NOT write the authoritative catalog row.
+- Discord Capability reports Discord hierarchy and permissions. Moderation protected-role product policy is owned by Moderation Cases (DR-020). Role Policy and Assignment MUST NOT author that list.
+- Role Policy and Assignment is the sole Transport client for member-role add and remove. Cases MUST NOT call Transport for those operations (DR-068).
 - Guild role events may arrive before the originating HTTP response; correlation uses provider identity and mutation reference without duplicating history.
 - Group assignment exposes each provider effect and retains the group operation until converged or terminally partial.
 - A newer policy or panel revision may supersede pending work but never rewrites confirmed attempts.
+
+#### Decision Record DR-068
+
+**Status:** Accepted.
+
+**Decision:** Role Policy and Assignment is the sole platform client of Discord Transport for member-role add and remove. Those operations are one-role add or remove, never a replace of the member's complete role list. Moderation Cases remains the owner of punitive member-role desired state: quarantine present or absent, dangerous-role absent, and other case-owned role relations. Cases publishes those relations as assignment intents with a Cases ownership key and MUST NOT call Transport for member-role add or remove. Timeout, kick, ban, unban, purge, slowmode, and channel lock remain Cases through Transport. Role Resource remains the sole writer of guild-role catalog mutations and MUST NOT add or remove member roles. Assignment MUST NOT author punitive desired state or reinterpret a Cases-owned relation as automatic or self-service ownership. For the same guild, member, and role, Cases or security ownership outranks automatic and self-service ownership. Discord hierarchy and bot capability are rechecked immediately before each Transport mutation. DR-014 catalog ownership and DR-020 `protected_targets` ownership are unchanged.
+
+**Rejected Alternative:** Cases and Assignment both calling Transport for member-role mutations; replacing the member's complete role list; Assignment authoring punitive desired state; Role Resource adding or removing member roles; merging Cases ownership into auto-role policy.
 
 ### 28.25 Roles operational kill switches
 

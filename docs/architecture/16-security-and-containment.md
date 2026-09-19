@@ -14,7 +14,8 @@ Dashboard pages and application commands are adapters. They do not own security 
 | Anti-nuke policy and simulation | Security Policy and Incident Service | Control API, Discord Capability, Discord Audit Query |
 | Security incident timeline and review | Security Policy and Incident Service read projection | Query and Status, Activity Log, Moderation Cases |
 | Lockdown preview, activation, progress, and restoration | Containment Orchestrator | Control API, Interaction Edge, Discord Capability, Discord Transport |
-| Member quarantine, timeout, kick, ban, or dangerous-role removal | Moderation Case Service | Security Policy and Incident, Discord Capability, Discord Transport |
+| Member timeout, kick, or ban | Moderation Case Service | Security Policy and Incident, Discord Capability, Discord Transport |
+| Member quarantine or dangerous-role removal | Moderation Case Service | Security Policy and Incident, Discord Capability, Role Policy and Assignment |
 | Incident alert configuration and status | Security Policy and Incident Service | Message Catalog, Delivery, Query and Status |
 | Native incident controls | Containment Orchestrator | Discord Capability, Discord Transport |
 
@@ -133,11 +134,11 @@ Response plans contain ordered typed steps. Each step has one owner, admission p
 |---|---|---|---|
 | Observe and record | Security Policy and Incident | Always non-mutating | None |
 | Send or update incident alert | Delivery | Explicit mention policy and destination capability | Superseding summary, not message spam |
-| Apply or remove quarantine role | Moderation Case Service | Actor/service authority, bot role hierarchy, protected-target policy | Separate compensating case |
+| Apply or remove quarantine role | Moderation Case Service | Actor/service authority, bot role hierarchy, protected-target policy. Cases publishes the assignment intent; Assignment is the Transport client (DR-068). | Separate compensating case |
 | Apply timeout | Moderation Case Service | Moderatable member and provider duration bound | Remove-timeout case when plan declares it |
 | Kick member | Moderation Case Service | Kick permission and hierarchy | No automatic inverse operation |
 | Ban user | Moderation Case Service | Ban permission, hierarchy when member exists, explicit history-deletion policy | Unban requires separate case and does not restore membership |
-| Remove dangerous roles | Moderation Case Service | Editable roles only, permission allowlist, per-role outcomes | Role restoration is never automatic unless separately snapshotted and authorized |
+| Remove dangerous roles | Moderation Case Service | Editable roles only, permission allowlist, per-role outcomes. Cases publishes absent intents; Assignment executes each one-role remove (DR-068). | Role restoration is never automatic unless separately snapshotted and authorized |
 | Apply or restore channel lockdown | Containment Orchestrator | Manage-channel capability, resource snapshot, compare-and-set | Owned-bit restoration |
 | Pause or resume invites | Containment Orchestrator | Supported incident action, `MANAGE_GUILD`, admitted duration | Clear only the operation-owned pause value |
 | Pause or resume guild DMs | Containment Orchestrator | Supported incident action, `MANAGE_GUILD`, admitted duration | Clear only the operation-owned pause value |

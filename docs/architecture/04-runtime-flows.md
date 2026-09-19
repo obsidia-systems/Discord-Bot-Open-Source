@@ -48,13 +48,15 @@ sequenceDiagram
 sequenceDiagram
     autonumber
     participant Discord
+    participant Gateway as Gateway Edge
     participant Edge as Interaction Edge
     participant Inbox as Interaction Inbox
     participant Domain as Command Owner
     participant Delivery as Delivery Orchestrator
 
-    Discord->>Edge: Interaction payload
-    Edge->>Edge: Verify signature identity and deadline
+    Discord->>Gateway: INTERACTION_CREATE
+    Gateway->>Edge: In-process handoff
+    Edge->>Edge: Authenticate and meet 3-second deadline
     Edge->>Inbox: Reserve interaction idempotently
 
     alt Fast deterministic response
@@ -70,6 +72,8 @@ sequenceDiagram
 
     Edge->>Inbox: Record acknowledgement outcome and expiry
 ```
+
+First-product ingress is Gateway `INTERACTION_CREATE`, handed in-process from Gateway Edge. The initial acknowledgement or defer MUST complete within Discord's 3-second budget through a typed Transport interaction-callback operation and MUST NOT wait on bus publish (DR-004, DR-042). When webhook mode is selected later, verification is Discord Ed25519 over the timestamp concatenated with the exact raw body, before JSON parse (DR-034). Gateway-delivered interactions do not use that HTTP path. Discord's PING handshake uses the same verification. The two modes MUST NOT run concurrently.
 
 ### 9.3 Member join delivery
 
@@ -116,6 +120,8 @@ sequenceDiagram
     Delivery->>Delivery: Persist independent final outcomes
 ```
 
+Each destination is a separate delivery intent. Execution, including lost HTTP responses, is [§9.8](#98-delivery-execution-and-uncertain-outcome). This diagram MUST NOT be read as skipping reconciliation.
+
 ### 9.4 Departure and ban correlation
 
 ```mermaid
@@ -145,7 +151,7 @@ sequenceDiagram
     end
 ```
 
-No failed REST lookup may be interpreted as evidence that a ban did not occur.
+No failed REST lookup may be interpreted as evidence that a ban did not occur. The correlation timer is a Durable Timer registration. Lost wake-up recovery is the platform sweep in [§9.6](#96-scheduled-message-occurrence-and-platform-due-work-sweep).
 
 ### 9.5 Immediate manual message
 
@@ -156,38 +162,31 @@ sequenceDiagram
     participant API as Control API
     participant Catalog as Message Catalog
     participant Delivery
-    participant Capabilities
-    participant Transport
-    participant Discord
 
     Admin->>API: Send published revision to destination
     API->>API: Authenticate authorize and reserve idempotency key
     API->>Catalog: Validate revision and caller access
     Catalog-->>API: Immutable definition reference
-    API->>Delivery: Create delivery intent
-    Delivery->>Capabilities: Inspect destination and permissions
-    Capabilities-->>Delivery: Capability report
-    Delivery->>Delivery: Render variables and validate final payload
-    Delivery->>Transport: Execute create message
-    Transport->>Discord: Rate limited provider request
-    Discord-->>Transport: Message identity
-    Transport-->>Delivery: Normalized success
-    Delivery-->>API: Durable status reference
-    API-->>Admin: Accepted or final result according to request mode
+    API->>Delivery: Command: create delivery intent
+    Delivery->>Delivery: Persist intent by idempotency key
+    Delivery-->>API: Accepted with delivery identity
+    API-->>Admin: Accepted; status is polled from Query and Status
 ```
 
-### 9.6 Scheduled message occurrence
+The Control API MUST NOT treat Discord HTTP success as the admission response. After the intent is durable, execution including rate limits, blocked destinations, and lost responses follows [§9.8](#98-delivery-execution-and-uncertain-outcome). Request mode MAY wait on delivery status without calling Discord from Control API. When the owning module is not in Control Plane, Control API reaches it by command-HTTP; that RPC MUST NOT remain open until the Discord effect (DR-041). First-product dashboard status after admission is REST poll of Query and Status, not a product WebSocket (DR-043).
+
+### 9.6 Scheduled message occurrence and platform due-work sweep
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Clock as Durable Wake Up
+    participant Sweep as Due-row Sweep
     participant Schedule
     participant Store as Schedule Store
     participant Outbox
     participant Delivery
 
-    Clock->>Schedule: Due work signal
+    Sweep->>Schedule: Due work signal
     Schedule->>Store: Claim due rows with lease and fencing token
     Store-->>Schedule: Claimed occurrences
 
@@ -197,11 +196,32 @@ sequenceDiagram
         Schedule->>Outbox: Commit delivery request and next occurrence
         Outbox->>Delivery: Publish delivery intent
     end
+```
 
-    alt Wake up signal was lost
-        Schedule->>Store: Bounded safety sweep finds due occurrence
+Scheduled-message semantics stay with Schedule. The same module implements the Durable Timer port for every other due instant. The due-row sweep compares stored instants to the Clock port's UTC now; Clock is not this participant (DR-023). Due-work claims use `lease_ttl` 15 Clock-port seconds, heartbeat at most one-third of TTL, and a strictly higher fencing token on reclaim. Lease expiry is not a Durable Timer registration (DR-060).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Sweep as Due-row Sweep
+    participant Schedule
+    participant Store as Wake-up Store
+    participant Owner as Timer Owner Module
+
+    alt Due-work signal arrives
+        Sweep->>Schedule: Due range
+    else Wake-up signal was lost
+        Schedule->>Store: Bounded safety sweep finds due rows
+    end
+    Schedule->>Store: Claim due registrations with lease and fencing token
+    Store-->>Schedule: Claimed opaque registrations
+    loop Each bounded claim
+        Schedule->>Owner: Due-work signal for owner occurrence and generation
+        Owner->>Owner: Claim business row apply misfire retain terminal state
     end
 ```
+
+**DR-009.** Every later diagram that names Durable Timer or Schedule Wake-up Capability uses this port. A lost due-work signal MUST NOT orphan a reminder, entitlement, support timer, retention countdown, role expiry, giveaway close, salary occurrence, or any other Durable Timer. Schedule's sweep finds due rows and signals the owner. The owner applies misfire policy and retains terminal-state authority. Owner-side reconciliation after a signal does not replace this sweep.
 
 ### 9.7 Automatic reply hot path
 
@@ -280,7 +300,26 @@ sequenceDiagram
     else Blocked or permanent invalid
         Delivery->>Store: Mark blocked or permanently failed
     end
+    alt Attempt ceiling or absolute deadline exhausted
+        Delivery->>Store: Mark dead letter with reason replay eligibility and operator action
+    else Reconciliation evidence window expired without proof
+        Delivery->>Store: Mark unresolved then dead letter
+    end
 ```
+
+Delivery claims use the due-work lease catalog (DR-060). First-product `lease_ttl` is 15 Clock-port seconds. The worker MUST heartbeat while blocked on Transport. A superseded fencing token MUST NOT mark the attempt sent.
+
+Poison or exhausted delivery work becomes a Delivery dead letter. The record MUST include normalized reason, owning module, next operator action, and replay eligibility. Authorized replay creates a new attempt generation of the same intent. Blind replay of dead-letter traffic is forbidden.
+
+`Blocked` is terminal for that intent. Capability or catalog correction does not reopen it. The owning module admits a new intent ([§10.1](05-state-models.md#101-delivery-lifecycle), DR-012).
+
+#### Decision Record DR-008
+
+**Status:** Accepted.
+
+**Decision:** Every Discord message create, including immediate send, executes the §9.8 machine (uncertain outcome, nonce, reconciliation). Delivery owns a dead-letter state after retry/deadline/evidence-window exhaustion. Reminder and workflow dead letters remain their owners' terminal records; they do not replace Delivery's DLQ for the message intent.
+
+**Rejected Alternative:** Inline Discord HTTP from Control API; treating 9.5 as a happy-path-only shortcut; omitting Delivery DLQ because reminders already have one.
 
 ### 9.9 Manual moderation action
 
@@ -367,14 +406,19 @@ sequenceDiagram
             Counters-->>AutoMod: Counter decision
         end
         AutoMod->>Store: Reserve semantic incident identity
-        AutoMod->>Delivery: Request typed message deletion when configured
     end
 
     alt Duplicate observation of existing incident
         Store-->>AutoMod: Existing incident
-        AutoMod->>AutoMod: Suppress duplicate punishment
+        AutoMod->>AutoMod: Suppress additional member sanctions and alerts
+        opt Platform owns enforcement and delete is configured and incident still names this message
+            AutoMod->>Delivery: Request typed message deletion once per incident and message
+        end
     else New actionable incident
         Store-->>AutoMod: Incident created
+        opt Platform owns enforcement and delete is configured
+            AutoMod->>Delivery: Request typed message deletion
+        end
         opt Member sanction configured
             AutoMod->>Cases: Submit idempotent moderation action request
             Cases-->>AutoMod: Case reference
@@ -385,6 +429,10 @@ sequenceDiagram
         AutoMod->>Store: Append referenced outcomes
     end
 ```
+
+**DR-010.** Incident reservation happens before any Case request or Delivery delete. Duplicate observations suppress additional member sanctions (warn, timeout, kick, ban) and additional alerts before Auto Moderation submits a Moderation Action Request. Platform-owned message deletion is a distinct Delivery action, not a member sanction. It MAY still be requested after that check when the incident still names the offending message, at most once per incident and message. Native-owned blocks or deletes are never repeated.
+
+**DR-011.** Auto Moderation MUST NOT call Transport. Delivery executes the typed delete through Transport, with capability preflight, uncertain-outcome reconciliation, and dead letter. A confirmed unknown-message result is success. Nonce remains create-only ([§9.8](#98-delivery-execution-and-uncertain-outcome)). Retention cleanup is not this path.
 
 ### 9.11 Activity record and Discord log delivery
 
@@ -449,6 +497,8 @@ sequenceDiagram
     end
 ```
 
+Countdown dues are Durable Timer registrations. Lost wake-up recovery is the platform sweep in [§9.6](#96-scheduled-message-occurrence-and-platform-due-work-sweep). Retention deletes through Transport because this is paginated cleanup, not a Delivery product-message intent ([§9.10](#910-automatic-moderation-decision-and-enforcement), DR-011).
+
 ### 9.13 Scheduled retention sweep
 
 ```mermaid
@@ -490,6 +540,8 @@ sequenceDiagram
     end
     Retention->>Bus: Publish complete partial or blocked sweep outcome
 ```
+
+The due sweep occurrence is a Durable Timer registration. The claim above is reached because Schedule signaled due work or the platform sweep recovered a lost signal ([§9.6](#96-scheduled-message-occurrence-and-platform-due-work-sweep)). Bulk and individual cleanup deletes remain typed Transport operations (DR-011).
 
 ### 9.14 Native audit browsing and correlation
 
@@ -660,7 +712,43 @@ sequenceDiagram
     end
 ```
 
-Policy evaluation and intent persistence complete before provider work starts. An assignment deadline prevents a delayed queue from granting obsolete access. Temporary-role expiry is a separate durable intent with its own idempotency identity and ownership check.
+Policy evaluation and intent persistence complete before provider work starts. An assignment deadline prevents a delayed queue from granting obsolete access. Temporary-role expiry is a separate durable intent with its own idempotency identity and ownership check. Punitive quarantine and dangerous-role relations follow the same executor: Cases publishes the intent; Assignment calls Transport; Cases MUST NOT add or remove the role (DR-068).
+
+### 9.17a Punitive member-role intent
+
+```mermaid
+sequenceDiagram
+    participant Cases as Moderation Cases
+    participant Roles as Role Policy and Assignment
+    participant Capability as Discord Capability
+    participant Transport as Discord Transport
+    participant Store as Assignment Store
+
+    Cases->>Cases: Persist case and punitive desired state
+    Cases->>Roles: Assignment intent with Cases ownership key
+    Roles->>Store: Insert unique intent
+    Roles->>Capability: Recheck hierarchy and bot capability
+    alt Mutation admitted
+        Roles->>Transport: Add or remove one member role
+        Transport-->>Roles: Confirmed retryable blocked or uncertain result
+        Roles->>Store: Persist attempt
+        Roles-->>Cases: Assignment outcome
+        Cases->>Cases: Append case event
+    else Desired state already holds
+        Roles->>Store: Mark unchanged
+        Roles-->>Cases: Unchanged outcome
+    end
+```
+
+Cases remains the case owner. Assignment MUST NOT author the punitive desired state. Timeout, kick, and ban stay Cases through Transport.
+
+#### Decision Record DR-068
+
+**Status:** Accepted.
+
+**Decision:** Role Policy and Assignment is the sole platform client of Discord Transport for member-role add and remove. Those operations are one-role add or remove, never a replace of the member's complete role list. Moderation Cases remains the owner of punitive member-role desired state: quarantine present or absent, dangerous-role absent, and other case-owned role relations. Cases publishes those relations as assignment intents with a Cases ownership key and MUST NOT call Transport for member-role add or remove. Timeout, kick, ban, unban, purge, slowmode, and channel lock remain Cases through Transport. Role Resource remains the sole writer of guild-role catalog mutations and MUST NOT add or remove member roles. Assignment MUST NOT author punitive desired state or reinterpret a Cases-owned relation as automatic or self-service ownership. For the same guild, member, and role, Cases or security ownership outranks automatic and self-service ownership. Discord hierarchy and bot capability are rechecked immediately before each Transport mutation. DR-014 catalog ownership and DR-020 `protected_targets` ownership are unchanged.
+
+**Rejected Alternative:** Cases and Assignment both calling Transport for member-role mutations; replacing the member's complete role list; Assignment authoring punitive desired state; Role Resource adding or removing member roles; merging Cases ownership into auto-role policy.
 
 ### 9.18 Role panel publication and member interaction
 
@@ -1012,7 +1100,7 @@ sequenceDiagram
     participant Commerce
     participant Store as Commerce Store
     participant Ledger as Monetary Ledger
-    participant Entitlement
+    participant Entitlement as Guild Reward Entitlement
     participant Delivery
 
     Edge->>Commerce: Purchase command with item revision or catalog identity
@@ -1038,15 +1126,15 @@ sequenceDiagram
     Commerce-->>Edge: Durable order identity and state
 ```
 
-Refund is a new workflow. Commerce first establishes compensability of required entitlements, requests owned reversals, then requests an equal-and-opposite Monetary Ledger transaction. Partial compensation remains visible and never fabricates an atomic rollback across Discord.
+Refund is a new workflow. Commerce first establishes compensability of required GuildRewardEntitlement aggregates, requests owned reversals, then requests an equal-and-opposite Monetary Ledger transaction. Partial compensation remains visible and never fabricates an atomic rollback across Discord. Fulfillment facts use `GuildRewardEntitlement*` `schema_name` leaves, not Platform Entitlement (DR-066). Unprefixed `Entitlement*` names MUST fail closed at parse (DR-069).
 
-### 9.28 Entitlement expiry and reconciliation
+### 9.28 Guild Reward Entitlement expiry and reconciliation
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant Timer as Durable Timer
-    participant Entitlement
+    participant Entitlement as Guild Reward Entitlement
     participant Store as Entitlement Store
     participant Owner as Role Progression or Discord Effect Owner
     participant Reconcile as Reconciliation
@@ -1333,7 +1421,7 @@ sequenceDiagram
     end
 ```
 
-Provider acknowledgement is independent from Discord delivery. At-least-once provider messages are expected; the ingress receipt, session transition, and per-alert occurrence each have separate idempotency identities.
+Provider acknowledgement is independent from Discord delivery. At-least-once provider messages are expected; the ingress receipt, session transition, and per-alert occurrence each have separate idempotency identities. Payment-provider callbacks use this same ACK/inbox path; HTTP success ACK MUST NOT wait on Billing or Platform Entitlement (DR-067).
 
 ### 9.37 Quota-aware observation and reconciliation fallback
 
@@ -1545,7 +1633,7 @@ sequenceDiagram
     end
 ```
 
-Civil-time parsing is versioned and records how daylight-saving gaps or overlaps were resolved. UTC storage does not erase the user's selected timezone semantics.
+Civil-time parsing is versioned and records how daylight-saving gaps or overlaps were resolved. UTC storage does not erase the user's selected timezone semantics. The Time and Timezone Capability is the Clock port plus versioned timezone rules (DR-023). Wake-up remains Schedule.
 
 ### 9.43 Due reminder claim and route-aware delivery
 
@@ -1580,7 +1668,7 @@ sequenceDiagram
     end
 ```
 
-Channel fallback is not universal. The frozen policy decides whether content may be exposed in the origin or configured channel; owner mention remains explicitly allowlisted.
+Channel fallback is not universal. The frozen policy decides whether content may be exposed in the origin or configured channel; owner mention remains explicitly allowlisted. A lost Schedule wake-up is recovered by the platform due-row sweep in [§9.6](#96-scheduled-message-occurrence-and-platform-due-work-sweep); Reminder's owner-side claim does not replace that sweep.
 
 ### 9.44 Reminder edit, reschedule, snooze, cancel, and due race
 
@@ -1614,8 +1702,10 @@ sequenceDiagram
     participant Browser
     participant API as Control API
     participant Identity as Identity and Session
-    participant Discord as Discord Identity Adapter
-    participant Owner as Owning Domain Service
+    participant Discord
+    participant Transport as Discord Transport
+    participant Capability as Discord Capability
+    participant Owner as Owning Domain Module
 
     Browser->>API: Begin Discord login
     API->>Identity: Create single-use OAuth transaction
@@ -1624,14 +1714,18 @@ sequenceDiagram
     Discord-->>API: Authorization code and state
     API->>Identity: Callback with bound browser context
     Identity->>Identity: Consume state and validate redirect and proof
-    Identity->>Discord: Server-side code exchange and identity read
-    Discord-->>Identity: Identity guild observations and protected tokens
+    Identity->>Transport: Typed OAuth code exchange and current-user read
+    Transport-->>Identity: Normalized identity guild observations and secret references
     Identity->>Identity: Store secret references and issue application session
     Identity-->>Browser: Secure session and guild discovery view
     Browser->>API: Sensitive guild command
     API->>Identity: Validate session generation and current account state
     API->>Owner: Command with actor tenant and required capability
-    Owner->>Discord: Revalidate current guild authority through admitted capability
+    Owner->>Capability: Revalidate current guild authority
+    alt Projection missing or stale beyond policy
+        Capability->>Transport: Typed inspect
+        Transport-->>Capability: Normalized member and permission facts
+    end
     alt Current authority and aggregate version valid
         Owner->>Owner: Commit command and audit outbox
         Owner-->>Browser: Accepted with operation identity
@@ -1640,7 +1734,7 @@ sequenceDiagram
     end
 ```
 
-Frontend guild visibility is never authorization. Read-only discovery may use a short-lived observation; billing ownership changes, installation changes, policy publication, destructive actions, exports, and secret management require fresh server-side authority and may require recent strong authentication.
+Frontend guild visibility is never authorization. Read-only discovery may use a short-lived observation; billing ownership changes, installation changes, policy publication, destructive actions, exports, and secret management require fresh server-side authority and may require recent strong authentication. Tenant-scoped reads and mutations include a tenant predicate bound from that authenticated context; a client-supplied `tenant_id` is not the storage-access bound (DR-033).
 
 ### 9.46 Discord application installation and capability convergence
 
@@ -1650,6 +1744,7 @@ sequenceDiagram
     participant API as Control API
     participant Install as Discord Installation
     participant Discord
+    participant Transport as Discord Transport
     participant Capability as Discord Capability
     participant Registry as Application Command Registry
 
@@ -1662,23 +1757,23 @@ sequenceDiagram
     API->>Install: Callback receipt for generation
     Install->>Install: Mark Verifying not Installed
     par Provider presence
-        Install->>Discord: Inspect admitted installation or bot presence
+        Install->>Transport: Typed inspect of admitted installation or bot presence
     and Effective capabilities
         Install->>Capability: Evaluate bot role channel hierarchy and intent dependencies
     and Command context
         Install->>Registry: Read desired and observed command projection
     end
-    alt All required capabilities confirmed
+    alt All required enabled-module capabilities Healthy
         Install->>Install: Commit Installed and publish capability snapshot
-    else Application present with missing capabilities
+    else A required capability is missing
         Install->>Install: Commit Degraded with per-module findings
-    else Presence absent or authorization revoked
+    else Required bot presence absent or authorization revoked
         Install->>Install: Keep pending or mark Removed
     end
     Install-->>Admin: Health and non-destructive repair plan
 ```
 
-The installation URL MAY constrain guild selection, but the selected guild and callback remain untrusted until current actor authority and provider-observed installation agree. Permission repair creates a new generation and never deletes tenant configuration.
+The installation URL is generated by Discord Installation from a named preset. `client_id` is the platform application identity, not a dashboard field. When the command names a guild, the URL MUST include that `guild_id` and `disable_guild_select=true`. Callback `guild_id` and `permissions` remain untrusted hints until current actor authority and provider-observed installation agree (DR-050). Permission repair creates a new generation, requests only the named missing permission delta, never substitutes Administrator, and never deletes tenant configuration (DR-032). Aggregate `Installed` is per-module capability health, not bot-user presence. Command-only modules mark bot presence `NotRequired`. The callback handler commits `Verifying` and MUST NOT wait on the presence, capability, and registry inspects (DR-047). Admitting that Discord context creates or reuses a TENANT row; `tenant_type` is `Guild` or `User`; `Removed` does not delete TENANT (DR-059).
 
 ### 9.47 Commercial checkout, payment event, and entitlement projection
 
@@ -1689,7 +1784,10 @@ sequenceDiagram
     participant Catalog as Commercial Catalog
     participant Billing as Billing Orchestrator
     participant Provider as Payment Provider Adapter
+    participant Edge as Provider Event Edge
+    participant Inbox as Durable Ingress
     participant Entitlement as Platform Entitlement
+    participant Ledger as AI Usage Ledger
     participant Module as Product Module
 
     Admin->>API: Select product and commercial scope
@@ -1701,21 +1799,45 @@ sequenceDiagram
     Provider-->>Admin: Hosted payment experience
     Provider-->>API: Browser return
     API-->>Admin: Payment pending verification
-    Provider->>Billing: Signed asynchronous provider event
-    Billing->>Billing: Verify deduplicate normalize and order by provider object
-    alt Payment confirmed
-        Billing->>Billing: Commit paid transition and outbox
-        Billing->>Entitlement: Idempotent grant projection command
-        Entitlement->>Entitlement: Compute feature limit perk and credit grants
-        Entitlement-->>Module: Entitlement generation invalidation
-    else Unpaid delayed failed or disputed
-        Billing->>Billing: Preserve pending failure grace or dispute state
+    Provider->>Edge: Signed payment-provider event
+    Edge->>Edge: Verify signature timestamp and replay key
+    alt Invalid expired or unknown generation
+        Edge-->>Provider: Provider-compatible rejection
+        Edge->>Inbox: Record bounded rejection evidence
+    else Duplicate authenticated message
+        Edge-->>Provider: Successful acknowledgement
+        Edge->>Inbox: Reuse existing ingress receipt
+    else New authenticated message
+        Edge->>Inbox: Commit receipt and normalized event
+        Edge-->>Provider: Timely successful acknowledgement
+        Inbox->>Billing: Publish authenticated provider-event fact
+        Billing->>Billing: Deduplicate normalize and order by provider object
+        alt Payment confirmed
+            Billing->>Billing: Commit paid transition and outbox
+            Billing->>Entitlement: Commercial grant fact
+            Entitlement->>Entitlement: Apply GRANT_SOURCE then compute projection
+            Entitlement-->>Module: Entitlement generation invalidation
+            Entitlement->>Ledger: AI-credit grant-source fact when the product includes AI Credits
+            Ledger->>Ledger: Create or refresh source lots
+        else Unpaid delayed failed or disputed
+            Billing->>Billing: Preserve pending failure grace or dispute state
+        end
     end
     Module->>Entitlement: Read or validate current effective grant
     Entitlement-->>Module: Versioned entitlement snapshot
 ```
 
-Provider-hosted success is not fulfillment. An adapter may use hosted checkout, subscription billing, invoicing, and a customer portal, but domain contracts remain provider-neutral. Each environment and merchant account has isolated credentials, endpoints, event namespaces, product mappings, and reconciliation checkpoints.
+Provider-hosted success is not fulfillment. An adapter may use hosted checkout, subscription billing, invoicing, and a customer portal, but domain contracts remain provider-neutral. Each environment and merchant account has isolated credentials, endpoints, event namespaces, product mappings, and reconciliation checkpoints. Billing commercial grant facts travel on the Durable Event Bus. Entitlement applies them into `GRANT_SOURCE` rows. That path is not a command-HTTP to write lots (DR-054).
+
+The checkout command is idempotent by `semantic_key` while the order is `Open`. Bundle expansion pins `ORDER_LINE` rows. The frozen order has exactly one hosted-session mode, `Recurring` or `OneTime`; mixed modes fail closed at admit. A mixed Recurring+OneTime Bundle expands then splits into two sibling orders under a checkout group before either order is admitted. Recurring checkout is first. Partial fulfillment MUST NOT auto-refund (DR-058). At most one non-terminal checkout attempt exists. `success_url` and `cancel_url` are `app.*` and MUST NOT fulfill. Provider session-completed, including Stripe `checkout.session.completed` with unpaid delayed methods, is Attempt `Completed`, not Order `Fulfilled`. Fulfillment waits for verified paid or admitted object state, or `checkout.session.async_payment_succeeded` mapped through DR-022. The dashboard return page polls Query (DR-043, DR-051). Billing creates or reuses one Active `PROVIDER_CUSTOMER_MAPPING` for the owner before hosted checkout. A provider Customer object is not `BILLING_OWNER` (DR-055). Outbox facts for this payment event MUST set `schema_family` `CommercialPayment` and MUST NOT reuse `PurchasePaymentCaptured` (DR-065). Payment-provider HTTP terminates at Provider Event Edge. Successful ACK is allowed only after a durable Edge ingress receipt and MUST NOT wait for GRANT_SOURCE or entitlement projection. Billing MUST NOT be the public webhook listener (DR-067).
+
+#### Decision Record DR-067
+
+**Status:** Accepted.
+
+**Decision:** Payment-provider HTTP callbacks MUST terminate at Provider Event Edge and follow the 9.36 ACK/inbox path. HTTP success ACK is allowed only after a durable Edge ingress receipt. Duplicates ACK success and reuse that receipt. Invalid, expired, or unknown generation MUST NOT ACK success. ACK MUST NOT wait for Billing apply, `GRANT_SOURCE`, entitlement projection, or lot mint. Billing MUST NOT open a public payment webhook listener. DR-022 receipt-versus-fulfillment glossary is unchanged.
+
+**Rejected Alternative:** Billing as the public webhook listener; ACK after entitlement projection; ACK before durable ingress; treating Edge ACK as `GRANT_SOURCE` apply.
 
 ### 9.48 Upgrade, downgrade, cancellation, failure, refund, and dispute
 
@@ -1725,7 +1847,7 @@ flowchart TD
     B -->|Upgrade paid| C[Activate new grant at admitted effective time]
     B -->|Downgrade scheduled| D[Pin end-of-period or configured effective boundary]
     B -->|Cancellation| E[Stop renewal and preserve service through paid boundary]
-    B -->|Payment failure| F[Enter explicit grace or restricted state]
+    B -->|Payment failure| F[Billing PastDue then Entitlement Grace]
     B -->|Refund| G[Calculate reversible grant and usage consequences]
     B -->|Dispute or chargeback| H[Freeze affected commercial grants for review]
     C --> I[Publish new entitlement generation]
@@ -1743,7 +1865,17 @@ flowchart TD
     N --> I
 ```
 
+An upgrade with catalog `TimeBalance` and positive `delta` activates only after the proration invoice is verified `Paid`. Negative `delta` credits the next renewal invoice and is not a refund. Provider proration previews are evidence (DR-057). A mixed Recurring+OneTime Bundle splits before admit; Recurring checkout is first; group `Partial` is not a refund (DR-058).
+
+Payment failure records Billing `PastDue` first, then Platform Entitlement `Grace` from the applied `GRANT_SOURCE`. Feature restriction at expiry is Entitlement `Restricted`; it is not a boolean premium flag and not invariant 152 `reconciled` (DR-046, DR-054). Dunning retries collect the same Open renewal invoice on catalog-pinned Schedule dues strictly before `grace_until`. Adapter collect HTTP is not `Paid`. When `grace_until` fires without verified collection, the invoice becomes `Uncollectible` and the subscription `Restricted`. A late verified Paid MAY recover `Restricted` to `Active`. Provider Smart Retries MAY run in the adapter and MUST NOT replace the domain schedule or mint a new order (DR-056).
+
 Over-limit data is not automatically deleted after downgrade. Modules preserve reads and existing resources according to policy, reject new capacity-consuming creation, and expose the overage and remediation choices. A refund or dispute never rewrites prior ledger facts; it produces compensating commercial and AI Credit entries.
+
+Commercial refund is a Billing aggregate (`COMMERCIAL_REFUND`). The high-risk command freezes amount, source invoice or payment, and reason. Provider create-refund HTTP is not domain `Succeeded`. `Succeeded` requires verified provider refund object state or reconciliation, then grant-source reversal facts. Invoice `Paid` and Order `Fulfilled` remain. Multiple partial refunds are distinct rows; their succeeded amounts MUST NOT exceed remaining refundable. Guild-shop §30.28 is not this machine. A pending refund MUST NOT auto-succeed when a qualifying dispute is observed (DR-052).
+
+Commercial dispute is a Billing aggregate (`COMMERCIAL_DISPUTE`). Verified provider inquiry or chargeback opens the machine and publishes commercial grant facts that freeze applied sources. Accept and evidence submit are high-risk commands. `Won` and inquiry `Closed` may restore grants; `Lost` publishes reversal facts without creating a refund row. Invoice `Paid` and Order `Fulfilled` remain. Early fraud warnings are not this aggregate. Dispute-webhook ACK is not `Won` or `Lost` (DR-053).
+
+Platform Entitlement applies Billing commercial grant facts, promotions, compensation, and achievement grants into `GRANT_SOURCE` rows, then recomputes the §8.45 snapshot. Billing MUST NOT write those rows or AI Credit lots. When an applied source includes AI Credits, Entitlement publishes AI-credit grant-source facts; the Ledger is the only lot writer (DR-054).
 
 ### 9.49 AI Credit reservation, provider execution, and settlement
 
@@ -1771,11 +1903,17 @@ sequenceDiagram
             AI->>Ledger: Settle actual rated amount and release remainder
             Ledger-->>AI: Settlement receipt
             AI-->>Caller: Result reference and charge summary
+        else RateLimited 429
+            Provider-->>AI: RateLimited
+            AI->>AI: New attempt after Retry-After same reservation
+        else TimeoutNotSent
+            Provider-->>AI: TimeoutNotSent
+            AI->>AI: Retry within deadline same reservation
         else Confirmed failure before billable result
             Provider-->>AI: Failure class
             AI->>Ledger: Release reservation
             AI-->>Caller: Failed without charge
-        else Outcome uncertain
+        else TimeoutAfterSend or outcome unknown
             AI->>AI: Preserve Uncertain and stop blind retry
             AI->>Ledger: Preserve bounded reservation
             AI-->>Caller: Pending reconciliation
@@ -1784,6 +1922,12 @@ sequenceDiagram
 ```
 
 AI moderation that can be performed locally or by a non-billable platform capability need not consume credits. If an external billable provider is required, it follows the same reservation and settlement contract. Provider-specific tokens, token counts, model identifiers, and costs remain adapter facts mapped to a pinned internal pricing rule.
+
+Reservation TTL is 15 Clock-port minutes and MUST cover the operation deadline. If that deadline elapses without a confirmed result, Ledger marks the reservation `Uncertain` and MUST NOT release. After 24 Clock-port hours the reservation MAY become `Disputed`; the operation MUST remain `Uncertain` and MUST NOT settle from that review state (DR-070). Lot expiry dues and the 24-hour uncertainty deadline register with Schedule (DR-061).
+
+HTTP 429 or a provider-equivalent rate-limit refusal before a billable result is `RateLimited`, not `Uncertain`. Connect, DNS, circuit-open, or adapter timeout before the request is transmitted is `TimeoutNotSent`. Both MAY retry on a new `attempt_id` after Retry-After or immediately, within the operation deadline, remaining reservation TTL, and `max_attempts` 3. Retry-After is adapter config and MUST NOT copy Discord 429 numbers. Wait elapsed, reset, truncation, unparseable success, or 5xx without not-accepted proof after transmit is `TimeoutAfterSend` or `Uncertain`: the operation and reservation stay `Uncertain`, MUST NOT release, MUST NOT blind-retry, and MUST NOT auto-fallback to another provider (DR-062).
+
+`input_ref` and `result_ref` are `protected_content_id`. Execution mints `AI_PROTECTED_CONTENT` and persists bodies through Asset before provider dispatch for inputs and after moderation for outputs. OCR and transcription use purposes on that aggregate, not a dedicated document store (DR-063).
 
 ### 9.50 Template preflight, installation, and rollback
 
@@ -1819,7 +1963,7 @@ sequenceDiagram
     end
 ```
 
-Template installation cannot bypass a module's publication, permission, quota, or ownership rules. Ratings and reputation may affect discovery but never grant administrative authority or unlimited AI Credits.
+Template installation cannot bypass a module's publication, permission, quota, or ownership rules. Ratings and reputation may affect discovery but never grant administrative authority or unlimited AI Credits. Package bytes are admitted only through a versioned schema parse (DR-037).
 
 ### 9.51 Workflow trigger and durable action execution
 
@@ -1847,7 +1991,7 @@ flowchart TD
     O -->|Yes| Q[Complete or PartiallyComplete with audit summary]
 ```
 
-An event caused by a workflow carries lineage and recursion depth. Trigger admission rejects direct cycles, excessive depth, excessive fan-out, expired facts, and executions whose worst-case effect budget exceeds policy. Replay reuses the original revision and action identities unless an operator explicitly creates a new execution generation.
+An event caused by a workflow carries lineage and recursion depth. Trigger admission rejects direct cycles, excessive depth, excessive fan-out, expired facts, and executions whose worst-case effect budget exceeds policy. Replay reuses the original revision and action identities unless an operator explicitly creates a new execution generation. Graph and job bytes are admitted only through a versioned schema parse (DR-037).
 
 ### 9.52 AI character response
 
@@ -1875,4 +2019,4 @@ sequenceDiagram
     end
 ```
 
-Characters share the application runtime and do not require separate Discord bots. Optional webhook presentation uses application-owned, rotated webhooks and an explicit disclosure policy. It cannot imitate a real member, bypass allowed mentions, or post outside the character's admitted destinations.
+Characters share the application runtime and do not require separate Discord bots. Optional webhook presentation uses application-owned, rotated webhooks and an explicit disclosure policy. It cannot imitate a real member, bypass allowed mentions, or post outside the character's admitted destinations. Retrieved conversation content cannot select tools or overwrite pinned system safety rules (DR-031). Eligible context is an `AI_CONVERSATION` of at most 20 turns; each turn references `protected_content_id` and MUST NOT store the body. Overflow drops the oldest turn. Support Archive is not this history (DR-063).

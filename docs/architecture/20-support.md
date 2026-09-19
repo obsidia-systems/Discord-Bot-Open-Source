@@ -298,7 +298,7 @@ Escalation may be manual or timer-driven. It records source rule, prior assignee
 
 ### 31.27 Support timers and service-level targets
 
-Supported timer classes include first staff response, waiting reminder, inactivity warning, auto-resolve, auto-close, reopen window, transcript boundary, and delayed cleanup. Each rule defines start event, pause conditions, reset events, deadline, action, notification, bypass, and misfire behavior.
+Supported timer classes include first staff response, waiting reminder, inactivity warning, auto-resolve, auto-close, reopen window, transcript boundary, and delayed cleanup. Each rule defines start event, pause conditions, reset events, deadline, action, notification, bypass, and misfire behavior. Every due instant is a Durable Timer registration with Schedule. Lost wake-ups are recovered by the platform due-row sweep; Support Case retains misfire and terminal-state authority.
 
 Every occurrence is unique by case, generation, rule, and intended boundary. Workers use fenced leases and reload current case version before acting. A message event may cancel or reschedule inactivity only through a durable case or archive fact, not process-local timeout.
 

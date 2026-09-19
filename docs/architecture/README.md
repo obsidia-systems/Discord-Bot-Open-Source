@@ -7,14 +7,16 @@ This directory is the canonical, navigable form of the greenfield distributed ar
 - **Architecture overview:** foundations, service topology, contracts, runtime flows, state models, and invariants.
 - **Platform implementation:** service topology, contracts, runtime flows, data volumes, Discord governance, operations, and recovery.
 - **Product implementation:** foundations, contracts, invariants, the applicable domain data volume, and the applicable product specification.
-- **Architecture review:** foundations, service topology, domain relationships, data volumes, security and operations, governance, and invariants.
+- **Architecture review:** [Architecture review hub](00-architecture-review.md), then foundations, service topology, domain relationships, data volumes, security and operations, governance, and invariants.
+- **Implementation program:** [Roadmap method](25-implementation-roadmap-method.md) (how), [Implementation sequence](26-implementation-roadmap.md) (order). Slice plans come later under `roadmap/` and read only the RFC listed for that slice. These files are not RFC.
 
 ## Navigation
 
 | Order | Document | Sections | Purpose |
 |---:|---|---|---|
+| 0 | [Architecture review](00-architecture-review.md) | Review hub | Classified audit: modules, protocols, security, contradictions, and open decisions. Recommendations here are not implemented. |
 | 1 | [Foundations](01-foundations.md) | Document status, 1–5 | Scope, goals, decisions, requirements, and system context |
-| 2 | [Service topology](02-service-topology.md) | 6–7 | Logical deployment topology and service catalog |
+| 2 | [Service topology](02-service-topology.md) | 6–7 | Deployable services and module catalog |
 | 3 | [Canonical contracts](03-canonical-contracts.md) | 8 | Public envelopes and domain contracts |
 | 4 | [Runtime flows](04-runtime-flows.md) | 9 | End-to-end success, retry, and reconciliation flows |
 | 5 | [State models](05-state-models.md) | 10 | Normative aggregate and workflow lifecycles |
@@ -37,11 +39,16 @@ This directory is the canonical, navigable form of the greenfield distributed ar
 | 22 | [External integrations and stream alerts](21-integrations.md) | 32 | Provider identity, ingestion, observations, live sessions, and alert specification |
 | 23 | [Custom commands and reminders](22-automation.md) | 33 | Command registry, sandboxed execution, scheduling, and reminder specification |
 | 24 | [Platform access, commercial products, and AI](23-platform-access-commercial-ai.md) | 34 | Authentication, Discord installation, subscriptions, limits, AI usage, templates, workflows, and characters |
+| 25 | [Implementation roadmap method](25-implementation-roadmap-method.md) | Program | How to sequence; not module design |
+| 26 | [Implementation sequence](26-implementation-roadmap.md) | Program | Slice order and RFC reading lists. Not how to implement a module. |
 
 ## Document conventions
 
+- A **module** is a unit of ownership (aggregates, inbox, outbox, invariants). Section 7 catalogs modules. A **service** is an independently deployable process that hosts one or more modules. See [01-foundations.md](01-foundations.md) §3.1 and [02-service-topology.md](02-service-topology.md) §6.2.
+- Until sections 26–34 are revised, “the X Service” in product files means the module named X, not a dedicated process.
 - Normative keywords **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** retain their meaning across every file.
 - Cross-file references use stable section numbers first and filenames second.
 - Product specifications may depend only on platform contracts and capabilities declared in sections 1–25.
 - Diagrams remain normative where the surrounding text identifies lifecycle, ownership, ordering, or failure behavior.
 - Every file is written in English and contains specification material rather than implementation code.
+- Files 25+ are implementation program documents. They MUST NOT be read as changing 01–23. The current Adobos TypeScript tree is not a source of truth for Tobot.

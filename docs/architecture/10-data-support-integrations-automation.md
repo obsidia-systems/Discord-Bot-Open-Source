@@ -17,8 +17,8 @@ erDiagram
     SUPPORT_PANEL ||--|{ SUPPORT_PANEL_REVISION : versions
     SUPPORT_PANEL_REVISION ||--|{ SUPPORT_PANEL_OPTION : contains
     SUPPORT_PANEL_OPTION }o--|| TICKET_TEMPLATE_REVISION : binds
-    SUPPORT_PANEL_REVISION ||--o{ PANEL_PUBLICATION : projects
-    PANEL_PUBLICATION ||--o| PANEL_PROVIDER_BINDING : confirms
+    SUPPORT_PANEL_REVISION ||--o{ SUPPORT_PANEL_PUBLICATION : projects
+    SUPPORT_PANEL_PUBLICATION ||--o| SUPPORT_PANEL_PROVIDER_BINDING : confirms
     SUPPORT_PANEL ||--o{ PANEL_REPAIR_RUN : repairs
 
     SUPPORT_POLICY {
@@ -119,7 +119,7 @@ erDiagram
         int ordinal
     }
 
-    PANEL_PUBLICATION {
+    SUPPORT_PANEL_PUBLICATION {
         string publication_id PK
         string panel_id FK
         string revision_id FK
@@ -129,7 +129,7 @@ erDiagram
         string idempotency_key UK
     }
 
-    PANEL_PROVIDER_BINDING {
+    SUPPORT_PANEL_PROVIDER_BINDING {
         string binding_id PK
         string publication_id FK
         string application_id
@@ -149,6 +149,8 @@ erDiagram
         int repaired_count
     }
 ```
+
+`SUPPORT_PANEL_PUBLICATION` and `SUPPORT_PANEL_PROVIDER_BINDING` are Support Panel aggregates (DR-015). They are not Role Panel's `ROLE_PANEL_PUBLICATION` or `ROLE_PANEL_PROVIDER_BINDING`.
 
 ```mermaid
 erDiagram
@@ -423,11 +425,13 @@ Support sequence numbers are unique only within their declared tenant scope and 
 
 Integration Registry Service owns configuration and identity bindings. Provider Event Edge owns authenticated transport receipts. Provider Observation Scheduler owns poll execution. Provider Subscription Orchestrator owns provider resource convergence. External Live Signal Service owns session truth and alert occurrences. References between these stores are opaque identifiers carried by contracts, never cross-service foreign keys.
 
+Stream channel identity is `STREAM_CANONICAL_IDENTITY` (DR-017). It is not Identity's `PLATFORM_EXTERNAL_IDENTITY`. Aliases are `STREAM_CANONICAL_IDENTITY_ALIAS`.
+
 ```mermaid
 erDiagram
-    PROVIDER_CAPABILITY_PROFILE ||--o{ EXTERNAL_IDENTITY : validates
-    EXTERNAL_IDENTITY ||--o{ EXTERNAL_IDENTITY_ALIAS : presents_as
-    EXTERNAL_IDENTITY ||--o{ STREAM_ALERT : monitored_by
+    PROVIDER_CAPABILITY_PROFILE ||--o{ STREAM_CANONICAL_IDENTITY : validates
+    STREAM_CANONICAL_IDENTITY ||--o{ STREAM_CANONICAL_IDENTITY_ALIAS : presents_as
+    STREAM_CANONICAL_IDENTITY ||--o{ STREAM_ALERT : monitored_by
     STREAM_ALERT ||--|{ STREAM_ALERT_REVISION : versions
     STREAM_ALERT_REVISION ||--o{ ALERT_DEPENDENCY_HEALTH : depends_on
     STREAM_ALERT_REVISION ||--o{ ALERT_TEST_OCCURRENCE : tests
@@ -443,7 +447,7 @@ erDiagram
         datetime effective_at
     }
 
-    EXTERNAL_IDENTITY {
+    STREAM_CANONICAL_IDENTITY {
         string identity_id PK
         string provider_type
         string canonical_id
@@ -455,7 +459,7 @@ erDiagram
         datetime confirmed_at
     }
 
-    EXTERNAL_IDENTITY_ALIAS {
+    STREAM_CANONICAL_IDENTITY_ALIAS {
         string alias_id PK
         string identity_id FK
         string alias_type
@@ -731,7 +735,7 @@ erDiagram
     }
 ```
 
-The live-session uniqueness rule is provider type, canonical external identity, and provider session identity. The alert-occurrence uniqueness rule additionally pins alert revision, transition type, and lifecycle generation. Delivery and Discord message identifiers are projection references and never determine whether the external session exists.
+The live-session uniqueness rule is provider type, `STREAM_CANONICAL_IDENTITY`, and provider session identity. The alert-occurrence uniqueness rule additionally pins alert revision, transition type, and lifecycle generation. Delivery and Discord message identifiers are projection references and never determine whether the external session exists.
 
 ### 12.13 Custom command, registry, invocation, and reminder models
 
@@ -915,7 +919,7 @@ Only Application Command Registry may own a provider command binding or issue a 
 
 ```mermaid
 erDiagram
-    CUSTOM_COMMAND_INVOCATION ||--o| COOLDOWN_RESERVATION : reserves
+    CUSTOM_COMMAND_INVOCATION ||--o| CUSTOM_COMMAND_COOLDOWN_RESERVATION : reserves
     CUSTOM_COMMAND_INVOCATION ||--|{ INVOCATION_ARGUMENT : binds
     CUSTOM_COMMAND_INVOCATION ||--|{ COMMAND_ACTION_OCCURRENCE : executes
     REMINDER ||--|{ REMINDER_REVISION : versions
@@ -936,7 +940,7 @@ erDiagram
         datetime completed_at
     }
 
-    COOLDOWN_RESERVATION {
+    CUSTOM_COMMAND_COOLDOWN_RESERVATION {
         string reservation_id PK
         string invocation_id FK
         string scope_key
@@ -1026,4 +1030,4 @@ erDiagram
     }
 ```
 
-An interaction ID creates at most one invocation. A cooldown occurrence key is independent from delivery success. A reminder occurrence key is reminder, schedule generation, and intended instant; recurrence expansion, retry, snooze, and reschedule cannot reuse it ambiguously.
+An interaction ID creates at most one invocation. A `CUSTOM_COMMAND_COOLDOWN_RESERVATION` occurrence key is independent from delivery success and is not Auto Reply's `AUTO_REPLY_COOLDOWN_RESERVATION` (DR-015). A reminder occurrence key is reminder, schedule generation, and intended instant; recurrence expansion, retry, snooze, and reschedule cannot reuse it ambiguously.

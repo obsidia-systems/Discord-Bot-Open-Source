@@ -125,16 +125,25 @@ classDiagram
         outcome counts
     }
 
+    class DeliveryIntent {
+        idempotency key
+        effect kind
+        target message
+    }
+
     ModerationPolicyRevision --> ModerationActionRequest : authorizes
     ModerationActionRequest --> ModerationCase : opens
     AutoModerationPolicyRevision --> ModerationIncident : detects
     ModerationIncident --> ModerationActionRequest : may request
+    ModerationIncident --> DeliveryIntent : may request platform owned delete
     ModerationCase --> ActivityRecord : publishes fact
     ModerationIncident --> ActivityRecord : publishes fact
     CleanupOccurrence --> ActivityRecord : publishes deletion outcomes
     DiscordAuditObservation --> ModerationCase : may correlate
     DiscordAuditObservation --> ActivityRecord : may attribute
 ```
+
+`ModerationPolicyRevision` owns protected-user and protected-role product lists (DR-020). Discord Capability evaluates live Discord hierarchy and MAY apply a pinned revision snapshot; it does not own that policy.
 
 ### 11.2 Security domain relationships
 
@@ -243,7 +252,7 @@ classDiagram
         timing
     }
 
-    class PanelPublication {
+    class RolePanelPublication {
         desired revision
         provider binding
         effect receipts
@@ -268,11 +277,13 @@ classDiagram
     RolePanelRevision --> RoleRelationClaim : creates
     RoleRelationClaim --> RoleAssignmentIntent : produces
     RoleAssignmentIntent --> AssignmentAttempt : executes as
-    RolePanelRevision --> PanelPublication : projects through
+    RolePanelRevision --> RolePanelPublication : projects through
     RoleResourceMutation --> DiscordRoleProjection : changes provider state
     DiscordRoleProjection --> RolePolicyRevision : validates targets
     DiscordRoleProjection --> RolePanelRevision : validates mappings
 ```
+
+`DiscordRoleProjection` is the rebuildable guild-role catalog. **Role Resource** is its sole owner (DR-014). Discord remains provider-authoritative for live role bytes; the projection is rebuilt from Gateway role events and Transport inspect, never a second live truth. Discord Capability reads that catalog, or a disposable local copy, to produce permission, hierarchy, and member-role reports. Role Policy and Assignment owns desired member-role relations and MUST NOT write the catalog row. The mutation arrow records that a Role Resource mutation changes provider state and therefore the catalog; Capability and Assignment do not write that aggregate. `RolePanelPublication` is Role Panel's publication aggregate, not Support Panel publication (DR-015). Punitive member-role relations are Cases-owned desired state published as assignment intents; Assignment is the sole Transport client for add and remove (DR-068).
 
 ### 11.4 Community domain relationships
 
@@ -427,7 +438,7 @@ classDiagram
         fulfillment summary
     }
 
-    class Entitlement {
+    class GuildRewardEntitlement {
         benefit and beneficiary
         ownership and expiry
         effect receipts
@@ -459,7 +470,7 @@ classDiagram
     ItemRevision --> PurchaseOrder : purchased as
     PurchaseOrder --> MonetaryReservation : reserves payment through
     PurchaseOrder --> MonetaryTransaction : captures or reverses through
-    PurchaseOrder --> Entitlement : requests
+    PurchaseOrder --> GuildRewardEntitlement : requests
     CasinoRuleRevision --> GameSession : governs
     GameSession --> MonetaryHold : reserves wager through
     GameSession --> MonetaryTransaction : settles through
@@ -553,7 +564,7 @@ classDiagram
         quota and freshness semantics
     }
 
-    class CanonicalExternalIdentity {
+    class StreamCanonicalIdentity {
         provider stable identifier
         normalized locator
         mutable display metadata
@@ -600,17 +611,19 @@ classDiagram
         independent outcome
     }
 
-    ProviderCapabilityProfile --> CanonicalExternalIdentity : validates
-    CanonicalExternalIdentity --> StreamAlertRevision : monitored by
-    CanonicalExternalIdentity --> ProviderSubscription : conditions
+    ProviderCapabilityProfile --> StreamCanonicalIdentity : validates
+    StreamCanonicalIdentity --> StreamAlertRevision : monitored by
+    StreamCanonicalIdentity --> ProviderSubscription : conditions
     ProviderSubscription --> ProviderIngressReceipt : authenticates generation of
     ProviderIngressReceipt --> ProviderObservation : normalizes into
-    CanonicalExternalIdentity --> ProviderObservation : observed as
+    StreamCanonicalIdentity --> ProviderObservation : observed as
     ProviderObservation --> ExternalLiveSession : advances
     ExternalLiveSession --> StreamAlertOccurrence : emits through revisions
     StreamAlertRevision --> StreamAlertOccurrence : governs
     StreamAlertOccurrence --> DeliveryIntent : projects through
 ```
+
+`StreamCanonicalIdentity` is Integration Registry's stream-channel aggregate (`STREAM_CANONICAL_IDENTITY`, DR-017). It is not Identity's platform login link (`PLATFORM_EXTERNAL_IDENTITY`).
 
 ### 11.8 Automation command and reminder relationships
 
@@ -672,25 +685,29 @@ classDiagram
     ReminderOccurrence --> DeliveryIntent : delivers through
 ```
 
+Custom Command Definition, Application Command Registry, and Custom Command Runtime are three modules (DR-019). Workflow Definition and Runtime is one module and is not this graph.
+
 ### 11.9 Platform access, commercial, AI, template, and workflow relationships
 
 ```mermaid
 classDiagram
     class PlatformAccount {
         account identity and status
-        external identity links
+        platform external identity links
     }
     class AuthorizationSession {
-        credential generation
+        opaque server-side identity
         idle and absolute expiry
     }
     class DiscordInstallation {
-        application context and guild
+        application context and guild or user
+        TENANT registry owner
         generation and health
     }
     class BillingOwner {
-        accountable party
+        accountable payer identity
         authorized memberships
+        not a provider Customer
     }
     class CommercialCatalogRevision {
         plans add-ons bundles and packs
@@ -699,6 +716,11 @@ classDiagram
     class CommercialSubscription {
         provider-neutral lifecycle
         pinned product revisions
+    }
+    class CommercialInvoice {
+        platform invoice identity
+        integer minor units
+        provider object as evidence
     }
     class PlatformEntitlementSnapshot {
         feature grants
@@ -712,9 +734,15 @@ classDiagram
         pricing and policy snapshot
         provider attempts and result
     }
+    class AIProtectedContent {
+        purpose privacy and asset_id
+    }
     class AICharacterRevision {
         behavior context and moderation
         presentation and spending policy
+    }
+    class AIConversation {
+        bounded turns not bodies
     }
     class TemplatePackageRevision {
         portable component manifest
@@ -736,13 +764,18 @@ classDiagram
     PlatformAccount --> AuthorizationSession : authenticates through
     PlatformAccount --> BillingOwner : participates in
     BillingOwner --> DiscordInstallation : funds authorized scope
+    BillingOwner --> CommercialInvoice : owns
+    CommercialSubscription --> CommercialInvoice : may issue
     CommercialCatalogRevision --> CommercialSubscription : pins terms for
     CommercialSubscription --> PlatformEntitlementSnapshot : projects
     BillingOwner --> PlatformEntitlementSnapshot : receives
-    PlatformEntitlementSnapshot --> AICreditAccount : grants lots to
+    PlatformEntitlementSnapshot ..> AICreditAccount : grant-source events only
     AICreditAccount --> AIOperation : reserves for
     AICharacterRevision --> AIOperation : requests
-    AIOperation --> WorkflowExecution : may fulfill AI action
+    AIOperation --> AIProtectedContent : pins input and result
+    AICharacterRevision --> AIConversation : isolates
+    AIConversation --> AIProtectedContent : turns reference
+    WorkflowExecution --> AIOperation : may request
     TemplatePackageRevision --> TemplateInstallation : instantiates
     TemplatePackageRevision --> WorkflowRevision : may contain
     WorkflowRevision --> WorkflowExecution : governs
@@ -750,4 +783,150 @@ classDiagram
     WorkflowExecution --> PlatformEntitlementSnapshot : requires grants from
 ```
 
-These relationships are references across bounded contexts, not shared aggregate ownership. Billing never authorizes a Discord mutation by itself; identity, current guild authority, installation capability, platform entitlement, and the owning module's policy remain independent gates. A template can declare a workflow, but the installed workflow becomes a tenant-owned aggregate with its own revision and lifecycle.
+These relationships are references across bounded contexts, not shared aggregate ownership. Billing never authorizes a Discord mutation by itself; identity, current guild authority, installation capability, platform entitlement, and the owning module's policy remain independent gates. A template can declare a workflow, but the installed workflow becomes a tenant-owned aggregate with its own revision and lifecycle. Workflow Definition and Runtime remains one module (DR-019); `WorkflowRevision` and `WorkflowExecution` share that owner. There is no domain Customer aggregate. `BillingOwner` is the payer; a provider Customer object is mapping evidence. Two owners MUST NOT concurrently fund the same installation (DR-055). Dunning retries collect one Open renewal invoice and MUST NOT mint a new order (DR-056). Mid-period money uses a pinned proration quote in integer minor units; unused time is not a refund (DR-057). A mixed Recurring+OneTime Bundle splits into two sibling orders under a checkout group; Recurring checkout is first; `Partial` is not an automatic refund (DR-058). Discord Installation owns the TENANT registry; first-product `tenant_type` is `Guild` or `User`; `tenant_id` is not a Discord snowflake (DR-059). Due-work claim leases use 15 Clock-port second TTL so worker-loss recovery stays strictly below 60 seconds (DR-060).
+
+Platform Entitlement MUST NOT write AI Credit lots, reservations, or journal rows. It MAY publish AI-credit grant-source facts after applying a `GRANT_SOURCE` row (plan grant, pack, promotion, compensation, achievement). Billing publishes commercial grant facts to Entitlement only; it MUST NOT write lots or Entitlement `GRANT_SOURCE` tables. AI Usage Ledger is the only module that creates lots and posts the journal. A workflow that needs AI requests an AI operation; an AI operation does not own workflow execution. Conserved commercial and AI Credit amounts are integer minor units (DR-016). Public money-plane contracts set `schema_family` `VirtualPayment`, `CommercialPayment`, or `AiCreditReservation`; §8.6 leaves stay (DR-065). Guild commerce-reward public contracts are `GuildRewardEntitlement`; module 7.35 is not deleted (DR-066). Unprefixed `Entitlement*` names MUST fail closed at parse; consumers MUST NOT infer the plane from payload fields (DR-069). Lot `expires_at` is frozen at mint; new reservations skip expired lots; allocation is earliest `expires_at` first; reservation TTL is 15 Clock-port minutes and MUST NOT auto-release (DR-061). Reservation `Disputed` is Ledger review; the paired operation MUST remain `Uncertain` and MUST NOT gain `Disputed` (DR-070). Provider HTTP 429 is `RateLimited` and MAY retry; timeout after transmit is `Uncertain` and MUST NOT blind-retry or auto-fallback (DR-062). Asset is the sole durable AI byte store; Execution owns protected content; Character owns bounded conversation turns (DR-063). Owner-schema tables are not envelope majors; breaking private DDL follows expand, dual-write, contract, then drop (DR-064).
+
+#### Decision Record DR-003
+
+**Status:** Accepted.
+
+**Decision:** AI Usage Ledger is the sole writer of AI Credit lots and journal entries. Platform Entitlement emits grant-source events. Workflow execution may request an AI operation; the reverse arrow is forbidden.
+
+**Rejected Alternative:** Platform Entitlement as lot owner; AI operations fulfilling or owning workflow executions.
+
+#### Decision Record DR-054
+
+**Status:** Accepted.
+
+**Decision:** `GRANT_SOURCE` is owned by Platform Entitlement. Billing commercial grant facts are inputs. Only Entitlement publishes AI-credit grant-source to the Ledger.
+
+**Rejected Alternative:** Billing writing lots; Billing writing Entitlement grant-source tables; dual Billing and Entitlement lot publishers.
+
+#### Decision Record DR-055
+
+**Status:** Accepted.
+
+**Decision:** There is no domain Customer aggregate. `BillingOwner` is the payer identity. Provider Customer objects are mapping evidence.
+
+**Rejected Alternative:** Stripe Customer as payer identity; a second Customer type beside BillingOwner.
+
+#### Decision Record DR-056
+
+**Status:** Accepted.
+
+**Decision:** Dunning retries collect one Open renewal invoice. They MUST NOT mint a new CommercialOrder. Exhaustion at `grace_until` restricts the subscription.
+
+**Rejected Alternative:** A new order per retry; webhook ACK as Restricted.
+
+#### Decision Record DR-057
+
+**Status:** Accepted.
+
+**Decision:** Proration is a Billing quote in integer minor units. Negative delta is next-invoice credit, not a refund.
+
+**Rejected Alternative:** Stripe preview as the amount; unused time as a refund row.
+
+#### Decision Record DR-058
+
+**Status:** Accepted.
+
+**Decision:** Mixed Recurring+OneTime Bundles split into two sibling orders under a checkout group. Recurring hosted session first. A single order MUST NOT mix modes. Mixed Recurring intervals fail closed. Partial fulfillment is not an automatic refund.
+
+**Rejected Alternative:** One hosted session spanning both modes; forbidding mixed Bundles in the catalog; auto-refunding the paid sibling.
+
+#### Decision Record DR-059
+
+**Status:** Accepted.
+
+**Decision:** Discord Installation owns the TENANT registry. First-product `tenant_type` is `Guild` or `User`. `tenant_id` is platform identity, not a Discord snowflake. Uninstall does not delete TENANT.
+
+**Rejected Alternative:** Identity or Billing owning TENANT; `tenant_id` equal to a Discord snowflake; deleting TENANT on Installation `Removed`.
+
+#### Decision Record DR-060
+
+**Status:** Accepted.
+
+**Decision:** Due-work claim `lease_ttl` is 15 Clock-port seconds. Heartbeat is at most one-third of TTL. Worker-loss recovery stays strictly below 60 seconds.
+
+**Rejected Alternative:** TTL of 60 seconds; a Durable Timer per lease expiry.
+
+#### Decision Record DR-061
+
+**Status:** Accepted.
+
+**Decision:** Lot `expires_at` is frozen at mint. Reservation TTL is 15 Clock-port minutes and MUST NOT auto-release. TTL without a confirmed outcome becomes `Uncertain`.
+
+**Rejected Alternative:** Silent TTL release; expiring reserved allocations in place; FIFO ignoring earlier `expires_at`.
+
+#### Decision Record DR-062
+
+**Status:** Accepted.
+
+**Decision:** HTTP 429 is `RateLimited`, not `Uncertain`. Timeout after transmit is `Uncertain` and MUST NOT release or blind-retry.
+
+**Rejected Alternative:** Treating 429 as `Uncertain`; releasing on response timeout; auto-fallback after unknown outcome.
+
+#### Decision Record DR-063
+
+**Status:** Accepted.
+
+**Decision:** Asset is the sole durable AI byte store. Execution owns protected content. Character owns bounded conversation turns.
+
+**Rejected Alternative:** Asset as conversation or OCR authority; a second object store; Support Archive for character history.
+
+#### Decision Record DR-064
+
+**Status:** Accepted.
+
+**Decision:** Owner-schema tables are not integration contracts. Breaking private DDL during a rolling deploy MUST expand, dual-write, contract, then drop. Envelope N-1 is not that window. Soak before drop is 24 Clock-port hours after the last replica of that owner neither reads nor writes the old shape.
+
+**Rejected Alternative:** In-place rename or DROP while an old binary still runs; using envelope `schema_version` as table version; production schema-push as migration authority; `SELECT *` as the live mapper.
+
+#### Decision Record DR-065
+
+**Status:** Accepted.
+
+**Decision:** Public money-plane contracts MUST set `schema_family` to `VirtualPayment`, `CommercialPayment`, or `AiCreditReservation`. `schema_name` keeps the §8.6 leaf. An unprefixed `Payment`, `Reservation`, or money `Catalog` type is forbidden.
+
+**Rejected Alternative:** One shared Payment contract; renaming §8.6 leaves in this revision; treating stock reservation as `VirtualPayment`; treating `CatalogPublished` as `CommercialPayment`; treating AI Credit reservation as a monetary hold.
+
+#### Decision Record DR-066
+
+**Status:** Accepted.
+
+**Decision:** The guild commerce-reward owner remains module 7.35 and is not deleted. Its public contracts are `GuildRewardEntitlement`. Platform Entitlement remains `PlatformEntitlement`. An unprefixed public type `Entitlement` is forbidden.
+
+**Rejected Alternative:** Deleting module 7.35; merging with Platform Entitlement; renaming Platform Entitlement; treating `GRANT_SOURCE` as a guild reward.
+
+#### Decision Record DR-067
+
+**Status:** Accepted.
+
+**Decision:** Payment-provider HTTP callbacks MUST terminate at Provider Event Edge and follow the 9.36 ACK/inbox path. HTTP success ACK is allowed only after a durable Edge ingress receipt. Duplicates ACK success and reuse that receipt. Invalid, expired, or unknown generation MUST NOT ACK success. ACK MUST NOT wait for Billing apply, `GRANT_SOURCE`, entitlement projection, or lot mint. Billing MUST NOT open a public payment webhook listener. DR-022 receipt-versus-fulfillment glossary is unchanged.
+
+**Rejected Alternative:** Billing as the public webhook listener; ACK after entitlement projection; ACK before durable ingress; treating Edge ACK as `GRANT_SOURCE` apply.
+
+#### Decision Record DR-068
+
+**Status:** Accepted.
+
+**Decision:** Role Policy and Assignment is the sole platform client of Discord Transport for member-role add and remove. Those operations are one-role add or remove, never a replace of the member's complete role list. Moderation Cases remains the owner of punitive member-role desired state: quarantine present or absent, dangerous-role absent, and other case-owned role relations. Cases publishes those relations as assignment intents with a Cases ownership key and MUST NOT call Transport for member-role add or remove. Timeout, kick, ban, unban, purge, slowmode, and channel lock remain Cases through Transport. Role Resource remains the sole writer of guild-role catalog mutations and MUST NOT add or remove member roles. Assignment MUST NOT author punitive desired state or reinterpret a Cases-owned relation as automatic or self-service ownership. For the same guild, member, and role, Cases or security ownership outranks automatic and self-service ownership. Discord hierarchy and bot capability are rechecked immediately before each Transport mutation. DR-014 catalog ownership and DR-020 `protected_targets` ownership are unchanged.
+
+**Rejected Alternative:** Cases and Assignment both calling Transport for member-role mutations; replacing the member's complete role list; Assignment authoring punitive desired state; Role Resource adding or removing member roles; merging Cases ownership into auto-role policy.
+
+#### Decision Record DR-069
+
+**Status:** Accepted.
+
+**Decision:** Public entitlement contracts are only `GuildRewardEntitlement*` for module 7.35 and `PlatformEntitlement*` for module 7.55. An envelope whose `schema_name` is unprefixed `Entitlement` or any other Entitlement-shaped name MUST fail closed at parse. Platform Entitlement MUST reject `GuildRewardEntitlement*` at inbox apply. Module 7.35 MUST reject `PlatformEntitlement*` leaves and MUST NOT apply `GRANT_SOURCE`. Consumers MUST NOT infer the plane from payload fields. The private `ENTITLEMENT` table remains guild-reward storage and MUST NOT be Platform Entitlement's journal. DR-066 ownership and public names are unchanged.
+
+**Rejected Alternative:** Guessing guild versus platform from payload; applying unprefixed `Entitlement*` into either journal; sharing one Entitlement inbox; treating `ENTITLEMENT` as Platform Entitlement storage.
+
+#### Decision Record DR-070
+
+**Status:** Accepted.
+
+**Decision:** `Disputed` is a Ledger reservation review state, not an AI Execution operation state. While a reservation is `Uncertain` or `Disputed`, the paired operation MUST remain `Uncertain`. The operation machine MUST NOT gain a `Disputed` state. Reservation `Disputed` MUST NOT be treated as capture, release, refund, operation `Failed`, operation `Succeeded`, or settlement. The operation MAY leave `Uncertain` only after Ledger accepts a confirmed usage or absence receipt into `Capturing` or `Releasing`. Query and dashboard MUST NOT present a `Disputed` reservation as a completed operation. DR-061 deadlines and DR-062 attempt classes are unchanged.
+
+**Rejected Alternative:** Adding operation `Disputed`; auto-failing the operation when the reservation becomes `Disputed`; treating `Disputed` as `Released` or `Captured`; dashboard settlement from `Disputed`.
