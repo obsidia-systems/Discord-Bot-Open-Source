@@ -6,7 +6,9 @@ use time::{Duration, OffsetDateTime};
 use tobot_core::TenantContext;
 use tobot_discord_adapter::{DiscordTransport, InteractionCallback, TransportError};
 use tobot_envelope::EventEnvelope;
-use tobot_persistence::{InteractionAcceptance, InteractionAcknowledgement, Store};
+use tobot_persistence::{
+    GatewayInteractionAcceptance, InteractionAcceptance, InteractionAcknowledgement, Store,
+};
 use uuid::Uuid;
 
 const INTERACTION_LIFETIME: Duration = Duration::minutes(15);
@@ -22,6 +24,17 @@ pub enum IngressOutcome {
     Acknowledged,
     Deferred,
     Duplicate,
+}
+
+pub struct InteractionIngressRequest<'a> {
+    pub context: TenantContext,
+    pub callback: InteractionCallback,
+    pub gateway_event: &'a EventEnvelope,
+    pub gateway_raw: &'a [u8],
+    pub interaction_event: &'a EventEnvelope,
+    pub interaction_raw: &'a [u8],
+    pub acknowledgement: ProbeAcknowledgement,
+    pub now: OffsetDateTime,
 }
 
 #[derive(Debug, Error)]
@@ -58,28 +71,37 @@ where
     /// acceptance fails, or Discord cannot accept the initial callback.
     pub async fn accept_and_acknowledge(
         &self,
-        context: TenantContext,
-        callback: InteractionCallback,
-        event: &EventEnvelope,
-        raw: &[u8],
-        acknowledgement: ProbeAcknowledgement,
-        now: OffsetDateTime,
+        request: InteractionIngressRequest<'_>,
     ) -> Result<IngressOutcome, IngressError> {
-        if event.schema_name != "InteractionAccepted" {
+        let InteractionIngressRequest {
+            context,
+            callback,
+            gateway_event,
+            gateway_raw,
+            interaction_event,
+            interaction_raw,
+            acknowledgement,
+            now,
+        } = request;
+        if gateway_event.schema_name != "GatewayEventAccepted"
+            || interaction_event.schema_name != "InteractionAccepted"
+        {
             return Err(IngressError::InvalidEnvelope);
         }
 
         let receipt_id = Uuid::now_v7();
         match self
             .store
-            .accept_interaction_event(
+            .accept_gateway_interaction(GatewayInteractionAcceptance {
                 context,
-                &callback.interaction_id.to_string(),
+                interaction_id: &callback.interaction_id.to_string(),
                 receipt_id,
-                now + INTERACTION_LIFETIME,
-                event,
-                raw,
-            )
+                expires_at: now + INTERACTION_LIFETIME,
+                gateway_event,
+                gateway_raw,
+                interaction_event,
+                interaction_raw,
+            })
             .await
             .map_err(|_| IngressError::Persistence)?
         {

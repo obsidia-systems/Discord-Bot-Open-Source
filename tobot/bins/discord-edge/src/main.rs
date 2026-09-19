@@ -4,7 +4,7 @@ use anyhow::Context;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tobot_discord_adapter::{InteractionCallback, TwilightTransport};
 use tobot_envelope::{EventEnvelope, TraceContext};
-use tobot_interaction_edge::{InteractionEdge, ProbeAcknowledgement};
+use tobot_interaction_edge::{InteractionEdge, InteractionIngressRequest, ProbeAcknowledgement};
 use tobot_persistence::Store;
 use tracing::{info, warn};
 use twilight_gateway::{Event, EventTypeFlags, Intents, Shard, ShardId, StreamExt as _};
@@ -93,9 +93,10 @@ async fn accept_interaction(
     let now = OffsetDateTime::now_utc();
     let timestamp = now.format(&Rfc3339)?;
     let correlation_id = Uuid::now_v7();
-    let event = EventEnvelope {
-        event_id: Uuid::now_v7(),
-        schema_name: "InteractionAccepted".to_owned(),
+    let gateway_event_id = Uuid::now_v7();
+    let gateway_event = EventEnvelope {
+        event_id: gateway_event_id,
+        schema_name: "GatewayEventAccepted".to_owned(),
         schema_version: 1,
         occurred_at: timestamp.clone(),
         received_at: timestamp,
@@ -117,7 +118,27 @@ async fn accept_interaction(
             "kind": "S0DiagnosticInteraction"
         }),
     };
-    let raw = serde_json::to_vec(&event)?;
+    let interaction_event = EventEnvelope {
+        event_id: Uuid::now_v7(),
+        schema_name: "InteractionAccepted".to_owned(),
+        schema_version: 1,
+        occurred_at: gateway_event.occurred_at.clone(),
+        received_at: gateway_event.received_at.clone(),
+        application_id: gateway_event.application_id.clone(),
+        guild_id: gateway_event.guild_id.clone(),
+        shard_id: gateway_event.shard_id,
+        session_id: gateway_event.session_id.clone(),
+        gateway_sequence: gateway_event.gateway_sequence,
+        correlation_id,
+        causation_id: Some(gateway_event_id),
+        trace_context: TraceContext {
+            trace_id: correlation_id.to_string(),
+            span_id: Uuid::now_v7().to_string(),
+        },
+        payload: gateway_event.payload.clone(),
+    };
+    let gateway_raw = serde_json::to_vec(&gateway_event)?;
+    let interaction_raw = serde_json::to_vec(&interaction_event)?;
     let callback = InteractionCallback {
         application_id: interaction.application_id.get(),
         interaction_id: interaction.id.get(),
@@ -125,15 +146,17 @@ async fn accept_interaction(
         ephemeral: true,
     };
     let outcome = interaction_edge
-        .accept_and_acknowledge(
+        .accept_and_acknowledge(InteractionIngressRequest {
             context,
             callback,
-            &event,
-            &raw,
-            ProbeAcknowledgement::Deferred,
+            gateway_event: &gateway_event,
+            gateway_raw: &gateway_raw,
+            interaction_event: &interaction_event,
+            interaction_raw: &interaction_raw,
+            acknowledgement: ProbeAcknowledgement::Deferred,
             now,
-        )
+        })
         .await?;
-    info!(?outcome, event_id = %event.event_id, "interaction receipt processed");
+    info!(?outcome, event_id = %interaction_event.event_id, "interaction receipt processed");
     Ok(())
 }

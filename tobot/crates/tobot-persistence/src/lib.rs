@@ -34,6 +34,17 @@ pub enum InteractionAcknowledgement {
     Deferred,
 }
 
+pub struct GatewayInteractionAcceptance<'a> {
+    pub context: TenantContext,
+    pub interaction_id: &'a str,
+    pub receipt_id: Uuid,
+    pub expires_at: OffsetDateTime,
+    pub gateway_event: &'a EventEnvelope,
+    pub gateway_raw: &'a [u8],
+    pub interaction_event: &'a EventEnvelope,
+    pub interaction_raw: &'a [u8],
+}
+
 impl Store {
     /// # Errors
     ///
@@ -148,6 +159,121 @@ impl Store {
         .await?;
         transaction.commit().await?;
 
+        Ok(InteractionAcceptance::Accepted)
+    }
+
+    /// Atomically accepts the Gateway technical receipt, its Gateway fact,
+    /// the interaction receipt, and its interaction fact. The technical
+    /// receipt is the authoritative duplicate key; wall-clock time and local
+    /// UUIDs cannot be used for Gateway deduplication.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the supplied Gateway identity is incomplete or any
+    /// member of the durable acceptance transaction cannot be committed.
+    pub async fn accept_gateway_interaction(
+        &self,
+        request: GatewayInteractionAcceptance<'_>,
+    ) -> Result<InteractionAcceptance, sqlx::Error> {
+        let GatewayInteractionAcceptance {
+            context,
+            interaction_id,
+            receipt_id,
+            expires_at,
+            gateway_event,
+            gateway_raw,
+            interaction_event,
+            interaction_raw,
+        } = request;
+        let (Some(shard_id), Some(session_id), Some(gateway_sequence)) = (
+            gateway_event.shard_id,
+            gateway_event.session_id.as_deref(),
+            gateway_event.gateway_sequence,
+        ) else {
+            return Err(sqlx::Error::Protocol(
+                "gateway event is missing its technical identity".to_owned(),
+            ));
+        };
+        let mut transaction = self.pool.begin().await?;
+        let gateway_inserted = sqlx::query(
+            "INSERT INTO edge.gateway_receipt \
+             (application_id, shard_id, session_id, gateway_sequence, event_id) \
+             VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING",
+        )
+        .bind(&gateway_event.application_id)
+        .bind(i32::try_from(shard_id).map_err(|_| {
+            sqlx::Error::Protocol("gateway shard id exceeds PostgreSQL integer range".to_owned())
+        })?)
+        .bind(session_id)
+        .bind(i64::try_from(gateway_sequence).map_err(|_| {
+            sqlx::Error::Protocol("gateway sequence exceeds PostgreSQL bigint range".to_owned())
+        })?)
+        .bind(gateway_event.event_id)
+        .execute(&mut *transaction)
+        .await?
+        .rows_affected()
+            == 1;
+        if !gateway_inserted {
+            transaction.commit().await?;
+            return Ok(InteractionAcceptance::Duplicate);
+        }
+
+        let interaction_inserted = sqlx::query(
+            "INSERT INTO edge.interaction_receipt \
+             (receipt_id, tenant_id, interaction_id, state, expires_at) \
+             VALUES ($1, $2, $3, 'Reserved', $4) \
+             ON CONFLICT (tenant_id, interaction_id) DO NOTHING",
+        )
+        .bind(receipt_id)
+        .bind(context.tenant_id.as_uuid())
+        .bind(interaction_id)
+        .bind(expires_at)
+        .execute(&mut *transaction)
+        .await?
+        .rows_affected()
+            == 1;
+        if !interaction_inserted {
+            return Err(sqlx::Error::Protocol(
+                "gateway receipt has conflicting interaction identity".to_owned(),
+            ));
+        }
+
+        for (event, raw) in [
+            (gateway_event, gateway_raw),
+            (interaction_event, interaction_raw),
+        ] {
+            let inbox_inserted = sqlx::query(
+                "INSERT INTO edge.event_inbox (event_id, tenant_id, schema_name, schema_version, raw_envelope) \
+                 VALUES ($1, $2, $3, $4, $5) ON CONFLICT (event_id) DO NOTHING",
+            )
+            .bind(event.event_id)
+            .bind(context.tenant_id.as_uuid())
+            .bind(&event.schema_name)
+            .bind(i32::from(event.schema_version))
+            .bind(raw)
+            .execute(&mut *transaction)
+            .await?
+            .rows_affected()
+                == 1;
+            if !inbox_inserted {
+                return Err(sqlx::Error::Protocol(
+                    "gateway receipt has conflicting event identity".to_owned(),
+                ));
+            }
+            sqlx::query(
+                "INSERT INTO edge.event_outbox (outbox_id, tenant_id, event_id, topic, partition_key, envelope) \
+                 VALUES ($1, $2, $3, $4, $5, $6)",
+            )
+            .bind(Uuid::now_v7())
+            .bind(context.tenant_id.as_uuid())
+            .bind(event.event_id)
+            .bind(&event.schema_name)
+            .bind(context.tenant_id.as_uuid())
+            .bind(raw)
+            .execute(&mut *transaction)
+            .await?;
+        }
+        transaction.commit().await?;
         Ok(InteractionAcceptance::Accepted)
     }
 
