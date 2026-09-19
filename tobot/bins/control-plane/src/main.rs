@@ -26,7 +26,7 @@ const REQUEST_ID: &str = "x-request-id";
 #[derive(Clone)]
 struct AppState {
     store: Store,
-    _secret_store: VaultTransitStore,
+    secret_store: VaultTransitStore,
 }
 
 #[tokio::main]
@@ -51,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
     .context("invalid Vault Transit configuration")?;
     let app = router(AppState {
         store,
-        _secret_store: secret_store,
+        secret_store,
     });
 
     info!(bind = %address, origin = %config.public_origin, "control plane starting");
@@ -90,8 +90,11 @@ async fn live() -> StatusCode {
 }
 
 async fn ready(State(state): State<AppState>) -> StatusCode {
-    let database_ready = sqlx::query("SELECT 1").execute(state.store.pool()).await.is_ok();
-    let vault_ready = state._secret_store.health().await.is_ok();
+    let database_ready = sqlx::query("SELECT 1")
+        .execute(state.store.pool())
+        .await
+        .is_ok();
+    let vault_ready = state.secret_store.health().await.is_ok();
     if database_ready && vault_ready {
         StatusCode::NO_CONTENT
     } else {
