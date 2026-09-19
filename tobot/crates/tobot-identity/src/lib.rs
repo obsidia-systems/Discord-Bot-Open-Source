@@ -39,6 +39,8 @@ pub enum IdentityError {
     ScopeMismatch,
     #[error("CSRF proof does not match the active session")]
     InvalidCsrf,
+    #[error("request Origin does not match the allowed dashboard origin")]
+    InvalidOrigin,
     #[error("session is expired or revoked")]
     SessionInactive,
 }
@@ -134,6 +136,32 @@ impl AuthorizationSession {
             return Err(IdentityError::InvalidCsrf);
         }
         Ok(())
+    }
+
+    /// Enforces both independent CSRF factors for a cookie-authenticated
+    /// mutation. `SameSite` is intentionally not used as an authorization
+    /// signal here.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for a non-matching Origin, an inactive session, or an
+    /// invalid session-bound CSRF proof.
+    pub fn verify_cookie_mutation(
+        &self,
+        origin: &str,
+        allowed_origin: &str,
+        csrf: &str,
+        now: SystemTime,
+    ) -> Result<(), IdentityError> {
+        if origin
+            .as_bytes()
+            .ct_eq(allowed_origin.as_bytes())
+            .unwrap_u8()
+            != 1
+        {
+            return Err(IdentityError::InvalidOrigin);
+        }
+        self.verify_mutation(csrf, now)
     }
 
     /// Validates the server-side session and slides only its idle expiry. The
@@ -252,6 +280,40 @@ mod tests {
                 now
             ),
             Err(IdentityError::ScopeMismatch)
+        );
+    }
+
+    #[test]
+    fn csrf_requires_both_origin_and_session_bound_proof() {
+        let now = SystemTime::UNIX_EPOCH;
+        let session = AuthorizationSession::new(now);
+        assert_eq!(
+            session.verify_cookie_mutation(
+                "https://evil.example",
+                "https://app.tobot.test",
+                &session.csrf_proof,
+                now
+            ),
+            Err(IdentityError::InvalidOrigin)
+        );
+        assert_eq!(
+            session.verify_cookie_mutation(
+                "https://app.tobot.test",
+                "https://app.tobot.test",
+                "wrong",
+                now
+            ),
+            Err(IdentityError::InvalidCsrf)
+        );
+        assert!(
+            session
+                .verify_cookie_mutation(
+                    "https://app.tobot.test",
+                    "https://app.tobot.test",
+                    &session.csrf_proof,
+                    now
+                )
+                .is_ok()
         );
     }
 }
