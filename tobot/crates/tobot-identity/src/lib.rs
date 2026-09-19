@@ -63,6 +63,11 @@ impl OAuthTransaction {
         }
     }
 
+    #[must_use]
+    pub fn state_hash(&self) -> [u8; 32] {
+        oauth_state_hash(&self.state)
+    }
+
     /// Atomically persisted callers must invoke this before token exchange.
     ///
     /// # Errors
@@ -93,6 +98,11 @@ impl OAuthTransaction {
         self.consumed_at = Some(now);
         Ok(())
     }
+}
+
+#[must_use]
+pub fn oauth_state_hash(state: &str) -> [u8; 32] {
+    Sha256::digest(state.as_bytes()).into()
 }
 
 #[derive(Clone, Debug)]
@@ -205,6 +215,10 @@ mod tests {
         assert_eq!(
             transaction.code_challenge,
             URL_SAFE_NO_PAD.encode(Sha256::digest(transaction.code_verifier.as_bytes()))
+        );
+        assert_ne!(
+            transaction.state_hash().as_slice(),
+            transaction.state.as_bytes()
         );
         let state = transaction.state.clone();
         assert!(

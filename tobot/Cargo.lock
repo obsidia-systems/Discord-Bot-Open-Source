@@ -2294,12 +2294,15 @@ dependencies = [
  "http",
  "sqlx",
  "tobot-config",
+ "tobot-core",
+ "tobot-identity-service",
  "tobot-persistence",
  "tobot-secret-store",
  "tokio",
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "url",
 ]
 
 [[package]]
@@ -2389,6 +2392,18 @@ dependencies = [
  "sha2",
  "subtle",
  "thiserror",
+ "uuid",
+]
+
+[[package]]
+name = "tobot-identity-service"
+version = "0.1.0"
+dependencies = [
+ "thiserror",
+ "time",
+ "tobot-identity",
+ "tobot-persistence",
+ "tobot-secret-store",
  "uuid",
 ]
 

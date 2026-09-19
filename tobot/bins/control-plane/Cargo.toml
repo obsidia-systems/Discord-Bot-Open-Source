@@ -16,8 +16,11 @@ tower-http.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 tobot-config = { path = "../../crates/tobot-config" }
+tobot-core = { path = "../../crates/tobot-core" }
+tobot-identity-service = { path = "../../crates/tobot-identity-service" }
 tobot-persistence = { path = "../../crates/tobot-persistence" }
 tobot-secret-store = { path = "../../crates/tobot-secret-store" }
+url.workspace = true
 
 [lints]
 workspace = true

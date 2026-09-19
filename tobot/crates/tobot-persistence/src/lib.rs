@@ -45,7 +45,71 @@ pub struct GatewayInteractionAcceptance<'a> {
     pub interaction_raw: &'a [u8],
 }
 
+pub struct NewOAuthTransaction<'a> {
+    pub transaction_id: Uuid,
+    pub state_hash: &'a [u8],
+    pub verifier_ciphertext: &'a [u8],
+    pub redirect_uri: &'a str,
+    pub requested_scopes: &'a [String],
+    pub expires_at: OffsetDateTime,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct ConsumedOAuthTransaction {
+    pub transaction_id: Uuid,
+    pub verifier_ciphertext: Vec<u8>,
+    pub redirect_uri: String,
+    pub requested_scopes: Vec<String>,
+}
+
 impl Store {
+    /// Persists only the state digest and Vault ciphertext. The raw state and
+    /// PKCE verifier are never database values.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the transaction cannot be created.
+    pub async fn create_oauth_transaction(
+        &self,
+        request: NewOAuthTransaction<'_>,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "INSERT INTO identity.oauth_transaction \
+             (transaction_id, state_hash, verifier_ciphertext, redirect_uri, requested_scopes, expires_at) \
+             VALUES ($1, $2, $3, $4, $5, $6)",
+        )
+        .bind(request.transaction_id)
+        .bind(request.state_hash)
+        .bind(request.verifier_ciphertext)
+        .bind(request.redirect_uri)
+        .bind(request.requested_scopes)
+        .bind(request.expires_at)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Atomically consumes an unexpired OAuth transaction by state digest.
+    /// Replays, expired states, and unknown states all fail closed as `None`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if consumption cannot be recorded.
+    pub async fn consume_oauth_transaction(
+        &self,
+        state_hash: &[u8],
+        now: OffsetDateTime,
+    ) -> Result<Option<ConsumedOAuthTransaction>, sqlx::Error> {
+        sqlx::query_as(
+            "UPDATE identity.oauth_transaction SET consumed_at = $2 \
+             WHERE state_hash = $1 AND consumed_at IS NULL AND expires_at >= $2 \
+             RETURNING transaction_id, verifier_ciphertext, redirect_uri, requested_scopes",
+        )
+        .bind(state_hash)
+        .bind(now)
+        .fetch_optional(&self.pool)
+        .await
+    }
     /// # Errors
     ///
     /// Returns the driver error if a connection cannot be established.

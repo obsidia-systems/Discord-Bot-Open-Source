@@ -1,0 +1,18 @@
+[package]
+name = "tobot-identity-service"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+time.workspace = true
+tobot-identity = { path = "../tobot-identity" }
+tobot-persistence = { path = "../tobot-persistence" }
+tobot-secret-store = { path = "../tobot-secret-store" }
+uuid.workspace = true
+
+[lints]
+workspace = true
