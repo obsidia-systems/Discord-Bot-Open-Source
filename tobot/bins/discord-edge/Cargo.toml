@@ -13,6 +13,7 @@ time.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+tobot-delivery-client = { path = "../../crates/tobot-delivery-client" }
 tobot-discord-adapter = { path = "../../crates/tobot-discord-adapter" }
 tobot-envelope = { path = "../../crates/tobot-envelope" }
 tobot-interaction-edge = { path = "../../crates/tobot-interaction-edge" }

@@ -2,6 +2,7 @@
 //! boundary; domain crates never receive Twilight values.
 
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use thiserror::Error;
 use twilight_http::{api_error::ApiError, error::ErrorType};
@@ -14,7 +15,7 @@ use twilight_model::{
     },
 };
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct InteractionCallback {
     pub application_id: u64,
     pub interaction_id: u64,

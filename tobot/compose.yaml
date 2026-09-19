@@ -23,7 +23,8 @@ services:
   migrate:
     build: .
     command: ["/usr/local/bin/tobot-migrate"]
-    env_file: ${TOBOT_ENV_FILE:-.env}
+    environment:
+      TOBOT_DATABASE_URL: ${TOBOT_DATABASE_URL:?set TOBOT_DATABASE_URL}
     depends_on:
       postgres:
         condition: service_healthy
@@ -31,7 +32,14 @@ services:
   control-plane:
     build: .
     command: ["/usr/local/bin/tobot-control-plane"]
-    env_file: ${TOBOT_ENV_FILE:-.env}
+    environment:
+      TOBOT_CONTROL_BIND: ${TOBOT_CONTROL_BIND:-0.0.0.0:8080}
+      TOBOT_PUBLIC_APP_ORIGIN: ${TOBOT_PUBLIC_APP_ORIGIN:?set TOBOT_PUBLIC_APP_ORIGIN}
+      TOBOT_DATABASE_URL: ${TOBOT_DATABASE_URL:?set TOBOT_DATABASE_URL}
+      TOBOT_REDIS_URL: ${TOBOT_REDIS_URL:?set TOBOT_REDIS_URL}
+      TOBOT_DISCORD_APPLICATION_ID: ${TOBOT_DISCORD_APPLICATION_ID:?set TOBOT_DISCORD_APPLICATION_ID}
+      TOBOT_DISCORD_CLIENT_ID: ${TOBOT_DISCORD_CLIENT_ID:?set TOBOT_DISCORD_CLIENT_ID}
+      TOBOT_DISCORD_CLIENT_SECRET: ${TOBOT_DISCORD_CLIENT_SECRET:?set TOBOT_DISCORD_CLIENT_SECRET}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -41,7 +49,12 @@ services:
   discord-edge:
     build: .
     command: ["/usr/local/bin/tobot-discord-edge"]
-    env_file: ${TOBOT_ENV_FILE:-.env}
+    environment:
+      TOBOT_DATABASE_URL: ${TOBOT_DATABASE_URL:?set TOBOT_DATABASE_URL}
+      TOBOT_DISCORD_APPLICATION_ID: ${TOBOT_DISCORD_APPLICATION_ID:?set TOBOT_DISCORD_APPLICATION_ID}
+      TOBOT_DISCORD_BOT_TOKEN: ${TOBOT_DISCORD_BOT_TOKEN:?set TOBOT_DISCORD_BOT_TOKEN}
+      TOBOT_DELIVERY_URL: ${TOBOT_DELIVERY_URL:-http://delivery:8081}
+      TOBOT_INTERNAL_SERVICE_TOKEN: ${TOBOT_INTERNAL_SERVICE_TOKEN:?set TOBOT_INTERNAL_SERVICE_TOKEN}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -49,7 +62,12 @@ services:
   delivery:
     build: .
     command: ["/usr/local/bin/tobot-delivery"]
-    env_file: ${TOBOT_ENV_FILE:-.env}
+    environment:
+      TOBOT_DATABASE_URL: ${TOBOT_DATABASE_URL:?set TOBOT_DATABASE_URL}
+      TOBOT_REDIS_URL: ${TOBOT_REDIS_URL:?set TOBOT_REDIS_URL}
+      TOBOT_DISCORD_BOT_TOKEN: ${TOBOT_DISCORD_BOT_TOKEN:?set TOBOT_DISCORD_BOT_TOKEN}
+      TOBOT_INTERNAL_SERVICE_TOKEN: ${TOBOT_INTERNAL_SERVICE_TOKEN:?set TOBOT_INTERNAL_SERVICE_TOKEN}
+      TOBOT_DELIVERY_BIND: 0.0.0.0:8081
     depends_on:
       migrate:
         condition: service_completed_successfully

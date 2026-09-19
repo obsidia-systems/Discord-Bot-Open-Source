@@ -2,7 +2,8 @@
 
 use anyhow::Context;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
-use tobot_discord_adapter::{InteractionCallback, TwilightTransport};
+use tobot_delivery_client::InternalDeliveryTransport;
+use tobot_discord_adapter::InteractionCallback;
 use tobot_envelope::{EventEnvelope, TraceContext};
 use tobot_interaction_edge::{InteractionEdge, InteractionIngressRequest, ProbeAcknowledgement};
 use tobot_persistence::Store;
@@ -22,11 +23,15 @@ async fn main() -> anyhow::Result<()> {
     let bot_token =
         std::env::var("TOBOT_DISCORD_BOT_TOKEN").context("missing TOBOT_DISCORD_BOT_TOKEN")?;
     let database_url = std::env::var("TOBOT_DATABASE_URL").context("missing TOBOT_DATABASE_URL")?;
+    let delivery_url = std::env::var("TOBOT_DELIVERY_URL").context("missing TOBOT_DELIVERY_URL")?;
+    let internal_service_token = std::env::var("TOBOT_INTERNAL_SERVICE_TOKEN")
+        .context("missing TOBOT_INTERNAL_SERVICE_TOKEN")?;
     let store = Store::connect(&database_url)
         .await
         .context("discord edge database unavailable")?;
-    let interaction_edge =
-        InteractionEdge::new(store.clone(), TwilightTransport::new(bot_token.clone()));
+    let delivery_transport = InternalDeliveryTransport::new(&delivery_url, internal_service_token)
+        .context("invalid Delivery transport configuration")?;
+    let interaction_edge = InteractionEdge::new(store.clone(), delivery_transport);
     let mut shard = Shard::new(ShardId::ONE, bot_token, Intents::GUILDS);
 
     info!(%application_id, ingress = "gateway", shard = 0, "discord edge starting");
@@ -69,7 +74,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn accept_interaction(
-    interaction_edge: &InteractionEdge<TwilightTransport>,
+    interaction_edge: &InteractionEdge<InternalDeliveryTransport>,
     store: &Store,
     configured_application_id: &str,
     shard_id: u32,
