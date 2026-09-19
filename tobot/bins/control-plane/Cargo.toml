@@ -10,11 +10,13 @@ publish.workspace = true
 anyhow.workspace = true
 axum.workspace = true
 http.workspace = true
+sqlx.workspace = true
 tokio.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 tobot-config = { path = "../../crates/tobot-config" }
+tobot-persistence = { path = "../../crates/tobot-persistence" }
 
 [lints]
 workspace = true
