@@ -4,6 +4,7 @@
 use async_trait::async_trait;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -35,7 +36,10 @@ impl VaultTransitStore {
     /// Returns an error if the bounded Vault HTTP client cannot be built.
     pub fn new(address: &str, token: String, key: String) -> Result<Self, reqwest::Error> {
         Ok(Self {
-            client: reqwest::Client::builder().build()?,
+            client: reqwest::Client::builder()
+                .connect_timeout(Duration::from_millis(500))
+                .timeout(Duration::from_secs(2))
+                .build()?,
             address: address.trim_end_matches('/').to_owned(),
             token,
             key,
@@ -106,6 +110,9 @@ impl SecretStore for VaultTransitStore {
     }
 
     async fn decrypt(&self, ciphertext: &str, context: &[u8]) -> Result<Vec<u8>, SecretStoreError> {
+        if !is_vault_ciphertext(ciphertext) {
+            return Err(SecretStoreError::Rejected);
+        }
         let response = self
             .client
             .post(format!("{}/v1/transit/decrypt/{}", self.address, self.key))
@@ -131,5 +138,21 @@ impl SecretStore for VaultTransitStore {
         STANDARD
             .decode(encoded)
             .map_err(|_| SecretStoreError::InvalidResponse)
+    }
+}
+
+fn is_vault_ciphertext(value: &str) -> bool {
+    value.starts_with("vault:v")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decrypt_only_admits_versioned_vault_ciphertext() {
+        assert!(is_vault_ciphertext("vault:v1:opaque"));
+        assert!(!is_vault_ciphertext("plaintext"));
+        assert!(!is_vault_ciphertext("v1:opaque"));
     }
 }
