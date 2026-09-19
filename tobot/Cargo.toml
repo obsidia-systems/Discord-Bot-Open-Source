@@ -5,6 +5,7 @@ members = [
   "bins/discord-edge",
   "bins/migrate",
   "crates/tobot-config",
+  "crates/tobot-discord-adapter",
   "crates/tobot-bus",
   "crates/tobot-core",
   "crates/tobot-envelope",
@@ -39,6 +40,8 @@ tokio = { version = "1.47", features = ["macros", "rt-multi-thread", "signal", "
 tower-http = { version = "0.6", features = ["request-id", "trace", "set-header"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+twilight-http = { version = "0.17.1", default-features = false, features = ["rustls-webpki-roots"] }
+twilight-model = "0.17.1"
 uuid = { version = "1.18", features = ["serde", "v7"] }
 
 [workspace.lints.rust]
