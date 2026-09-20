@@ -33,6 +33,145 @@ pub enum TransportError {
     Unavailable(String),
 }
 
+pub struct OAuthTokenSet {
+    pub access_token: String,
+    pub refresh_token: String,
+    pub expires_in_seconds: u64,
+    pub scopes: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+pub struct DiscordAuthorizationUser {
+    pub id: String,
+    pub username: String,
+    pub global_name: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct OAuthTokenResponse {
+    access_token: String,
+    refresh_token: String,
+    expires_in: u64,
+    scope: String,
+}
+
+#[derive(Deserialize)]
+struct CurrentAuthorizationResponse {
+    scopes: Vec<String>,
+    user: Option<DiscordAuthorizationUser>,
+}
+
+#[derive(Clone)]
+pub struct DiscordOAuthClient {
+    client: reqwest::Client,
+    client_id: String,
+    client_secret: String,
+}
+
+impl DiscordOAuthClient {
+    /// # Errors
+    ///
+    /// Returns an error when the bounded HTTP client cannot be constructed.
+    pub fn new(client_id: String, client_secret: String) -> Result<Self, reqwest::Error> {
+        Ok(Self {
+            client: reqwest::Client::builder()
+                .connect_timeout(Duration::from_millis(500))
+                .timeout(Duration::from_secs(3))
+                .build()?,
+            client_id,
+            client_secret,
+        })
+    }
+
+    /// Exchanges a single-use authorization code with its server-held PKCE
+    /// verifier. Provider response bodies are never included in errors.
+    ///
+    /// # Errors
+    ///
+    /// Returns a classified transport error for provider rejection or
+    /// unavailability.
+    pub async fn exchange_code(
+        &self,
+        code: &str,
+        redirect_uri: &str,
+        code_verifier: &str,
+    ) -> Result<OAuthTokenSet, TransportError> {
+        let response = self
+            .client
+            .post("https://discord.com/api/v10/oauth2/token")
+            .basic_auth(&self.client_id, Some(&self.client_secret))
+            .form(&[
+                ("grant_type", "authorization_code"),
+                ("code", code),
+                ("redirect_uri", redirect_uri),
+                ("code_verifier", code_verifier),
+            ])
+            .send()
+            .await
+            .map_err(|_| TransportError::Unavailable("Discord OAuth unavailable".to_owned()))?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(TransportError::Rejected {
+                status: status.as_u16(),
+            });
+        }
+        let token = response.json::<OAuthTokenResponse>().await.map_err(|_| {
+            TransportError::Unavailable("Discord OAuth response invalid".to_owned())
+        })?;
+        Ok(OAuthTokenSet {
+            access_token: token.access_token,
+            refresh_token: token.refresh_token,
+            expires_in_seconds: token.expires_in,
+            scopes: canonical_scopes(&token.scope),
+        })
+    }
+
+    /// Reads the authorization owner under the OAuth credential class.
+    ///
+    /// # Errors
+    ///
+    /// Returns a classified error when Discord rejects or cannot serve the
+    /// bearer credential.
+    pub async fn current_user(
+        &self,
+        access_token: &str,
+    ) -> Result<(DiscordAuthorizationUser, Vec<String>), TransportError> {
+        let response = self
+            .client
+            .get("https://discord.com/api/v10/oauth2/@me")
+            .bearer_auth(access_token)
+            .send()
+            .await
+            .map_err(|_| TransportError::Unavailable("Discord OAuth unavailable".to_owned()))?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(TransportError::Rejected {
+                status: status.as_u16(),
+            });
+        }
+        let authorization = response
+            .json::<CurrentAuthorizationResponse>()
+            .await
+            .map_err(|_| {
+                TransportError::Unavailable("Discord OAuth response invalid".to_owned())
+            })?;
+        let user = authorization
+            .user
+            .ok_or(TransportError::Rejected { status: 403 })?;
+        Ok((user, canonical_scope_values(authorization.scopes)))
+    }
+}
+
+fn canonical_scopes(value: &str) -> Vec<String> {
+    canonical_scope_values(value.split_ascii_whitespace().map(str::to_owned).collect())
+}
+
+fn canonical_scope_values(mut scopes: Vec<String>) -> Vec<String> {
+    scopes.sort_unstable();
+    scopes.dedup();
+    scopes
+}
+
 #[async_trait]
 pub trait DiscordTransport: Send + Sync {
     async fn respond_to_interaction(

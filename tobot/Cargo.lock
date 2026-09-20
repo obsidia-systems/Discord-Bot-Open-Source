@@ -2292,9 +2292,13 @@ dependencies = [
  "anyhow",
  "axum",
  "http",
+ "serde",
  "sqlx",
+ "time",
  "tobot-config",
  "tobot-core",
+ "tobot-discord-adapter",
+ "tobot-identity",
  "tobot-identity-service",
  "tobot-persistence",
  "tobot-secret-store",
@@ -2303,6 +2307,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+ "uuid",
 ]
 
 [[package]]
@@ -2347,6 +2352,7 @@ name = "tobot-discord-adapter"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "reqwest",
  "serde",
  "thiserror",
  "twilight-http",

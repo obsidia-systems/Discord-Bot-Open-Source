@@ -62,7 +62,192 @@ pub struct ConsumedOAuthTransaction {
     pub requested_scopes: Vec<String>,
 }
 
+pub struct NewDiscordAuthorization<'a> {
+    pub candidate_account_id: Uuid,
+    pub provider_user_id: &'a str,
+    pub username: &'a str,
+    pub display_name: Option<&'a str>,
+    pub credential_id: Uuid,
+    pub access_token_ciphertext: &'a [u8],
+    pub refresh_token_ciphertext: &'a [u8],
+    pub scopes: &'a [String],
+    pub credential_expires_at: OffsetDateTime,
+    pub session_id: Uuid,
+    pub csrf_secret_hash: &'a [u8],
+    pub csrf_secret_ciphertext: &'a [u8],
+    pub idle_expires_at: OffsetDateTime,
+    pub absolute_expires_at: OffsetDateTime,
+}
+
+#[derive(Debug)]
+pub struct CreatedAuthorization {
+    pub account_id: Uuid,
+    pub credential_generation: i64,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct ActiveAuthorizationSession {
+    pub csrf_secret_ciphertext: Vec<u8>,
+    pub idle_expires_at: OffsetDateTime,
+    pub absolute_expires_at: OffsetDateTime,
+}
+
 impl Store {
+    /// Validates all server-side session authorities and advances only the
+    /// idle deadline, never the absolute deadline.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if session authorization cannot be checked.
+    pub async fn authorize_session(
+        &self,
+        session_id: Uuid,
+        now: OffsetDateTime,
+    ) -> Result<Option<ActiveAuthorizationSession>, sqlx::Error> {
+        sqlx::query_as(
+            "UPDATE identity.authorization_session AS session \
+             SET idle_expires_at = LEAST($2 + INTERVAL '12 hours', session.absolute_expires_at) \
+             FROM identity.account AS account \
+             WHERE session.session_id = $1 \
+               AND session.account_id = account.account_id \
+               AND session.revoked_at IS NULL \
+               AND session.idle_expires_at >= $2 \
+               AND session.absolute_expires_at >= $2 \
+               AND account.state = 'Active' \
+               AND session.credential_generation = account.credential_generation \
+             RETURNING session.csrf_secret_ciphertext, session.idle_expires_at, \
+                       session.absolute_expires_at",
+        )
+        .bind(session_id)
+        .bind(now)
+        .fetch_optional(&self.pool)
+        .await
+    }
+
+    /// Idempotently revokes a browser session.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if revocation cannot be recorded.
+    pub async fn revoke_session(
+        &self,
+        session_id: Uuid,
+        now: OffsetDateTime,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "UPDATE identity.authorization_session SET revoked_at = COALESCE(revoked_at, $2) \
+             WHERE session_id = $1",
+        )
+        .bind(session_id)
+        .bind(now)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Atomically binds a Discord identity to one account, rotates its OAuth
+    /// credential generation, and creates the browser authorization session.
+    /// Concurrent first logins converge on the provider identity key.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error and commits none of the authorization state.
+    pub async fn create_discord_authorization(
+        &self,
+        request: NewDiscordAuthorization<'_>,
+    ) -> Result<CreatedAuthorization, sqlx::Error> {
+        let mut transaction = self.pool.begin().await?;
+        sqlx::query("INSERT INTO identity.account (account_id, state) VALUES ($1, 'Active')")
+            .bind(request.candidate_account_id)
+            .execute(&mut *transaction)
+            .await?;
+        let identity_inserted = sqlx::query(
+            "INSERT INTO identity.external_identity \
+             (provider, provider_user_id, account_id, username, display_name) \
+             VALUES ('discord', $1, $2, $3, $4) \
+             ON CONFLICT (provider, provider_user_id) DO NOTHING",
+        )
+        .bind(request.provider_user_id)
+        .bind(request.candidate_account_id)
+        .bind(request.username)
+        .bind(request.display_name)
+        .execute(&mut *transaction)
+        .await?
+        .rows_affected()
+            == 1;
+        let account_id: Uuid = sqlx::query_scalar(
+            "SELECT account_id FROM identity.external_identity \
+             WHERE provider = 'discord' AND provider_user_id = $1 FOR UPDATE",
+        )
+        .bind(request.provider_user_id)
+        .fetch_one(&mut *transaction)
+        .await?;
+        if !identity_inserted {
+            sqlx::query("DELETE FROM identity.account WHERE account_id = $1")
+                .bind(request.candidate_account_id)
+                .execute(&mut *transaction)
+                .await?;
+            sqlx::query(
+                "UPDATE identity.external_identity SET username = $2, display_name = $3, \
+                 updated_at = CURRENT_TIMESTAMP WHERE provider = 'discord' AND provider_user_id = $1",
+            )
+            .bind(request.provider_user_id)
+            .bind(request.username)
+            .bind(request.display_name)
+            .execute(&mut *transaction)
+            .await?;
+        }
+        let generation: i64 = sqlx::query_scalar(
+            "UPDATE identity.account SET credential_generation = credential_generation + 1 \
+             WHERE account_id = $1 AND state = 'Active' RETURNING credential_generation",
+        )
+        .bind(account_id)
+        .fetch_one(&mut *transaction)
+        .await?;
+        sqlx::query(
+            "UPDATE identity.oauth_credential SET revoked_at = CURRENT_TIMESTAMP \
+             WHERE account_id = $1 AND revoked_at IS NULL",
+        )
+        .bind(account_id)
+        .execute(&mut *transaction)
+        .await?;
+        sqlx::query(
+            "INSERT INTO identity.oauth_credential \
+             (credential_id, account_id, generation, access_token_ciphertext, \
+              refresh_token_ciphertext, scopes, expires_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        )
+        .bind(request.credential_id)
+        .bind(account_id)
+        .bind(generation)
+        .bind(request.access_token_ciphertext)
+        .bind(request.refresh_token_ciphertext)
+        .bind(request.scopes)
+        .bind(request.credential_expires_at)
+        .execute(&mut *transaction)
+        .await?;
+        sqlx::query(
+            "INSERT INTO identity.authorization_session \
+             (session_id, account_id, credential_generation, csrf_secret_hash, \
+              csrf_secret_ciphertext, idle_expires_at, absolute_expires_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        )
+        .bind(request.session_id)
+        .bind(account_id)
+        .bind(generation)
+        .bind(request.csrf_secret_hash)
+        .bind(request.csrf_secret_ciphertext)
+        .bind(request.idle_expires_at)
+        .bind(request.absolute_expires_at)
+        .execute(&mut *transaction)
+        .await?;
+        transaction.commit().await?;
+        Ok(CreatedAuthorization {
+            account_id,
+            credential_generation: generation,
+        })
+    }
+
     /// Persists only the state digest and Vault ciphertext. The raw state and
     /// PKCE verifier are never database values.
     ///

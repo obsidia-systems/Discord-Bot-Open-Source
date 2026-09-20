@@ -105,6 +105,19 @@ pub fn oauth_state_hash(state: &str) -> [u8; 32] {
     Sha256::digest(state.as_bytes()).into()
 }
 
+#[must_use]
+pub fn opaque_secret_hash(secret: &str) -> [u8; 32] {
+    Sha256::digest(secret.as_bytes()).into()
+}
+
+#[must_use]
+pub fn opaque_secrets_match(left: &str, right: &str) -> bool {
+    opaque_secret_hash(left)
+        .as_slice()
+        .ct_eq(opaque_secret_hash(right).as_slice())
+        .into()
+}
+
 #[derive(Clone, Debug)]
 pub struct AuthorizationSession {
     pub id: Uuid,
@@ -119,7 +132,7 @@ impl AuthorizationSession {
     #[must_use]
     pub fn new(now: SystemTime) -> Self {
         Self {
-            id: Uuid::now_v7(),
+            id: Uuid::new_v4(),
             csrf_proof: random_url_safe(32),
             issued_at: now,
             idle_expires_at: now + SESSION_IDLE_TTL,

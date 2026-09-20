@@ -6,32 +6,38 @@ use std::net::SocketAddr;
 use anyhow::Context;
 use axum::{
     Router,
-    extract::State,
-    http::{HeaderValue, StatusCode, header},
+    extract::{Query, State},
+    http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Redirect, Response},
     routing::{get, post},
 };
 use tobot_config::ControlPlaneConfig;
 use tobot_core::{Clock, SystemClock};
+use tobot_discord_adapter::DiscordOAuthClient;
+use tobot_identity::{AuthorizationSession, opaque_secret_hash, opaque_secrets_match};
 use tobot_identity_service::OAuthService;
-use tobot_persistence::Store;
-use tobot_secret_store::VaultTransitStore;
+use tobot_persistence::{NewDiscordAuthorization, Store};
+use tobot_secret_store::{SecretStore, VaultTransitStore};
 use tower_http::{
     request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer},
     set_header::SetResponseHeaderLayer,
     trace::TraceLayer,
 };
 use tracing::info;
+use uuid::Uuid;
 
 const REQUEST_ID: &str = "x-request-id";
+const CSRF_HEADER: &str = "x-csrf-token";
 
 #[derive(Clone)]
 struct AppState {
     store: Store,
     secret_store: VaultTransitStore,
     oauth: OAuthService<VaultTransitStore>,
+    discord_oauth: DiscordOAuthClient,
     discord_client_id: String,
     discord_redirect_uri: String,
+    public_origin: String,
     clock: SystemClock,
 }
 
@@ -55,12 +61,19 @@ async fn main() -> anyhow::Result<()> {
         config.vault_transit_key.clone(),
     )
     .context("invalid Vault Transit configuration")?;
+    let discord_oauth = DiscordOAuthClient::new(
+        config.discord_client_id.clone(),
+        config.discord_client_secret.expose_for_adapter().to_owned(),
+    )
+    .context("cannot construct Discord OAuth client")?;
     let app = router(AppState {
         oauth: OAuthService::new(store.clone(), secret_store.clone()),
         store,
         secret_store,
+        discord_oauth,
         discord_client_id: config.discord_client_id,
         discord_redirect_uri: config.discord_oauth_redirect_uri,
+        public_origin: config.public_origin.clone(),
         clock: SystemClock,
     });
 
@@ -75,10 +88,10 @@ fn router(state: AppState) -> Router {
         .route("/health/live", get(live))
         .route("/health/ready", get(ready))
         .route("/auth/login", get(login))
-        .route("/auth/discord/callback", get(not_implemented))
+        .route("/auth/discord/callback", get(discord_callback))
         .route("/install/discord/callback", get(not_implemented))
-        .route("/api/v1/session/logout", post(not_implemented))
-        .route("/api/v1/csrf", get(not_implemented))
+        .route("/api/v1/session/logout", post(logout))
+        .route("/api/v1/csrf", get(csrf))
         .route("/api/v1/guilds", get(not_implemented))
         .layer(SetResponseHeaderLayer::if_not_present(
             header::X_CONTENT_TYPE_OPTIONS,
@@ -93,6 +106,246 @@ fn router(state: AppState) -> Router {
         ))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
+}
+
+#[derive(serde::Deserialize)]
+struct DiscordCallbackQuery {
+    code: Option<String>,
+    state: Option<String>,
+    error: Option<String>,
+}
+
+async fn discord_callback(
+    State(state): State<AppState>,
+    Query(query): Query<DiscordCallbackQuery>,
+    headers: HeaderMap,
+) -> Response {
+    let response = complete_discord_callback(&state, &query, &headers).await;
+    let clear_cookie =
+        "__Host-tobot_oauth_state=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax";
+    match response {
+        Ok(session_id) => (
+            [
+                (header::SET_COOKIE, clear_cookie.to_owned()),
+                (
+                    header::SET_COOKIE,
+                    format!(
+                        "__Host-tobot_session={session_id}; Path=/; Max-Age=43200; Secure; HttpOnly; SameSite=Lax"
+                    ),
+                ),
+            ],
+            Redirect::to("/dashboard"),
+        )
+            .into_response(),
+        Err(status) => ([(header::SET_COOKIE, clear_cookie)], status).into_response(),
+    }
+}
+
+async fn complete_discord_callback(
+    state: &AppState,
+    query: &DiscordCallbackQuery,
+    headers: &HeaderMap,
+) -> Result<Uuid, StatusCode> {
+    if query.error.is_some() {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let code = query.code.as_deref().ok_or(StatusCode::BAD_REQUEST)?;
+    let query_state = query.state.as_deref().ok_or(StatusCode::BAD_REQUEST)?;
+    let cookie_state =
+        cookie_value(headers, "__Host-tobot_oauth_state").ok_or(StatusCode::BAD_REQUEST)?;
+    if !opaque_secrets_match(query_state, cookie_state) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    let consumed = state
+        .oauth
+        .consume(query_state, state.clock.now())
+        .await
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    let tokens = state
+        .discord_oauth
+        .exchange_code(code, &consumed.redirect_uri, &consumed.code_verifier)
+        .await
+        .map_err(|_| StatusCode::BAD_GATEWAY)?;
+    let (user, authorization_scopes) = state
+        .discord_oauth
+        .current_user(&tokens.access_token)
+        .await
+        .map_err(|_| StatusCode::BAD_GATEWAY)?;
+    let mut expected_scopes = consumed.scopes;
+    expected_scopes.sort_unstable();
+    expected_scopes.dedup();
+    if tokens.scopes != expected_scopes || authorization_scopes != expected_scopes {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let now = state.clock.now();
+    let session = AuthorizationSession::new(now);
+    let credential_id = Uuid::now_v7();
+    let credential_context = format!("tobot:discord-oauth:{credential_id}");
+    let session_context = format!("tobot:session-csrf:{}", session.id);
+    let access_ciphertext = state
+        .secret_store
+        .encrypt(
+            tokens.access_token.as_bytes(),
+            credential_context.as_bytes(),
+        )
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    let refresh_ciphertext = state
+        .secret_store
+        .encrypt(
+            tokens.refresh_token.as_bytes(),
+            credential_context.as_bytes(),
+        )
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    let csrf_ciphertext = state
+        .secret_store
+        .encrypt(session.csrf_proof.as_bytes(), session_context.as_bytes())
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    let expires_at = now
+        .checked_add(std::time::Duration::from_secs(tokens.expires_in_seconds))
+        .ok_or(StatusCode::BAD_GATEWAY)?;
+    state
+        .store
+        .create_discord_authorization(NewDiscordAuthorization {
+            candidate_account_id: Uuid::now_v7(),
+            provider_user_id: &user.id,
+            username: &user.username,
+            display_name: user.global_name.as_deref(),
+            credential_id,
+            access_token_ciphertext: access_ciphertext.as_bytes(),
+            refresh_token_ciphertext: refresh_ciphertext.as_bytes(),
+            scopes: &expected_scopes,
+            credential_expires_at: time::OffsetDateTime::from(expires_at),
+            session_id: session.id,
+            csrf_secret_hash: &opaque_secret_hash(&session.csrf_proof),
+            csrf_secret_ciphertext: csrf_ciphertext.as_bytes(),
+            idle_expires_at: time::OffsetDateTime::from(session.idle_expires_at),
+            absolute_expires_at: time::OffsetDateTime::from(session.absolute_expires_at),
+        })
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    Ok(session.id)
+}
+
+fn cookie_value<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
+    headers
+        .get(header::COOKIE)?
+        .to_str()
+        .ok()?
+        .split(';')
+        .map(str::trim)
+        .find_map(|cookie| cookie.strip_prefix(name)?.strip_prefix('='))
+}
+
+#[derive(serde::Serialize)]
+struct CsrfResponse {
+    csrf_token: String,
+}
+
+async fn csrf(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let Some(session_id) = session_id(&headers) else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    let now = time::OffsetDateTime::from(state.clock.now());
+    let Ok(Some(session)) = state.store.authorize_session(session_id, now).await else {
+        return clear_session_response(StatusCode::UNAUTHORIZED);
+    };
+    let Ok(ciphertext) = std::str::from_utf8(&session.csrf_secret_ciphertext) else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    let context = format!("tobot:session-csrf:{session_id}");
+    let Ok(plaintext) = state
+        .secret_store
+        .decrypt(ciphertext, context.as_bytes())
+        .await
+    else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    let Ok(csrf_token) = String::from_utf8(plaintext) else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    let remaining_idle = (session.idle_expires_at - now)
+        .whole_seconds()
+        .clamp(0, 43_200);
+    let remaining_absolute = (session.absolute_expires_at - now).whole_seconds().max(0);
+    let max_age = remaining_idle.min(remaining_absolute);
+    (
+        [
+            (header::CACHE_CONTROL, "no-store".to_owned()),
+            (
+                header::SET_COOKIE,
+                format!(
+                    "__Host-tobot_session={session_id}; Path=/; Max-Age={max_age}; Secure; HttpOnly; SameSite=Lax"
+                ),
+            ),
+        ],
+        axum::Json(CsrfResponse { csrf_token }),
+    )
+        .into_response()
+}
+
+async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let Some(session_id) = session_id(&headers) else {
+        return clear_session_response(StatusCode::NO_CONTENT);
+    };
+    let Some(origin) = headers
+        .get(header::ORIGIN)
+        .and_then(|value| value.to_str().ok())
+    else {
+        return StatusCode::FORBIDDEN.into_response();
+    };
+    let Some(proof) = headers
+        .get(HeaderName::from_static(CSRF_HEADER))
+        .and_then(|value| value.to_str().ok())
+    else {
+        return StatusCode::FORBIDDEN.into_response();
+    };
+    if !opaque_secrets_match(origin, &state.public_origin) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+    let now = time::OffsetDateTime::from(state.clock.now());
+    let Ok(Some(session)) = state.store.authorize_session(session_id, now).await else {
+        return clear_session_response(StatusCode::UNAUTHORIZED);
+    };
+    let Ok(ciphertext) = std::str::from_utf8(&session.csrf_secret_ciphertext) else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    let context = format!("tobot:session-csrf:{session_id}");
+    let Ok(plaintext) = state
+        .secret_store
+        .decrypt(ciphertext, context.as_bytes())
+        .await
+    else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    let Ok(expected_proof) = String::from_utf8(plaintext) else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    if !opaque_secrets_match(proof, &expected_proof) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+    if state.store.revoke_session(session_id, now).await.is_err() {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    }
+    clear_session_response(StatusCode::NO_CONTENT)
+}
+
+fn session_id(headers: &HeaderMap) -> Option<Uuid> {
+    cookie_value(headers, "__Host-tobot_session")?.parse().ok()
+}
+
+fn clear_session_response(status: StatusCode) -> Response {
+    (
+        [(
+            header::SET_COOKIE,
+            "__Host-tobot_session=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax",
+        )],
+        status,
+    )
+        .into_response()
 }
 
 async fn live() -> StatusCode {
