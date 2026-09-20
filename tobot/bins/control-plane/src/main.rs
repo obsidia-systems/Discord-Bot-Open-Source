@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 use anyhow::Context;
 use axum::{
     Router,
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Redirect, Response},
     routing::{get, post},
@@ -14,8 +14,14 @@ use axum::{
 use tobot_config::ControlPlaneConfig;
 use tobot_core::{Clock, SystemClock};
 use tobot_discord_adapter::DiscordOAuthClient;
-use tobot_identity::{AuthorizationSession, opaque_secret_hash, opaque_secrets_match};
+use tobot_identity::{
+    AuthorizationSession, oauth_state_hash, opaque_secret_hash, opaque_secrets_match,
+};
 use tobot_identity_service::OAuthService;
+use tobot_installation::{GuildInstallAuthorization, S0Manifest, has_live_guild_install_authority};
+use tobot_persistence::{
+    ActiveAuthorizationSession, NewInstallAuthorization, VerifyingInstallation,
+};
 use tobot_persistence::{GuildDiscoveryObservation, NewDiscordAuthorization, Store};
 use tobot_secret_store::{SecretStore, VaultTransitStore};
 use tower_http::{
@@ -36,7 +42,9 @@ struct AppState {
     oauth: OAuthService<VaultTransitStore>,
     discord_oauth: DiscordOAuthClient,
     discord_client_id: String,
+    discord_application_id: String,
     discord_redirect_uri: String,
+    discord_install_redirect_uri: String,
     public_origin: String,
     clock: SystemClock,
 }
@@ -72,7 +80,9 @@ async fn main() -> anyhow::Result<()> {
         secret_store,
         discord_oauth,
         discord_client_id: config.discord_client_id,
+        discord_application_id: config.discord_application_id,
         discord_redirect_uri: config.discord_oauth_redirect_uri,
+        discord_install_redirect_uri: config.discord_install_redirect_uri,
         public_origin: config.public_origin.clone(),
         clock: SystemClock,
     });
@@ -89,7 +99,11 @@ fn router(state: AppState) -> Router {
         .route("/health/ready", get(ready))
         .route("/auth/login", get(login))
         .route("/auth/discord/callback", get(discord_callback))
-        .route("/install/discord/callback", get(not_implemented))
+        .route("/install/discord/callback", get(guild_install_callback))
+        .route(
+            "/api/v1/install/guild/{guild_id}",
+            post(start_guild_install),
+        )
         .route("/api/v1/session/logout", post(logout))
         .route("/api/v1/csrf", get(csrf))
         .route("/api/v1/guilds", get(guilds))
@@ -112,6 +126,15 @@ fn router(state: AppState) -> Router {
 struct DiscordCallbackQuery {
     code: Option<String>,
     state: Option<String>,
+    error: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct InstallCallbackQuery {
+    code: Option<String>,
+    state: Option<String>,
+    guild_id: Option<String>,
+    permissions: Option<String>,
     error: Option<String>,
 }
 
@@ -228,6 +251,112 @@ async fn complete_discord_callback(
         .await
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
     Ok(session.id)
+}
+
+async fn guild_install_callback(
+    State(state): State<AppState>,
+    Query(query): Query<InstallCallbackQuery>,
+    headers: HeaderMap,
+) -> Response {
+    let result = complete_guild_install_callback(&state, &query, &headers).await;
+    let clear_cookie =
+        "__Host-tobot_install_state=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax";
+    match result {
+        Ok(tenant_id) => (
+            [(header::SET_COOKIE, clear_cookie)],
+            Redirect::to(&format!("/dashboard/guild/{tenant_id}")),
+        )
+            .into_response(),
+        Err(status) => ([(header::SET_COOKIE, clear_cookie)], status).into_response(),
+    }
+}
+
+async fn complete_guild_install_callback(
+    state: &AppState,
+    query: &InstallCallbackQuery,
+    headers: &HeaderMap,
+) -> Result<Uuid, StatusCode> {
+    if query.error.is_some() {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let code = query.code.as_deref().ok_or(StatusCode::BAD_REQUEST)?;
+    let callback_state = query.state.as_deref().ok_or(StatusCode::BAD_REQUEST)?;
+    let cookie_state =
+        cookie_value(headers, "__Host-tobot_install_state").ok_or(StatusCode::BAD_REQUEST)?;
+    if !opaque_secrets_match(callback_state, cookie_state) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    let session_id = session_id(headers).ok_or(StatusCode::UNAUTHORIZED)?;
+    let now = time::OffsetDateTime::from(state.clock.now());
+    let session = state
+        .store
+        .authorize_session(session_id, now)
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let login_access_token = decrypt_access_token(state, &session).await?;
+    let live_guilds = state
+        .discord_oauth
+        .current_user_guilds(&login_access_token)
+        .await
+        .map_err(|_| StatusCode::BAD_GATEWAY)?;
+    let consumed = state
+        .store
+        .consume_install_authorization(
+            &oauth_state_hash(callback_state),
+            session.account_id,
+            session_id,
+            now,
+        )
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?
+        .ok_or(StatusCode::BAD_REQUEST)?;
+    let live_guild = live_guilds
+        .iter()
+        .find(|guild| guild.id == consumed.provider_guild_id)
+        .ok_or(StatusCode::FORBIDDEN)?;
+    if !has_live_guild_install_authority(live_guild.owner, &live_guild.permissions) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let ciphertext = std::str::from_utf8(&consumed.verifier_ciphertext)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let context = format!("tobot:guild-install-pkce:{}", consumed.transaction_id);
+    let verifier = state
+        .secret_store
+        .decrypt(ciphertext, context.as_bytes())
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    let verifier = String::from_utf8(verifier).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let tokens = state
+        .discord_oauth
+        .exchange_code(code, &consumed.redirect_uri, &verifier)
+        .await
+        .map_err(|_| StatusCode::BAD_GATEWAY)?;
+    let mut expected_scopes = consumed.requested_scopes;
+    expected_scopes.sort_unstable();
+    expected_scopes.dedup();
+    if tokens.scopes != expected_scopes {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let observed_guild = tokens.guild.ok_or(StatusCode::BAD_GATEWAY)?;
+    if observed_guild.id != consumed.provider_guild_id {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    state
+        .store
+        .record_verifying_installation(VerifyingInstallation {
+            transaction_id: consumed.transaction_id,
+            candidate_tenant_id: Uuid::now_v7(),
+            provider_guild_id: &observed_guild.id,
+            application_id: &state.discord_application_id,
+            generation: consumed.generation,
+            frozen_manifest: &consumed.frozen_manifest,
+            provider_guild_hint: query.guild_id.as_deref(),
+            permissions_hint: query.permissions.as_deref(),
+            received_at: now,
+        })
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)
 }
 
 fn cookie_value<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
@@ -431,6 +560,134 @@ async fn guilds(State(state): State<AppState>, headers: HeaderMap) -> Response {
         .into_response()
 }
 
+async fn start_guild_install(
+    State(state): State<AppState>,
+    Path(guild_id): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    let (session_id, session) = match authorize_mutation(&state, &headers).await {
+        Ok(authorization) => authorization,
+        Err(status) => return status.into_response(),
+    };
+    let access_token = match decrypt_access_token(&state, &session).await {
+        Ok(token) => token,
+        Err(status) => return status.into_response(),
+    };
+    let Ok(guilds) = state.discord_oauth.current_user_guilds(&access_token).await else {
+        return StatusCode::BAD_GATEWAY.into_response();
+    };
+    let Some(guild) = guilds.iter().find(|guild| guild.id == guild_id) else {
+        return StatusCode::FORBIDDEN.into_response();
+    };
+    if !has_live_guild_install_authority(guild.owner, &guild.permissions) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+
+    let authorization = GuildInstallAuthorization::new(
+        guild_id,
+        state.discord_install_redirect_uri.clone(),
+        state.clock.now(),
+    );
+    let verifier_context = format!("tobot:guild-install-pkce:{}", authorization.id);
+    let Ok(verifier_ciphertext) = state
+        .secret_store
+        .encrypt(
+            authorization.code_verifier.as_bytes(),
+            verifier_context.as_bytes(),
+        )
+        .await
+    else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    let Ok(frozen_manifest) = serde_json::to_value(S0Manifest::default()) else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    if state
+        .store
+        .create_guild_install_authorization(NewInstallAuthorization {
+            transaction_id: authorization.id,
+            state_hash: &oauth_state_hash(&authorization.state),
+            verifier_ciphertext: verifier_ciphertext.as_bytes(),
+            account_id: session.account_id,
+            session_id,
+            provider_guild_id: &authorization.provider_guild_id,
+            redirect_uri: &authorization.redirect_uri,
+            requested_scopes: &authorization.scopes,
+            frozen_manifest: &frozen_manifest,
+            expires_at: time::OffsetDateTime::from(authorization.expires_at),
+        })
+        .await
+        .is_err()
+    {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    }
+    let Ok(authorize_url) = authorization.authorize_url(&state.discord_client_id) else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    let cookie = format!(
+        "__Host-tobot_install_state={}; Path=/; Max-Age=600; Secure; HttpOnly; SameSite=Lax",
+        authorization.state
+    );
+    (
+        [(header::SET_COOKIE, cookie)],
+        Redirect::to(authorize_url.as_str()),
+    )
+        .into_response()
+}
+
+async fn authorize_mutation(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<(Uuid, ActiveAuthorizationSession), StatusCode> {
+    let session_id = session_id(headers).ok_or(StatusCode::UNAUTHORIZED)?;
+    let origin = headers
+        .get(header::ORIGIN)
+        .and_then(|value| value.to_str().ok())
+        .ok_or(StatusCode::FORBIDDEN)?;
+    let proof = headers
+        .get(HeaderName::from_static(CSRF_HEADER))
+        .and_then(|value| value.to_str().ok())
+        .ok_or(StatusCode::FORBIDDEN)?;
+    if !opaque_secrets_match(origin, &state.public_origin) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let now = time::OffsetDateTime::from(state.clock.now());
+    let session = state
+        .store
+        .authorize_session(session_id, now)
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let ciphertext = std::str::from_utf8(&session.csrf_secret_ciphertext)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let context = format!("tobot:session-csrf:{session_id}");
+    let plaintext = state
+        .secret_store
+        .decrypt(ciphertext, context.as_bytes())
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    let expected = String::from_utf8(plaintext).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    if !opaque_secrets_match(proof, &expected) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    Ok((session_id, session))
+}
+
+async fn decrypt_access_token(
+    state: &AppState,
+    session: &ActiveAuthorizationSession,
+) -> Result<String, StatusCode> {
+    let ciphertext = std::str::from_utf8(&session.access_token_ciphertext)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let context = format!("tobot:discord-oauth:{}", session.credential_id);
+    let plaintext = state
+        .secret_store
+        .decrypt(ciphertext, context.as_bytes())
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    String::from_utf8(plaintext).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
 async fn live() -> StatusCode {
     StatusCode::NO_CONTENT
 }
@@ -482,13 +739,6 @@ async fn login(State(state): State<AppState>) -> Response {
         Redirect::temporary(authorization_url.as_str()),
     )
         .into_response()
-}
-
-async fn not_implemented() -> impl IntoResponse {
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        "S0 control-plane route is not implemented yet",
-    )
 }
 
 use axum::http::HeaderName;

@@ -103,7 +103,178 @@ pub struct GuildDiscoveryObservation<'a> {
     pub permissions_hint: &'a str,
 }
 
+pub struct NewInstallAuthorization<'a> {
+    pub transaction_id: Uuid,
+    pub state_hash: &'a [u8],
+    pub verifier_ciphertext: &'a [u8],
+    pub account_id: Uuid,
+    pub session_id: Uuid,
+    pub provider_guild_id: &'a str,
+    pub redirect_uri: &'a str,
+    pub requested_scopes: &'a [String],
+    pub frozen_manifest: &'a serde_json::Value,
+    pub expires_at: OffsetDateTime,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct ConsumedInstallAuthorization {
+    pub transaction_id: Uuid,
+    pub provider_guild_id: String,
+    pub generation: i64,
+    pub verifier_ciphertext: Vec<u8>,
+    pub redirect_uri: String,
+    pub requested_scopes: Vec<String>,
+    pub frozen_manifest: serde_json::Value,
+}
+
+pub struct VerifyingInstallation<'a> {
+    pub transaction_id: Uuid,
+    pub candidate_tenant_id: Uuid,
+    pub provider_guild_id: &'a str,
+    pub application_id: &'a str,
+    pub generation: i64,
+    pub frozen_manifest: &'a serde_json::Value,
+    pub provider_guild_hint: Option<&'a str>,
+    pub permissions_hint: Option<&'a str>,
+    pub received_at: OffsetDateTime,
+}
+
 impl Store {
+    /// Atomically consumes a pending installation transaction bound to the
+    /// active browser session. Unknown, expired, mismatched, and replayed
+    /// states all fail closed as `None`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if consumption cannot be recorded.
+    pub async fn consume_install_authorization(
+        &self,
+        state_hash: &[u8],
+        account_id: Uuid,
+        session_id: Uuid,
+        now: OffsetDateTime,
+    ) -> Result<Option<ConsumedInstallAuthorization>, sqlx::Error> {
+        sqlx::query_as(
+            "UPDATE installation.authorization_transaction SET consumed_at = $4 \
+             WHERE state_hash = $1 AND account_id = $2 AND session_id = $3 \
+               AND consumed_at IS NULL AND expires_at >= $4 \
+             RETURNING transaction_id, provider_guild_id, generation, verifier_ciphertext, \
+                       redirect_uri, requested_scopes, frozen_manifest",
+        )
+        .bind(state_hash)
+        .bind(account_id)
+        .bind(session_id)
+        .bind(now)
+        .fetch_optional(&self.pool)
+        .await
+    }
+
+    /// Records the callback receipt and the `Verifying` installation in one
+    /// transaction. It deliberately performs no capability inference.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error and leaves no partial tenant/install state.
+    pub async fn record_verifying_installation(
+        &self,
+        request: VerifyingInstallation<'_>,
+    ) -> Result<Uuid, sqlx::Error> {
+        let mut transaction = self.pool.begin().await?;
+        sqlx::query(
+            "INSERT INTO installation.tenant \
+             (tenant_id, tenant_type, provider_tenant_ref, application_id, state) \
+             VALUES ($1, 'Guild', $2, $3, 'Active') \
+             ON CONFLICT (tenant_type, provider_tenant_ref, application_id) DO NOTHING",
+        )
+        .bind(request.candidate_tenant_id)
+        .bind(request.provider_guild_id)
+        .bind(request.application_id)
+        .execute(&mut *transaction)
+        .await?;
+        let tenant_id: Uuid = sqlx::query_scalar(
+            "SELECT tenant_id FROM installation.tenant \
+             WHERE tenant_type = 'Guild' AND provider_tenant_ref = $1 AND application_id = $2 \
+             FOR UPDATE",
+        )
+        .bind(request.provider_guild_id)
+        .bind(request.application_id)
+        .fetch_one(&mut *transaction)
+        .await?;
+        sqlx::query(
+            "INSERT INTO installation.installation \
+             (installation_id, tenant_id, generation, state, manifest) \
+             VALUES ($1, $2, $3, 'Verifying', $4)",
+        )
+        .bind(Uuid::now_v7())
+        .bind(tenant_id)
+        .bind(request.generation)
+        .bind(request.frozen_manifest)
+        .execute(&mut *transaction)
+        .await?;
+        sqlx::query(
+            "INSERT INTO installation.callback_receipt \
+             (transaction_id, tenant_id, provider_guild_hint, permissions_hint, \
+              provider_observed_guild_id, received_at) \
+             VALUES ($1, $2, $3, $4, $5, $6)",
+        )
+        .bind(request.transaction_id)
+        .bind(tenant_id)
+        .bind(request.provider_guild_hint)
+        .bind(request.permissions_hint)
+        .bind(request.provider_guild_id)
+        .bind(request.received_at)
+        .execute(&mut *transaction)
+        .await?;
+        transaction.commit().await?;
+        Ok(tenant_id)
+    }
+
+    /// Creates a generation-bound named `GuildInstall` authorization after the
+    /// caller has performed live provider authority inspection.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the generation cannot be reserved.
+    pub async fn create_guild_install_authorization(
+        &self,
+        request: NewInstallAuthorization<'_>,
+    ) -> Result<i64, sqlx::Error> {
+        let mut transaction = self.pool.begin().await?;
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+            .bind(request.provider_guild_id)
+            .execute(&mut *transaction)
+            .await?;
+        let generation: i64 = sqlx::query_scalar(
+            "SELECT COALESCE(MAX(generation), 0) + 1 \
+             FROM installation.authorization_transaction WHERE provider_guild_id = $1",
+        )
+        .bind(request.provider_guild_id)
+        .fetch_one(&mut *transaction)
+        .await?;
+        sqlx::query(
+            "INSERT INTO installation.authorization_transaction \
+             (transaction_id, state_hash, verifier_ciphertext, account_id, session_id, \
+              provider_guild_id, generation, preset, redirect_uri, requested_scopes, \
+              frozen_manifest, expires_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, 'GuildInstall', $8, $9, $10, $11)",
+        )
+        .bind(request.transaction_id)
+        .bind(request.state_hash)
+        .bind(request.verifier_ciphertext)
+        .bind(request.account_id)
+        .bind(request.session_id)
+        .bind(request.provider_guild_id)
+        .bind(generation)
+        .bind(request.redirect_uri)
+        .bind(request.requested_scopes)
+        .bind(request.frozen_manifest)
+        .bind(request.expires_at)
+        .execute(&mut *transaction)
+        .await?;
+        transaction.commit().await?;
+        Ok(generation)
+    }
+
     /// Validates all server-side session authorities and advances only the
     /// idle deadline, never the absolute deadline.
     ///

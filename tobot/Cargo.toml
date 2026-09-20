@@ -12,6 +12,7 @@ members = [
   "crates/tobot-envelope",
   "crates/tobot-identity",
   "crates/tobot-identity-service",
+  "crates/tobot-installation",
   "crates/tobot-interaction-edge",
   "crates/tobot-outbox",
   "crates/tobot-persistence",

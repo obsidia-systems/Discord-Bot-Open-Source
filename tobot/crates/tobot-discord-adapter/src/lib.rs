@@ -38,6 +38,13 @@ pub struct OAuthTokenSet {
     pub refresh_token: String,
     pub expires_in_seconds: u64,
     pub scopes: Vec<String>,
+    pub guild: Option<DiscordAuthorizedGuild>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+pub struct DiscordAuthorizedGuild {
+    pub id: String,
+    pub name: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
@@ -62,6 +69,7 @@ struct OAuthTokenResponse {
     refresh_token: String,
     expires_in: u64,
     scope: String,
+    guild: Option<DiscordAuthorizedGuild>,
 }
 
 #[derive(Deserialize)]
@@ -132,6 +140,7 @@ impl DiscordOAuthClient {
             refresh_token: token.refresh_token,
             expires_in_seconds: token.expires_in,
             scopes: canonical_scopes(&token.scope),
+            guild: token.guild,
         })
     }
 

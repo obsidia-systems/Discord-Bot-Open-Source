@@ -20,6 +20,7 @@ pub struct ControlPlaneConfig {
     pub bind_address: String,
     pub public_origin: String,
     pub discord_oauth_redirect_uri: String,
+    pub discord_install_redirect_uri: String,
     pub database_url: Secret,
     pub redis_url: Secret,
     pub discord_application_id: String,
@@ -62,12 +63,19 @@ impl ControlPlaneConfig {
         }
         let discord_oauth_redirect_uri = required("TOBOT_DISCORD_OAUTH_REDIRECT_URI")?;
         validate_oauth_redirect(&public_origin, &discord_oauth_redirect_uri)?;
+        let discord_install_redirect_uri = required("TOBOT_DISCORD_INSTALL_REDIRECT_URI")?;
+        validate_redirect(
+            &public_origin,
+            &discord_install_redirect_uri,
+            "/install/discord/callback",
+        )?;
 
         Ok(Self {
             bind_address: env::var("TOBOT_CONTROL_BIND")
                 .unwrap_or_else(|_| "0.0.0.0:8080".to_owned()),
             public_origin,
             discord_oauth_redirect_uri,
+            discord_install_redirect_uri,
             database_url: Secret(required("TOBOT_DATABASE_URL")?),
             redis_url: Secret(required("TOBOT_REDIS_URL")?),
             discord_application_id: required("TOBOT_DISCORD_APPLICATION_ID")?,
@@ -85,7 +93,11 @@ fn required(name: &'static str) -> Result<String, ConfigError> {
 }
 
 fn validate_oauth_redirect(origin: &str, redirect_uri: &str) -> Result<(), ConfigError> {
-    let expected = format!("{}/auth/discord/callback", origin.trim_end_matches('/'));
+    validate_redirect(origin, redirect_uri, "/auth/discord/callback")
+}
+
+fn validate_redirect(origin: &str, redirect_uri: &str, path: &str) -> Result<(), ConfigError> {
+    let expected = format!("{}{path}", origin.trim_end_matches('/'));
     if redirect_uri == expected {
         Ok(())
     } else {
@@ -113,5 +125,13 @@ mod tests {
             ),
             Err(ConfigError::OAuthRedirectMismatch { .. })
         ));
+        assert!(
+            validate_redirect(
+                "https://app.tobot.test",
+                "https://app.tobot.test/install/discord/callback",
+                "/install/discord/callback"
+            )
+            .is_ok()
+        );
     }
 }

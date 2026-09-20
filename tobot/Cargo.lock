@@ -2293,6 +2293,7 @@ dependencies = [
  "axum",
  "http",
  "serde",
+ "serde_json",
  "sqlx",
  "time",
  "tobot-config",
@@ -2300,6 +2301,7 @@ dependencies = [
  "tobot-discord-adapter",
  "tobot-identity",
  "tobot-identity-service",
+ "tobot-installation",
  "tobot-persistence",
  "tobot-secret-store",
  "tokio",
@@ -2415,6 +2417,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tobot-installation"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "tobot-identity",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "tobot-interaction-edge"
 version = "0.1.0"
 dependencies = [
@@ -2453,6 +2465,7 @@ dependencies = [
 name = "tobot-persistence"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
  "sqlx",
  "time",
  "tobot-core",

@@ -12,6 +12,7 @@ axum.workspace = true
 http.workspace = true
 sqlx.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 time.workspace = true
 tokio.workspace = true
 tower-http.workspace = true
@@ -22,6 +23,7 @@ tobot-core = { path = "../../crates/tobot-core" }
 tobot-discord-adapter = { path = "../../crates/tobot-discord-adapter" }
 tobot-identity = { path = "../../crates/tobot-identity" }
 tobot-identity-service = { path = "../../crates/tobot-identity-service" }
+tobot-installation = { path = "../../crates/tobot-installation" }
 tobot-persistence = { path = "../../crates/tobot-persistence" }
 tobot-secret-store = { path = "../../crates/tobot-secret-store" }
 url.workspace = true
