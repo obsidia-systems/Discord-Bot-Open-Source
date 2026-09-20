@@ -47,6 +47,15 @@ pub struct DiscordAuthorizationUser {
     pub global_name: Option<String>,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+pub struct DiscordGuildObservation {
+    pub id: String,
+    pub name: String,
+    pub icon: Option<String>,
+    pub owner: bool,
+    pub permissions: String,
+}
+
 #[derive(Deserialize)]
 struct OAuthTokenResponse {
     access_token: String,
@@ -159,6 +168,59 @@ impl DiscordOAuthClient {
             .user
             .ok_or(TransportError::Rejected { status: 403 })?;
         Ok((user, canonical_scope_values(authorization.scopes)))
+    }
+
+    /// Reads every guild visible to the current OAuth user. These values are
+    /// discovery observations only and must never authorize a mutation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a classified error for provider rejection, malformed pages,
+    /// transport failure, or an unexpectedly unbounded result set.
+    pub async fn current_user_guilds(
+        &self,
+        access_token: &str,
+    ) -> Result<Vec<DiscordGuildObservation>, TransportError> {
+        const PAGE_SIZE: usize = 200;
+        const MAX_PAGES: usize = 10;
+        let mut observations = Vec::new();
+        let mut after: Option<String> = None;
+        for _ in 0..MAX_PAGES {
+            let mut request = self
+                .client
+                .get("https://discord.com/api/v10/users/@me/guilds")
+                .bearer_auth(access_token)
+                .query(&[("limit", PAGE_SIZE)]);
+            if let Some(cursor) = after.as_deref() {
+                request = request.query(&[("after", cursor)]);
+            }
+            let response = request.send().await.map_err(|_| {
+                TransportError::Unavailable("Discord guild discovery unavailable".to_owned())
+            })?;
+            let status = response.status();
+            if !status.is_success() {
+                return Err(TransportError::Rejected {
+                    status: status.as_u16(),
+                });
+            }
+            let page = response
+                .json::<Vec<DiscordGuildObservation>>()
+                .await
+                .map_err(|_| {
+                    TransportError::Unavailable(
+                        "Discord guild discovery response invalid".to_owned(),
+                    )
+                })?;
+            let page_len = page.len();
+            after = page.last().map(|guild| guild.id.clone());
+            observations.extend(page);
+            if page_len < PAGE_SIZE {
+                return Ok(observations);
+            }
+        }
+        Err(TransportError::Unavailable(
+            "Discord guild discovery exceeded the bounded page limit".to_owned(),
+        ))
     }
 }
 
@@ -326,5 +388,22 @@ mod tests {
         assert_eq!(TwilightTransport::retry_after_ms(0.0001), 1);
         assert_eq!(TwilightTransport::retry_after_ms(1.5), 1_500);
         assert_eq!(TwilightTransport::retry_after_ms(f64::INFINITY), 1_000);
+    }
+
+    #[test]
+    fn guild_discovery_preserves_snowflakes_and_permission_bits_as_strings() {
+        let Ok(guild): Result<DiscordGuildObservation, _> = serde_json::from_str(
+            r#"{
+                "id":"80351110224678912",
+                "name":"Guild",
+                "icon":null,
+                "owner":false,
+                "permissions":"1125899906842624"
+            }"#,
+        ) else {
+            panic!("fixture must deserialize");
+        };
+        assert_eq!(guild.id, "80351110224678912");
+        assert_eq!(guild.permissions, "1125899906842624");
     }
 }

@@ -2354,6 +2354,7 @@ dependencies = [
  "async-trait",
  "reqwest",
  "serde",
+ "serde_json",
  "thiserror",
  "twilight-http",
  "twilight-model",

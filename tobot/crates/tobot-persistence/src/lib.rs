@@ -87,9 +87,20 @@ pub struct CreatedAuthorization {
 
 #[derive(Debug, sqlx::FromRow)]
 pub struct ActiveAuthorizationSession {
+    pub account_id: Uuid,
+    pub credential_id: Uuid,
+    pub access_token_ciphertext: Vec<u8>,
     pub csrf_secret_ciphertext: Vec<u8>,
     pub idle_expires_at: OffsetDateTime,
     pub absolute_expires_at: OffsetDateTime,
+}
+
+pub struct GuildDiscoveryObservation<'a> {
+    pub provider_guild_id: &'a str,
+    pub guild_name: &'a str,
+    pub icon_hash: Option<&'a str>,
+    pub owner_hint: bool,
+    pub permissions_hint: &'a str,
 }
 
 impl Store {
@@ -107,7 +118,7 @@ impl Store {
         sqlx::query_as(
             "UPDATE identity.authorization_session AS session \
              SET idle_expires_at = LEAST($2 + INTERVAL '12 hours', session.absolute_expires_at) \
-             FROM identity.account AS account \
+             FROM identity.account AS account, identity.oauth_credential AS credential \
              WHERE session.session_id = $1 \
                AND session.account_id = account.account_id \
                AND session.revoked_at IS NULL \
@@ -115,13 +126,56 @@ impl Store {
                AND session.absolute_expires_at >= $2 \
                AND account.state = 'Active' \
                AND session.credential_generation = account.credential_generation \
-             RETURNING session.csrf_secret_ciphertext, session.idle_expires_at, \
-                       session.absolute_expires_at",
+               AND credential.account_id = session.account_id \
+               AND credential.generation = session.credential_generation \
+               AND credential.revoked_at IS NULL \
+             RETURNING session.account_id, credential.credential_id, \
+                       credential.access_token_ciphertext, session.csrf_secret_ciphertext, \
+                       session.idle_expires_at, session.absolute_expires_at",
         )
         .bind(session_id)
         .bind(now)
         .fetch_optional(&self.pool)
         .await
+    }
+
+    /// Replaces one account's guild discovery snapshot atomically. The
+    /// snapshot is presentation data and is never queried as mutation authority.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error without publishing a partial snapshot.
+    pub async fn replace_guild_discovery(
+        &self,
+        account_id: Uuid,
+        observations: &[GuildDiscoveryObservation<'_>],
+        observed_at: OffsetDateTime,
+        expires_at: OffsetDateTime,
+    ) -> Result<(), sqlx::Error> {
+        let mut transaction = self.pool.begin().await?;
+        sqlx::query("DELETE FROM identity.guild_discovery_observation WHERE account_id = $1")
+            .bind(account_id)
+            .execute(&mut *transaction)
+            .await?;
+        for observation in observations {
+            sqlx::query(
+                "INSERT INTO identity.guild_discovery_observation \
+                 (account_id, provider_guild_id, guild_name, icon_hash, owner_hint, \
+                  permissions_hint, observed_at, expires_at) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+            )
+            .bind(account_id)
+            .bind(observation.provider_guild_id)
+            .bind(observation.guild_name)
+            .bind(observation.icon_hash)
+            .bind(observation.owner_hint)
+            .bind(observation.permissions_hint)
+            .bind(observed_at)
+            .bind(expires_at)
+            .execute(&mut *transaction)
+            .await?;
+        }
+        transaction.commit().await
     }
 
     /// Idempotently revokes a browser session.

@@ -16,7 +16,7 @@ use tobot_core::{Clock, SystemClock};
 use tobot_discord_adapter::DiscordOAuthClient;
 use tobot_identity::{AuthorizationSession, opaque_secret_hash, opaque_secrets_match};
 use tobot_identity_service::OAuthService;
-use tobot_persistence::{NewDiscordAuthorization, Store};
+use tobot_persistence::{GuildDiscoveryObservation, NewDiscordAuthorization, Store};
 use tobot_secret_store::{SecretStore, VaultTransitStore};
 use tower_http::{
     request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer},
@@ -92,7 +92,7 @@ fn router(state: AppState) -> Router {
         .route("/install/discord/callback", get(not_implemented))
         .route("/api/v1/session/logout", post(logout))
         .route("/api/v1/csrf", get(csrf))
-        .route("/api/v1/guilds", get(not_implemented))
+        .route("/api/v1/guilds", get(guilds))
         .layer(SetResponseHeaderLayer::if_not_present(
             header::X_CONTENT_TYPE_OPTIONS,
             HeaderValue::from_static("nosniff"),
@@ -344,6 +344,89 @@ fn clear_session_response(status: StatusCode) -> Response {
             "__Host-tobot_session=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax",
         )],
         status,
+    )
+        .into_response()
+}
+
+#[derive(serde::Serialize)]
+struct GuildDiscoveryResponse {
+    guilds: Vec<GuildDiscoveryItem>,
+    observed_at_unix: i64,
+    expires_at_unix: i64,
+    authority: &'static str,
+}
+
+#[derive(serde::Serialize)]
+struct GuildDiscoveryItem {
+    provider_guild_id: String,
+    name: String,
+    icon_hash: Option<String>,
+    owner_hint: bool,
+    permissions_hint: String,
+}
+
+async fn guilds(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let Some(session_id) = session_id(&headers) else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    let now = time::OffsetDateTime::from(state.clock.now());
+    let Ok(Some(session)) = state.store.authorize_session(session_id, now).await else {
+        return clear_session_response(StatusCode::UNAUTHORIZED);
+    };
+    let Ok(ciphertext) = std::str::from_utf8(&session.access_token_ciphertext) else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    let credential_context = format!("tobot:discord-oauth:{}", session.credential_id);
+    let Ok(plaintext) = state
+        .secret_store
+        .decrypt(ciphertext, credential_context.as_bytes())
+        .await
+    else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    let Ok(access_token) = String::from_utf8(plaintext) else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    let Ok(discovered) = state.discord_oauth.current_user_guilds(&access_token).await else {
+        return StatusCode::BAD_GATEWAY.into_response();
+    };
+    let expires_at = now + time::Duration::minutes(15);
+    let records = discovered
+        .iter()
+        .map(|guild| GuildDiscoveryObservation {
+            provider_guild_id: &guild.id,
+            guild_name: &guild.name,
+            icon_hash: guild.icon.as_deref(),
+            owner_hint: guild.owner,
+            permissions_hint: &guild.permissions,
+        })
+        .collect::<Vec<_>>();
+    if state
+        .store
+        .replace_guild_discovery(session.account_id, &records, now, expires_at)
+        .await
+        .is_err()
+    {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    }
+    let guilds = discovered
+        .into_iter()
+        .map(|guild| GuildDiscoveryItem {
+            provider_guild_id: guild.id,
+            name: guild.name,
+            icon_hash: guild.icon,
+            owner_hint: guild.owner,
+            permissions_hint: guild.permissions,
+        })
+        .collect();
+    (
+        [(header::CACHE_CONTROL, "private, no-store")],
+        axum::Json(GuildDiscoveryResponse {
+            guilds,
+            observed_at_unix: now.unix_timestamp(),
+            expires_at_unix: expires_at.unix_timestamp(),
+            authority: "presentation_only",
+        }),
     )
         .into_response()
 }
