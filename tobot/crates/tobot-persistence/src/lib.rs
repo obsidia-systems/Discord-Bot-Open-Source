@@ -2,9 +2,9 @@
 //! deployment; application binaries never auto-migrate production databases.
 
 use sqlx::{PgPool, postgres::PgPoolOptions};
-use time::OffsetDateTime;
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tobot_core::{TenantContext, TenantId};
-use tobot_envelope::EventEnvelope;
+use tobot_envelope::{EventEnvelope, TraceContext};
 use uuid::Uuid;
 
 pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!();
@@ -144,11 +144,129 @@ pub struct ClaimedInstallationVerification {
     pub installation_id: Uuid,
     pub tenant_id: Uuid,
     pub provider_guild_id: String,
+    pub application_id: String,
     pub generation: i64,
     pub fencing_token: i64,
 }
 
+#[derive(Debug, sqlx::FromRow)]
+pub struct GuildShellProjection {
+    pub tenant_id: Uuid,
+    pub provider_guild_id: Option<String>,
+    pub installation_state: String,
+    pub health_state: String,
+    pub installation_generation: Option<i64>,
+    pub capabilities: serde_json::Value,
+    pub projection_watermark: OffsetDateTime,
+    pub probe_state: String,
+}
+
+struct InstallationStateEvent<'a> {
+    tenant_id: Uuid,
+    provider_guild_id: &'a str,
+    application_id: &'a str,
+    generation: i64,
+    state: &'a str,
+    capabilities: serde_json::Value,
+    occurred_at: OffsetDateTime,
+}
+
 impl Store {
+    /// Idempotently applies a validated Installation fact to the rebuildable
+    /// Query/Status projection and its own inbox.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error or protocol error for an incomplete fact.
+    pub async fn apply_installation_projection(
+        &self,
+        event: &EventEnvelope,
+        raw: &[u8],
+        stream_position: &str,
+        received_at: OffsetDateTime,
+    ) -> Result<(), sqlx::Error> {
+        let tenant_id = event
+            .tenant_id
+            .ok_or_else(|| sqlx::Error::Protocol("installation fact lacks tenant_id".to_owned()))?;
+        let provider_guild_id = event
+            .guild_id
+            .as_deref()
+            .ok_or_else(|| sqlx::Error::Protocol("installation fact lacks guild_id".to_owned()))?;
+        let generation = event.payload["generation"].as_i64().ok_or_else(|| {
+            sqlx::Error::Protocol("installation fact lacks generation".to_owned())
+        })?;
+        let state = event.payload["state"]
+            .as_str()
+            .ok_or_else(|| sqlx::Error::Protocol("installation fact lacks state".to_owned()))?;
+        let capabilities = event.payload["capabilities"].clone();
+        let mut transaction = self.pool.begin().await?;
+        let inserted = sqlx::query(
+            "INSERT INTO query_status.event_inbox \
+             (event_id, schema_name, raw_envelope, stream_position, received_at) \
+             VALUES ($1, $2, $3, $4, $5) ON CONFLICT (event_id) DO NOTHING",
+        )
+        .bind(event.event_id)
+        .bind(&event.schema_name)
+        .bind(raw)
+        .bind(stream_position)
+        .bind(received_at)
+        .execute(&mut *transaction)
+        .await?
+        .rows_affected()
+            == 1;
+        if inserted {
+            sqlx::query(
+                "INSERT INTO query_status.guild_shell \
+                 (tenant_id, installation_state, health_state, projection_watermark, probe_state, \
+                  provider_guild_id, installation_generation, capabilities, last_event_id) \
+                 VALUES ($1, $2, $2, $3, 'NotRun', $4, $5, $6, $7) \
+                 ON CONFLICT (tenant_id) DO UPDATE SET \
+                   installation_state = EXCLUDED.installation_state, \
+                   health_state = EXCLUDED.health_state, \
+                   projection_watermark = EXCLUDED.projection_watermark, \
+                   provider_guild_id = EXCLUDED.provider_guild_id, \
+                   installation_generation = EXCLUDED.installation_generation, \
+                   capabilities = EXCLUDED.capabilities, last_event_id = EXCLUDED.last_event_id \
+                 WHERE query_status.guild_shell.installation_generation IS NULL \
+                    OR query_status.guild_shell.installation_generation <= EXCLUDED.installation_generation",
+            )
+            .bind(tenant_id)
+            .bind(state)
+            .bind(received_at)
+            .bind(provider_guild_id)
+            .bind(generation)
+            .bind(capabilities)
+            .bind(event.event_id)
+            .execute(&mut *transaction)
+            .await?;
+        }
+        transaction.commit().await
+    }
+
+    /// Reads a shell under a provider guild predicate already bound from a
+    /// live authenticated provider observation by Control API.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the tenant-bound projection cannot be read.
+    pub async fn guild_shell_for_provider_guilds(
+        &self,
+        tenant_id: Uuid,
+        provider_guild_ids: &[String],
+    ) -> Result<Option<GuildShellProjection>, sqlx::Error> {
+        sqlx::query_as(
+            "SELECT shell.tenant_id, shell.provider_guild_id, shell.installation_state, \
+                    shell.health_state, shell.installation_generation, shell.capabilities, \
+                    shell.projection_watermark, shell.probe_state \
+             FROM query_status.guild_shell AS shell \
+             WHERE shell.tenant_id = $1 AND shell.provider_guild_id = ANY($2)",
+        )
+        .bind(tenant_id)
+        .bind(provider_guild_ids)
+        .fetch_optional(&self.pool)
+        .await
+    }
+
     /// Atomically consumes a pending installation transaction bound to the
     /// active browser session. Unknown, expired, mismatched, and replayed
     /// states all fail closed as `None`.
@@ -245,6 +363,19 @@ impl Store {
         .bind(request.received_at)
         .execute(&mut *transaction)
         .await?;
+        insert_installation_state_event(
+            &mut transaction,
+            InstallationStateEvent {
+                tenant_id,
+                provider_guild_id: request.provider_guild_id,
+                application_id: request.application_id,
+                generation: request.generation,
+                state: "Verifying",
+                capabilities: serde_json::json!({"application_install_context": "Healthy"}),
+                occurred_at: request.received_at,
+            },
+        )
+        .await?;
         transaction.commit().await?;
         Ok(tenant_id)
     }
@@ -273,7 +404,7 @@ impl Store {
              WHERE install.installation_id = candidate.installation_id \
                AND tenant.tenant_id = install.tenant_id \
              RETURNING install.installation_id, install.tenant_id, \
-                       tenant.provider_tenant_ref AS provider_guild_id, install.generation, \
+                       tenant.provider_tenant_ref AS provider_guild_id, tenant.application_id, install.generation, \
                        install.verification_fencing_token AS fencing_token",
         )
         .bind(now)
@@ -341,6 +472,22 @@ impl Store {
         .bind(claim.installation_id)
         .bind(claim.fencing_token)
         .execute(&mut *transaction)
+        .await?;
+        insert_installation_state_event(
+            &mut transaction,
+            InstallationStateEvent {
+                tenant_id: claim.tenant_id,
+                provider_guild_id: &claim.provider_guild_id,
+                application_id: &claim.application_id,
+                generation: claim.generation,
+                state: if bot_present { "Installed" } else { "Degraded" },
+                capabilities: serde_json::json!({
+                    "application_install_context": "Healthy",
+                    "bot_presence": health
+                }),
+                occurred_at: observed_at,
+            },
+        )
         .await?;
         transaction.commit().await
     }
@@ -484,6 +631,28 @@ impl Store {
             .await?;
         }
         transaction.commit().await
+    }
+
+    /// Returns presentation-only guild identifiers that remain within the
+    /// 15-minute freshness window. Callers pass them as an explicit predicate
+    /// to the separate Query owner.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if Identity observations cannot be read.
+    pub async fn fresh_discovered_guild_ids(
+        &self,
+        account_id: Uuid,
+        now: OffsetDateTime,
+    ) -> Result<Vec<String>, sqlx::Error> {
+        sqlx::query_scalar(
+            "SELECT provider_guild_id FROM identity.guild_discovery_observation \
+             WHERE account_id = $1 AND expires_at >= $2 ORDER BY provider_guild_id",
+        )
+        .bind(account_id)
+        .bind(now)
+        .fetch_all(&self.pool)
+        .await
     }
 
     /// Idempotently revokes a browser session.
@@ -1074,6 +1243,111 @@ impl Store {
         .await?;
         Ok(result.rows_affected() == 1)
     }
+
+    /// # Errors
+    ///
+    /// Returns a database error when installation outbox work cannot be claimed.
+    pub async fn claim_installation_outbox(
+        &self,
+        now: OffsetDateTime,
+        lease_until: OffsetDateTime,
+        lease_token: Uuid,
+        limit: i64,
+    ) -> Result<Vec<ClaimedOutboxEntry>, sqlx::Error> {
+        sqlx::query_as(
+            "WITH candidate AS (SELECT outbox_id FROM installation.event_outbox \
+               WHERE published_at IS NULL AND available_at <= $1 \
+                 AND (lease_expires_at IS NULL OR lease_expires_at < $1) \
+               ORDER BY available_at, outbox_id LIMIT $2 FOR UPDATE SKIP LOCKED) \
+             UPDATE installation.event_outbox AS outbox SET lease_token = $3, \
+               lease_expires_at = $4, fencing_token = outbox.fencing_token + 1, \
+               publish_attempts = outbox.publish_attempts + 1 FROM candidate \
+             WHERE outbox.outbox_id = candidate.outbox_id \
+             RETURNING outbox.outbox_id, outbox.event_id, outbox.envelope, outbox.fencing_token",
+        )
+        .bind(now)
+        .bind(limit)
+        .bind(lease_token)
+        .bind(lease_until)
+        .fetch_all(&self.pool)
+        .await
+    }
+
+    /// # Errors
+    ///
+    /// Returns a database error when the fenced receipt cannot be recorded.
+    pub async fn mark_installation_outbox_published(
+        &self,
+        outbox_id: Uuid,
+        lease_token: Uuid,
+        fencing_token: i64,
+        published_at: OffsetDateTime,
+    ) -> Result<bool, sqlx::Error> {
+        let result = sqlx::query(
+            "UPDATE installation.event_outbox SET published_at = $4, lease_token = NULL, \
+             lease_expires_at = NULL WHERE outbox_id = $1 AND lease_token = $2 \
+             AND fencing_token = $3 AND published_at IS NULL",
+        )
+        .bind(outbox_id)
+        .bind(lease_token)
+        .bind(fencing_token)
+        .bind(published_at)
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected() == 1)
+    }
+}
+
+async fn insert_installation_state_event(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    request: InstallationStateEvent<'_>,
+) -> Result<(), sqlx::Error> {
+    let event_id = Uuid::now_v7();
+    let correlation_id = Uuid::now_v7();
+    let timestamp = request
+        .occurred_at
+        .format(&Rfc3339)
+        .map_err(|error| sqlx::Error::Protocol(error.to_string()))?;
+    let event = EventEnvelope {
+        event_id,
+        schema_name: "InstallationStateChanged".to_owned(),
+        schema_version: 1,
+        occurred_at: timestamp.clone(),
+        received_at: timestamp,
+        application_id: request.application_id.to_owned(),
+        tenant_id: Some(request.tenant_id),
+        guild_id: Some(request.provider_guild_id.to_owned()),
+        shard_id: None,
+        session_id: None,
+        gateway_sequence: None,
+        correlation_id,
+        causation_id: None,
+        trace_context: TraceContext {
+            trace_id: correlation_id.to_string(),
+            span_id: Uuid::now_v7().to_string(),
+        },
+        payload: serde_json::json!({
+            "generation": request.generation,
+            "state": request.state,
+            "capabilities": request.capabilities
+        }),
+    };
+    let raw =
+        serde_json::to_vec(&event).map_err(|error| sqlx::Error::Protocol(error.to_string()))?;
+    sqlx::query(
+        "INSERT INTO installation.event_outbox \
+         (outbox_id, tenant_id, event_id, topic, partition_key, envelope) \
+         VALUES ($1, $2, $3, $4, $5, $6)",
+    )
+    .bind(Uuid::now_v7())
+    .bind(request.tenant_id)
+    .bind(event_id)
+    .bind(&event.schema_name)
+    .bind(request.tenant_id)
+    .bind(raw)
+    .execute(&mut **transaction)
+    .await?;
+    Ok(())
 }
 
 /// Converts a persisted opaque tenant id only after a caller already has a

@@ -14,6 +14,7 @@ pub const CURRENT_SCHEMA_VERSION: u16 = 1;
 pub enum S0EventName {
     GatewayEventAccepted,
     InteractionAccepted,
+    InstallationStateChanged,
 }
 
 impl TryFrom<&str> for S0EventName {
@@ -23,6 +24,7 @@ impl TryFrom<&str> for S0EventName {
         match value {
             "GatewayEventAccepted" => Ok(Self::GatewayEventAccepted),
             "InteractionAccepted" => Ok(Self::InteractionAccepted),
+            "InstallationStateChanged" => Ok(Self::InstallationStateChanged),
             _ => Err(EnvelopeError::UnsupportedSchemaName(value.to_owned())),
         }
     }
@@ -42,6 +44,8 @@ pub struct EventEnvelope {
     pub occurred_at: String,
     pub received_at: String,
     pub application_id: String,
+    #[serde(default)]
+    pub tenant_id: Option<Uuid>,
     #[serde(default)]
     pub guild_id: Option<String>,
     #[serde(default)]

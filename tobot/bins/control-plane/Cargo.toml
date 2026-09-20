@@ -18,13 +18,16 @@ tokio.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+tobot-bus = { path = "../../crates/tobot-bus" }
 tobot-config = { path = "../../crates/tobot-config" }
 tobot-core = { path = "../../crates/tobot-core" }
 tobot-delivery-client = { path = "../../crates/tobot-delivery-client" }
 tobot-discord-adapter = { path = "../../crates/tobot-discord-adapter" }
+tobot-envelope = { path = "../../crates/tobot-envelope" }
 tobot-identity = { path = "../../crates/tobot-identity" }
 tobot-identity-service = { path = "../../crates/tobot-identity-service" }
 tobot-installation = { path = "../../crates/tobot-installation" }
+tobot-outbox = { path = "../../crates/tobot-outbox" }
 tobot-persistence = { path = "../../crates/tobot-persistence" }
 tobot-secret-store = { path = "../../crates/tobot-secret-store" }
 url.workspace = true

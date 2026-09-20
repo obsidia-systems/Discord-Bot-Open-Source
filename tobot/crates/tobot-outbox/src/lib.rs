@@ -22,6 +22,11 @@ pub struct EdgeOutboxRelay {
     publisher: RedisStreamPublisher,
 }
 
+pub struct InstallationOutboxRelay {
+    store: Store,
+    publisher: RedisStreamPublisher,
+}
+
 impl EdgeOutboxRelay {
     #[must_use]
     pub fn new(store: Store, publisher: RedisStreamPublisher) -> Self {
@@ -53,6 +58,49 @@ impl EdgeOutboxRelay {
             if self
                 .store
                 .mark_edge_outbox_published(entry.outbox_id, lease_token, entry.fencing_token, now)
+                .await?
+            {
+                published += 1;
+            }
+        }
+        Ok(published)
+    }
+}
+
+impl InstallationOutboxRelay {
+    #[must_use]
+    pub fn new(store: Store, publisher: RedisStreamPublisher) -> Self {
+        Self { store, publisher }
+    }
+
+    /// # Errors
+    ///
+    /// Returns the first persistence, envelope, or Redis failure without
+    /// acknowledging uncertain publication.
+    pub async fn relay_once(
+        &self,
+        now: OffsetDateTime,
+        batch_size: i64,
+    ) -> Result<usize, RelayError> {
+        let lease_token = Uuid::now_v7();
+        let entries = self
+            .store
+            .claim_installation_outbox(now, now + Duration::seconds(15), lease_token, batch_size)
+            .await?;
+        let mut published = 0;
+        for entry in entries {
+            let parsed = EventEnvelope::parse_s0(&entry.envelope)?;
+            self.publisher
+                .publish(&parsed.event, &entry.envelope)
+                .await?;
+            if self
+                .store
+                .mark_installation_outbox_published(
+                    entry.outbox_id,
+                    lease_token,
+                    entry.fencing_token,
+                    now,
+                )
                 .await?
             {
                 published += 1;

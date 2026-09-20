@@ -11,6 +11,7 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
     routing::{get, post},
 };
+use tobot_bus::{RedisStreamConsumer, RedisStreamPublisher};
 use tobot_config::ControlPlaneConfig;
 use tobot_core::{Clock, SystemClock};
 use tobot_delivery_client::InstallationInspectionClient;
@@ -20,6 +21,7 @@ use tobot_identity::{
 };
 use tobot_identity_service::OAuthService;
 use tobot_installation::{GuildInstallAuthorization, S0Manifest, has_live_guild_install_authority};
+use tobot_outbox::InstallationOutboxRelay;
 use tobot_persistence::{
     ActiveAuthorizationSession, NewInstallAuthorization, VerifyingInstallation,
 };
@@ -84,6 +86,18 @@ async fn main() -> anyhow::Result<()> {
     )
     .context("cannot construct Installation inspection client")?;
     let verification_store = store.clone();
+    let installation_relay = InstallationOutboxRelay::new(
+        store.clone(),
+        RedisStreamPublisher::connect(config.redis_url.expose_for_adapter())
+            .context("cannot construct Installation outbox publisher")?,
+    );
+    let query_consumer = RedisStreamConsumer::connect(
+        config.redis_url.expose_for_adapter(),
+        "query-status-s0",
+        &format!("control-{}", Uuid::now_v7()),
+    )
+    .context("cannot construct Query/Status stream consumer")?;
+    let query_store = store.clone();
     let app = router(AppState {
         oauth: OAuthService::new(store.clone(), secret_store.clone()),
         store,
@@ -102,6 +116,40 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         result = axum::serve(listener, app) => result.context("Control Plane listener failed"),
         result = run_installation_verifier(verification_store, inspection) => result,
+        result = run_installation_relay(installation_relay) => result,
+        result = run_query_projector(query_store, query_consumer) => result,
+    }
+}
+
+async fn run_query_projector(store: Store, consumer: RedisStreamConsumer) -> anyhow::Result<()> {
+    loop {
+        for message in consumer.read().await? {
+            let parsed = tobot_envelope::EventEnvelope::parse_s0(&message.envelope)?;
+            if parsed.event.schema_name == "InstallationStateChanged" {
+                store
+                    .apply_installation_projection(
+                        &parsed.event,
+                        &message.envelope,
+                        &message.stream_id,
+                        time::OffsetDateTime::now_utc(),
+                    )
+                    .await?;
+            }
+            consumer.acknowledge(&message.stream_id).await?;
+        }
+    }
+}
+
+async fn run_installation_relay(relay: InstallationOutboxRelay) -> anyhow::Result<()> {
+    loop {
+        match relay.relay_once(time::OffsetDateTime::now_utc(), 100).await {
+            Ok(0) => tokio::time::sleep(std::time::Duration::from_millis(250)).await,
+            Ok(count) => info!(count, "relayed installation outbox facts"),
+            Err(cause) => {
+                error!(error = %cause, "installation outbox relay failed");
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
+        }
     }
 }
 
@@ -166,6 +214,7 @@ fn router(state: AppState) -> Router {
         .route("/api/v1/session/logout", post(logout))
         .route("/api/v1/csrf", get(csrf))
         .route("/api/v1/guilds", get(guilds))
+        .route("/api/v1/guilds/{tenant_id}", get(guild_shell))
         .layer(SetResponseHeaderLayer::if_not_present(
             header::X_CONTENT_TYPE_OPTIONS,
             HeaderValue::from_static("nosniff"),
@@ -622,6 +671,67 @@ async fn guilds(State(state): State<AppState>, headers: HeaderMap) -> Response {
             observed_at_unix: now.unix_timestamp(),
             expires_at_unix: expires_at.unix_timestamp(),
             authority: "presentation_only",
+        }),
+    )
+        .into_response()
+}
+
+#[derive(serde::Serialize)]
+struct GuildShellResponse {
+    tenant_id: Uuid,
+    provider_guild_id: String,
+    installation_state: String,
+    health_state: String,
+    installation_generation: i64,
+    capabilities: serde_json::Value,
+    projection_watermark_unix: i64,
+    projection_age_seconds: i64,
+    probe_state: String,
+}
+
+async fn guild_shell(
+    State(state): State<AppState>,
+    Path(tenant_id): Path<Uuid>,
+    headers: HeaderMap,
+) -> Response {
+    let Some(session_id) = session_id(&headers) else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    let now = time::OffsetDateTime::from(state.clock.now());
+    let Ok(Some(session)) = state.store.authorize_session(session_id, now).await else {
+        return clear_session_response(StatusCode::UNAUTHORIZED);
+    };
+    let Ok(provider_guild_ids) = state
+        .store
+        .fresh_discovered_guild_ids(session.account_id, now)
+        .await
+    else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    let Ok(Some(shell)) = state
+        .store
+        .guild_shell_for_provider_guilds(tenant_id, &provider_guild_ids)
+        .await
+    else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let (Some(provider_guild_id), Some(installation_generation)) =
+        (shell.provider_guild_id, shell.installation_generation)
+    else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    (
+        [(header::CACHE_CONTROL, "private, no-store")],
+        axum::Json(GuildShellResponse {
+            tenant_id: shell.tenant_id,
+            provider_guild_id,
+            installation_state: shell.installation_state,
+            health_state: shell.health_state,
+            installation_generation,
+            capabilities: shell.capabilities,
+            projection_watermark_unix: shell.projection_watermark.unix_timestamp(),
+            projection_age_seconds: (now - shell.projection_watermark).whole_seconds().max(0),
+            probe_state: shell.probe_state,
         }),
     )
         .into_response()
