@@ -139,6 +139,15 @@ pub struct VerifyingInstallation<'a> {
     pub received_at: OffsetDateTime,
 }
 
+#[derive(Debug, sqlx::FromRow)]
+pub struct ClaimedInstallationVerification {
+    pub installation_id: Uuid,
+    pub tenant_id: Uuid,
+    pub provider_guild_id: String,
+    pub generation: i64,
+    pub fencing_token: i64,
+}
+
 impl Store {
     /// Atomically consumes a pending installation transaction bound to the
     /// active browser session. Unknown, expired, mismatched, and replayed
@@ -200,12 +209,13 @@ impl Store {
         .bind(request.application_id)
         .fetch_one(&mut *transaction)
         .await?;
+        let installation_id = Uuid::now_v7();
         sqlx::query(
             "INSERT INTO installation.installation \
              (installation_id, tenant_id, generation, state, manifest) \
              VALUES ($1, $2, $3, 'Verifying', $4)",
         )
-        .bind(Uuid::now_v7())
+        .bind(installation_id)
         .bind(tenant_id)
         .bind(request.generation)
         .bind(request.frozen_manifest)
@@ -225,8 +235,135 @@ impl Store {
         .bind(request.received_at)
         .execute(&mut *transaction)
         .await?;
+        sqlx::query(
+            "INSERT INTO installation.module_capability \
+             (installation_id, module_key, capability_key, health_state, reason_code, observed_at) \
+             VALUES ($1, 'platform_probe', 'application_install_context', \
+                     'Healthy', 'oauth_guild_context_observed', $2)",
+        )
+        .bind(installation_id)
+        .bind(request.received_at)
+        .execute(&mut *transaction)
+        .await?;
         transaction.commit().await?;
         Ok(tenant_id)
+    }
+
+    /// Claims one due verification with a short lease and fencing token.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if claiming fails.
+    pub async fn claim_installation_verification(
+        &self,
+        now: OffsetDateTime,
+    ) -> Result<Option<ClaimedInstallationVerification>, sqlx::Error> {
+        sqlx::query_as(
+            "WITH candidate AS ( \
+               SELECT installation_id FROM installation.installation \
+               WHERE state = 'Verifying' \
+                 AND (verification_claimed_until IS NULL OR verification_claimed_until < $1) \
+               ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1 \
+             ) \
+             UPDATE installation.installation AS install \
+             SET verification_claimed_until = $1 + INTERVAL '15 seconds', \
+                 verification_fencing_token = verification_fencing_token + 1, \
+                 verification_attempts = verification_attempts + 1 \
+             FROM candidate, installation.tenant AS tenant \
+             WHERE install.installation_id = candidate.installation_id \
+               AND tenant.tenant_id = install.tenant_id \
+             RETURNING install.installation_id, install.tenant_id, \
+                       tenant.provider_tenant_ref AS provider_guild_id, install.generation, \
+                       install.verification_fencing_token AS fencing_token",
+        )
+        .bind(now)
+        .fetch_optional(&self.pool)
+        .await
+    }
+
+    /// Applies provider presence evidence and derives aggregate state from all
+    /// required S0 capability rows under the active fencing token.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error or `RowNotFound` for a stale worker.
+    pub async fn complete_installation_verification(
+        &self,
+        claim: &ClaimedInstallationVerification,
+        bot_present: bool,
+        observed_at: OffsetDateTime,
+    ) -> Result<(), sqlx::Error> {
+        let mut transaction = self.pool.begin().await?;
+        let still_owner: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM installation.installation \
+             WHERE installation_id = $1 AND state = 'Verifying' \
+               AND verification_fencing_token = $2 AND verification_claimed_until >= $3)",
+        )
+        .bind(claim.installation_id)
+        .bind(claim.fencing_token)
+        .bind(observed_at)
+        .fetch_one(&mut *transaction)
+        .await?;
+        if !still_owner {
+            return Err(sqlx::Error::RowNotFound);
+        }
+        let (health, reason) = if bot_present {
+            ("Healthy", "bot_guild_presence_observed")
+        } else {
+            ("Degraded", "bot_guild_presence_absent")
+        };
+        sqlx::query(
+            "INSERT INTO installation.module_capability \
+             (installation_id, module_key, capability_key, health_state, reason_code, observed_at) \
+             VALUES ($1, 'platform_probe', 'bot_presence', $2, $3, $4) \
+             ON CONFLICT (installation_id, module_key, capability_key) DO UPDATE SET \
+               health_state = EXCLUDED.health_state, reason_code = EXCLUDED.reason_code, \
+               observed_at = EXCLUDED.observed_at",
+        )
+        .bind(claim.installation_id)
+        .bind(health)
+        .bind(reason)
+        .bind(observed_at)
+        .execute(&mut *transaction)
+        .await?;
+        sqlx::query(
+            "UPDATE installation.installation AS install SET \
+               state = CASE WHEN NOT EXISTS ( \
+                 SELECT 1 FROM installation.module_capability AS capability \
+                 WHERE capability.installation_id = install.installation_id \
+                   AND capability.health_state <> 'Healthy' \
+               ) AND (SELECT COUNT(*) FROM installation.module_capability AS capability \
+                      WHERE capability.installation_id = install.installation_id) = 2 \
+                 THEN 'Installed' ELSE 'Degraded' END, \
+               verification_claimed_until = NULL \
+             WHERE installation_id = $1 AND verification_fencing_token = $2",
+        )
+        .bind(claim.installation_id)
+        .bind(claim.fencing_token)
+        .execute(&mut *transaction)
+        .await?;
+        transaction.commit().await
+    }
+
+    /// Releases a transiently failed claim for bounded retry.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the active fenced claim cannot be released.
+    pub async fn release_installation_verification(
+        &self,
+        claim: &ClaimedInstallationVerification,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "UPDATE installation.installation SET verification_claimed_until = NULL \
+             WHERE installation_id = $1 AND state = 'Verifying' \
+               AND verification_fencing_token = $2",
+        )
+        .bind(claim.installation_id)
+        .bind(claim.fencing_token)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 
     /// Creates a generation-bound named `GuildInstall` authorization after the

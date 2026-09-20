@@ -13,6 +13,7 @@ use axum::{
 };
 use tobot_config::ControlPlaneConfig;
 use tobot_core::{Clock, SystemClock};
+use tobot_delivery_client::InstallationInspectionClient;
 use tobot_discord_adapter::DiscordOAuthClient;
 use tobot_identity::{
     AuthorizationSession, oauth_state_hash, opaque_secret_hash, opaque_secrets_match,
@@ -29,7 +30,7 @@ use tower_http::{
     set_header::SetResponseHeaderLayer,
     trace::TraceLayer,
 };
-use tracing::info;
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 const REQUEST_ID: &str = "x-request-id";
@@ -74,6 +75,15 @@ async fn main() -> anyhow::Result<()> {
         config.discord_client_secret.expose_for_adapter().to_owned(),
     )
     .context("cannot construct Discord OAuth client")?;
+    let inspection = InstallationInspectionClient::new(
+        &config.delivery_url,
+        config
+            .internal_service_token
+            .expose_for_adapter()
+            .to_owned(),
+    )
+    .context("cannot construct Installation inspection client")?;
+    let verification_store = store.clone();
     let app = router(AppState {
         oauth: OAuthService::new(store.clone(), secret_store.clone()),
         store,
@@ -89,8 +99,57 @@ async fn main() -> anyhow::Result<()> {
 
     info!(bind = %address, origin = %config.public_origin, "control plane starting");
     let listener = tokio::net::TcpListener::bind(address).await?;
-    axum::serve(listener, app).await?;
-    Ok(())
+    tokio::select! {
+        result = axum::serve(listener, app) => result.context("Control Plane listener failed"),
+        result = run_installation_verifier(verification_store, inspection) => result,
+    }
+}
+
+async fn run_installation_verifier(
+    store: Store,
+    inspection: InstallationInspectionClient,
+) -> anyhow::Result<()> {
+    loop {
+        let now = time::OffsetDateTime::now_utc();
+        let Some(claim) = store.claim_installation_verification(now).await? else {
+            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+            continue;
+        };
+        match inspection
+            .inspect_guild_presence(&claim.provider_guild_id)
+            .await
+        {
+            Ok(observation) if observation.provider_guild_id == claim.provider_guild_id => {
+                if let Err(cause) = store
+                    .complete_installation_verification(&claim, observation.present, now)
+                    .await
+                {
+                    error!(
+                        installation_id = %claim.installation_id,
+                        fencing_token = claim.fencing_token,
+                        error = %cause,
+                        "installation verification result was not applied"
+                    );
+                }
+            }
+            Ok(_) => {
+                error!(
+                    installation_id = %claim.installation_id,
+                    "installation inspection identity mismatch"
+                );
+                store.release_installation_verification(&claim).await?;
+            }
+            Err(cause) => {
+                error!(
+                    installation_id = %claim.installation_id,
+                    error = %cause,
+                    "installation inspection unavailable; claim released"
+                );
+                store.release_installation_verification(&claim).await?;
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
+        }
+    }
 }
 
 fn router(state: AppState) -> Router {
@@ -342,7 +401,7 @@ async fn complete_guild_install_callback(
     if observed_guild.id != consumed.provider_guild_id {
         return Err(StatusCode::FORBIDDEN);
     }
-    state
+    let tenant_id = state
         .store
         .record_verifying_installation(VerifyingInstallation {
             transaction_id: consumed.transaction_id,
@@ -356,7 +415,15 @@ async fn complete_guild_install_callback(
             received_at: now,
         })
         .await
-        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    if let Err(cause) = state.discord_oauth.revoke_token(&tokens.access_token).await {
+        warn!(
+            transaction_id = %consumed.transaction_id,
+            error = %cause,
+            "temporary installation OAuth authorization could not be revoked"
+        );
+    }
+    Ok(tenant_id)
 }
 
 fn cookie_value<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {

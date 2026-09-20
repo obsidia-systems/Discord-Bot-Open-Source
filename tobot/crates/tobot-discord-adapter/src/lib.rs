@@ -11,9 +11,15 @@ use twilight_model::{
     http::interaction::{InteractionResponse, InteractionResponseData, InteractionResponseType},
     id::{
         Id,
-        marker::{ApplicationMarker, InteractionMarker},
+        marker::{ApplicationMarker, GuildMarker, InteractionMarker},
     },
 };
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct GuildPresenceInspection {
+    pub provider_guild_id: String,
+    pub present: bool,
+}
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct InteractionCallback {
@@ -231,6 +237,31 @@ impl DiscordOAuthClient {
             "Discord guild discovery exceeded the bounded page limit".to_owned(),
         ))
     }
+
+    /// Revokes an OAuth authorization after its one-purpose installation
+    /// evidence has been persisted. Discord revokes the associated access and
+    /// refresh tokens together.
+    ///
+    /// # Errors
+    ///
+    /// Returns a classified error without including credential material.
+    pub async fn revoke_token(&self, token: &str) -> Result<(), TransportError> {
+        let response = self
+            .client
+            .post("https://discord.com/api/v10/oauth2/token/revoke")
+            .basic_auth(&self.client_id, Some(&self.client_secret))
+            .form(&[("token", token), ("token_type_hint", "access_token")])
+            .send()
+            .await
+            .map_err(|_| TransportError::Unavailable("Discord OAuth unavailable".to_owned()))?;
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            Err(TransportError::Rejected {
+                status: response.status().as_u16(),
+            })
+        }
+    }
 }
 
 fn canonical_scopes(value: &str) -> Vec<String> {
@@ -326,6 +357,40 @@ impl TwilightTransport {
                 Err(_) => u64::MAX,
             },
             Err(_) => 1_000,
+        }
+    }
+
+    /// Inspects whether the bot credential can currently observe one guild.
+    /// This is evidence only; Installation remains responsible for aggregate
+    /// capability evaluation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a classified provider or transport error. Discord 403/404 are
+    /// represented as an absent observation rather than transport failure.
+    pub async fn inspect_guild_presence(
+        &self,
+        provider_guild_id: &str,
+    ) -> Result<GuildPresenceInspection, TransportError> {
+        let raw_id = provider_guild_id
+            .parse::<u64>()
+            .map_err(|_| TransportError::Rejected { status: 400 })?;
+        let guild_id = Id::<GuildMarker>::new_checked(raw_id)
+            .ok_or(TransportError::Rejected { status: 400 })?;
+        match self.client.guild(guild_id).await {
+            Ok(_) => Ok(GuildPresenceInspection {
+                provider_guild_id: provider_guild_id.to_owned(),
+                present: true,
+            }),
+            Err(error) => match error.kind() {
+                ErrorType::Response { status, .. } if matches!(status.get(), 403 | 404) => {
+                    Ok(GuildPresenceInspection {
+                        provider_guild_id: provider_guild_id.to_owned(),
+                        present: false,
+                    })
+                }
+                _ => Err(Self::map_error(&error)),
+            },
         }
     }
 }

@@ -20,6 +20,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 tobot-config = { path = "../../crates/tobot-config" }
 tobot-core = { path = "../../crates/tobot-core" }
+tobot-delivery-client = { path = "../../crates/tobot-delivery-client" }
 tobot-discord-adapter = { path = "../../crates/tobot-discord-adapter" }
 tobot-identity = { path = "../../crates/tobot-identity" }
 tobot-identity-service = { path = "../../crates/tobot-identity-service" }

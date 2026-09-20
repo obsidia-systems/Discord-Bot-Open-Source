@@ -10,6 +10,7 @@ publish.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 axum.workspace = true
+serde.workspace = true
 subtle.workspace = true
 tokio.workspace = true
 time.workspace = true

@@ -73,6 +73,8 @@ services:
       TOBOT_VAULT_ADDR: ${TOBOT_VAULT_ADDR:-http://vault:8200}
       TOBOT_VAULT_TOKEN: ${TOBOT_VAULT_TOKEN:?set TOBOT_VAULT_TOKEN}
       TOBOT_VAULT_TRANSIT_KEY: ${TOBOT_VAULT_TRANSIT_KEY:-tobot-oauth}
+      TOBOT_DELIVERY_URL: ${TOBOT_DELIVERY_URL:-http://delivery:8081}
+      TOBOT_INTERNAL_SERVICE_TOKEN: ${TOBOT_INTERNAL_SERVICE_TOKEN:?set TOBOT_INTERNAL_SERVICE_TOKEN}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -80,7 +82,7 @@ services:
         condition: service_healthy
       vault-init:
         condition: service_completed_successfully
-    networks: [data, public, secrets]
+    networks: [data, public, secrets, edge_delivery]
 
   discord-edge:
     build: .

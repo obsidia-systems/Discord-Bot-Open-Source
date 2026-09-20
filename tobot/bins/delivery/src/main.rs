@@ -13,7 +13,8 @@ use subtle::ConstantTimeEq;
 use time::OffsetDateTime;
 use tobot_bus::RedisStreamPublisher;
 use tobot_discord_adapter::{
-    DiscordTransport, InteractionCallback, TransportError, TwilightTransport,
+    DiscordTransport, GuildPresenceInspection, InteractionCallback, TransportError,
+    TwilightTransport,
 };
 use tobot_outbox::EdgeOutboxRelay;
 use tobot_persistence::Store;
@@ -50,6 +51,10 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/internal/v1/interactions/respond", post(respond))
         .route("/internal/v1/interactions/defer", post(defer))
+        .route(
+            "/internal/v1/installations/inspect-guild",
+            post(inspect_guild),
+        )
         .with_state(state);
     info!(%bind, "delivery starting with private typed transport ingress");
     tokio::select! {
@@ -58,6 +63,27 @@ async fn main() -> anyhow::Result<()> {
             result.context("Delivery private listener failed")
         },
     }
+}
+
+#[derive(serde::Deserialize)]
+struct GuildInspectionRequest {
+    provider_guild_id: String,
+}
+
+async fn inspect_guild(
+    State(state): State<Arc<DeliveryState>>,
+    headers: HeaderMap,
+    Json(request): Json<GuildInspectionRequest>,
+) -> Result<Json<GuildPresenceInspection>, StatusCode> {
+    if !authorized(&headers, &state.service_token) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    state
+        .transport
+        .inspect_guild_presence(&request.provider_guild_id)
+        .await
+        .map(Json)
+        .map_err(|error| status_for(&Err(error)))
 }
 
 async fn run_relay(relay: EdgeOutboxRelay) -> anyhow::Result<()> {

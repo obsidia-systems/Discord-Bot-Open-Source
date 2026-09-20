@@ -3,12 +3,77 @@
 
 use async_trait::async_trait;
 use std::time::Duration;
+use tobot_discord_adapter::GuildPresenceInspection;
 use tobot_discord_adapter::{DiscordTransport, InteractionCallback, TransportError};
 
 pub struct InternalDeliveryTransport {
     client: reqwest::Client,
     base_url: String,
     service_token: String,
+}
+
+#[derive(Clone)]
+pub struct InstallationInspectionClient {
+    client: reqwest::Client,
+    base_url: String,
+    service_token: String,
+}
+
+impl InstallationInspectionClient {
+    /// # Errors
+    ///
+    /// Returns an error if the bounded private HTTP client cannot be built.
+    pub fn new(base_url: &str, service_token: String) -> Result<Self, reqwest::Error> {
+        Ok(Self {
+            client: reqwest::Client::builder()
+                .connect_timeout(Duration::from_millis(500))
+                .timeout(Duration::from_secs(2))
+                .build()?,
+            base_url: base_url.trim_end_matches('/').to_owned(),
+            service_token,
+        })
+    }
+
+    /// # Errors
+    ///
+    /// Returns a classified error when private Delivery or Discord cannot
+    /// produce a bounded presence observation.
+    pub async fn inspect_guild_presence(
+        &self,
+        provider_guild_id: &str,
+    ) -> Result<GuildPresenceInspection, TransportError> {
+        let response = self
+            .client
+            .post(format!(
+                "{}/internal/v1/installations/inspect-guild",
+                self.base_url
+            ))
+            .bearer_auth(&self.service_token)
+            .json(&serde_json::json!({ "provider_guild_id": provider_guild_id }))
+            .send()
+            .await
+            .map_err(|_| TransportError::Unavailable("Delivery is unavailable".to_owned()))?;
+        let status = response.status();
+        if status.is_success() {
+            return response
+                .json()
+                .await
+                .map_err(|_| TransportError::Unavailable("Delivery response invalid".to_owned()));
+        }
+        if status.as_u16() == 429 {
+            return Err(TransportError::RateLimited {
+                retry_after_ms: 1_000,
+            });
+        }
+        if status.is_client_error() {
+            return Err(TransportError::Rejected {
+                status: status.as_u16(),
+            });
+        }
+        Err(TransportError::Unavailable(
+            "Delivery is unavailable".to_owned(),
+        ))
+    }
 }
 
 impl InternalDeliveryTransport {
