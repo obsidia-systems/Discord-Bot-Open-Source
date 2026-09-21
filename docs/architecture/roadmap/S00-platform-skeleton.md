@@ -6,7 +6,7 @@
 
 | Attribute | Value |
 |---|---|
-| Status | Planned; no implementation is authorized by this document |
+| Status | In progress; implementation is authorized only by the approved S0 scope and remains incomplete |
 | Slice | S0 — Platform skeleton |
 | Outcome | A guild can install the application; Gateway accepts and acknowledges an interaction; an operator can authenticate at `app.*` and see an authorized guild shell. |
 | Normative inputs | 01 §3.1–3.3; 02 §6.2–6.4 and Edge, Control, Transport modules; 03 §8.1–8.2 and used §8.6 leaves; 04 §9.1–9.2; 07 §12.1–12.2; 11 §§13–16; 12 §§17–18; 13 §22; 14 §25; 23 §§34.4–34.7; 00 §§6–9; 25 §§5–8. |
@@ -15,6 +15,41 @@
 | Next slice unlocked by this plan | S1 only after every S0 exit criterion is demonstrated honestly. |
 
 This is an implementation plan, not an amendment to RFC sections 01–23. Where it conflicts with an RFC, the RFC wins. It deliberately specifies S0 enough for separate agents to implement coherent pieces without deciding S1 product behavior.
+
+## Execution tracking
+
+This section records observed implementation progress on `codex/s0-platform-skeleton`. It is not normative: the requirements and exit evidence below remain the release bar. A work package is **Complete** only after all of its stated exit evidence has been demonstrated, not merely after its primary code path exists.
+
+**Last reviewed:** 2026-09-19
+
+**Branch:** `codex/s0-platform-skeleton`
+**Overall release status:** Not ready for S1. No S0 release gate is fully demonstrated yet.
+
+| Work package | Status | Implemented evidence | Exit evidence still required |
+|---|---|---|---|
+| WP0 — Repository contract | Partial | Rust workspace, three service binaries, three Astro app packages, Compose/Caddy local topology, Vault/Postgres/Redis wiring, lockfiles, configuration validation, migrations and workspace build/test commands. | CI matrix, documented version/advisory policy, production configuration matrix and operator runbooks; demonstrate clean bootstrap for every binary and browser app. |
+| WP1 — Contracts/primitives | Partial | Versioned S0 event envelope, Edge/Installation outboxes, inboxes, Redis Streams relays/consumer group, transactional receipts, claims, leases and fencing. | Command-envelope admission, automated relay/consumer restart and lease-takeover recovery tests, and genuine N/N-1 reader support (current parser accepts only major v1). |
+| WP2 — Discord Edge/Transport | Partial | Gateway-only Edge path, technical deduplication, durable interaction receipt, typed callback/defer, private Delivery transport, OAuth/guild typed operations, public interaction route rejection. | Endpoint/shard lifecycle, identify concurrency, resume/reconnect and per-shard readiness; fair route/global/guild/channel rate scheduling; provider-sandbox deadline, resume and 429 tests. |
+| WP3 — Identity/install | Partial | Server-held PKCE, single-use OAuth transactions, encrypted secret storage through Vault Transit, opaque sessions + CSRF, bounded guild discovery, generation-bound GuildInstall callback and asynchronous verification. | Refresh/revocation lifecycle, actual UserInstall/GuildRepair behavior, durable repair plan, complete capability projection/retry policy, audit-fact coverage, and OAuth/session/CSRF/install negative integration tests. |
+| WP4 — Browser/Query | Partial | Durable Installation-state projection into Query and authenticated tenant-scoped guild-shell API. | `app` UI/routes/islands, login and callback UX, server-side route guards, accessible guild picker/home/degraded states, freshness rendering and browser-level authorization tests. |
+| WP5 — Operations/release | Partial | JSON tracing, request IDs, Control liveness/readiness including Vault, Caddy CSP and public `/metrics` rejection, and initial secret separation. | Internal metrics/alerts, service-specific readiness, redaction tests, backup/migration/incident runbooks, CI/security checks, threat-model review and recovery smoke tests. |
+
+### Release-gate ledger
+
+| Gate | Status | Current assessment |
+|---|---|---|
+| 1. Gateway durability/deadline | Partial | Durable interaction acceptance exists; full Gateway lifecycle, shard health and provider deadline proof are pending. |
+| 2. Interaction acknowledgement | Partial | Typed callback/defer path exists; no real/sandbox p99 and failure-mode proof yet. |
+| 3. Transport governance | Partial | Discord HTTP is isolated in Delivery; scheduler and invalid-request protection are incomplete. |
+| 4. Durable cross-service facts | Partial | Transactional outbox and Query consumer are present; restart/recovery proof remains. |
+| 5. Login/session security | Partial | Core PKCE/session/CSRF path exists; refresh lifecycle and comprehensive negative tests remain. |
+| 6. Install authorization | Partial | GuildInstall authority revalidation is present; named presets and repair behavior are incomplete. |
+| 7. Capability verification | Partial | Async `Verifying → Installed/Degraded` path exists; repair plan and robust evidence/retry remain. |
+| 8. Authorized browser shell | Partial | Authorized API exists; browser shell is not implemented. |
+| 9. Operability/security | Partial | Initial hardening exists; observability, runbooks and release review remain. |
+| 10. End-to-end release demonstration | Not started | Requires the preceding gates and an honest clean-environment demonstration. |
+
+**Implemented commit sequence:** `706d52e`–`63f9416` (Vault/secret store, Control readiness, Identity OAuth/session/discovery, installation, asynchronous capability verification, and Query projection). New implementation work must update this ledger in the same change set, including a linkable commit or test/runbook artifact and the remaining exit evidence.
 
 ## 1. Scope and acceptance boundary
 
