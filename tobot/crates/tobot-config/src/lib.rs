@@ -31,6 +31,7 @@ pub struct ControlPlaneConfig {
     pub vault_addr: String,
     pub vault_token: Secret,
     pub vault_transit_key: String,
+    pub metrics_bind: String,
 }
 
 #[derive(Clone)]
@@ -88,6 +89,8 @@ impl ControlPlaneConfig {
             vault_addr: required("TOBOT_VAULT_ADDR")?,
             vault_token: Secret(required("TOBOT_VAULT_TOKEN")?),
             vault_transit_key: required("TOBOT_VAULT_TRANSIT_KEY")?,
+            metrics_bind: env::var("TOBOT_CONTROL_METRICS_BIND")
+                .unwrap_or_else(|_| "127.0.0.1:8083".to_owned()),
         })
     }
 }

@@ -1,12 +1,20 @@
 //! Gateway-only Discord Edge. It has no public interaction-webhook listener.
 
 use anyhow::Context;
-use axum::{Json, Router, extract::State, http::StatusCode, routing::get};
+use axum::{
+    Json, Router,
+    extract::State,
+    http::{HeaderMap, StatusCode, header},
+    response::{IntoResponse, Response},
+    routing::get,
+};
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
+use subtle::ConstantTimeEq;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+use tobot_core::render_gauges;
 use tobot_delivery_client::InternalDeliveryTransport;
 use tobot_discord_adapter::{InteractionCallback, ShardReadiness, shard_is_ready};
 use tobot_envelope::{EventEnvelope, TraceContext};
@@ -34,8 +42,9 @@ async fn main() -> anyhow::Result<()> {
     let store = Store::connect(&database_url)
         .await
         .context("discord edge database unavailable")?;
-    let delivery_transport = InternalDeliveryTransport::new(&delivery_url, internal_service_token)
-        .context("invalid Delivery transport configuration")?;
+    let delivery_transport =
+        InternalDeliveryTransport::new(&delivery_url, internal_service_token.clone())
+            .context("invalid Delivery transport configuration")?;
     let interaction_edge = InteractionEdge::new(store.clone(), delivery_transport);
     let health = EdgeHealth::new(0);
     let health_bind: std::net::SocketAddr = std::env::var("TOBOT_EDGE_HEALTH_BIND")
@@ -43,7 +52,10 @@ async fn main() -> anyhow::Result<()> {
         .parse()
         .context("invalid TOBOT_EDGE_HEALTH_BIND")?;
     let mut shard = Shard::new(ShardId::ONE, bot_token, Intents::GUILDS);
-    let app = health_router(health.clone());
+    let app = health_router(health.clone()).merge(gateway_metrics_router(EdgeMetricsState {
+        health: health.clone(),
+        service_token: internal_service_token,
+    }));
 
     info!(%application_id, ingress = "gateway", shard = 0, "discord edge starting");
     tokio::select! {
@@ -179,6 +191,55 @@ async fn metrics() -> StatusCode {
     StatusCode::NOT_FOUND
 }
 
+#[derive(Clone)]
+struct EdgeMetricsState {
+    health: EdgeHealth,
+    service_token: String,
+}
+
+fn gateway_metrics_router(state: EdgeMetricsState) -> Router {
+    Router::new()
+        .route("/internal/v1/metrics", get(gateway_metrics))
+        .with_state(state)
+}
+
+async fn gateway_metrics(State(state): State<EdgeMetricsState>, headers: HeaderMap) -> Response {
+    if !bearer_matches(&headers, &state.service_token) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    let readiness = state.health.readiness();
+    let Some(body) = render_gauges(&[
+        (
+            "tobot_gateway_session_established",
+            i64::from(u8::from(readiness.session_established)),
+        ),
+        (
+            "tobot_gateway_heartbeat_alive",
+            i64::from(u8::from(readiness.heartbeat_alive)),
+        ),
+    ]) else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    ([(header::CONTENT_TYPE, "text/plain; version=0.0.4")], body).into_response()
+}
+
+fn bearer_matches(headers: &HeaderMap, expected_token: &str) -> bool {
+    let Some(value) = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+    else {
+        return false;
+    };
+    let Some(token) = value.strip_prefix("Bearer ") else {
+        return false;
+    };
+    token
+        .as_bytes()
+        .ct_eq(expected_token.as_bytes())
+        .unwrap_u8()
+        == 1
+}
+
 async fn accept_interaction(
     interaction_edge: &InteractionEdge<InternalDeliveryTransport>,
     store: &Store,
@@ -276,8 +337,10 @@ async fn accept_interaction(
 
 #[cfg(test)]
 mod tests {
-    use super::EdgeHealth;
+    use super::{EdgeHealth, EdgeMetricsState, gateway_metrics_router};
+    use axum::{body::Body, http::Request};
     use tobot_discord_adapter::shard_is_ready;
+    use tower::ServiceExt as _;
     use twilight_gateway::Event;
 
     #[test]
@@ -290,5 +353,49 @@ mod tests {
         assert!(shard_is_ready(health.readiness()));
         health.observe(&Event::GatewayReconnect);
         assert!(!shard_is_ready(health.readiness()));
+    }
+
+    #[tokio::test]
+    async fn gateway_metrics_require_the_service_token_and_omit_identifiers() -> Result<(), String>
+    {
+        let health = EdgeHealth::new(0);
+        health.observe(&Event::Resumed);
+        let app = gateway_metrics_router(EdgeMetricsState {
+            health,
+            service_token: "internal".to_owned(),
+        });
+        let anonymous = app
+            .clone()
+            .oneshot(metrics_request(None)?)
+            .await
+            .map_err(|_| "anonymous gateway metrics request failed".to_owned())?;
+        if anonymous.status() != axum::http::StatusCode::UNAUTHORIZED {
+            return Err("gateway metrics accepted an anonymous request".to_owned());
+        }
+        let authed = app
+            .oneshot(metrics_request(Some("internal"))?)
+            .await
+            .map_err(|_| "authorized gateway metrics request failed".to_owned())?;
+        if authed.status() != axum::http::StatusCode::OK {
+            return Err("authorized gateway metrics were rejected".to_owned());
+        }
+        let body = axum::body::to_bytes(authed.into_body(), 1024)
+            .await
+            .map_err(|error| error.to_string())?;
+        let text = String::from_utf8(body.to_vec()).map_err(|error| error.to_string())?;
+        if !text.contains("tobot_gateway_session_established 1\n") || text.contains("internal") {
+            return Err(text);
+        }
+        Ok(())
+    }
+
+    fn metrics_request(token: Option<&str>) -> Result<Request<Body>, String> {
+        let mut builder = Request::builder().uri("/internal/v1/metrics");
+        if let Some(token) = token {
+            builder = builder.header("authorization", format!("Bearer {token}"));
+        }
+        builder
+            .body(Body::empty())
+            .map_err(|error| error.to_string())
     }
 }

@@ -9,12 +9,14 @@ publish.workspace = true
 [dependencies]
 anyhow.workspace = true
 axum.workspace = true
+subtle.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 time.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+tobot-core = { path = "../../crates/tobot-core" }
 tobot-delivery-client = { path = "../../crates/tobot-delivery-client" }
 tobot-discord-adapter = { path = "../../crates/tobot-discord-adapter" }
 tobot-envelope = { path = "../../crates/tobot-envelope" }
@@ -23,6 +25,10 @@ tobot-persistence = { path = "../../crates/tobot-persistence" }
 twilight-gateway.workspace = true
 twilight-model.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tower = { version = "0.5", features = ["util"] }
 
 [lints]
 workspace = true

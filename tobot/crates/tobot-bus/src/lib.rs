@@ -132,6 +132,33 @@ impl RedisStreamConsumer {
             .await?;
         Ok(())
     }
+
+    /// Pending entries for this consumer group. This is an aggregate count.
+    ///
+    /// # Errors
+    ///
+    /// Returns a Redis error or an unexpected `XPENDING` shape.
+    pub async fn pending_entries(&self) -> Result<i64, BusError> {
+        let mut connection = open_connection(&self.client).await?;
+        ensure_group(&mut connection, &self.group).await?;
+        let value: redis::Value = redis::cmd("XPENDING")
+            .arg(EVENT_STREAM)
+            .arg(&self.group)
+            .query_async(&mut connection)
+            .await?;
+        pending_count(value).ok_or(BusError::InvalidEnvelope)
+    }
+}
+
+fn pending_count(value: redis::Value) -> Option<i64> {
+    match value {
+        redis::Value::Int(count) => Some(count),
+        redis::Value::Array(items) => match items.first() {
+            Some(redis::Value::Int(count)) => Some(*count),
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 async fn ensure_group(connection: &mut MultiplexedConnection, group: &str) -> Result<(), BusError> {

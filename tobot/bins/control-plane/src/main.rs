@@ -11,9 +11,10 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
     routing::{get, post},
 };
+use subtle::ConstantTimeEq;
 use tobot_bus::{RedisStreamConsumer, RedisStreamPublisher};
 use tobot_config::ControlPlaneConfig;
-use tobot_core::{Clock, SystemClock};
+use tobot_core::{Clock, SystemClock, render_gauges};
 use tobot_delivery_client::InstallationInspectionClient;
 use tobot_discord_adapter::{DiscordGuildObservation, DiscordOAuthClient};
 use tobot_identity::{
@@ -161,6 +162,19 @@ async fn main() -> anyhow::Result<()> {
     )
     .context("cannot construct Query/Status stream consumer")?;
     let query_store = store.clone();
+    let metrics_state = MetricsState {
+        store: store.clone(),
+        consumer: query_consumer.clone(),
+        service_token: config
+            .internal_service_token
+            .expose_for_adapter()
+            .to_owned(),
+        clock: SystemClock,
+    };
+    let metrics_address: SocketAddr = config
+        .metrics_bind
+        .parse()
+        .context("invalid TOBOT_CONTROL_METRICS_BIND")?;
     let app = router(AppState {
         oauth: OAuthService::new(store.clone(), secret_store.clone()),
         store,
@@ -174,14 +188,95 @@ async fn main() -> anyhow::Result<()> {
         clock: SystemClock,
     });
 
-    info!(bind = %address, origin = %config.public_origin, "control plane starting");
+    info!(bind = %address, metrics = %metrics_address, origin = %config.public_origin, "control plane starting");
     let listener = tokio::net::TcpListener::bind(address).await?;
+    let metrics_listener = tokio::net::TcpListener::bind(metrics_address).await?;
     tokio::select! {
         result = axum::serve(listener, app) => result.context("Control Plane listener failed"),
+        result = axum::serve(metrics_listener, metrics_router(metrics_state)) => {
+            result.context("Control Plane metrics listener failed")
+        }
         result = run_installation_verifier(verification_store, inspection) => result,
         result = run_installation_relay(installation_relay) => result,
         result = run_query_projector(query_store, query_consumer) => result,
     }
+}
+
+#[derive(Clone)]
+struct MetricsState {
+    store: Store,
+    consumer: RedisStreamConsumer,
+    service_token: String,
+    clock: SystemClock,
+}
+
+fn metrics_router(state: MetricsState) -> Router {
+    Router::new()
+        .route("/metrics", get(operational_metrics))
+        .with_state(state)
+}
+
+async fn operational_metrics(State(state): State<MetricsState>, headers: HeaderMap) -> Response {
+    if !bearer_matches(&headers, &state.service_token) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    match control_metrics_body(&state).await {
+        Ok(body) => ([(header::CONTENT_TYPE, "text/plain; version=0.0.4")], body).into_response(),
+        Err(cause) => {
+            error!(error = %cause, "operational metrics unavailable");
+            StatusCode::SERVICE_UNAVAILABLE.into_response()
+        }
+    }
+}
+
+async fn control_metrics_body(state: &MetricsState) -> anyhow::Result<String> {
+    let now = time::OffsetDateTime::from(state.clock.now());
+    let installation = state.store.installation_relay_gauge(now).await?;
+    let degraded = state.store.degraded_shell_count().await?;
+    let rejections = state
+        .store
+        .recent_auth_rejection_count(now - time::Duration::minutes(15))
+        .await?;
+    let pending = state.consumer.pending_entries().await?;
+    render_gauges(&[
+        (
+            "tobot_installation_outbox_unpublished",
+            installation.unpublished,
+        ),
+        (
+            "tobot_installation_outbox_oldest_age_seconds",
+            installation.oldest_age_seconds,
+        ),
+        (
+            "tobot_installation_outbox_max_publish_attempts",
+            installation.max_publish_attempts,
+        ),
+        (
+            "tobot_installation_outbox_expired_leases",
+            installation.expired_leases,
+        ),
+        ("tobot_degraded_installations", degraded),
+        ("tobot_auth_rejections_15m", rejections),
+        ("tobot_stream_pending", pending),
+    ])
+    .context("operational gauge name was rejected")
+}
+
+fn bearer_matches(headers: &HeaderMap, expected_token: &str) -> bool {
+    let Some(value) = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+    else {
+        return false;
+    };
+    let Some(token) = value.strip_prefix("Bearer ") else {
+        return false;
+    };
+    token
+        .as_bytes()
+        .ct_eq(expected_token.as_bytes())
+        .unwrap_u8()
+        == 1
 }
 
 async fn run_query_projector(store: Store, consumer: RedisStreamConsumer) -> anyhow::Result<()> {

@@ -6,12 +6,14 @@ use axum::{
     Router,
     extract::{Json, State},
     http::{HeaderMap, StatusCode, header},
+    response::{IntoResponse, Response},
     routing::{get, post},
 };
 use std::{net::SocketAddr, sync::Arc};
 use subtle::ConstantTimeEq;
 use time::OffsetDateTime;
 use tobot_bus::RedisStreamPublisher;
+use tobot_core::render_gauges;
 use tobot_discord_adapter::{
     DiscordTransport, GuildPresenceInspection, InteractionCallback, TransportError,
     TwilightTransport,
@@ -41,6 +43,10 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|_| "127.0.0.1:8081".to_owned())
         .parse()
         .context("invalid TOBOT_DELIVERY_BIND")?;
+    let metrics_bind: SocketAddr = std::env::var("TOBOT_DELIVERY_METRICS_BIND")
+        .unwrap_or_else(|_| "127.0.0.1:8084".to_owned())
+        .parse()
+        .context("invalid TOBOT_DELIVERY_METRICS_BIND")?;
     let redis_url = std::env::var("TOBOT_REDIS_URL").context("missing TOBOT_REDIS_URL")?;
     let database_url = std::env::var("TOBOT_DATABASE_URL").context("missing TOBOT_DATABASE_URL")?;
     let store = Store::connect(&database_url).await?;
@@ -52,12 +58,18 @@ async fn main() -> anyhow::Result<()> {
         credentials_present: true,
         store: Some(store),
     });
-    let app = delivery_router(state);
-    info!(%bind, "delivery starting with private typed transport ingress");
+    let app = delivery_router(Arc::clone(&state));
+    let metrics = metrics_router(state);
+    info!(%bind, %metrics_bind, "delivery starting with private typed transport ingress");
+    let listener = tokio::net::TcpListener::bind(bind).await?;
+    let metrics_listener = tokio::net::TcpListener::bind(metrics_bind).await?;
     tokio::select! {
         result = run_relay(relay) => result,
-        result = axum::serve(tokio::net::TcpListener::bind(bind).await?, app) => {
+        result = axum::serve(listener, app) => {
             result.context("Delivery private listener failed")
+        },
+        result = axum::serve(metrics_listener, metrics) => {
+            result.context("Delivery metrics listener failed")
         },
     }
 }
@@ -90,6 +102,42 @@ async fn ready(State(state): State<Arc<DeliveryState>>) -> StatusCode {
 
 async fn metrics() -> StatusCode {
     StatusCode::NOT_FOUND
+}
+
+fn metrics_router(state: Arc<DeliveryState>) -> Router {
+    Router::new()
+        .route("/metrics", get(edge_outbox_metrics))
+        .with_state(state)
+}
+
+async fn edge_outbox_metrics(
+    State(state): State<Arc<DeliveryState>>,
+    headers: HeaderMap,
+) -> Response {
+    if !authorized(&headers, &state.service_token) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    let Some(store) = &state.store else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    let Ok(gauge) = store.edge_relay_gauge(OffsetDateTime::now_utc()).await else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    let Some(body) = render_gauges(&[
+        ("tobot_edge_outbox_unpublished", gauge.unpublished),
+        (
+            "tobot_edge_outbox_oldest_age_seconds",
+            gauge.oldest_age_seconds,
+        ),
+        (
+            "tobot_edge_outbox_max_publish_attempts",
+            gauge.max_publish_attempts,
+        ),
+        ("tobot_edge_outbox_expired_leases", gauge.expired_leases),
+    ]) else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    ([(header::CONTENT_TYPE, "text/plain; version=0.0.4")], body).into_response()
 }
 
 const fn transport_readiness(credentials_present: bool, database_ready: bool) -> StatusCode {
@@ -207,7 +255,9 @@ mod tests {
     use axum::{body::Body, http::Request};
     use tower::ServiceExt as _;
 
-    use super::{DeliveryState, TwilightTransport, delivery_router, transport_readiness};
+    use super::{
+        DeliveryState, TwilightTransport, delivery_router, metrics_router, transport_readiness,
+    };
     use axum::http::StatusCode;
 
     #[test]
@@ -256,6 +306,41 @@ mod tests {
             return Err("delivery liveness did not answer".to_owned());
         }
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn metrics_listener_requires_the_service_token() -> Result<(), String> {
+        let state = Arc::new(DeliveryState {
+            transport: TwilightTransport::new("token".to_owned()),
+            service_token: "internal".to_owned(),
+            credentials_present: true,
+            store: None,
+        });
+        let app = metrics_router(state);
+        let anonymous = app
+            .clone()
+            .oneshot(request("/metrics")?)
+            .await
+            .map_err(|_| "anonymous metrics request failed".to_owned())?;
+        if anonymous.status() != StatusCode::UNAUTHORIZED {
+            return Err("metrics scrape accepted an anonymous request".to_owned());
+        }
+        let authed = app
+            .oneshot(authorized_request("/metrics", "internal")?)
+            .await
+            .map_err(|_| "authorized metrics request failed".to_owned())?;
+        if authed.status() != StatusCode::SERVICE_UNAVAILABLE {
+            return Err("metrics scrape ran without a database".to_owned());
+        }
+        Ok(())
+    }
+
+    fn authorized_request(path: &str, token: &str) -> Result<Request<Body>, String> {
+        Request::builder()
+            .uri(path)
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .map_err(|error| error.to_string())
     }
 
     fn request(path: &str) -> Result<Request<Body>, String> {

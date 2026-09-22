@@ -79,6 +79,39 @@ pub trait Clock: Send + Sync {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SystemClock;
 
+const OPERATIONAL_GAUGES: &[&str] = &[
+    "tobot_installation_outbox_unpublished",
+    "tobot_installation_outbox_oldest_age_seconds",
+    "tobot_installation_outbox_max_publish_attempts",
+    "tobot_installation_outbox_expired_leases",
+    "tobot_edge_outbox_unpublished",
+    "tobot_edge_outbox_oldest_age_seconds",
+    "tobot_edge_outbox_max_publish_attempts",
+    "tobot_edge_outbox_expired_leases",
+    "tobot_degraded_installations",
+    "tobot_auth_rejections_15m",
+    "tobot_stream_pending",
+    "tobot_gateway_session_established",
+    "tobot_gateway_heartbeat_alive",
+];
+
+/// Renders aggregate gauges. A name outside the fixed list is rejected so a
+/// tenant id, token, or other label cannot be interpolated into the scrape.
+#[must_use]
+pub fn render_gauges(samples: &[(&str, i64)]) -> Option<String> {
+    let mut body = String::new();
+    for (name, value) in samples {
+        if !OPERATIONAL_GAUGES.contains(name) {
+            return None;
+        }
+        body.push_str(name);
+        body.push(' ');
+        body.push_str(&value.to_string());
+        body.push('\n');
+    }
+    Some(body)
+}
+
 #[async_trait]
 impl Clock for SystemClock {
     fn now(&self) -> SystemTime {
@@ -107,6 +140,19 @@ mod tests {
             Err(TenantAccessError::MismatchedPredicate)
         );
         assert_eq!(context.require(Some(tenant)), Ok(tenant));
+    }
+
+    #[test]
+    fn operational_gauges_reject_names_outside_the_fixed_list() -> Result<(), String> {
+        let body = render_gauges(&[("tobot_edge_outbox_unpublished", 2)])
+            .ok_or_else(|| "known gauge was rejected".to_owned())?;
+        if body != "tobot_edge_outbox_unpublished 2\n" {
+            return Err(body);
+        }
+        if render_gauges(&[("tobot_guild_1507220191078252674", 1)]).is_some() {
+            return Err("a tenant-shaped name was rendered".to_owned());
+        }
+        Ok(())
     }
 }
 

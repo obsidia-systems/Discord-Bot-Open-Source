@@ -16,6 +16,28 @@ pub struct Store {
 }
 
 #[derive(Debug, sqlx::FromRow)]
+pub struct RelayGauge {
+    pub unpublished: i64,
+    pub oldest_age_seconds: i64,
+    pub max_publish_attempts: i64,
+    pub expired_leases: i64,
+}
+
+const INSTALLATION_RELAY_GAUGE: &str = "SELECT \
+     count(*) FILTER (WHERE published_at IS NULL)::bigint AS unpublished, \
+     COALESCE(FLOOR(EXTRACT(EPOCH FROM ($1 - min(available_at) FILTER (WHERE published_at IS NULL)))), 0)::bigint AS oldest_age_seconds, \
+     COALESCE(max(publish_attempts) FILTER (WHERE published_at IS NULL), 0)::bigint AS max_publish_attempts, \
+     count(*) FILTER (WHERE published_at IS NULL AND lease_expires_at IS NOT NULL AND lease_expires_at < $1)::bigint AS expired_leases \
+     FROM installation.event_outbox";
+
+const EDGE_RELAY_GAUGE: &str = "SELECT \
+     count(*) FILTER (WHERE published_at IS NULL)::bigint AS unpublished, \
+     COALESCE(FLOOR(EXTRACT(EPOCH FROM ($1 - min(available_at) FILTER (WHERE published_at IS NULL)))), 0)::bigint AS oldest_age_seconds, \
+     COALESCE(max(publish_attempts) FILTER (WHERE published_at IS NULL), 0)::bigint AS max_publish_attempts, \
+     count(*) FILTER (WHERE published_at IS NULL AND lease_expires_at IS NOT NULL AND lease_expires_at < $1)::bigint AS expired_leases \
+     FROM edge.event_outbox";
+
+#[derive(Debug, sqlx::FromRow)]
 pub struct ClaimedOutboxEntry {
     pub outbox_id: Uuid,
     pub event_id: Uuid,
@@ -1268,6 +1290,70 @@ impl Store {
     #[must_use]
     pub fn pool(&self) -> &PgPool {
         &self.pool
+    }
+
+    /// Aggregate installation-outbox age. The caller supplies Clock-port time.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the aggregate cannot be read.
+    pub async fn installation_relay_gauge(
+        &self,
+        now: OffsetDateTime,
+    ) -> Result<RelayGauge, sqlx::Error> {
+        self.relay_gauge(INSTALLATION_RELAY_GAUGE, now).await
+    }
+
+    /// Aggregate edge-outbox age. The caller supplies Clock-port time.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the aggregate cannot be read.
+    pub async fn edge_relay_gauge(&self, now: OffsetDateTime) -> Result<RelayGauge, sqlx::Error> {
+        self.relay_gauge(EDGE_RELAY_GAUGE, now).await
+    }
+
+    /// Count of shells currently `Degraded`. No tenant identifier is returned.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the count cannot be read.
+    pub async fn degraded_shell_count(&self) -> Result<i64, sqlx::Error> {
+        sqlx::query_scalar(
+            "SELECT count(*)::bigint FROM query_status.guild_shell \
+             WHERE installation_state = 'Degraded'",
+        )
+        .fetch_one(&self.pool)
+        .await
+    }
+
+    /// OAuth and install rejections since `since`. The count has no subject.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the count cannot be read.
+    pub async fn recent_auth_rejection_count(
+        &self,
+        since: OffsetDateTime,
+    ) -> Result<i64, sqlx::Error> {
+        sqlx::query_scalar(
+            "SELECT count(*)::bigint FROM identity.audit_event \
+             WHERE outcome IN ('oauth_rejected', 'install_rejected') AND occurred_at >= $1",
+        )
+        .bind(since)
+        .fetch_one(&self.pool)
+        .await
+    }
+
+    async fn relay_gauge(
+        &self,
+        statement: &'static str,
+        now: OffsetDateTime,
+    ) -> Result<RelayGauge, sqlx::Error> {
+        sqlx::query_as(statement)
+            .bind(now)
+            .fetch_one(&self.pool)
+            .await
     }
 
     /// Claims a bounded batch. The supplied time must come from the Clock
