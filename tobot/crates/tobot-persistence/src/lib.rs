@@ -57,6 +57,13 @@ pub enum InteractionAcknowledgement {
     Deferred,
 }
 
+#[derive(Debug, sqlx::FromRow)]
+pub struct GatewaySessionRecord {
+    pub session_id: String,
+    pub sequence: i64,
+    pub resume_gateway_url: String,
+}
+
 pub struct GatewayInteractionAcceptance<'a> {
     pub context: TenantContext,
     pub interaction_id: &'a str,
@@ -1049,18 +1056,17 @@ impl Store {
         Ok(InteractionAcceptance::Accepted)
     }
 
-    /// Atomically accepts the Gateway technical receipt, its Gateway fact,
-    /// the interaction receipt, and its interaction fact. The technical
-    /// receipt is the authoritative duplicate key; wall-clock time and local
-    /// UUIDs cannot be used for Gateway deduplication.
+    /// Reserves the Gateway and interaction receipts without writing the
+    /// outbox. The acknowledgement can then run before fact publication.
+    /// The technical receipt is the authoritative duplicate key.
     ///
     /// # Errors
     ///
-    /// Returns an error if the supplied Gateway identity is incomplete or any
-    /// member of the durable acceptance transaction cannot be committed.
-    pub async fn accept_gateway_interaction(
+    /// Returns an error if the supplied Gateway identity is incomplete or the
+    /// reservation cannot be committed.
+    pub async fn reserve_gateway_interaction(
         &self,
-        request: GatewayInteractionAcceptance<'_>,
+        request: &GatewayInteractionAcceptance<'_>,
     ) -> Result<InteractionAcceptance, sqlx::Error> {
         let GatewayInteractionAcceptance {
             context,
@@ -1068,9 +1074,7 @@ impl Store {
             receipt_id,
             expires_at,
             gateway_event,
-            gateway_raw,
-            interaction_event,
-            interaction_raw,
+            ..
         } = request;
         let (Some(shard_id), Some(session_id), Some(gateway_sequence)) = (
             gateway_event.shard_id,
@@ -1124,10 +1128,32 @@ impl Store {
                 "gateway receipt has conflicting interaction identity".to_owned(),
             ));
         }
+        transaction.commit().await?;
+        Ok(InteractionAcceptance::Accepted)
+    }
 
+    /// Writes the Gateway and interaction facts after the initial callback.
+    /// Publication is not on the acknowledgement path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if either fact cannot be committed.
+    pub async fn enqueue_gateway_interaction(
+        &self,
+        request: &GatewayInteractionAcceptance<'_>,
+    ) -> Result<(), sqlx::Error> {
+        let GatewayInteractionAcceptance {
+            context,
+            gateway_event,
+            gateway_raw,
+            interaction_event,
+            interaction_raw,
+            ..
+        } = request;
+        let mut transaction = self.pool.begin().await?;
         for (event, raw) in [
-            (gateway_event, gateway_raw),
-            (interaction_event, interaction_raw),
+            (*gateway_event, *gateway_raw),
+            (*interaction_event, *interaction_raw),
         ] {
             let inbox_inserted = sqlx::query(
                 "INSERT INTO edge.event_inbox (event_id, tenant_id, schema_name, schema_version, raw_envelope) \
@@ -1161,7 +1187,71 @@ impl Store {
             .await?;
         }
         transaction.commit().await?;
-        Ok(InteractionAcceptance::Accepted)
+        Ok(())
+    }
+
+    /// Loads the shard session saved from the last Ready or Resume.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the session row cannot be read.
+    pub async fn load_gateway_session(
+        &self,
+        shard_id: i32,
+    ) -> Result<Option<GatewaySessionRecord>, sqlx::Error> {
+        sqlx::query_as(
+            "SELECT session_id, sequence, resume_gateway_url \
+             FROM edge.gateway_session WHERE shard_id = $1",
+        )
+        .bind(shard_id)
+        .fetch_optional(&self.pool)
+        .await
+    }
+
+    /// Replaces the shard's resumable session. Sequence is the last dispatch
+    /// the process has observed.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the session cannot be saved.
+    pub async fn save_gateway_session(
+        &self,
+        shard_id: i32,
+        session_id: &str,
+        sequence: i64,
+        resume_gateway_url: &str,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "INSERT INTO edge.gateway_session \
+             (shard_id, session_id, sequence, resume_gateway_url, updated_at) \
+             VALUES ($1, $2, $3, $4, $5) \
+             ON CONFLICT (shard_id) DO UPDATE \
+             SET session_id = EXCLUDED.session_id, \
+                 sequence = EXCLUDED.sequence, \
+                 resume_gateway_url = EXCLUDED.resume_gateway_url, \
+                 updated_at = EXCLUDED.updated_at",
+        )
+        .bind(shard_id)
+        .bind(session_id)
+        .bind(sequence)
+        .bind(resume_gateway_url)
+        .bind(OffsetDateTime::now_utc())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Forgets a session Discord has invalidated so the next connect Identifies.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the session row cannot be removed.
+    pub async fn delete_gateway_session(&self, shard_id: i32) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM edge.gateway_session WHERE shard_id = $1")
+            .bind(shard_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 
     /// Records a successful initial interaction callback exactly once. The

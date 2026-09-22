@@ -7,13 +7,23 @@ use std::time::Duration;
 use thiserror::Error;
 use twilight_http::{api_error::ApiError, error::ErrorType};
 use twilight_model::{
+    application::{
+        command::{Command, CommandType},
+        interaction::InteractionContextType,
+    },
     channel::message::MessageFlags,
     http::interaction::{InteractionResponse, InteractionResponseData, InteractionResponseType},
     id::{
         Id,
-        marker::{ApplicationMarker, GuildMarker, InteractionMarker},
+        marker::{ApplicationMarker, CommandVersionMarker, GuildMarker, InteractionMarker},
     },
 };
+
+pub const DIAGNOSTIC_COMMAND_NAME: &str = "probe";
+pub const DIAGNOSTIC_ACKNOWLEDGEMENT: &str = "Acknowledged.";
+pub const INTERACTION_ACK_DEADLINE_MS: u64 = 3_000;
+const DISCORD_EPOCH_MS: u64 = 1_420_070_400_000;
+const GATEWAY_BOT_PROBE_ATTEMPTS: u8 = 8;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct GuildPresenceInspection {
@@ -76,6 +86,25 @@ struct OAuthTokenResponse {
     expires_in: u64,
     scope: String,
     guild: Option<DiscordAuthorizedGuild>,
+}
+
+#[derive(Deserialize)]
+struct GatewayRateLimitBody {
+    retry_after: f64,
+    global: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ProviderRateLimit {
+    pub retry_after_ms: u64,
+    pub global: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SessionStartBudget {
+    pub remaining: u32,
+    pub reset_after_ms: u64,
+    pub max_concurrency: u16,
 }
 
 #[derive(Deserialize)]
@@ -301,11 +330,108 @@ impl TwilightTransport {
         }
     }
 
-    fn response_data(ephemeral: bool) -> InteractionResponseData {
+    fn response_data(ephemeral: bool, content: Option<&str>) -> InteractionResponseData {
         InteractionResponseData {
+            content: content.map(ToOwned::to_owned),
             flags: ephemeral.then_some(MessageFlags::EPHEMERAL),
             ..InteractionResponseData::default()
         }
+    }
+
+    /// Reads `GET /gateway/bot` session-start budget before a shard connects.
+    ///
+    /// # Errors
+    ///
+    /// Returns a classified transport error. The response body is not included.
+    pub async fn session_start_budget(&self) -> Result<SessionStartBudget, TransportError> {
+        let response = self
+            .client
+            .gateway()
+            .authed()
+            .await
+            .map_err(|error| Self::map_error(&error))?;
+        let info = response.model().await.map_err(|_| {
+            TransportError::Unavailable("gateway bot response unavailable".to_owned())
+        })?;
+        Ok(SessionStartBudget {
+            remaining: info.session_start_limit.remaining,
+            reset_after_ms: info.session_start_limit.reset_after,
+            max_concurrency: info.session_start_limit.max_concurrency,
+        })
+    }
+
+    /// Sends at most eight `GET /gateway/bot` requests with no local limiter,
+    /// and stops at the first Discord HTTP 429. This is the sandbox proof that
+    /// a real `retry_after` was observed. It does not keep requesting after that.
+    ///
+    /// # Errors
+    ///
+    /// Returns a classified transport error. The response body is not included
+    /// except for `retry_after` and `global`.
+    pub async fn observe_gateway_bot_limit(
+        &self,
+        bot_token: &str,
+    ) -> Result<Option<ProviderRateLimit>, TransportError> {
+        let _ = &self.client;
+        let http = reqwest::Client::builder()
+            .connect_timeout(Duration::from_millis(500))
+            .timeout(Duration::from_secs(3))
+            .build()
+            .map_err(|_| {
+                TransportError::Unavailable("rate-limit probe client unavailable".to_owned())
+            })?;
+        for _ in 0..GATEWAY_BOT_PROBE_ATTEMPTS {
+            let response = http
+                .get("https://discord.com/api/v10/gateway/bot")
+                .header("authorization", format!("Bot {bot_token}"))
+                .header("user-agent", "DiscordBot (https://www.tobot.test, 0.1.0)")
+                .send()
+                .await
+                .map_err(|_| {
+                    TransportError::Unavailable("gateway bot probe unavailable".to_owned())
+                })?;
+            if response.status().as_u16() == 429 {
+                let body = response.json::<GatewayRateLimitBody>().await.map_err(|_| {
+                    TransportError::Unavailable("rate-limit body unavailable".to_owned())
+                })?;
+                return Ok(Some(ProviderRateLimit {
+                    retry_after_ms: Self::retry_after_ms(body.retry_after),
+                    global: body.global,
+                }));
+            }
+            let status = response.status();
+            if !status.is_success() {
+                return Err(TransportError::Rejected {
+                    status: status.as_u16(),
+                });
+            }
+        }
+        Ok(None)
+    }
+
+    /// Registers the single guild-scoped diagnostic command. Unchanged
+    /// registrations are not a command edit, so this can run on each guild
+    /// arrival.
+    ///
+    /// # Errors
+    ///
+    /// Returns a classified transport error when Discord rejects the command.
+    pub async fn register_diagnostic_command(
+        &self,
+        application_id: u64,
+        guild_id: u64,
+    ) -> Result<(), TransportError> {
+        let application_id = Id::<ApplicationMarker>::new_checked(application_id)
+            .ok_or(TransportError::Rejected { status: 400 })?;
+        let guild_id = Id::<GuildMarker>::new_checked(guild_id)
+            .ok_or(TransportError::Rejected { status: 400 })?;
+        let command = diagnostic_command();
+        self.client
+            .interaction(application_id)
+            .set_guild_commands(guild_id, &[command])
+            .await
+            .map(|_| ())
+            .map_err(|error| Self::map_error(&error))
     }
 
     fn ids(
@@ -413,7 +539,10 @@ impl DiscordTransport for TwilightTransport {
     ) -> Result<(), TransportError> {
         let response = InteractionResponse {
             kind: InteractionResponseType::ChannelMessageWithSource,
-            data: Some(Self::response_data(request.ephemeral)),
+            data: Some(Self::response_data(
+                request.ephemeral,
+                Some(DIAGNOSTIC_ACKNOWLEDGEMENT),
+            )),
         };
 
         self.create_response(request, response).await
@@ -422,7 +551,7 @@ impl DiscordTransport for TwilightTransport {
     async fn defer_interaction(&self, request: InteractionCallback) -> Result<(), TransportError> {
         let response = InteractionResponse {
             kind: InteractionResponseType::DeferredChannelMessageWithSource,
-            data: Some(Self::response_data(request.ephemeral)),
+            data: Some(Self::response_data(request.ephemeral, None)),
         };
 
         self.create_response(request, response).await
@@ -435,11 +564,18 @@ mod tests {
 
     #[test]
     fn response_data_only_sets_ephemeral_when_requested() {
+        let acknowledged = TwilightTransport::response_data(true, Some(DIAGNOSTIC_ACKNOWLEDGEMENT));
+        assert_eq!(acknowledged.flags, Some(MessageFlags::EPHEMERAL));
         assert_eq!(
-            TwilightTransport::response_data(true).flags,
-            Some(MessageFlags::EPHEMERAL)
+            acknowledged.content.as_deref(),
+            Some(DIAGNOSTIC_ACKNOWLEDGEMENT)
         );
-        assert_eq!(TwilightTransport::response_data(false).flags, None);
+        assert_eq!(TwilightTransport::response_data(false, None).flags, None);
+        assert!(
+            TwilightTransport::response_data(false, None)
+                .content
+                .is_none()
+        );
     }
 
     #[test]
@@ -560,11 +696,45 @@ pub const fn shard_is_ready(readiness: ShardReadiness) -> bool {
     readiness.session_established && readiness.heartbeat_alive
 }
 
+/// Discord snowflake timestamp, in Unix milliseconds.
+#[must_use]
+pub const fn interaction_created_ms(interaction_id: u64) -> u64 {
+    (interaction_id >> 22).saturating_add(DISCORD_EPOCH_MS)
+}
+
+/// The initial callback is due only while the interaction is younger than three seconds.
+#[must_use]
+pub const fn acknowledgement_deadline_open(interaction_id: u64, now_ms: u64) -> bool {
+    now_ms.saturating_sub(interaction_created_ms(interaction_id)) < INTERACTION_ACK_DEADLINE_MS
+}
+
+#[allow(deprecated)]
+fn diagnostic_command() -> Command {
+    Command {
+        application_id: None,
+        contexts: Some(vec![InteractionContextType::Guild]),
+        default_member_permissions: None,
+        dm_permission: None,
+        description: "Acknowledge a platform diagnostic.".to_owned(),
+        description_localizations: None,
+        guild_id: None,
+        id: None,
+        integration_types: None,
+        kind: CommandType::ChatInput,
+        name: DIAGNOSTIC_COMMAND_NAME.to_owned(),
+        name_localizations: None,
+        nsfw: Some(false),
+        options: Vec::new(),
+        version: Id::<CommandVersionMarker>::new(1),
+    }
+}
+
 #[cfg(test)]
 mod governance_tests {
     use super::{
-        GatewayPhase, RateSnapshot, ShardReadiness, TransportAdmission, admit_discord_request,
-        plan_gateway_session, shard_is_ready,
+        DIAGNOSTIC_COMMAND_NAME, DISCORD_EPOCH_MS, GatewayPhase, RateSnapshot, ShardReadiness,
+        TransportAdmission, acknowledgement_deadline_open, admit_discord_request,
+        diagnostic_command, interaction_created_ms, plan_gateway_session, shard_is_ready,
     };
 
     fn open() -> RateSnapshot {
@@ -616,5 +786,16 @@ mod governance_tests {
             session_established: true,
             heartbeat_alive: true,
         }));
+    }
+
+    #[test]
+    fn acknowledgement_closes_at_three_seconds() {
+        let created = 1_700_000_000_000_u64;
+        let id = (created - DISCORD_EPOCH_MS) << 22;
+        assert!(acknowledgement_deadline_open(id, created));
+        assert!(acknowledgement_deadline_open(id, created + 2_999));
+        assert!(!acknowledgement_deadline_open(id, created + 3_000));
+        assert_eq!(interaction_created_ms(id), created);
+        assert_eq!(diagnostic_command().name, DIAGNOSTIC_COMMAND_NAME);
     }
 }

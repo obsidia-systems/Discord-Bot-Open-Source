@@ -20,7 +20,7 @@ use tobot_discord_adapter::{
 };
 use tobot_outbox::EdgeOutboxRelay;
 use tobot_persistence::Store;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 struct DeliveryState {
     transport: TwilightTransport,
@@ -229,11 +229,26 @@ fn authorized(headers: &HeaderMap, expected_token: &str) -> bool {
 }
 
 fn status_for(result: &Result<(), TransportError>) -> StatusCode {
-    match result {
-        Ok(()) => StatusCode::NO_CONTENT,
-        Err(TransportError::RateLimited { .. }) => StatusCode::TOO_MANY_REQUESTS,
-        Err(TransportError::Rejected { .. }) => StatusCode::BAD_GATEWAY,
-        Err(TransportError::Unavailable(_)) => StatusCode::SERVICE_UNAVAILABLE,
+    let Err(error) = result else {
+        return StatusCode::NO_CONTENT;
+    };
+    match error {
+        TransportError::RateLimited { retry_after_ms } => {
+            warn!(
+                retry_after_ms,
+                class = "RateLimited",
+                "interaction callback failed"
+            );
+            StatusCode::TOO_MANY_REQUESTS
+        }
+        TransportError::Rejected { status } => {
+            warn!(status, class = "Rejected", "interaction callback failed");
+            StatusCode::from_u16(*status).unwrap_or(StatusCode::BAD_GATEWAY)
+        }
+        TransportError::Unavailable(_) => {
+            warn!(class = "Unavailable", "interaction callback failed");
+            StatusCode::SERVICE_UNAVAILABLE
+        }
     }
 }
 

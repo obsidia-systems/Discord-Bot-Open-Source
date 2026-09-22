@@ -4,7 +4,9 @@
 use thiserror::Error;
 use time::{Duration, OffsetDateTime};
 use tobot_core::TenantContext;
-use tobot_discord_adapter::{DiscordTransport, InteractionCallback, TransportError};
+use tobot_discord_adapter::{
+    DiscordTransport, InteractionCallback, TransportError, acknowledgement_deadline_open,
+};
 use tobot_envelope::EventEnvelope;
 use tobot_persistence::{
     GatewayInteractionAcceptance, InteractionAcceptance, InteractionAcknowledgement, Store,
@@ -24,6 +26,13 @@ pub enum IngressOutcome {
     Acknowledged,
     Deferred,
     Duplicate,
+    Expired,
+}
+
+pub struct AcknowledgementResult {
+    pub outcome: IngressOutcome,
+    /// Milliseconds spent in the Discord callback. Absent when no callback was sent.
+    pub callback_ms: Option<u64>,
 }
 
 pub struct InteractionIngressRequest<'a> {
@@ -61,9 +70,9 @@ where
         Self { store, transport }
     }
 
-    /// Commits the receipt and fact before attempting a single initial
-    /// Discord callback. Duplicate ingress is intentionally silent and never
-    /// causes another callback.
+    /// Reserves the duplicate key, sends one initial callback, then writes the
+    /// outbox. The callback does not wait for fact publication. An interaction
+    /// that is already three seconds old is not sent to Discord.
     ///
     /// # Errors
     ///
@@ -72,7 +81,7 @@ where
     pub async fn accept_and_acknowledge(
         &self,
         request: InteractionIngressRequest<'_>,
-    ) -> Result<IngressOutcome, IngressError> {
+    ) -> Result<AcknowledgementResult, IngressError> {
         let InteractionIngressRequest {
             context,
             callback,
@@ -88,25 +97,30 @@ where
         {
             return Err(IngressError::InvalidEnvelope);
         }
+        let acceptance = GatewayInteractionAcceptance {
+            context,
+            interaction_id: &callback.interaction_id.to_string(),
+            receipt_id: Uuid::now_v7(),
+            expires_at: now + INTERACTION_LIFETIME,
+            gateway_event,
+            gateway_raw,
+            interaction_event,
+            interaction_raw,
+        };
+        let now_ms = unix_millis(now);
+        if !acknowledgement_deadline_open(callback.interaction_id, now_ms) {
+            return self.reserve_without_callback(&acceptance, "Expired").await;
+        }
 
-        let receipt_id = Uuid::now_v7();
         match self
             .store
-            .accept_gateway_interaction(GatewayInteractionAcceptance {
-                context,
-                interaction_id: &callback.interaction_id.to_string(),
-                receipt_id,
-                expires_at: now + INTERACTION_LIFETIME,
-                gateway_event,
-                gateway_raw,
-                interaction_event,
-                interaction_raw,
-            })
+            .reserve_gateway_interaction(&acceptance)
             .await
             .map_err(|_| IngressError::Persistence)?
         {
-            InteractionAcceptance::Duplicate => Ok(IngressOutcome::Duplicate),
+            InteractionAcceptance::Duplicate => Ok(silent(IngressOutcome::Duplicate)),
             InteractionAcceptance::Accepted => {
+                let started = std::time::Instant::now();
                 let callback_result = match acknowledgement {
                     ProbeAcknowledgement::Immediate => self
                         .transport
@@ -127,20 +141,32 @@ where
                         })
                     }
                 };
+                let callback_ms = elapsed_ms(started);
 
                 match callback_result {
                     Ok((acknowledgement, outcome)) => {
                         self.store
-                            .record_interaction_acknowledgement(receipt_id, acknowledgement, now)
+                            .record_interaction_acknowledgement(
+                                acceptance.receipt_id,
+                                acknowledgement,
+                                now,
+                            )
                             .await
                             .map_err(|_| IngressError::Persistence)?;
-                        Ok(outcome)
+                        self.store
+                            .enqueue_gateway_interaction(&acceptance)
+                            .await
+                            .map_err(|_| IngressError::Persistence)?;
+                        Ok(AcknowledgementResult {
+                            outcome,
+                            callback_ms: Some(callback_ms),
+                        })
                     }
                     Err(error) => {
                         let _updated = self
                             .store
                             .record_interaction_acknowledgement_failure(
-                                receipt_id,
+                                acceptance.receipt_id,
                                 error_class(&error),
                             )
                             .await
@@ -151,6 +177,44 @@ where
             }
         }
     }
+
+    async fn reserve_without_callback(
+        &self,
+        acceptance: &GatewayInteractionAcceptance<'_>,
+        class: &str,
+    ) -> Result<AcknowledgementResult, IngressError> {
+        match self
+            .store
+            .reserve_gateway_interaction(acceptance)
+            .await
+            .map_err(|_| IngressError::Persistence)?
+        {
+            InteractionAcceptance::Duplicate => Ok(silent(IngressOutcome::Duplicate)),
+            InteractionAcceptance::Accepted => {
+                let _updated = self
+                    .store
+                    .record_interaction_acknowledgement_failure(acceptance.receipt_id, class)
+                    .await
+                    .map_err(|_| IngressError::Persistence)?;
+                Ok(silent(IngressOutcome::Expired))
+            }
+        }
+    }
+}
+
+fn silent(outcome: IngressOutcome) -> AcknowledgementResult {
+    AcknowledgementResult {
+        outcome,
+        callback_ms: None,
+    }
+}
+
+fn unix_millis(now: OffsetDateTime) -> u64 {
+    u64::try_from(now.unix_timestamp_nanos() / 1_000_000).unwrap_or(u64::MAX)
+}
+
+fn elapsed_ms(started: std::time::Instant) -> u64 {
+    u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)
 }
 
 const fn error_class(error: &TransportError) -> &'static str {

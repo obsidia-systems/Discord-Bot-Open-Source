@@ -8,21 +8,31 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::{Duration, Instant},
 };
 use subtle::ConstantTimeEq;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tobot_core::render_gauges;
 use tobot_delivery_client::InternalDeliveryTransport;
-use tobot_discord_adapter::{InteractionCallback, ShardReadiness, shard_is_ready};
+use tobot_discord_adapter::{
+    DIAGNOSTIC_COMMAND_NAME, GatewayPhase, InteractionCallback, ShardReadiness, TwilightTransport,
+    acknowledgement_deadline_open, interaction_created_ms, plan_gateway_session, shard_is_ready,
+};
 use tobot_envelope::{EventEnvelope, TraceContext};
 use tobot_interaction_edge::{InteractionEdge, InteractionIngressRequest, ProbeAcknowledgement};
 use tobot_persistence::Store;
 use tracing::{info, warn};
-use twilight_gateway::{Event, EventTypeFlags, Intents, Shard, ShardId, StreamExt as _};
-use twilight_model::gateway::payload::incoming::InteractionCreate;
+use twilight_gateway::{
+    ConfigBuilder, Event, EventTypeFlags, Intents, Session, Shard, ShardId, StreamExt as _,
+};
+use twilight_model::{
+    application::interaction::InteractionData, gateway::payload::incoming::InteractionCreate,
+};
 use uuid::Uuid;
 
 #[tokio::main]
@@ -46,66 +56,246 @@ async fn main() -> anyhow::Result<()> {
         InternalDeliveryTransport::new(&delivery_url, internal_service_token.clone())
             .context("invalid Delivery transport configuration")?;
     let interaction_edge = InteractionEdge::new(store.clone(), delivery_transport);
+    let discord = TwilightTransport::new(bot_token.clone());
     let health = EdgeHealth::new(0);
     let health_bind: std::net::SocketAddr = std::env::var("TOBOT_EDGE_HEALTH_BIND")
         .unwrap_or_else(|_| "127.0.0.1:8082".to_owned())
         .parse()
         .context("invalid TOBOT_EDGE_HEALTH_BIND")?;
-    let mut shard = Shard::new(ShardId::ONE, bot_token, Intents::GUILDS);
     let app = health_router(health.clone()).merge(gateway_metrics_router(EdgeMetricsState {
         health: health.clone(),
         service_token: internal_service_token,
     }));
+    let application_snowflake: u64 = application_id
+        .parse()
+        .context("TOBOT_DISCORD_APPLICATION_ID is not a snowflake")?;
 
     info!(%application_id, ingress = "gateway", shard = 0, "discord edge starting");
     tokio::select! {
         result = axum::serve(tokio::net::TcpListener::bind(health_bind).await?, app) => {
             result.context("discord edge health listener failed")
         }
-        result = run_gateway(&mut shard, &health, &interaction_edge, &store, &application_id) => result,
+        result = supervise_gateway(
+            &bot_token,
+            &discord,
+            &health,
+            &interaction_edge,
+            &store,
+            &application_id,
+            application_snowflake,
+        ) => result,
+    }
+}
+
+async fn supervise_gateway(
+    bot_token: &str,
+    discord: &TwilightTransport,
+    health: &EdgeHealth,
+    interaction_edge: &InteractionEdge<InternalDeliveryTransport>,
+    store: &Store,
+    application_id: &str,
+    application_snowflake: u64,
+) -> anyhow::Result<()> {
+    observe_rate_limit(discord, bot_token).await;
+    loop {
+        let budget = discord.session_start_budget().await?;
+        let stored = store.load_gateway_session(0).await?;
+        let resumable = stored.as_ref().is_some_and(session_can_resume);
+        let phase = plan_gateway_session(resumable, budget.remaining);
+        info!(
+            ?phase,
+            remaining = budget.remaining,
+            reset_after_ms = budget.reset_after_ms,
+            max_concurrency = budget.max_concurrency,
+            "gateway session plan"
+        );
+        if phase == GatewayPhase::IdentifyDeferred {
+            warn!("identify deferred; session start budget is empty");
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            continue;
+        }
+        let mut shard = connect_shard(bot_token, phase, stored)?;
+        run_gateway(
+            &mut shard,
+            discord,
+            health,
+            interaction_edge,
+            store,
+            application_id,
+            application_snowflake,
+        )
+        .await?;
+        health.disconnected();
+        warn!("gateway stream ended; planning the next session");
+    }
+}
+
+fn session_can_resume(record: &tobot_persistence::GatewaySessionRecord) -> bool {
+    !record.session_id.is_empty()
+        && !record.resume_gateway_url.is_empty()
+        && u64::try_from(record.sequence).is_ok()
+}
+
+fn connect_shard(
+    bot_token: &str,
+    phase: GatewayPhase,
+    stored: Option<tobot_persistence::GatewaySessionRecord>,
+) -> anyhow::Result<Shard> {
+    let mut builder = ConfigBuilder::new(bot_token.to_owned(), Intents::GUILDS);
+    if phase == GatewayPhase::Resume {
+        let stored = stored.context("resume planned without a stored session")?;
+        let sequence =
+            u64::try_from(stored.sequence).context("stored gateway sequence is negative")?;
+        builder = builder
+            .session(Session::new(sequence, stored.session_id))
+            .resume_url(stored.resume_gateway_url);
+    }
+    Ok(Shard::with_config(ShardId::ONE, builder.build()))
+}
+
+async fn observe_rate_limit(discord: &TwilightTransport, bot_token: &str) {
+    match discord.observe_gateway_bot_limit(bot_token).await {
+        Ok(Some(limit)) => {
+            info!(
+                retry_after_ms = limit.retry_after_ms,
+                global = limit.global,
+                "discord returned HTTP 429"
+            );
+            tokio::time::sleep(Duration::from_millis(limit.retry_after_ms.min(65_000))).await;
+        }
+        Ok(None) => {
+            info!("discord gateway bot route did not return HTTP 429 within the bounded probe");
+        }
+        Err(error) => warn!(
+            class = transport_class(&error),
+            "discord rate-limit probe failed"
+        ),
+    }
+}
+
+fn transport_class(error: &tobot_discord_adapter::TransportError) -> &'static str {
+    match error {
+        tobot_discord_adapter::TransportError::RateLimited { .. } => "RateLimited",
+        tobot_discord_adapter::TransportError::Rejected { .. } => "Rejected",
+        tobot_discord_adapter::TransportError::Unavailable(_) => "Unavailable",
     }
 }
 
 async fn run_gateway(
     shard: &mut Shard,
+    discord: &TwilightTransport,
     health: &EdgeHealth,
     interaction_edge: &InteractionEdge<InternalDeliveryTransport>,
     store: &Store,
     application_id: &str,
+    application_snowflake: u64,
 ) -> anyhow::Result<()> {
     while let Some(next_event) = shard.next_event(EventTypeFlags::all()).await {
-        let event = match next_event {
-            Ok(event) => event,
-            Err(error) => {
-                warn!(error = %error, shard = shard.id().number(), "gateway event error");
-                continue;
-            }
+        let Ok(event) = next_event else {
+            warn!(shard = shard.id().number(), "gateway event error");
+            continue;
         };
         health.observe(&event);
-        let Event::InteractionCreate(interaction) = event else {
-            continue;
-        };
-        let Some(session) = shard.session() else {
-            warn!(
-                shard = shard.id().number(),
-                "interaction received without a gateway session"
-            );
-            continue;
-        };
-        if let Err(error) = accept_interaction(
-            interaction_edge,
-            store,
-            application_id,
-            shard.id().number(),
-            session.id(),
-            session.sequence(),
-            *interaction,
-        )
-        .await
-        {
-            warn!(error = %error, shard = shard.id().number(), "interaction ingress failed");
+        match &event {
+            Event::Ready(_) => info!(shard = shard.id().number(), "gateway identify completed"),
+            Event::Resumed => info!(shard = shard.id().number(), "gateway resume completed"),
+            Event::GatewayInvalidateSession(_) => {
+                store.delete_gateway_session(0).await?;
+                warn!(shard = shard.id().number(), "gateway session invalidated");
+            }
+            Event::GuildCreate(guild) => {
+                register_diagnostic(discord, application_snowflake, guild.id().get()).await;
+            }
+            _ => {}
         }
+        if let Event::InteractionCreate(interaction) = event {
+            dispatch_interaction(shard, interaction_edge, store, application_id, interaction).await;
+        }
+        persist_session(shard, store).await?;
     }
+    Ok(())
+}
+
+async fn dispatch_interaction(
+    shard: &Shard,
+    interaction_edge: &InteractionEdge<InternalDeliveryTransport>,
+    store: &Store,
+    application_id: &str,
+    interaction: Box<InteractionCreate>,
+) {
+    let Some(session) = shard.session() else {
+        warn!(
+            shard = shard.id().number(),
+            "interaction received without a gateway session"
+        );
+        return;
+    };
+    let session_id = session.id().to_owned();
+    let sequence = session.sequence();
+    let shard_id = shard.id().number();
+    if let Err(error) = accept_interaction(
+        interaction_edge,
+        store,
+        application_id,
+        shard_id,
+        &session_id,
+        sequence,
+        *interaction,
+    )
+    .await
+    {
+        warn!(
+            shard = shard_id,
+            class = ingress_failure_class(&error),
+            "interaction ingress failed"
+        );
+    }
+}
+
+fn ingress_failure_class(error: &anyhow::Error) -> String {
+    let message = error.to_string();
+    let message = message
+        .strip_prefix("initial Discord callback failed: ")
+        .unwrap_or(&message);
+    let safe = if message.contains("http") || message.len() > 120 {
+        message.split(':').next().unwrap_or(message)
+    } else {
+        message
+    };
+    safe.trim().to_owned()
+}
+
+async fn register_diagnostic(discord: &TwilightTransport, application_id: u64, guild_id: u64) {
+    match discord
+        .register_diagnostic_command(application_id, guild_id)
+        .await
+    {
+        Ok(()) => info!(
+            guild_id,
+            command = DIAGNOSTIC_COMMAND_NAME,
+            "diagnostic command registered"
+        ),
+        Err(error) => warn!(
+            guild_id,
+            class = transport_class(&error),
+            "diagnostic command registration failed"
+        ),
+    }
+}
+
+async fn persist_session(shard: &Shard, store: &Store) -> anyhow::Result<()> {
+    let (Some(session), Some(resume_url)) = (shard.session(), shard.resume_url()) else {
+        return Ok(());
+    };
+    let Ok(sequence) = i64::try_from(session.sequence()) else {
+        return Ok(());
+    };
+    let Ok(shard_id) = i32::try_from(shard.id().number()) else {
+        return Ok(());
+    };
+    store
+        .save_gateway_session(shard_id, session.id(), sequence, resume_url)
+        .await?;
     Ok(())
 }
 
@@ -141,6 +331,11 @@ impl EdgeHealth {
             }
             _ => {}
         }
+    }
+
+    fn disconnected(&self) {
+        self.session_established.store(false, Ordering::Relaxed);
+        self.heartbeat_alive.store(false, Ordering::Relaxed);
     }
 
     fn readiness(&self) -> ShardReadiness {
@@ -240,56 +435,47 @@ fn bearer_matches(headers: &HeaderMap, expected_token: &str) -> bool {
         == 1
 }
 
-async fn accept_interaction(
-    interaction_edge: &InteractionEdge<InternalDeliveryTransport>,
-    store: &Store,
-    configured_application_id: &str,
+#[derive(Clone, Copy)]
+struct DiagnosticIdentity<'a> {
+    application_id: &'a str,
+    guild_id: &'a str,
+    tenant_id: Uuid,
     shard_id: u32,
-    session_id: &str,
+    session_id: &'a str,
     gateway_sequence: u64,
-    interaction: InteractionCreate,
-) -> anyhow::Result<()> {
-    let interaction = interaction.0;
-    let application_id = interaction.application_id.to_string();
-    if application_id != configured_application_id {
-        anyhow::bail!("received interaction for an unexpected application");
-    }
-    let guild_id = interaction
-        .guild_id
-        .map(|id| id.to_string())
-        .context("S0 diagnostic interaction must originate from a guild")?;
-    let context = store
-        .resolve_active_guild_tenant(&application_id, &guild_id)
-        .await?
-        .context("interaction belongs to no active installed guild")?;
-    let now = OffsetDateTime::now_utc();
+}
+
+fn diagnostic_envelopes(
+    interaction: &twilight_model::application::interaction::Interaction,
+    identity: DiagnosticIdentity<'_>,
+    now: &OffsetDateTime,
+) -> anyhow::Result<(EventEnvelope, EventEnvelope)> {
     let timestamp = now.format(&Rfc3339)?;
     let correlation_id = Uuid::now_v7();
     let gateway_event_id = Uuid::now_v7();
+    let payload = serde_json::json!({
+        "interaction_id": interaction.id.to_string(),
+        "kind": "S0DiagnosticInteraction"
+    });
     let gateway_event = EventEnvelope {
         event_id: gateway_event_id,
         schema_name: "GatewayEventAccepted".to_owned(),
         schema_version: 1,
         occurred_at: timestamp.clone(),
         received_at: timestamp,
-        application_id,
-        tenant_id: Some(context.tenant_id.as_uuid()),
-        guild_id: Some(guild_id),
-        shard_id: Some(shard_id),
-        session_id: Some(session_id.to_owned()),
-        gateway_sequence: Some(gateway_sequence),
+        application_id: identity.application_id.to_owned(),
+        tenant_id: Some(identity.tenant_id),
+        guild_id: Some(identity.guild_id.to_owned()),
+        shard_id: Some(identity.shard_id),
+        session_id: Some(identity.session_id.to_owned()),
+        gateway_sequence: Some(identity.gateway_sequence),
         correlation_id,
         causation_id: None,
         trace_context: TraceContext {
             trace_id: correlation_id.to_string(),
             span_id: Uuid::now_v7().to_string(),
         },
-        // Do not persist Discord's interaction token or the unbounded raw
-        // Gateway payload. The provider identifiers are sufficient for S0.
-        payload: serde_json::json!({
-            "interaction_id": interaction.id.to_string(),
-            "kind": "S0DiagnosticInteraction"
-        }),
+        payload: payload.clone(),
     };
     let interaction_event = EventEnvelope {
         event_id: Uuid::now_v7(),
@@ -309,17 +495,64 @@ async fn accept_interaction(
             trace_id: correlation_id.to_string(),
             span_id: Uuid::now_v7().to_string(),
         },
-        payload: gateway_event.payload.clone(),
+        payload,
     };
+    Ok((gateway_event, interaction_event))
+}
+
+async fn accept_interaction(
+    interaction_edge: &InteractionEdge<InternalDeliveryTransport>,
+    store: &Store,
+    configured_application_id: &str,
+    shard_id: u32,
+    session_id: &str,
+    gateway_sequence: u64,
+    interaction: InteractionCreate,
+) -> anyhow::Result<()> {
+    let interaction = interaction.0;
+    let application_id = interaction.application_id.to_string();
+    if application_id != configured_application_id {
+        anyhow::bail!("received interaction for an unexpected application");
+    }
+    if !matches!(
+        interaction.data,
+        Some(InteractionData::ApplicationCommand(ref data)) if data.name == DIAGNOSTIC_COMMAND_NAME
+    ) {
+        return Ok(());
+    }
+    let guild_id = interaction
+        .guild_id
+        .map(|id| id.to_string())
+        .context("S0 diagnostic interaction must originate from a guild")?;
+    let context = store
+        .resolve_active_guild_tenant(&application_id, &guild_id)
+        .await?
+        .context("interaction belongs to no active installed guild")?;
+    let now = OffsetDateTime::now_utc();
+    let (gateway_event, interaction_event) = diagnostic_envelopes(
+        &interaction,
+        DiagnosticIdentity {
+            application_id: &application_id,
+            guild_id: &guild_id,
+            tenant_id: context.tenant_id.as_uuid(),
+            shard_id,
+            session_id,
+            gateway_sequence,
+        },
+        &now,
+    )?;
     let gateway_raw = serde_json::to_vec(&gateway_event)?;
     let interaction_raw = serde_json::to_vec(&interaction_event)?;
+    let interaction_id = interaction.id.get();
+    let age_ms = unix_millis(now).saturating_sub(interaction_created_ms(interaction_id));
     let callback = InteractionCallback {
         application_id: interaction.application_id.get(),
-        interaction_id: interaction.id.get(),
+        interaction_id,
         interaction_token: interaction.token,
         ephemeral: true,
     };
-    let outcome = interaction_edge
+    let started = Instant::now();
+    let result = interaction_edge
         .accept_and_acknowledge(InteractionIngressRequest {
             context,
             callback,
@@ -327,12 +560,28 @@ async fn accept_interaction(
             gateway_raw: &gateway_raw,
             interaction_event: &interaction_event,
             interaction_raw: &interaction_raw,
-            acknowledgement: ProbeAcknowledgement::Deferred,
+            acknowledgement: ProbeAcknowledgement::Immediate,
             now,
         })
         .await?;
-    info!(?outcome, event_id = %interaction_event.event_id, "interaction receipt processed");
+    info!(
+        outcome = ?result.outcome,
+        callback_ms = result.callback_ms,
+        age_ms,
+        ingress_ms = elapsed_ms(started),
+        deadline_open = acknowledgement_deadline_open(interaction_id, unix_millis(now)),
+        event_id = %interaction_event.event_id,
+        "interaction receipt processed"
+    );
     Ok(())
+}
+
+fn unix_millis(now: OffsetDateTime) -> u64 {
+    u64::try_from(now.unix_timestamp_nanos() / 1_000_000).unwrap_or(u64::MAX)
+}
+
+fn elapsed_ms(started: Instant) -> u64 {
+    u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)
 }
 
 #[cfg(test)]
