@@ -112,4 +112,4 @@ On 2026-09-22 the operator decided not to run these yet. They stay open. They ar
 
 ## What this runbook does not demonstrate
 
-The deferred rows above, and the empty-database demo in the S0 plan §8. Gateway Identify, Resume, a live HTTP 429, a signed-in foreign tenant, and one `/probe` during a Redis outage are already recorded.
+The deferred rows above. The live install, `/probe` while Redis was down, the relay line after Redis returned, and the absence of a duplicate Discord message are already recorded. Repeating them on an empty database is not pending.
