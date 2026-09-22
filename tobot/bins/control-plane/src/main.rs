@@ -1,7 +1,7 @@
 //! Public Control Plane surface. OAuth and installation routes remain at the
 //! app origin when the reverse proxy forwards these paths to this binary.
 
-use std::net::SocketAddr;
+use std::{collections::HashMap, net::SocketAddr};
 
 use anyhow::Context;
 use axum::{
@@ -15,17 +15,20 @@ use tobot_bus::{RedisStreamConsumer, RedisStreamPublisher};
 use tobot_config::ControlPlaneConfig;
 use tobot_core::{Clock, SystemClock};
 use tobot_delivery_client::InstallationInspectionClient;
-use tobot_discord_adapter::DiscordOAuthClient;
+use tobot_discord_adapter::{DiscordGuildObservation, DiscordOAuthClient};
 use tobot_identity::{
     AuthorizationSession, oauth_state_hash, opaque_secret_hash, opaque_secrets_match,
 };
-use tobot_identity_service::OAuthService;
-use tobot_installation::{GuildInstallAuthorization, S0Manifest, has_live_guild_install_authority};
+use tobot_identity_service::{OAuthService, OAuthServiceError};
+use tobot_installation::{
+    GuildInstallAuthorization, GuildRepairAuthorization, InstallPreset, S0Manifest,
+    granted_install_scopes_match, has_live_guild_install_authority, is_existing_user_grant,
+};
 use tobot_outbox::InstallationOutboxRelay;
 use tobot_persistence::{
-    ActiveAuthorizationSession, NewInstallAuthorization, VerifyingInstallation,
+    ActiveAuthorizationSession, GuildDiscoveryObservation, GuildShellSummary,
+    NewDiscordAuthorization, NewInstallAuthorization, Store, VerifyingInstallation,
 };
-use tobot_persistence::{GuildDiscoveryObservation, NewDiscordAuthorization, Store};
 use tobot_secret_store::{SecretStore, VaultTransitStore};
 use tower_http::{
     request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer},
@@ -37,6 +40,42 @@ use uuid::Uuid;
 
 const REQUEST_ID: &str = "x-request-id";
 const CSRF_HEADER: &str = "x-csrf-token";
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum BrowserFailure {
+    Rejected,
+    Expired,
+    Mismatch,
+    Unavailable,
+}
+
+const fn login_error_path(reason: BrowserFailure) -> &'static str {
+    match reason {
+        BrowserFailure::Rejected => "/login/error?reason=rejected",
+        BrowserFailure::Expired => "/login/error?reason=expired",
+        BrowserFailure::Mismatch => "/login/error?reason=mismatch",
+        BrowserFailure::Unavailable => "/login/error?reason=unavailable",
+    }
+}
+
+const fn install_error_path(reason: BrowserFailure) -> &'static str {
+    match reason {
+        BrowserFailure::Rejected => "/install/error?reason=rejected",
+        BrowserFailure::Expired => "/install/error?reason=expired",
+        BrowserFailure::Mismatch => "/install/error?reason=mismatch",
+        BrowserFailure::Unavailable => "/install/error?reason=unavailable",
+    }
+}
+
+fn oauth_consume_failure(error: &OAuthServiceError) -> BrowserFailure {
+    match error {
+        OAuthServiceError::InvalidTransaction => BrowserFailure::Expired,
+        OAuthServiceError::InvalidVerifier => BrowserFailure::Mismatch,
+        OAuthServiceError::Persistence | OAuthServiceError::SecretStore => {
+            BrowserFailure::Unavailable
+        }
+    }
+}
 
 #[derive(Clone)]
 struct AppState {
@@ -211,6 +250,10 @@ fn router(state: AppState) -> Router {
             "/api/v1/install/guild/{guild_id}",
             post(start_guild_install),
         )
+        .route(
+            "/api/v1/install/repair/{tenant_id}",
+            post(start_guild_repair),
+        )
         .route("/api/v1/session/logout", post(logout))
         .route("/api/v1/csrf", get(csrf))
         .route("/api/v1/guilds", get(guilds))
@@ -265,10 +308,14 @@ async fn discord_callback(
                     ),
                 ),
             ],
-            Redirect::to("/dashboard"),
+            Redirect::to("/"),
         )
             .into_response(),
-        Err(status) => ([(header::SET_COOKIE, clear_cookie)], status).into_response(),
+        Err(reason) => (
+            [(header::SET_COOKIE, clear_cookie)],
+            Redirect::to(login_error_path(reason)),
+        )
+            .into_response(),
     }
 }
 
@@ -276,37 +323,37 @@ async fn complete_discord_callback(
     state: &AppState,
     query: &DiscordCallbackQuery,
     headers: &HeaderMap,
-) -> Result<Uuid, StatusCode> {
+) -> Result<Uuid, BrowserFailure> {
     if query.error.is_some() {
-        return Err(StatusCode::UNAUTHORIZED);
+        return Err(BrowserFailure::Rejected);
     }
-    let code = query.code.as_deref().ok_or(StatusCode::BAD_REQUEST)?;
-    let query_state = query.state.as_deref().ok_or(StatusCode::BAD_REQUEST)?;
+    let code = query.code.as_deref().ok_or(BrowserFailure::Mismatch)?;
+    let query_state = query.state.as_deref().ok_or(BrowserFailure::Mismatch)?;
     let cookie_state =
-        cookie_value(headers, "__Host-tobot_oauth_state").ok_or(StatusCode::BAD_REQUEST)?;
+        cookie_value(headers, "__Host-tobot_oauth_state").ok_or(BrowserFailure::Mismatch)?;
     if !opaque_secrets_match(query_state, cookie_state) {
-        return Err(StatusCode::BAD_REQUEST);
+        return Err(BrowserFailure::Mismatch);
     }
     let consumed = state
         .oauth
         .consume(query_state, state.clock.now())
         .await
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+        .map_err(|error| oauth_consume_failure(&error))?;
     let tokens = state
         .discord_oauth
         .exchange_code(code, &consumed.redirect_uri, &consumed.code_verifier)
         .await
-        .map_err(|_| StatusCode::BAD_GATEWAY)?;
+        .map_err(|_| BrowserFailure::Unavailable)?;
     let (user, authorization_scopes) = state
         .discord_oauth
         .current_user(&tokens.access_token)
         .await
-        .map_err(|_| StatusCode::BAD_GATEWAY)?;
+        .map_err(|_| BrowserFailure::Unavailable)?;
     let mut expected_scopes = consumed.scopes;
     expected_scopes.sort_unstable();
     expected_scopes.dedup();
     if tokens.scopes != expected_scopes || authorization_scopes != expected_scopes {
-        return Err(StatusCode::FORBIDDEN);
+        return Err(BrowserFailure::Mismatch);
     }
 
     let now = state.clock.now();
@@ -321,7 +368,7 @@ async fn complete_discord_callback(
             credential_context.as_bytes(),
         )
         .await
-        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+        .map_err(|_| BrowserFailure::Unavailable)?;
     let refresh_ciphertext = state
         .secret_store
         .encrypt(
@@ -329,15 +376,15 @@ async fn complete_discord_callback(
             credential_context.as_bytes(),
         )
         .await
-        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+        .map_err(|_| BrowserFailure::Unavailable)?;
     let csrf_ciphertext = state
         .secret_store
         .encrypt(session.csrf_proof.as_bytes(), session_context.as_bytes())
         .await
-        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+        .map_err(|_| BrowserFailure::Unavailable)?;
     let expires_at = now
         .checked_add(std::time::Duration::from_secs(tokens.expires_in_seconds))
-        .ok_or(StatusCode::BAD_GATEWAY)?;
+        .ok_or(BrowserFailure::Unavailable)?;
     state
         .store
         .create_discord_authorization(NewDiscordAuthorization {
@@ -357,7 +404,7 @@ async fn complete_discord_callback(
             absolute_expires_at: time::OffsetDateTime::from(session.absolute_expires_at),
         })
         .await
-        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+        .map_err(|_| BrowserFailure::Unavailable)?;
     Ok(session.id)
 }
 
@@ -372,10 +419,14 @@ async fn guild_install_callback(
     match result {
         Ok(tenant_id) => (
             [(header::SET_COOKIE, clear_cookie)],
-            Redirect::to(&format!("/dashboard/guild/{tenant_id}")),
+            Redirect::to(&format!("/guild/{tenant_id}")),
         )
             .into_response(),
-        Err(status) => ([(header::SET_COOKIE, clear_cookie)], status).into_response(),
+        Err(reason) => (
+            [(header::SET_COOKIE, clear_cookie)],
+            Redirect::to(install_error_path(reason)),
+        )
+            .into_response(),
     }
 }
 
@@ -383,31 +434,33 @@ async fn complete_guild_install_callback(
     state: &AppState,
     query: &InstallCallbackQuery,
     headers: &HeaderMap,
-) -> Result<Uuid, StatusCode> {
+) -> Result<Uuid, BrowserFailure> {
     if query.error.is_some() {
-        return Err(StatusCode::UNAUTHORIZED);
+        return Err(BrowserFailure::Rejected);
     }
-    let code = query.code.as_deref().ok_or(StatusCode::BAD_REQUEST)?;
-    let callback_state = query.state.as_deref().ok_or(StatusCode::BAD_REQUEST)?;
+    let code = query.code.as_deref().ok_or(BrowserFailure::Mismatch)?;
+    let callback_state = query.state.as_deref().ok_or(BrowserFailure::Mismatch)?;
     let cookie_state =
-        cookie_value(headers, "__Host-tobot_install_state").ok_or(StatusCode::BAD_REQUEST)?;
+        cookie_value(headers, "__Host-tobot_install_state").ok_or(BrowserFailure::Mismatch)?;
     if !opaque_secrets_match(callback_state, cookie_state) {
-        return Err(StatusCode::BAD_REQUEST);
+        return Err(BrowserFailure::Mismatch);
     }
-    let session_id = session_id(headers).ok_or(StatusCode::UNAUTHORIZED)?;
+    let session_id = session_id(headers).ok_or(BrowserFailure::Rejected)?;
     let now = time::OffsetDateTime::from(state.clock.now());
     let session = state
         .store
         .authorize_session(session_id, now)
         .await
-        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-    let login_access_token = decrypt_access_token(state, &session).await?;
+        .map_err(|_| BrowserFailure::Unavailable)?
+        .ok_or(BrowserFailure::Expired)?;
+    let login_access_token = decrypt_access_token(state, &session)
+        .await
+        .map_err(|_| BrowserFailure::Unavailable)?;
     let live_guilds = state
         .discord_oauth
         .current_user_guilds(&login_access_token)
         .await
-        .map_err(|_| StatusCode::BAD_GATEWAY)?;
+        .map_err(|_| BrowserFailure::Unavailable)?;
     let consumed = state
         .store
         .consume_install_authorization(
@@ -417,45 +470,44 @@ async fn complete_guild_install_callback(
             now,
         )
         .await
-        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?
-        .ok_or(StatusCode::BAD_REQUEST)?;
+        .map_err(|_| BrowserFailure::Unavailable)?
+        .ok_or(BrowserFailure::Expired)?;
     let live_guild = live_guilds
         .iter()
         .find(|guild| guild.id == consumed.provider_guild_id)
-        .ok_or(StatusCode::FORBIDDEN)?;
+        .ok_or(BrowserFailure::Rejected)?;
     if !has_live_guild_install_authority(live_guild.owner, &live_guild.permissions) {
-        return Err(StatusCode::FORBIDDEN);
+        return Err(BrowserFailure::Rejected);
     }
     let ciphertext = std::str::from_utf8(&consumed.verifier_ciphertext)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_| BrowserFailure::Unavailable)?;
     let context = format!("tobot:guild-install-pkce:{}", consumed.transaction_id);
     let verifier = state
         .secret_store
         .decrypt(ciphertext, context.as_bytes())
         .await
-        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-    let verifier = String::from_utf8(verifier).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_| BrowserFailure::Unavailable)?;
+    let verifier = String::from_utf8(verifier).map_err(|_| BrowserFailure::Unavailable)?;
     let tokens = state
         .discord_oauth
         .exchange_code(code, &consumed.redirect_uri, &verifier)
         .await
-        .map_err(|_| StatusCode::BAD_GATEWAY)?;
+        .map_err(|_| BrowserFailure::Unavailable)?;
     let mut expected_scopes = consumed.requested_scopes;
     expected_scopes.sort_unstable();
     expected_scopes.dedup();
-    if tokens.scopes != expected_scopes {
-        return Err(StatusCode::FORBIDDEN);
-    }
-    let observed_guild = tokens.guild.ok_or(StatusCode::BAD_GATEWAY)?;
-    if observed_guild.id != consumed.provider_guild_id {
-        return Err(StatusCode::FORBIDDEN);
-    }
+    let observed_guild_id = observed_install_guild(
+        &expected_scopes,
+        &tokens.scopes,
+        tokens.guild.as_ref().map(|guild| guild.id.as_str()),
+        &consumed.provider_guild_id,
+    )?;
     let tenant_id = state
         .store
         .record_verifying_installation(VerifyingInstallation {
             transaction_id: consumed.transaction_id,
             candidate_tenant_id: Uuid::now_v7(),
-            provider_guild_id: &observed_guild.id,
+            provider_guild_id: &observed_guild_id,
             application_id: &state.discord_application_id,
             generation: consumed.generation,
             frozen_manifest: &consumed.frozen_manifest,
@@ -464,7 +516,7 @@ async fn complete_guild_install_callback(
             received_at: now,
         })
         .await
-        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+        .map_err(|_| BrowserFailure::Unavailable)?;
     if let Err(cause) = state.discord_oauth.revoke_token(&tokens.access_token).await {
         warn!(
             transaction_id = %consumed.transaction_id,
@@ -473,6 +525,41 @@ async fn complete_guild_install_callback(
         );
     }
     Ok(tenant_id)
+}
+
+fn observed_install_guild(
+    expected_scopes: &[String],
+    granted_scopes: &[String],
+    granted_guild_id: Option<&str>,
+    provider_guild_id: &str,
+) -> Result<String, BrowserFailure> {
+    if granted_install_scopes_match(expected_scopes, granted_scopes) {
+        let Some(observed_guild_id) = granted_guild_id else {
+            warn!(
+                granted = ?granted_scopes,
+                "installation grant omitted the guild"
+            );
+            return Err(BrowserFailure::Unavailable);
+        };
+        if observed_guild_id != provider_guild_id {
+            warn!("installation grant guild mismatch");
+            return Err(BrowserFailure::Mismatch);
+        }
+        return Ok(observed_guild_id.to_owned());
+    }
+    if is_existing_user_grant(granted_scopes) {
+        info!(
+            granted = ?granted_scopes,
+            "bot install kept the existing user grant; presence is observed for the locked guild"
+        );
+        return Ok(provider_guild_id.to_owned());
+    }
+    warn!(
+        requested = ?expected_scopes,
+        granted = ?granted_scopes,
+        "installation grant scope mismatch"
+    );
+    Err(BrowserFailure::Mismatch)
 }
 
 fn cookie_value<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
@@ -593,7 +680,7 @@ fn clear_session_response(status: StatusCode) -> Response {
         .into_response()
 }
 
-#[derive(serde::Serialize)]
+#[derive(Debug, Eq, PartialEq, serde::Serialize)]
 struct GuildDiscoveryResponse {
     guilds: Vec<GuildDiscoveryItem>,
     observed_at_unix: i64,
@@ -601,13 +688,61 @@ struct GuildDiscoveryResponse {
     authority: &'static str,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Debug, Eq, PartialEq, serde::Serialize)]
 struct GuildDiscoveryItem {
     provider_guild_id: String,
     name: String,
     icon_hash: Option<String>,
     owner_hint: bool,
     permissions_hint: String,
+    shell: Option<GuildDiscoveryShell>,
+}
+
+#[derive(Debug, Eq, PartialEq, serde::Serialize)]
+struct GuildDiscoveryShell {
+    tenant_id: Uuid,
+    installation_state: String,
+    health_state: String,
+    projection_watermark_unix: i64,
+    projection_age_seconds: i64,
+}
+
+fn discovery_response_items(
+    guilds: Vec<DiscordGuildObservation>,
+    summaries: &[GuildShellSummary],
+    now: time::OffsetDateTime,
+) -> Vec<GuildDiscoveryItem> {
+    let mut shells = HashMap::<&str, &GuildShellSummary>::new();
+    for summary in summaries {
+        let Some(provider_guild_id) = summary.provider_guild_id.as_deref() else {
+            continue;
+        };
+        shells.insert(provider_guild_id, summary);
+    }
+    guilds
+        .into_iter()
+        .map(|guild| {
+            let shell = shells
+                .get(guild.id.as_str())
+                .map(|summary| GuildDiscoveryShell {
+                    tenant_id: summary.tenant_id,
+                    installation_state: summary.installation_state.clone(),
+                    health_state: summary.health_state.clone(),
+                    projection_watermark_unix: summary.projection_watermark.unix_timestamp(),
+                    projection_age_seconds: (now - summary.projection_watermark)
+                        .whole_seconds()
+                        .max(0),
+                });
+            GuildDiscoveryItem {
+                provider_guild_id: guild.id,
+                name: guild.name,
+                icon_hash: guild.icon,
+                owner_hint: guild.owner,
+                permissions_hint: guild.permissions,
+                shell,
+            }
+        })
+        .collect()
 }
 
 async fn guilds(State(state): State<AppState>, headers: HeaderMap) -> Response {
@@ -654,16 +789,18 @@ async fn guilds(State(state): State<AppState>, headers: HeaderMap) -> Response {
     {
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
     }
-    let guilds = discovered
-        .into_iter()
-        .map(|guild| GuildDiscoveryItem {
-            provider_guild_id: guild.id,
-            name: guild.name,
-            icon_hash: guild.icon,
-            owner_hint: guild.owner,
-            permissions_hint: guild.permissions,
-        })
-        .collect();
+    let provider_guild_ids = discovered
+        .iter()
+        .map(|guild| guild.id.clone())
+        .collect::<Vec<_>>();
+    let Ok(summaries) = state
+        .store
+        .guild_shell_summaries_for_provider_guilds(&provider_guild_ids)
+        .await
+    else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    let guilds = discovery_response_items(discovered, &summaries, now);
     (
         [(header::CACHE_CONTROL, "private, no-store")],
         axum::Json(GuildDiscoveryResponse {
@@ -792,6 +929,7 @@ async fn start_guild_install(
             requested_scopes: &authorization.scopes,
             frozen_manifest: &frozen_manifest,
             expires_at: time::OffsetDateTime::from(authorization.expires_at),
+            preset: InstallPreset::GuildInstall.as_str(),
         })
         .await
         .is_err()
@@ -806,8 +944,123 @@ async fn start_guild_install(
         authorization.state
     );
     (
-        [(header::SET_COOKIE, cookie)],
-        Redirect::to(authorize_url.as_str()),
+        [
+            (header::CACHE_CONTROL, "no-store".to_owned()),
+            (header::SET_COOKIE, cookie),
+        ],
+        axum::Json(GuildInstallStartResponse {
+            authorize_url: authorize_url.to_string(),
+        }),
+    )
+        .into_response()
+}
+
+#[derive(serde::Serialize)]
+struct GuildInstallStartResponse {
+    authorize_url: String,
+}
+
+async fn start_guild_repair(
+    State(state): State<AppState>,
+    Path(tenant_id): Path<Uuid>,
+    headers: HeaderMap,
+) -> Response {
+    let (session_id, session) = match authorize_mutation(&state, &headers).await {
+        Ok(authorization) => authorization,
+        Err(status) => return status.into_response(),
+    };
+    let now = time::OffsetDateTime::from(state.clock.now());
+    let Ok(provider_guild_ids) = state
+        .store
+        .fresh_discovered_guild_ids(session.account_id, now)
+        .await
+    else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    let Ok(Some(shell)) = state
+        .store
+        .guild_shell_for_provider_guilds(tenant_id, &provider_guild_ids)
+        .await
+    else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    if shell.installation_state != "Degraded" {
+        return StatusCode::CONFLICT.into_response();
+    }
+    let Some(provider_guild_id) = shell.provider_guild_id else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let access_token = match decrypt_access_token(&state, &session).await {
+        Ok(token) => token,
+        Err(status) => return status.into_response(),
+    };
+    let Ok(guilds) = state.discord_oauth.current_user_guilds(&access_token).await else {
+        return StatusCode::BAD_GATEWAY.into_response();
+    };
+    let Some(guild) = guilds
+        .into_iter()
+        .find(|guild| guild.id == provider_guild_id)
+    else {
+        return StatusCode::FORBIDDEN.into_response();
+    };
+    if !has_live_guild_install_authority(guild.owner, &guild.permissions) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+    let authorization = GuildRepairAuthorization::new(
+        provider_guild_id,
+        state.discord_install_redirect_uri.clone(),
+        state.clock.now(),
+    );
+    let handoff = authorization.authorization();
+    let verifier_context = format!("tobot:guild-install-pkce:{}", handoff.id);
+    let Ok(verifier_ciphertext) = state
+        .secret_store
+        .encrypt(
+            handoff.code_verifier.as_bytes(),
+            verifier_context.as_bytes(),
+        )
+        .await
+    else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    let Ok(frozen_manifest) = serde_json::to_value(S0Manifest::default()) else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    if state
+        .store
+        .create_guild_install_authorization(NewInstallAuthorization {
+            transaction_id: handoff.id,
+            state_hash: &oauth_state_hash(&handoff.state),
+            verifier_ciphertext: verifier_ciphertext.as_bytes(),
+            account_id: session.account_id,
+            session_id,
+            provider_guild_id: &handoff.provider_guild_id,
+            redirect_uri: &handoff.redirect_uri,
+            requested_scopes: &handoff.scopes,
+            frozen_manifest: &frozen_manifest,
+            expires_at: time::OffsetDateTime::from(handoff.expires_at),
+            preset: InstallPreset::GuildRepair.as_str(),
+        })
+        .await
+        .is_err()
+    {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    }
+    let Ok(authorize_url) = authorization.authorize_url(&state.discord_client_id) else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    let cookie = format!(
+        "__Host-tobot_install_state={}; Path=/; Max-Age=600; Secure; HttpOnly; SameSite=Lax",
+        handoff.state
+    );
+    (
+        [
+            (header::CACHE_CONTROL, "no-store".to_owned()),
+            (header::SET_COOKIE, cookie),
+        ],
+        axum::Json(GuildInstallStartResponse {
+            authorize_url: authorize_url.to_string(),
+        }),
     )
         .into_response()
 }
@@ -919,3 +1172,122 @@ async fn login(State(state): State<AppState>) -> Response {
 }
 
 use axum::http::HeaderName;
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        BrowserFailure, DiscordGuildObservation, GuildShellSummary, discovery_response_items,
+        install_error_path, login_error_path,
+    };
+    use uuid::Uuid;
+
+    fn timestamp(seconds: i64) -> time::OffsetDateTime {
+        time::OffsetDateTime::from_unix_timestamp(seconds)
+            .unwrap_or_else(|error| panic!("timestamp {seconds} is invalid: {error}"))
+    }
+
+    fn guild(id: &str, name: &str) -> DiscordGuildObservation {
+        DiscordGuildObservation {
+            id: id.to_owned(),
+            name: name.to_owned(),
+            icon: None,
+            owner: false,
+            permissions: "0".to_owned(),
+        }
+    }
+
+    #[test]
+    fn discovery_attaches_shells_only_for_observed_guilds() {
+        let now = timestamp(1_700_000_090);
+        let tenant_id = Uuid::now_v7();
+        let summaries = [
+            GuildShellSummary {
+                tenant_id,
+                provider_guild_id: Some("111".to_owned()),
+                installation_state: "Installed".to_owned(),
+                health_state: "Healthy".to_owned(),
+                projection_watermark: timestamp(1_700_000_000),
+            },
+            GuildShellSummary {
+                tenant_id: Uuid::now_v7(),
+                provider_guild_id: Some("999".to_owned()),
+                installation_state: "Verifying".to_owned(),
+                health_state: "Pending".to_owned(),
+                projection_watermark: now,
+            },
+            GuildShellSummary {
+                tenant_id: Uuid::now_v7(),
+                provider_guild_id: None,
+                installation_state: "Degraded".to_owned(),
+                health_state: "Degraded".to_owned(),
+                projection_watermark: now,
+            },
+        ];
+        let mut items = discovery_response_items(
+            vec![guild("111", "Observed"), guild("222", "Plain")],
+            &summaries,
+            now,
+        )
+        .into_iter();
+        let installed = items
+            .next()
+            .unwrap_or_else(|| panic!("missing observed guild"));
+        let plain = items
+            .next()
+            .unwrap_or_else(|| panic!("missing plain guild"));
+        assert!(items.next().is_none());
+        let shell = installed
+            .shell
+            .unwrap_or_else(|| panic!("observed guild has no shell"));
+        assert_eq!(shell.tenant_id, tenant_id);
+        assert_eq!(shell.installation_state, "Installed");
+        assert_eq!(shell.projection_age_seconds, 90);
+        assert!(plain.shell.is_none());
+    }
+
+    #[test]
+    fn future_watermark_reports_zero_age() {
+        let now = timestamp(1_700_000_000);
+        let mut items = discovery_response_items(
+            vec![guild("111", "Observed")],
+            &[GuildShellSummary {
+                tenant_id: Uuid::now_v7(),
+                provider_guild_id: Some("111".to_owned()),
+                installation_state: "Verifying".to_owned(),
+                health_state: "Pending".to_owned(),
+                projection_watermark: timestamp(1_700_000_050),
+            }],
+            now,
+        )
+        .into_iter();
+        let item = items.next().unwrap_or_else(|| panic!("missing guild"));
+        let shell = item.shell.unwrap_or_else(|| panic!("missing shell"));
+        assert_eq!(shell.projection_age_seconds, 0);
+    }
+
+    #[test]
+    fn browser_failure_paths_stay_closed() {
+        for reason in [
+            BrowserFailure::Rejected,
+            BrowserFailure::Expired,
+            BrowserFailure::Mismatch,
+            BrowserFailure::Unavailable,
+        ] {
+            let login = login_error_path(reason);
+            let install = install_error_path(reason);
+            assert!(login.starts_with("/login/error?reason="));
+            assert!(install.starts_with("/install/error?reason="));
+            assert!(!login.contains('&'));
+            assert!(!install.contains("code"));
+            assert!(!install.contains("guild_id"));
+        }
+        assert_eq!(
+            login_error_path(BrowserFailure::Expired),
+            "/login/error?reason=expired"
+        );
+        assert_eq!(
+            install_error_path(BrowserFailure::Mismatch),
+            "/install/error?reason=mismatch"
+        );
+    }
+}

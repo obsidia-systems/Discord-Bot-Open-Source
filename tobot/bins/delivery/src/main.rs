@@ -74,16 +74,23 @@ async fn inspect_guild(
     State(state): State<Arc<DeliveryState>>,
     headers: HeaderMap,
     Json(request): Json<GuildInspectionRequest>,
-) -> Result<Json<GuildPresenceInspection>, StatusCode> {
+) -> Result<Json<GuildPresenceInspection>, (StatusCode, String)> {
     if !authorized(&headers, &state.service_token) {
-        return Err(StatusCode::UNAUTHORIZED);
+        return Err((StatusCode::UNAUTHORIZED, "unauthorized".to_owned()));
     }
     state
         .transport
         .inspect_guild_presence(&request.provider_guild_id)
         .await
         .map(Json)
-        .map_err(|error| status_for(&Err(error)))
+        .map_err(|error| {
+            error!(
+                provider_guild_id = %request.provider_guild_id,
+                error = %error,
+                "guild presence inspection failed"
+            );
+            inspection_failure(&error)
+        })
 }
 
 async fn run_relay(relay: EdgeOutboxRelay) -> anyhow::Result<()> {
@@ -145,4 +152,15 @@ fn status_for(result: &Result<(), TransportError>) -> StatusCode {
         Err(TransportError::Rejected { .. }) => StatusCode::BAD_GATEWAY,
         Err(TransportError::Unavailable(_)) => StatusCode::SERVICE_UNAVAILABLE,
     }
+}
+
+fn inspection_failure(error: &TransportError) -> (StatusCode, String) {
+    let status = match error {
+        TransportError::RateLimited { .. } => StatusCode::TOO_MANY_REQUESTS,
+        TransportError::Rejected { status } => {
+            StatusCode::from_u16(*status).unwrap_or(StatusCode::BAD_GATEWAY)
+        }
+        TransportError::Unavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
+    };
+    (status, error.to_string())
 }

@@ -293,6 +293,9 @@ pub struct TwilightTransport {
 impl TwilightTransport {
     #[must_use]
     pub fn new(bot_token: String) -> Self {
+        // Twilight selects rustls without installing a process crypto provider.
+        // HTTPS to Discord then fails before a status exists.
+        let _ = rustls::crypto::ring::default_provider().install_default();
         Self {
             client: twilight_http::Client::new(bot_token),
         }
@@ -346,7 +349,14 @@ impl TwilightTransport {
             ErrorType::Response { status, .. } => TransportError::Rejected {
                 status: status.get(),
             },
-            _ => TransportError::Unavailable(error.to_string()),
+            _ => {
+                let mut detail = error.to_string();
+                if let Some(source) = std::error::Error::source(error) {
+                    detail.push_str(": ");
+                    detail.push_str(&source.to_string());
+                }
+                TransportError::Unavailable(detail)
+            }
         }
     }
 
@@ -479,5 +489,132 @@ mod tests {
         };
         assert_eq!(guild.id, "80351110224678912");
         assert_eq!(guild.permissions, "1125899906842624");
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RateSnapshot {
+    pub remaining: u32,
+    pub retry_after_ms: u64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TransportAdmission {
+    Admit,
+    Wait { retry_after_ms: u64 },
+}
+
+/// Admits work only when global, route, guild, and channel windows all have remaining budget.
+#[must_use]
+pub fn admit_discord_request(
+    global: RateSnapshot,
+    route: RateSnapshot,
+    guild: RateSnapshot,
+    channel: RateSnapshot,
+) -> TransportAdmission {
+    let windows = [global, route, guild, channel];
+    let blocked = windows.iter().filter(|window| window.remaining == 0);
+    let mut retry_after_ms = 0_u64;
+    let mut waiting = false;
+    for window in blocked {
+        waiting = true;
+        retry_after_ms = retry_after_ms.max(window.retry_after_ms);
+    }
+    if waiting {
+        TransportAdmission::Wait { retry_after_ms }
+    } else {
+        TransportAdmission::Admit
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GatewayPhase {
+    Resume,
+    Identify,
+    IdentifyDeferred,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ShardReadiness {
+    pub session_established: bool,
+    pub heartbeat_alive: bool,
+}
+
+/// Prefers Resume. Identify runs only when a concurrency slot is free.
+#[must_use]
+pub const fn plan_gateway_session(
+    has_resumable_session: bool,
+    identify_slots_available: u32,
+) -> GatewayPhase {
+    if has_resumable_session {
+        GatewayPhase::Resume
+    } else if identify_slots_available == 0 {
+        GatewayPhase::IdentifyDeferred
+    } else {
+        GatewayPhase::Identify
+    }
+}
+
+#[must_use]
+pub const fn shard_is_ready(readiness: ShardReadiness) -> bool {
+    readiness.session_established && readiness.heartbeat_alive
+}
+
+#[cfg(test)]
+mod governance_tests {
+    use super::{
+        GatewayPhase, RateSnapshot, ShardReadiness, TransportAdmission, admit_discord_request,
+        plan_gateway_session, shard_is_ready,
+    };
+
+    fn open() -> RateSnapshot {
+        RateSnapshot {
+            remaining: 1,
+            retry_after_ms: 0,
+        }
+    }
+
+    #[test]
+    fn a_blocked_bucket_waits_for_the_longest_retry_after() {
+        let admission = admit_discord_request(
+            open(),
+            RateSnapshot {
+                remaining: 0,
+                retry_after_ms: 200,
+            },
+            RateSnapshot {
+                remaining: 0,
+                retry_after_ms: 1_500,
+            },
+            open(),
+        );
+        assert_eq!(
+            admission,
+            TransportAdmission::Wait {
+                retry_after_ms: 1_500
+            }
+        );
+        assert_eq!(
+            admit_discord_request(open(), open(), open(), open()),
+            TransportAdmission::Admit
+        );
+    }
+
+    #[test]
+    fn gateway_prefers_resume_and_defers_identify_without_a_slot() {
+        assert_eq!(plan_gateway_session(true, 0), GatewayPhase::Resume);
+        assert_eq!(
+            plan_gateway_session(false, 0),
+            GatewayPhase::IdentifyDeferred
+        );
+        assert_eq!(plan_gateway_session(false, 1), GatewayPhase::Identify);
+        assert!(!shard_is_ready(ShardReadiness {
+            session_established: false,
+            heartbeat_alive: true,
+        }));
+        assert!(shard_is_ready(ShardReadiness {
+            session_established: true,
+            heartbeat_alive: true,
+        }));
     }
 }

@@ -109,3 +109,42 @@ mod tests {
         assert_eq!(context.require(Some(tenant)), Ok(tenant));
     }
 }
+
+const REDACTED: &str = "[redacted]";
+const SECRET_FIELD_MARKERS: [&str; 8] = [
+    "token",
+    "cookie",
+    "authorization",
+    "verifier",
+    "secret",
+    "password",
+    "code",
+    "csrf",
+];
+
+/// Replaces values whose field name can carry a credential or payload body.
+#[must_use]
+pub fn redact_field(name: &str, value: &str) -> String {
+    let normalized = name.to_ascii_lowercase();
+    if SECRET_FIELD_MARKERS
+        .iter()
+        .any(|marker| normalized.contains(marker))
+    {
+        REDACTED.to_owned()
+    } else {
+        value.to_owned()
+    }
+}
+
+#[cfg(test)]
+mod redaction_tests {
+    use super::*;
+
+    #[test]
+    fn credential_fields_are_redacted_and_outcome_fields_are_kept() {
+        assert_eq!(redact_field("access_token", "secret-value"), "[redacted]");
+        assert_eq!(redact_field("cookie", "session-bytes"), "[redacted]");
+        assert_eq!(redact_field("pkce_verifier", "verifier"), "[redacted]");
+        assert_eq!(redact_field("outcome", "admitted"), "admitted");
+    }
+}

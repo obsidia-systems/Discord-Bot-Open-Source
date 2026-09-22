@@ -1,0 +1,51 @@
+name: Tobot
+
+on:
+  push:
+    paths:
+      - "tobot/**"
+      - ".github/workflows/tobot.yml"
+  pull_request:
+    paths:
+      - "tobot/**"
+      - ".github/workflows/tobot.yml"
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tobot
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98.0
+        with:
+          components: clippy, rustfmt
+      - name: fmt
+        run: cargo fmt --all -- --check
+      - name: test
+        run: cargo test --workspace
+      - name: clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+  browser:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tobot
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: tobot/pnpm-lock.yaml
+      - name: install
+        run: pnpm install --frozen-lockfile
+      - name: shell tests
+        run: pnpm --filter @tobot/dash test
+      - name: astro check
+        run: pnpm --filter @tobot/dash check

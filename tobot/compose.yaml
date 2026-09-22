@@ -96,7 +96,7 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-    networks: [data, edge_delivery]
+    networks: [data, edge_delivery, provider]
 
   delivery:
     build: .
@@ -112,26 +112,26 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
-    networks: [data, edge_delivery]
+    networks: [data, edge_delivery, provider]
 
-  app:
+  dash:
     image: node:26-bookworm-slim
     working_dir: /workspace
-    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm --filter @tobot/app dev --host 0.0.0.0"
+    command: sh -c "rm -f apps/dash/.astro/dev.json && npm install -g pnpm@12 && pnpm install --frozen-lockfile && pnpm --filter @tobot/dash dev --host 0.0.0.0"
     volumes: [".:/workspace"]
     networks: [public]
 
   www:
     image: node:26-bookworm-slim
     working_dir: /workspace
-    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm --filter @tobot/www dev --host 0.0.0.0"
+    command: sh -c "rm -f apps/www/.astro/dev.json && npm install -g pnpm@12 && pnpm install --frozen-lockfile && pnpm --filter @tobot/www dev --host 0.0.0.0"
     volumes: [".:/workspace"]
     networks: [public]
 
   docs:
     image: node:26-bookworm-slim
     working_dir: /workspace
-    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm --filter @tobot/docs dev --host 0.0.0.0"
+    command: sh -c "rm -f apps/docs/.astro/dev.json && npm install -g pnpm@12 && pnpm install --frozen-lockfile && pnpm --filter @tobot/docs dev --host 0.0.0.0"
     volumes: [".:/workspace"]
     networks: [public]
 
@@ -141,7 +141,7 @@ services:
     volumes:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
-    depends_on: [app, www, docs, control-plane]
+    depends_on: [dash, www, docs, control-plane]
     networks: [public]
 
 volumes:
@@ -152,6 +152,7 @@ networks:
     internal: true
   edge_delivery:
     internal: true
+  provider: {}
   public: {}
   secrets:
     internal: true

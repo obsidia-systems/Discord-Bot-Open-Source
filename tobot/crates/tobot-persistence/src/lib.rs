@@ -5,6 +5,7 @@ use sqlx::{PgPool, postgres::PgPoolOptions};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tobot_core::{TenantContext, TenantId};
 use tobot_envelope::{EventEnvelope, TraceContext};
+use tobot_installation::{aggregate_installation_state, s0_verification_evidence};
 use uuid::Uuid;
 
 pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!();
@@ -114,6 +115,7 @@ pub struct NewInstallAuthorization<'a> {
     pub requested_scopes: &'a [String],
     pub frozen_manifest: &'a serde_json::Value,
     pub expires_at: OffsetDateTime,
+    pub preset: &'a str,
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -147,6 +149,15 @@ pub struct ClaimedInstallationVerification {
     pub application_id: String,
     pub generation: i64,
     pub fencing_token: i64,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct GuildShellSummary {
+    pub tenant_id: Uuid,
+    pub provider_guild_id: Option<String>,
+    pub installation_state: String,
+    pub health_state: String,
+    pub projection_watermark: OffsetDateTime,
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -264,6 +275,31 @@ impl Store {
         .bind(tenant_id)
         .bind(provider_guild_ids)
         .fetch_optional(&self.pool)
+        .await
+    }
+
+    /// Reads disposable installation summaries for provider guild ids the
+    /// caller already bounded with an authenticated discovery observation.
+    ///
+    /// A missing row is not an error: the picker treats it as not enabled.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the projection cannot be read.
+    pub async fn guild_shell_summaries_for_provider_guilds(
+        &self,
+        provider_guild_ids: &[String],
+    ) -> Result<Vec<GuildShellSummary>, sqlx::Error> {
+        sqlx::query_as(
+            "SELECT DISTINCT ON (provider_guild_id) \
+                    tenant_id, provider_guild_id, installation_state, health_state, \
+                    projection_watermark \
+             FROM query_status.guild_shell \
+             WHERE provider_guild_id = ANY($1) \
+             ORDER BY provider_guild_id, projection_watermark DESC",
+        )
+        .bind(provider_guild_ids)
+        .fetch_all(&self.pool)
         .await
     }
 
@@ -438,11 +474,16 @@ impl Store {
         if !still_owner {
             return Err(sqlx::Error::RowNotFound);
         }
-        let (health, reason) = if bot_present {
-            ("Healthy", "bot_guild_presence_observed")
-        } else {
-            ("Degraded", "bot_guild_presence_absent")
+        let evidence = s0_verification_evidence(bot_present);
+        let candidate_state = aggregate_installation_state(&evidence);
+        let Some(bot) = evidence.into_iter().find(|row| row.key == "bot_presence") else {
+            return Err(sqlx::Error::RowNotFound);
         };
+        let health = match bot.health {
+            tobot_installation::CapabilityHealth::Healthy => "Healthy",
+            tobot_installation::CapabilityHealth::Degraded => "Degraded",
+        };
+        let reason = bot.reason;
         sqlx::query(
             "INSERT INTO installation.module_capability \
              (installation_id, module_key, capability_key, health_state, reason_code, observed_at) \
@@ -457,21 +498,28 @@ impl Store {
         .bind(observed_at)
         .execute(&mut *transaction)
         .await?;
-        sqlx::query(
+        let persisted_state: String = sqlx::query_scalar(
             "UPDATE installation.installation AS install SET \
-               state = CASE WHEN NOT EXISTS ( \
-                 SELECT 1 FROM installation.module_capability AS capability \
-                 WHERE capability.installation_id = install.installation_id \
-                   AND capability.health_state <> 'Healthy' \
-               ) AND (SELECT COUNT(*) FROM installation.module_capability AS capability \
-                      WHERE capability.installation_id = install.installation_id) = 2 \
+               state = CASE WHEN $3 = 'Installed' \
+                 AND EXISTS ( \
+                   SELECT 1 FROM installation.module_capability AS capability \
+                   WHERE capability.installation_id = install.installation_id \
+                     AND capability.capability_key = 'application_install_context' \
+                     AND capability.health_state = 'Healthy') \
+                 AND EXISTS ( \
+                   SELECT 1 FROM installation.module_capability AS capability \
+                   WHERE capability.installation_id = install.installation_id \
+                     AND capability.capability_key = 'bot_presence' \
+                     AND capability.health_state = 'Healthy') \
                  THEN 'Installed' ELSE 'Degraded' END, \
                verification_claimed_until = NULL \
-             WHERE installation_id = $1 AND verification_fencing_token = $2",
+             WHERE installation_id = $1 AND verification_fencing_token = $2 \
+             RETURNING state",
         )
         .bind(claim.installation_id)
         .bind(claim.fencing_token)
-        .execute(&mut *transaction)
+        .bind(candidate_state)
+        .fetch_one(&mut *transaction)
         .await?;
         insert_installation_state_event(
             &mut transaction,
@@ -480,7 +528,7 @@ impl Store {
                 provider_guild_id: &claim.provider_guild_id,
                 application_id: &claim.application_id,
                 generation: claim.generation,
-                state: if bot_present { "Installed" } else { "Degraded" },
+                state: &persisted_state,
                 capabilities: serde_json::json!({
                     "application_install_context": "Healthy",
                     "bot_presence": health
@@ -540,7 +588,7 @@ impl Store {
              (transaction_id, state_hash, verifier_ciphertext, account_id, session_id, \
               provider_guild_id, generation, preset, redirect_uri, requested_scopes, \
               frozen_manifest, expires_at) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, 'GuildInstall', $8, $9, $10, $11)",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
         )
         .bind(request.transaction_id)
         .bind(request.state_hash)
@@ -549,6 +597,7 @@ impl Store {
         .bind(request.session_id)
         .bind(request.provider_guild_id)
         .bind(generation)
+        .bind(request.preset)
         .bind(request.redirect_uri)
         .bind(request.requested_scopes)
         .bind(request.frozen_manifest)
@@ -1199,17 +1248,17 @@ impl Store {
         limit: i64,
     ) -> Result<Vec<ClaimedOutboxEntry>, sqlx::Error> {
         sqlx::query_as(
-            "WITH candidate AS (\
-               SELECT outbox_id FROM edge.event_outbox\
-               WHERE published_at IS NULL AND available_at <= $1\
-                 AND (lease_expires_at IS NULL OR lease_expires_at < $1)\
-               ORDER BY available_at, outbox_id LIMIT $2 FOR UPDATE SKIP LOCKED\
-             )\
-             UPDATE edge.event_outbox AS outbox\
-             SET lease_token = $3, lease_expires_at = $4, fencing_token = outbox.fencing_token + 1,\
-                 publish_attempts = outbox.publish_attempts + 1\
-             FROM candidate\
-             WHERE outbox.outbox_id = candidate.outbox_id\
+            "WITH candidate AS ( \
+               SELECT outbox_id FROM edge.event_outbox \
+               WHERE published_at IS NULL AND available_at <= $1 \
+                 AND (lease_expires_at IS NULL OR lease_expires_at < $1) \
+               ORDER BY available_at, outbox_id LIMIT $2 FOR UPDATE SKIP LOCKED \
+             ) \
+             UPDATE edge.event_outbox AS outbox \
+             SET lease_token = $3, lease_expires_at = $4, fencing_token = outbox.fencing_token + 1, \
+                 publish_attempts = outbox.publish_attempts + 1 \
+             FROM candidate \
+             WHERE outbox.outbox_id = candidate.outbox_id \
              RETURNING outbox.outbox_id, outbox.event_id, outbox.envelope, outbox.fencing_token",
         )
         .bind(now)
@@ -1232,7 +1281,7 @@ impl Store {
         published_at: OffsetDateTime,
     ) -> Result<bool, sqlx::Error> {
         let result = sqlx::query(
-            "UPDATE edge.event_outbox SET published_at = $4, lease_token = NULL, lease_expires_at = NULL\
+            "UPDATE edge.event_outbox SET published_at = $4, lease_token = NULL, lease_expires_at = NULL \
              WHERE outbox_id = $1 AND lease_token = $2 AND fencing_token = $3 AND published_at IS NULL",
         )
         .bind(outbox_id)

@@ -207,6 +207,29 @@ impl AuthorizationSession {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum OAuthCredentialAction {
+    Keep,
+    Refresh,
+    Revoke,
+}
+
+/// Expired credentials refresh. A revoked credential is terminal and is not refreshed.
+#[must_use]
+pub fn oauth_credential_action(
+    revoked: bool,
+    expires_at: SystemTime,
+    now: SystemTime,
+) -> OAuthCredentialAction {
+    if revoked {
+        OAuthCredentialAction::Revoke
+    } else if now >= expires_at {
+        OAuthCredentialAction::Refresh
+    } else {
+        OAuthCredentialAction::Keep
+    }
+}
+
 fn random_url_safe(bytes: usize) -> String {
     let mut value = vec![0_u8; bytes];
     rand::rng().fill_bytes(&mut value);
@@ -221,7 +244,7 @@ mod tests {
     fn pkce_transaction_is_single_use_and_s256() {
         let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1000);
         let mut transaction = OAuthTransaction::new(
-            "https://app.tobot.test/auth/discord/callback".into(),
+            "https://dash.tobot.test/auth/discord/callback".into(),
             vec!["identify".into()],
             now,
         );
@@ -238,7 +261,7 @@ mod tests {
             transaction
                 .consume(
                     &state,
-                    "https://app.tobot.test/auth/discord/callback",
+                    "https://dash.tobot.test/auth/discord/callback",
                     &["identify".into()],
                     now
                 )
@@ -247,7 +270,7 @@ mod tests {
         assert_eq!(
             transaction.consume(
                 &state,
-                "https://app.tobot.test/auth/discord/callback",
+                "https://dash.tobot.test/auth/discord/callback",
                 &["identify".into()],
                 now
             ),
@@ -285,7 +308,7 @@ mod tests {
     fn callback_binding_rejects_scope_or_redirect_substitution() {
         let now = SystemTime::UNIX_EPOCH;
         let mut transaction = OAuthTransaction::new(
-            "https://app.tobot.test/auth/discord/callback".into(),
+            "https://dash.tobot.test/auth/discord/callback".into(),
             vec!["identify".into()],
             now,
         );
@@ -302,7 +325,7 @@ mod tests {
         assert_eq!(
             transaction.consume(
                 &state,
-                "https://app.tobot.test/auth/discord/callback",
+                "https://dash.tobot.test/auth/discord/callback",
                 &["guilds".into()],
                 now
             ),
@@ -317,7 +340,7 @@ mod tests {
         assert_eq!(
             session.verify_cookie_mutation(
                 "https://evil.example",
-                "https://app.tobot.test",
+                "https://dash.tobot.test",
                 &session.csrf_proof,
                 now
             ),
@@ -325,8 +348,8 @@ mod tests {
         );
         assert_eq!(
             session.verify_cookie_mutation(
-                "https://app.tobot.test",
-                "https://app.tobot.test",
+                "https://dash.tobot.test",
+                "https://dash.tobot.test",
                 "wrong",
                 now
             ),
@@ -335,12 +358,30 @@ mod tests {
         assert!(
             session
                 .verify_cookie_mutation(
-                    "https://app.tobot.test",
-                    "https://app.tobot.test",
+                    "https://dash.tobot.test",
+                    "https://dash.tobot.test",
                     &session.csrf_proof,
                     now
                 )
                 .is_ok()
+        );
+    }
+
+    #[test]
+    fn revoked_credentials_are_not_refreshed() {
+        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(50);
+        let expiry = SystemTime::UNIX_EPOCH + Duration::from_secs(40);
+        assert_eq!(
+            oauth_credential_action(false, expiry, now),
+            OAuthCredentialAction::Refresh
+        );
+        assert_eq!(
+            oauth_credential_action(true, expiry, now),
+            OAuthCredentialAction::Revoke
+        );
+        assert_eq!(
+            oauth_credential_action(false, now + Duration::from_secs(10), now),
+            OAuthCredentialAction::Keep
         );
     }
 }

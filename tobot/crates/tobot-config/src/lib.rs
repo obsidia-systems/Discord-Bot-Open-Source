@@ -117,22 +117,22 @@ mod tests {
     fn oauth_redirect_must_match_the_app_callback_exactly() {
         assert!(
             validate_oauth_redirect(
-                "https://app.tobot.test",
-                "https://app.tobot.test/auth/discord/callback"
+                "https://dash.tobot.test",
+                "https://dash.tobot.test/auth/discord/callback"
             )
             .is_ok()
         );
         assert!(matches!(
             validate_oauth_redirect(
-                "https://app.tobot.test",
+                "https://dash.tobot.test",
                 "https://evil.example/auth/discord/callback"
             ),
             Err(ConfigError::OAuthRedirectMismatch { .. })
         ));
         assert!(
             validate_redirect(
-                "https://app.tobot.test",
-                "https://app.tobot.test/install/discord/callback",
+                "https://dash.tobot.test",
+                "https://dash.tobot.test/install/discord/callback",
                 "/install/discord/callback"
             )
             .is_ok()

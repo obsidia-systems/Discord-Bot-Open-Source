@@ -60,20 +60,31 @@ impl InstallationInspectionClient {
                 .await
                 .map_err(|_| TransportError::Unavailable("Delivery response invalid".to_owned()));
         }
-        if status.as_u16() == 429 {
-            return Err(TransportError::RateLimited {
-                retry_after_ms: 1_000,
-            });
-        }
-        if status.is_client_error() {
-            return Err(TransportError::Rejected {
-                status: status.as_u16(),
-            });
-        }
-        Err(TransportError::Unavailable(
-            "Delivery is unavailable".to_owned(),
-        ))
+        let body = response.text().await.unwrap_or_default();
+        Err(classify_inspection_failure(status.as_u16(), &body))
     }
+}
+
+/// Preserves Discord's HTTP status. Delivery used to collapse every provider
+/// rejection into 502, and this client then reported that as an outage.
+fn classify_inspection_failure(http_status: u16, body: &str) -> TransportError {
+    let body = body.trim();
+    if http_status == 429 {
+        return TransportError::RateLimited {
+            retry_after_ms: 1_000,
+        };
+    }
+    if (400..500).contains(&http_status) {
+        return TransportError::Rejected {
+            status: http_status,
+        };
+    }
+    let detail = if body.is_empty() {
+        "no response body"
+    } else {
+        body
+    };
+    TransportError::Unavailable(format!("Delivery returned HTTP {http_status}: {detail}"))
 }
 
 impl InternalDeliveryTransport {
@@ -138,5 +149,31 @@ impl DiscordTransport for InternalDeliveryTransport {
 
     async fn defer_interaction(&self, request: InteractionCallback) -> Result<(), TransportError> {
         self.send("/internal/v1/interactions/defer", request).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::classify_inspection_failure;
+    use tobot_discord_adapter::TransportError;
+
+    #[test]
+    fn inspection_keeps_discord_client_status() {
+        let rejected =
+            classify_inspection_failure(401, "Discord rejected the typed operation: 401");
+        assert!(matches!(rejected, TransportError::Rejected { status: 401 }));
+        let absent = classify_inspection_failure(403, "Discord rejected the typed operation: 403");
+        assert!(matches!(absent, TransportError::Rejected { status: 403 }));
+    }
+
+    #[test]
+    fn inspection_server_failure_includes_delivery_body() {
+        let failure = classify_inspection_failure(503, "connection reset by discord");
+        let TransportError::Unavailable(detail) = failure else {
+            panic!("server failure must stay a transport failure");
+        };
+        assert!(detail.contains("503"));
+        assert!(detail.contains("connection reset by discord"));
+        assert!(!detail.contains("Delivery is unavailable"));
     }
 }

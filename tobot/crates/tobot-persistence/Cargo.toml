@@ -12,6 +12,7 @@ sqlx.workspace = true
 time.workspace = true
 tobot-core = { path = "../tobot-core" }
 tobot-envelope = { path = "../tobot-envelope" }
+tobot-installation = { path = "../tobot-installation" }
 uuid.workspace = true
 
 [lints]

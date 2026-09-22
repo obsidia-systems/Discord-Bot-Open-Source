@@ -109,3 +109,45 @@ impl InstallationOutboxRelay {
         Ok(published)
     }
 }
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LeaseDecision {
+    Owned,
+    Takeover,
+    Rejected,
+}
+
+/// A live foreign lease is rejected. An expired or empty lease can be taken over.
+#[must_use]
+pub fn lease_decision(holder: Option<Uuid>, token: Uuid, lease_expired: bool) -> LeaseDecision {
+    match holder {
+        Some(current) if current == token => LeaseDecision::Owned,
+        Some(_) if lease_expired => LeaseDecision::Takeover,
+        Some(_) => LeaseDecision::Rejected,
+        None => LeaseDecision::Takeover,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stale_lease_can_be_taken_over_and_a_live_lease_cannot() {
+        let owner = Uuid::now_v7();
+        let other = Uuid::now_v7();
+        assert_eq!(
+            lease_decision(Some(owner), owner, false),
+            LeaseDecision::Owned
+        );
+        assert_eq!(
+            lease_decision(Some(owner), other, false),
+            LeaseDecision::Rejected
+        );
+        assert_eq!(
+            lease_decision(Some(owner), other, true),
+            LeaseDecision::Takeover
+        );
+        assert_eq!(lease_decision(None, other, false), LeaseDecision::Takeover);
+    }
+}

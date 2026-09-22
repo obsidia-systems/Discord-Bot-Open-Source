@@ -1,15 +1,29 @@
 //! Redis Streams adapter. SQL outbox remains publication authority; this
 //! adapter is intentionally unable to accept arbitrary topic/path requests.
 
+use std::time::Duration;
+
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use redis::{
-    AsyncTypedCommands, from_redis_value,
+    AsyncConnectionConfig, AsyncTypedCommands,
+    aio::MultiplexedConnection,
+    from_redis_value,
     streams::{StreamReadOptions, StreamReadReply},
 };
 use thiserror::Error;
 use tobot_envelope::EventEnvelope;
 
 pub const EVENT_STREAM: &str = "tobot:events:v1";
+
+/// Debe cubrir el `XREAD BLOCK` del consumer. redis-rs corta a los 500 ms por defecto.
+const RESPONSE_TIMEOUT: Duration = Duration::from_secs(2);
+
+async fn open_connection(client: &redis::Client) -> Result<MultiplexedConnection, BusError> {
+    let config = AsyncConnectionConfig::new().set_response_timeout(Some(RESPONSE_TIMEOUT));
+    Ok(client
+        .get_multiplexed_async_connection_with_config(&config)
+        .await?)
+}
 
 #[derive(Debug, Error)]
 pub enum BusError {
@@ -55,7 +69,7 @@ impl RedisStreamPublisher {
     ///
     /// Returns the Redis error without treating the fact as published.
     pub async fn publish(&self, event: &EventEnvelope, raw: &[u8]) -> Result<String, BusError> {
-        let mut connection = self.client.get_multiplexed_async_connection().await?;
+        let mut connection = open_connection(&self.client).await?;
         let id: Option<String> = connection
             .xadd(
                 EVENT_STREAM,
@@ -91,7 +105,7 @@ impl RedisStreamConsumer {
     ///
     /// Returns a Redis error or a malformed-message error.
     pub async fn read(&self) -> Result<Vec<BusMessage>, BusError> {
-        let mut connection = self.client.get_multiplexed_async_connection().await?;
+        let mut connection = open_connection(&self.client).await?;
         let create: redis::RedisResult<()> = connection
             .xgroup_create_mkstream(EVENT_STREAM, &self.group, "0")
             .await;
@@ -131,7 +145,7 @@ impl RedisStreamConsumer {
     ///
     /// Returns a Redis error if the durable group receipt cannot be recorded.
     pub async fn acknowledge(&self, stream_id: &str) -> Result<(), BusError> {
-        let mut connection = self.client.get_multiplexed_async_connection().await?;
+        let mut connection = open_connection(&self.client).await?;
         let _: usize = connection
             .xack(EVENT_STREAM, &self.group, &[stream_id])
             .await?;

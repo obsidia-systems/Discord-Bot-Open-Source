@@ -2,3 +2,12 @@ packages:
   - apps/*
 allowBuilds:
   esbuild: true
+# El bind mount de Compose corre en Linux y el checkout en macOS.
+supportedArchitectures:
+  os:
+    - darwin
+    - linux
+  cpu:
+    - arm64
+  libc:
+    - glibc
