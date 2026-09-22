@@ -74,6 +74,6 @@ jobs:
       - name: install
         run: pnpm install --frozen-lockfile
       - name: shell tests
-        run: pnpm --filter @tobot/dash test
+        run: pnpm --filter @tobot/dash test && pnpm --filter @tobot/admin test
       - name: astro check
-        run: pnpm --filter @tobot/dash check
+        run: pnpm --filter @tobot/dash check && pnpm --filter @tobot/admin check

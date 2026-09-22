@@ -138,13 +138,27 @@ services:
     volumes: [".:/workspace"]
     networks: [public]
 
+  admin:
+    image: node:26-bookworm-slim
+    working_dir: /workspace
+    command: sh -c "rm -f apps/admin/.astro/dev.json && npm install -g pnpm@12 && pnpm install --frozen-lockfile && pnpm --filter @tobot/admin dev --host 0.0.0.0"
+    environment:
+      TOBOT_INTERNAL_SERVICE_TOKEN: ${TOBOT_INTERNAL_SERVICE_TOKEN:?set TOBOT_INTERNAL_SERVICE_TOKEN}
+      TOBOT_CONTROL_URL: http://control-plane:8080
+      TOBOT_CONTROL_METRICS_URL: http://control-plane:8083
+      TOBOT_DELIVERY_URL: http://delivery:8081
+      TOBOT_DELIVERY_METRICS_URL: http://delivery:8084
+      TOBOT_EDGE_URL: http://discord-edge:8082
+    volumes: [".:/workspace"]
+    networks: [public, edge_delivery]
+
   caddy:
     image: caddy:2-alpine
     ports: ["443:443"]
     volumes:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
-    depends_on: [dash, www, docs, control-plane]
+    depends_on: [dash, www, docs, admin, control-plane]
     networks: [public]
 
 volumes:

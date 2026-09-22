@@ -44,6 +44,8 @@ Scrape requires `Authorization: Bearer` with the internal service token. The bod
 
 Transport HTTP 429 is a Delivery response, not one of these gauges. There is no invalid-request circuit gauge yet.
 
+`https://admin.tobot.test` renders those gauges and each service's live/ready state. That origin has no session and no password. The scrape token stays on the admin server. `dash.*`, `www`, and `docs.*` do not serve this page, and their `/metrics` path stays rejected.
+
 ## Migrations
 
 `tobot/bins/migrate` applies the embedded `sqlx` migrations forward. Services do not migrate on boot. Order is the numeric prefix under `tobot/crates/tobot-persistence/migrations`. A later incompatible shape follows expand, dual read, contract, then drop. Take a Postgres backup before a production migration. Point-in-time recovery requires WAL archiving on that Postgres; the local Compose volume is not a backup.
