@@ -153,10 +153,11 @@ async fn main() -> anyhow::Result<()> {
         RedisStreamPublisher::connect(config.redis_url.expose_for_adapter())
             .context("cannot construct Installation outbox publisher")?,
     );
+    // The name stays stable so a restarted process rereads its own pending entries.
     let query_consumer = RedisStreamConsumer::connect(
         config.redis_url.expose_for_adapter(),
         "query-status-s0",
-        &format!("control-{}", Uuid::now_v7()),
+        "control-plane",
     )
     .context("cannot construct Query/Status stream consumer")?;
     let query_store = store.clone();
