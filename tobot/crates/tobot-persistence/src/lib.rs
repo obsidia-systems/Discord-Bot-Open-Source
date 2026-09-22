@@ -115,7 +115,17 @@ pub struct NewInstallAuthorization<'a> {
     pub requested_scopes: &'a [String],
     pub frozen_manifest: &'a serde_json::Value,
     pub expires_at: OffsetDateTime,
+    pub occurred_at: OffsetDateTime,
     pub preset: &'a str,
+}
+
+pub struct AuditFact<'a> {
+    pub outcome: &'a str,
+    pub reason_code: &'a str,
+    pub account_id: Option<Uuid>,
+    pub session_id: Option<Uuid>,
+    pub subject_ref: Option<&'a str>,
+    pub occurred_at: OffsetDateTime,
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -604,6 +614,20 @@ impl Store {
         .bind(request.expires_at)
         .execute(&mut *transaction)
         .await?;
+        if request.preset == "GuildRepair" {
+            insert_audit_event(
+                &mut transaction,
+                AuditFact {
+                    outcome: "repair_admitted",
+                    reason_code: "guild_repair_generation",
+                    account_id: Some(request.account_id),
+                    session_id: Some(request.session_id),
+                    subject_ref: Some(request.provider_guild_id),
+                    occurred_at: request.occurred_at,
+                },
+            )
+            .await?;
+        }
         transaction.commit().await?;
         Ok(generation)
     }
@@ -723,6 +747,18 @@ impl Store {
         .execute(&self.pool)
         .await?;
         Ok(())
+    }
+
+    /// Records an audit fact that contains no token, cookie, code, or verifier.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the fact cannot be stored. Unknown outcomes
+    /// fail the table check.
+    pub async fn record_audit_event(&self, fact: AuditFact<'_>) -> Result<(), sqlx::Error> {
+        let mut transaction = self.pool.begin().await?;
+        insert_audit_event(&mut transaction, fact).await?;
+        transaction.commit().await
     }
 
     /// Atomically binds a Discord identity to one account, rotates its OAuth
@@ -1345,6 +1381,27 @@ impl Store {
         .await?;
         Ok(result.rows_affected() == 1)
     }
+}
+
+async fn insert_audit_event(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    fact: AuditFact<'_>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO identity.audit_event \
+         (audit_id, occurred_at, account_id, session_id, outcome, reason_code, subject_ref) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+    )
+    .bind(Uuid::now_v7())
+    .bind(fact.occurred_at)
+    .bind(fact.account_id)
+    .bind(fact.session_id)
+    .bind(fact.outcome)
+    .bind(fact.reason_code)
+    .bind(fact.subject_ref)
+    .execute(&mut **transaction)
+    .await?;
+    Ok(())
 }
 
 async fn insert_installation_state_event(

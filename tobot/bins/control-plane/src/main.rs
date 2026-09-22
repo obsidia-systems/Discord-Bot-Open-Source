@@ -26,7 +26,7 @@ use tobot_installation::{
 };
 use tobot_outbox::InstallationOutboxRelay;
 use tobot_persistence::{
-    ActiveAuthorizationSession, GuildDiscoveryObservation, GuildShellSummary,
+    ActiveAuthorizationSession, AuditFact, GuildDiscoveryObservation, GuildShellSummary,
     NewDiscordAuthorization, NewInstallAuthorization, Store, VerifyingInstallation,
 };
 use tobot_secret_store::{SecretStore, VaultTransitStore};
@@ -64,6 +64,29 @@ const fn install_error_path(reason: BrowserFailure) -> &'static str {
         BrowserFailure::Expired => "/install/error?reason=expired",
         BrowserFailure::Mismatch => "/install/error?reason=mismatch",
         BrowserFailure::Unavailable => "/install/error?reason=unavailable",
+    }
+}
+
+async fn record_browser_audit(state: &AppState, outcome: &'static str, reason: BrowserFailure) {
+    let reason_code = match reason {
+        BrowserFailure::Rejected => "rejected",
+        BrowserFailure::Expired => "expired",
+        BrowserFailure::Mismatch => "mismatch",
+        BrowserFailure::Unavailable => "unavailable",
+    };
+    if let Err(error) = state
+        .store
+        .record_audit_event(AuditFact {
+            outcome,
+            reason_code,
+            account_id: None,
+            session_id: None,
+            subject_ref: None,
+            occurred_at: time::OffsetDateTime::from(state.clock.now()),
+        })
+        .await
+    {
+        error!(%error, outcome, "browser rejection was not audited");
     }
 }
 
@@ -311,11 +334,14 @@ async fn discord_callback(
             Redirect::to("/"),
         )
             .into_response(),
-        Err(reason) => (
-            [(header::SET_COOKIE, clear_cookie)],
-            Redirect::to(login_error_path(reason)),
-        )
-            .into_response(),
+        Err(reason) => {
+            record_browser_audit(&state, "oauth_rejected", reason).await;
+            (
+                [(header::SET_COOKIE, clear_cookie)],
+                Redirect::to(login_error_path(reason)),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -422,11 +448,14 @@ async fn guild_install_callback(
             Redirect::to(&format!("/guild/{tenant_id}")),
         )
             .into_response(),
-        Err(reason) => (
-            [(header::SET_COOKIE, clear_cookie)],
-            Redirect::to(install_error_path(reason)),
-        )
-            .into_response(),
+        Err(reason) => {
+            record_browser_audit(&state, "install_rejected", reason).await;
+            (
+                [(header::SET_COOKIE, clear_cookie)],
+                Redirect::to(install_error_path(reason)),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -661,6 +690,20 @@ async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Response {
     }
     if state.store.revoke_session(session_id, now).await.is_err() {
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    }
+    if let Err(error) = state
+        .store
+        .record_audit_event(AuditFact {
+            outcome: "session_revoked",
+            reason_code: "logout",
+            account_id: Some(session.account_id),
+            session_id: Some(session_id),
+            subject_ref: None,
+            occurred_at: now,
+        })
+        .await
+    {
+        error!(%error, "session revocation was not audited");
     }
     clear_session_response(StatusCode::NO_CONTENT)
 }
@@ -929,6 +972,7 @@ async fn start_guild_install(
             requested_scopes: &authorization.scopes,
             frozen_manifest: &frozen_manifest,
             expires_at: time::OffsetDateTime::from(authorization.expires_at),
+            occurred_at: time::OffsetDateTime::from(state.clock.now()),
             preset: InstallPreset::GuildInstall.as_str(),
         })
         .await
@@ -1012,39 +1056,17 @@ async fn start_guild_repair(
         state.clock.now(),
     );
     let handoff = authorization.authorization();
-    let verifier_context = format!("tobot:guild-install-pkce:{}", handoff.id);
-    let Ok(verifier_ciphertext) = state
-        .secret_store
-        .encrypt(
-            handoff.code_verifier.as_bytes(),
-            verifier_context.as_bytes(),
-        )
-        .await
-    else {
-        return StatusCode::SERVICE_UNAVAILABLE.into_response();
-    };
-    let Ok(frozen_manifest) = serde_json::to_value(S0Manifest::default()) else {
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    };
-    if state
-        .store
-        .create_guild_install_authorization(NewInstallAuthorization {
-            transaction_id: handoff.id,
-            state_hash: &oauth_state_hash(&handoff.state),
-            verifier_ciphertext: verifier_ciphertext.as_bytes(),
-            account_id: session.account_id,
-            session_id,
-            provider_guild_id: &handoff.provider_guild_id,
-            redirect_uri: &handoff.redirect_uri,
-            requested_scopes: &handoff.scopes,
-            frozen_manifest: &frozen_manifest,
-            expires_at: time::OffsetDateTime::from(handoff.expires_at),
-            preset: InstallPreset::GuildRepair.as_str(),
-        })
-        .await
-        .is_err()
+    if let Err(status) = persist_install_authorization(
+        &state,
+        handoff,
+        session.account_id,
+        session_id,
+        now,
+        InstallPreset::GuildRepair.as_str(),
+    )
+    .await
     {
-        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+        return status.into_response();
     }
     let Ok(authorize_url) = authorization.authorize_url(&state.discord_client_id) else {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -1063,6 +1085,46 @@ async fn start_guild_repair(
         }),
     )
         .into_response()
+}
+
+async fn persist_install_authorization(
+    state: &AppState,
+    handoff: &GuildInstallAuthorization,
+    account_id: Uuid,
+    session_id: Uuid,
+    occurred_at: time::OffsetDateTime,
+    preset: &str,
+) -> Result<(), StatusCode> {
+    let verifier_context = format!("tobot:guild-install-pkce:{}", handoff.id);
+    let verifier_ciphertext = state
+        .secret_store
+        .encrypt(
+            handoff.code_verifier.as_bytes(),
+            verifier_context.as_bytes(),
+        )
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    let frozen_manifest = serde_json::to_value(S0Manifest::default())
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    state
+        .store
+        .create_guild_install_authorization(NewInstallAuthorization {
+            transaction_id: handoff.id,
+            state_hash: &oauth_state_hash(&handoff.state),
+            verifier_ciphertext: verifier_ciphertext.as_bytes(),
+            account_id,
+            session_id,
+            provider_guild_id: &handoff.provider_guild_id,
+            redirect_uri: &handoff.redirect_uri,
+            requested_scopes: &handoff.scopes,
+            frozen_manifest: &frozen_manifest,
+            expires_at: time::OffsetDateTime::from(handoff.expires_at),
+            occurred_at,
+            preset,
+        })
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    Ok(())
 }
 
 async fn authorize_mutation(

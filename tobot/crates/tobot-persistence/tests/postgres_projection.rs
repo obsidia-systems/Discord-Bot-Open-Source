@@ -144,6 +144,7 @@ async fn install_callback_rejects_a_foreign_session_and_stays_degraded_without_p
     if persisted != "Degraded" {
         return Err("missing bot presence became Installed".to_owned());
     }
+    admit_repair(&store, account_id, session_id, &guild_id, now).await?;
     let installed = verify_guild(&store, now, true).await?;
     if installed != "Installed" {
         return Err("healthy capabilities stayed below Installed".to_owned());
@@ -232,6 +233,83 @@ async fn verify_guild(
     installation_state(store, claim.installation_id).await
 }
 
+async fn admit_repair(
+    store: &Store,
+    account_id: Uuid,
+    session_id: Uuid,
+    guild_id: &str,
+    now: OffsetDateTime,
+) -> Result<(), String> {
+    let manifest = serde_json::json!({
+        "module": "platform_probe",
+        "oauth_scopes": ["applications.commands", "bot"],
+        "guild_permissions": "0",
+        "gateway_intents": ["GUILDS"],
+        "bot_presence_required": true
+    });
+    let scopes = vec!["bot".to_owned(), "applications.commands".to_owned()];
+    let generation = store
+        .create_guild_install_authorization(NewInstallAuthorization {
+            transaction_id: Uuid::now_v7(),
+            state_hash: &format!("repair-{guild_id}").into_bytes(),
+            verifier_ciphertext: b"ciphertext-not-a-verifier",
+            account_id,
+            session_id,
+            provider_guild_id: guild_id,
+            redirect_uri: "https://dash.tobot.test/install/discord/callback",
+            requested_scopes: &scopes,
+            frozen_manifest: &manifest,
+            expires_at: now + Duration::minutes(10),
+            occurred_at: now,
+            preset: "GuildRepair",
+        })
+        .await
+        .map_err(|error| error.to_string())?;
+    if generation != 2 {
+        return Err("repair did not open the next generation".to_owned());
+    }
+    let (installation_state, tenant_state): (String, String) = sqlx::query_as(
+        "SELECT install.state, tenant.state \
+         FROM installation.installation AS install \
+         JOIN installation.tenant AS tenant ON tenant.tenant_id = install.tenant_id \
+         WHERE tenant.provider_tenant_ref = $1 AND install.generation = 1",
+    )
+    .bind(guild_id)
+    .fetch_one(store.pool())
+    .await
+    .map_err(|error| error.to_string())?;
+    if installation_state != "Degraded" || tenant_state != "Active" {
+        return Err("repair replaced or removed the degraded installation".to_owned());
+    }
+    let permissions: String = sqlx::query_scalar(
+        "SELECT frozen_manifest->>'guild_permissions' \
+         FROM installation.authorization_transaction \
+         WHERE provider_guild_id = $1 AND preset = 'GuildRepair'",
+    )
+    .bind(guild_id)
+    .fetch_one(store.pool())
+    .await
+    .map_err(|error| error.to_string())?;
+    if permissions != "0" {
+        return Err("repair asked for a permission other than the S0 union".to_owned());
+    }
+    let (outcome, reason_code, subject_ref): (String, String, String) = sqlx::query_as(
+        "SELECT outcome, reason_code, subject_ref \
+         FROM identity.audit_event WHERE subject_ref = $1",
+    )
+    .bind(guild_id)
+    .fetch_one(store.pool())
+    .await
+    .map_err(|error| error.to_string())?;
+    if outcome != "repair_admitted"
+        || reason_code != "guild_repair_generation"
+        || subject_ref != guild_id
+    {
+        return Err("repair admission was not audited against the guild".to_owned());
+    }
+    Ok(())
+}
+
 async fn create_install(
     store: &Store,
     transaction_id: Uuid,
@@ -255,6 +333,7 @@ async fn create_install(
             requested_scopes: &scopes,
             frozen_manifest: &manifest,
             expires_at,
+            occurred_at: expires_at,
             preset: "GuildInstall",
         })
         .await
