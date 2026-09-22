@@ -6,7 +6,7 @@ use axum::{
     Router,
     extract::{Json, State},
     http::{HeaderMap, StatusCode, header},
-    routing::post,
+    routing::{get, post},
 };
 use std::{net::SocketAddr, sync::Arc};
 use subtle::ConstantTimeEq;
@@ -23,6 +23,8 @@ use tracing::{error, info};
 struct DeliveryState {
     transport: TwilightTransport,
     service_token: String,
+    credentials_present: bool,
+    store: Option<Store>,
 }
 
 #[tokio::main]
@@ -43,25 +45,58 @@ async fn main() -> anyhow::Result<()> {
     let database_url = std::env::var("TOBOT_DATABASE_URL").context("missing TOBOT_DATABASE_URL")?;
     let store = Store::connect(&database_url).await?;
     let publisher = RedisStreamPublisher::connect(&redis_url)?;
-    let relay = EdgeOutboxRelay::new(store, publisher);
+    let relay = EdgeOutboxRelay::new(store.clone(), publisher);
     let state = Arc::new(DeliveryState {
         transport: TwilightTransport::new(bot_token),
         service_token,
+        credentials_present: true,
+        store: Some(store),
     });
-    let app = Router::new()
-        .route("/internal/v1/interactions/respond", post(respond))
-        .route("/internal/v1/interactions/defer", post(defer))
-        .route(
-            "/internal/v1/installations/inspect-guild",
-            post(inspect_guild),
-        )
-        .with_state(state);
+    let app = delivery_router(state);
     info!(%bind, "delivery starting with private typed transport ingress");
     tokio::select! {
         result = run_relay(relay) => result,
         result = axum::serve(tokio::net::TcpListener::bind(bind).await?, app) => {
             result.context("Delivery private listener failed")
         },
+    }
+}
+
+fn delivery_router(state: Arc<DeliveryState>) -> Router {
+    Router::new()
+        .route("/health/live", get(live))
+        .route("/health/ready", get(ready))
+        .route("/metrics", get(metrics))
+        .route("/internal/v1/interactions/respond", post(respond))
+        .route("/internal/v1/interactions/defer", post(defer))
+        .route(
+            "/internal/v1/installations/inspect-guild",
+            post(inspect_guild),
+        )
+        .with_state(state)
+}
+
+async fn live() -> StatusCode {
+    StatusCode::NO_CONTENT
+}
+
+async fn ready(State(state): State<Arc<DeliveryState>>) -> StatusCode {
+    let database_ready = match &state.store {
+        Some(store) => sqlx::query("SELECT 1").execute(store.pool()).await.is_ok(),
+        None => false,
+    };
+    transport_readiness(state.credentials_present, database_ready)
+}
+
+async fn metrics() -> StatusCode {
+    StatusCode::NOT_FOUND
+}
+
+const fn transport_readiness(credentials_present: bool, database_ready: bool) -> StatusCode {
+    if credentials_present && database_ready {
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
     }
 }
 
@@ -163,4 +198,70 @@ fn inspection_failure(error: &TransportError) -> (StatusCode, String) {
         TransportError::Unavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
     };
     (status, error.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use axum::{body::Body, http::Request};
+    use tower::ServiceExt as _;
+
+    use super::{DeliveryState, TwilightTransport, delivery_router, transport_readiness};
+    use axum::http::StatusCode;
+
+    #[test]
+    fn transport_is_ready_only_with_credentials_and_database() {
+        assert_eq!(transport_readiness(true, true), StatusCode::NO_CONTENT);
+        assert_eq!(
+            transport_readiness(true, false),
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+        assert_eq!(
+            transport_readiness(false, true),
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+    }
+
+    #[tokio::test]
+    async fn private_listener_rejects_metrics_and_webhook_ingress() -> Result<(), String> {
+        let state = Arc::new(DeliveryState {
+            transport: TwilightTransport::new("token".to_owned()),
+            service_token: "internal".to_owned(),
+            credentials_present: true,
+            store: None,
+        });
+        let app = delivery_router(state);
+        let metrics = app
+            .clone()
+            .oneshot(request("/metrics")?)
+            .await
+            .map_err(|_| "metrics request failed".to_owned())?;
+        if metrics.status() != StatusCode::NOT_FOUND {
+            return Err("metrics were exposed on the delivery listener".to_owned());
+        }
+        let webhook = app
+            .clone()
+            .oneshot(request("/interactions")?)
+            .await
+            .map_err(|_| "webhook request failed".to_owned())?;
+        if webhook.status() != StatusCode::NOT_FOUND {
+            return Err("delivery accepted an interaction webhook route".to_owned());
+        }
+        let live = app
+            .oneshot(request("/health/live")?)
+            .await
+            .map_err(|_| "liveness request failed".to_owned())?;
+        if live.status() != StatusCode::NO_CONTENT {
+            return Err("delivery liveness did not answer".to_owned());
+        }
+        Ok(())
+    }
+
+    fn request(path: &str) -> Result<Request<Body>, String> {
+        Request::builder()
+            .uri(path)
+            .body(Body::empty())
+            .map_err(|error| error.to_string())
+    }
 }

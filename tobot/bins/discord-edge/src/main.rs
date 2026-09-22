@@ -1,9 +1,14 @@
 //! Gateway-only Discord Edge. It has no public interaction-webhook listener.
 
 use anyhow::Context;
+use axum::{Json, Router, extract::State, http::StatusCode, routing::get};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tobot_delivery_client::InternalDeliveryTransport;
-use tobot_discord_adapter::InteractionCallback;
+use tobot_discord_adapter::{InteractionCallback, ShardReadiness, shard_is_ready};
 use tobot_envelope::{EventEnvelope, TraceContext};
 use tobot_interaction_edge::{InteractionEdge, InteractionIngressRequest, ProbeAcknowledgement};
 use tobot_persistence::Store;
@@ -32,9 +37,30 @@ async fn main() -> anyhow::Result<()> {
     let delivery_transport = InternalDeliveryTransport::new(&delivery_url, internal_service_token)
         .context("invalid Delivery transport configuration")?;
     let interaction_edge = InteractionEdge::new(store.clone(), delivery_transport);
+    let health = EdgeHealth::new(0);
+    let health_bind: std::net::SocketAddr = std::env::var("TOBOT_EDGE_HEALTH_BIND")
+        .unwrap_or_else(|_| "127.0.0.1:8082".to_owned())
+        .parse()
+        .context("invalid TOBOT_EDGE_HEALTH_BIND")?;
     let mut shard = Shard::new(ShardId::ONE, bot_token, Intents::GUILDS);
+    let app = health_router(health.clone());
 
     info!(%application_id, ingress = "gateway", shard = 0, "discord edge starting");
+    tokio::select! {
+        result = axum::serve(tokio::net::TcpListener::bind(health_bind).await?, app) => {
+            result.context("discord edge health listener failed")
+        }
+        result = run_gateway(&mut shard, &health, &interaction_edge, &store, &application_id) => result,
+    }
+}
+
+async fn run_gateway(
+    shard: &mut Shard,
+    health: &EdgeHealth,
+    interaction_edge: &InteractionEdge<InternalDeliveryTransport>,
+    store: &Store,
+    application_id: &str,
+) -> anyhow::Result<()> {
     while let Some(next_event) = shard.next_event(EventTypeFlags::all()).await {
         let event = match next_event {
             Ok(event) => event,
@@ -43,7 +69,7 @@ async fn main() -> anyhow::Result<()> {
                 continue;
             }
         };
-
+        health.observe(&event);
         let Event::InteractionCreate(interaction) = event else {
             continue;
         };
@@ -54,11 +80,10 @@ async fn main() -> anyhow::Result<()> {
             );
             continue;
         };
-
         if let Err(error) = accept_interaction(
-            &interaction_edge,
-            &store,
-            &application_id,
+            interaction_edge,
+            store,
+            application_id,
             shard.id().number(),
             session.id(),
             session.sequence(),
@@ -69,8 +94,89 @@ async fn main() -> anyhow::Result<()> {
             warn!(error = %error, shard = shard.id().number(), "interaction ingress failed");
         }
     }
-
     Ok(())
+}
+
+#[derive(Clone)]
+struct EdgeHealth {
+    shard_id: u32,
+    session_established: Arc<AtomicBool>,
+    heartbeat_alive: Arc<AtomicBool>,
+}
+
+impl EdgeHealth {
+    fn new(shard_id: u32) -> Self {
+        Self {
+            shard_id,
+            session_established: Arc::new(AtomicBool::new(false)),
+            heartbeat_alive: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    fn observe(&self, event: &Event) {
+        match event {
+            Event::Ready(_) | Event::Resumed => {
+                self.session_established.store(true, Ordering::Relaxed);
+            }
+            Event::GatewayHeartbeatAck => {
+                self.heartbeat_alive.store(true, Ordering::Relaxed);
+            }
+            Event::GatewayClose(_)
+            | Event::GatewayReconnect
+            | Event::GatewayInvalidateSession(_) => {
+                self.session_established.store(false, Ordering::Relaxed);
+                self.heartbeat_alive.store(false, Ordering::Relaxed);
+            }
+            _ => {}
+        }
+    }
+
+    fn readiness(&self) -> ShardReadiness {
+        ShardReadiness {
+            session_established: self.session_established.load(Ordering::Relaxed),
+            heartbeat_alive: self.heartbeat_alive.load(Ordering::Relaxed),
+        }
+    }
+}
+
+#[derive(serde::Serialize)]
+struct ShardHealthBody {
+    shard_id: u32,
+    session_established: bool,
+    heartbeat_alive: bool,
+}
+
+fn health_router(health: EdgeHealth) -> Router {
+    Router::new()
+        .route("/health/live", get(live))
+        .route("/health/ready", get(ready))
+        .route("/metrics", get(metrics))
+        .with_state(health)
+}
+
+async fn live() -> StatusCode {
+    StatusCode::NO_CONTENT
+}
+
+async fn ready(State(health): State<EdgeHealth>) -> (StatusCode, Json<ShardHealthBody>) {
+    let readiness = health.readiness();
+    let status = if shard_is_ready(readiness) {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+    (
+        status,
+        Json(ShardHealthBody {
+            shard_id: health.shard_id,
+            session_established: readiness.session_established,
+            heartbeat_alive: readiness.heartbeat_alive,
+        }),
+    )
+}
+
+async fn metrics() -> StatusCode {
+    StatusCode::NOT_FOUND
 }
 
 async fn accept_interaction(
@@ -166,4 +272,23 @@ async fn accept_interaction(
         .await?;
     info!(?outcome, event_id = %interaction_event.event_id, "interaction receipt processed");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::EdgeHealth;
+    use tobot_discord_adapter::shard_is_ready;
+    use twilight_gateway::Event;
+
+    #[test]
+    fn shard_becomes_ready_only_after_session_and_heartbeat_ack() {
+        let health = EdgeHealth::new(0);
+        assert!(!shard_is_ready(health.readiness()));
+        health.observe(&Event::GatewayHeartbeatAck);
+        assert!(!shard_is_ready(health.readiness()));
+        health.observe(&Event::Resumed);
+        assert!(shard_is_ready(health.readiness()));
+        health.observe(&Event::GatewayReconnect);
+        assert!(!shard_is_ready(health.readiness()));
+    }
 }

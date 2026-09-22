@@ -2337,6 +2337,7 @@ dependencies = [
  "async-trait",
  "axum",
  "serde",
+ "sqlx",
  "subtle",
  "time",
  "tobot-bus",
@@ -2344,6 +2345,7 @@ dependencies = [
  "tobot-outbox",
  "tobot-persistence",
  "tokio",
+ "tower",
  "tracing",
  "tracing-subscriber",
 ]
@@ -2377,6 +2379,8 @@ name = "tobot-discord-edge"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axum",
+ "serde",
  "serde_json",
  "time",
  "tobot-delivery-client",

@@ -11,6 +11,7 @@ anyhow.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 serde.workspace = true
+sqlx.workspace = true
 subtle.workspace = true
 tokio.workspace = true
 time.workspace = true
@@ -20,6 +21,10 @@ tobot-bus = { path = "../../crates/tobot-bus" }
 tobot-discord-adapter = { path = "../../crates/tobot-discord-adapter" }
 tobot-outbox = { path = "../../crates/tobot-outbox" }
 tobot-persistence = { path = "../../crates/tobot-persistence" }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tower = { version = "0.5", features = ["util"] }
 
 [lints]
 workspace = true

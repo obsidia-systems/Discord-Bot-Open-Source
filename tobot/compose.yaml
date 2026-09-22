@@ -93,6 +93,7 @@ services:
       TOBOT_DISCORD_BOT_TOKEN: ${TOBOT_DISCORD_BOT_TOKEN:?set TOBOT_DISCORD_BOT_TOKEN}
       TOBOT_DELIVERY_URL: ${TOBOT_DELIVERY_URL:-http://delivery:8081}
       TOBOT_INTERNAL_SERVICE_TOKEN: ${TOBOT_INTERNAL_SERVICE_TOKEN:?set TOBOT_INTERNAL_SERVICE_TOKEN}
+      TOBOT_EDGE_HEALTH_BIND: 0.0.0.0:8082
     depends_on:
       migrate:
         condition: service_completed_successfully
