@@ -134,6 +134,11 @@ async fn edge_outbox_metrics(
             gauge.max_publish_attempts,
         ),
         ("tobot_edge_outbox_expired_leases", gauge.expired_leases),
+        ("tobot_transport_http_429", state.transport.http_429_count()),
+        (
+            "tobot_transport_invalid_requests_10m",
+            state.transport.invalid_request_count(),
+        ),
     ]) else {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };

@@ -34,6 +34,8 @@ const OPERATIONAL_GAUGES = new Set([
   "tobot_stream_pending",
   "tobot_gateway_session_established",
   "tobot_gateway_heartbeat_alive",
+  "tobot_transport_http_429",
+  "tobot_transport_invalid_requests_10m",
 ]);
 
 const GAUGE_LINE = /^tobot_[a-z0-9_]+ -?\d+$/;

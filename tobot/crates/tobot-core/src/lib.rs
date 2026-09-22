@@ -93,6 +93,8 @@ const OPERATIONAL_GAUGES: &[&str] = &[
     "tobot_stream_pending",
     "tobot_gateway_session_established",
     "tobot_gateway_heartbeat_alive",
+    "tobot_transport_http_429",
+    "tobot_transport_invalid_requests_10m",
 ];
 
 /// Renders aggregate gauges. A name outside the fixed list is rejected so a

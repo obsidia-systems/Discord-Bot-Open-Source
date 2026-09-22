@@ -236,9 +236,61 @@ async fn oauth_replay_and_revoked_session_fail_closed_in_postgres() -> Result<()
     let authorized = store
         .authorize_session(session_id, now)
         .await
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "a live session was not authorized".to_owned())?;
+    refreshed_credential_keeps_absolute_expiry(
+        &store,
+        session_id,
+        authorized.credential_id,
+        authorized.absolute_expires_at,
+        now,
+    )
+    .await?;
+    reject_expired_sessions(&store, now).await?;
+    rotate_session(&store, now).await?;
+    store
+        .revoke_session(session_id, now + Duration::seconds(1))
+        .await
         .map_err(|error| error.to_string())?;
-    if authorized.is_none() {
-        return Err("a live session was not authorized".to_owned());
+    let revoked = store
+        .authorize_session(session_id, now + Duration::seconds(2))
+        .await
+        .map_err(|error| error.to_string())?;
+    if revoked.is_some() {
+        return Err("a revoked session stayed authorized".to_owned());
+    }
+    Ok(())
+}
+
+async fn refreshed_credential_keeps_absolute_expiry(
+    store: &Store,
+    session_id: Uuid,
+    credential_id: Uuid,
+    absolute_expires_at: OffsetDateTime,
+    now: OffsetDateTime,
+) -> Result<(), String> {
+    if !store
+        .refresh_oauth_credential(
+            credential_id,
+            b"refreshed-access",
+            b"refreshed-refresh",
+            now + Duration::hours(2),
+        )
+        .await
+        .map_err(|error| error.to_string())?
+    {
+        return Err("the oauth credential was not refreshed".to_owned());
+    }
+    let after = store
+        .authorize_session(session_id, now + Duration::seconds(1))
+        .await
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "the session disappeared after credential refresh".to_owned())?;
+    if after.absolute_expires_at != absolute_expires_at {
+        return Err("credential refresh moved the session absolute expiry".to_owned());
+    }
+    if after.access_token_ciphertext.as_slice() != b"refreshed-access" {
+        return Err("credential refresh did not store the new access token".to_owned());
     }
     if !store
         .active_session_csrf_matches(session_id, b"csrf-hash", now + Duration::seconds(1))
@@ -253,19 +305,6 @@ async fn oauth_replay_and_revoked_session_fail_closed_in_postgres() -> Result<()
         .map_err(|error| error.to_string())?
     {
         return Err("a foreign CSRF digest matched the session".to_owned());
-    }
-    reject_expired_sessions(&store, now).await?;
-    rotate_session(&store, now).await?;
-    store
-        .revoke_session(session_id, now + Duration::seconds(1))
-        .await
-        .map_err(|error| error.to_string())?;
-    let revoked = store
-        .authorize_session(session_id, now + Duration::seconds(2))
-        .await
-        .map_err(|error| error.to_string())?;
-    if revoked.is_some() {
-        return Err("a revoked session stayed authorized".to_owned());
     }
     Ok(())
 }

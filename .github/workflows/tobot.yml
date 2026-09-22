@@ -55,6 +55,8 @@ jobs:
         run: cargo test --workspace
       - name: clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: build
+        run: cargo build --workspace --locked
 
   browser:
     runs-on: ubuntu-latest
@@ -77,3 +79,5 @@ jobs:
         run: pnpm --filter @tobot/dash test && pnpm --filter @tobot/admin test
       - name: astro check
         run: pnpm --filter @tobot/dash check && pnpm --filter @tobot/admin check
+      - name: build apps
+        run: pnpm --filter @tobot/dash --filter @tobot/www --filter @tobot/docs --filter @tobot/admin build

@@ -42,7 +42,7 @@ Scrape requires `Authorization: Bearer` with the internal service token. The bod
 | Gateway session | `tobot_gateway_session_established` | `0` means the shard has no session. Readiness on `:8082` is the same fact. |
 | Gateway heartbeat | `tobot_gateway_heartbeat_alive` | `0` after a session means the shard has not acknowledged a heartbeat. |
 
-Transport HTTP 429 is a Delivery response, not one of these gauges. There is no invalid-request circuit gauge yet.
+Delivery also publishes `tobot_transport_http_429` and `tobot_transport_invalid_requests_10m`. The invalid-request circuit opens in that process at 8_000 of Discord's 10_000 / 10-minute budget and is not yet shared across a second replica.
 
 `https://admin.tobot.test` renders those gauges and each service's live/ready state. That origin has no session and no password. The scrape token stays on the admin server. `dash.*`, `www`, and `docs.*` do not serve this page, and their `/metrics` path stays rejected.
 

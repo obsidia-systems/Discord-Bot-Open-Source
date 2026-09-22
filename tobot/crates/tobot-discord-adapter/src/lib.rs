@@ -3,7 +3,7 @@
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
+use std::{sync::Mutex, time::Duration};
 use thiserror::Error;
 use twilight_http::{api_error::ApiError, error::ErrorType};
 use twilight_model::{
@@ -179,6 +179,42 @@ impl DiscordOAuthClient {
         })
     }
 
+    /// Exchanges a refresh token. The caller must not move the session's
+    /// absolute expiry when it stores the new credential.
+    ///
+    /// # Errors
+    ///
+    /// Returns a classified transport error. The response body is not included.
+    pub async fn refresh_access_token(
+        &self,
+        refresh_token: &str,
+    ) -> Result<OAuthTokenSet, TransportError> {
+        let response = self
+            .client
+            .post("https://discord.com/api/v10/oauth2/token")
+            .basic_auth(&self.client_id, Some(&self.client_secret))
+            .form(&refresh_grant_form(refresh_token))
+            .send()
+            .await
+            .map_err(|_| TransportError::Unavailable("Discord OAuth unavailable".to_owned()))?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(TransportError::Rejected {
+                status: status.as_u16(),
+            });
+        }
+        let token = response.json::<OAuthTokenResponse>().await.map_err(|_| {
+            TransportError::Unavailable("Discord OAuth response invalid".to_owned())
+        })?;
+        Ok(OAuthTokenSet {
+            access_token: token.access_token,
+            refresh_token: token.refresh_token,
+            expires_in_seconds: token.expires_in,
+            scopes: canonical_scopes(&token.scope),
+            guild: token.guild,
+        })
+    }
+
     /// Reads the authorization owner under the OAuth credential class.
     ///
     /// # Errors
@@ -317,6 +353,7 @@ pub trait DiscordTransport: Send + Sync {
 /// escape hatch for arbitrary REST paths.
 pub struct TwilightTransport {
     client: twilight_http::Client,
+    governor: Mutex<TransportGovernor>,
 }
 
 impl TwilightTransport {
@@ -327,7 +364,34 @@ impl TwilightTransport {
         let _ = rustls::crypto::ring::default_provider().install_default();
         Self {
             client: twilight_http::Client::new(bot_token),
+            governor: Mutex::new(TransportGovernor::default()),
         }
+    }
+
+    /// Invalid responses counted in the current ten-minute window.
+    #[must_use]
+    pub fn invalid_request_count(&self) -> i64 {
+        i64::from(self.governor().budget.count(unix_now_ms()))
+    }
+
+    /// HTTP 429 responses observed by this process.
+    #[must_use]
+    pub fn http_429_count(&self) -> i64 {
+        i64::try_from(self.governor().http_429).unwrap_or(i64::MAX)
+    }
+
+    fn governor(&self) -> std::sync::MutexGuard<'_, TransportGovernor> {
+        self.governor
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    fn preflight(&self) -> Result<(), TransportError> {
+        self.governor().preflight(unix_now_ms())
+    }
+
+    fn note(&self, error: &TransportError) {
+        self.governor().note(error, unix_now_ms());
     }
 
     fn response_data(ephemeral: bool, content: Option<&str>) -> InteractionResponseData {
@@ -344,12 +408,12 @@ impl TwilightTransport {
     ///
     /// Returns a classified transport error. The response body is not included.
     pub async fn session_start_budget(&self) -> Result<SessionStartBudget, TransportError> {
-        let response = self
-            .client
-            .gateway()
-            .authed()
-            .await
-            .map_err(|error| Self::map_error(&error))?;
+        self.preflight()?;
+        let response = self.client.gateway().authed().await.map_err(|error| {
+            let mapped = Self::map_error(&error);
+            self.note(&mapped);
+            mapped
+        })?;
         let info = response.model().await.map_err(|_| {
             TransportError::Unavailable("gateway bot response unavailable".to_owned())
         })?;
@@ -381,6 +445,7 @@ impl TwilightTransport {
                 TransportError::Unavailable("rate-limit probe client unavailable".to_owned())
             })?;
         for _ in 0..GATEWAY_BOT_PROBE_ATTEMPTS {
+            self.preflight()?;
             let response = http
                 .get("https://discord.com/api/v10/gateway/bot")
                 .header("authorization", format!("Bot {bot_token}"))
@@ -394,16 +459,28 @@ impl TwilightTransport {
                 let body = response.json::<GatewayRateLimitBody>().await.map_err(|_| {
                     TransportError::Unavailable("rate-limit body unavailable".to_owned())
                 })?;
+                let retry_after_ms = Self::retry_after_ms(body.retry_after);
+                let TransportAdmission::Wait { retry_after_ms } =
+                    admission_after_limit(body.global, false, retry_after_ms)
+                else {
+                    return Ok(Some(ProviderRateLimit {
+                        retry_after_ms,
+                        global: body.global,
+                    }));
+                };
+                self.note(&TransportError::RateLimited { retry_after_ms });
                 return Ok(Some(ProviderRateLimit {
-                    retry_after_ms: Self::retry_after_ms(body.retry_after),
+                    retry_after_ms,
                     global: body.global,
                 }));
             }
             let status = response.status();
             if !status.is_success() {
-                return Err(TransportError::Rejected {
+                let error = TransportError::Rejected {
                     status: status.as_u16(),
-                });
+                };
+                self.note(&error);
+                return Err(error);
             }
         }
         Ok(None)
@@ -426,12 +503,18 @@ impl TwilightTransport {
         let guild_id = Id::<GuildMarker>::new_checked(guild_id)
             .ok_or(TransportError::Rejected { status: 400 })?;
         let command = diagnostic_command();
-        self.client
+        self.preflight()?;
+        let result = self
+            .client
             .interaction(application_id)
             .set_guild_commands(guild_id, &[command])
             .await
             .map(|_| ())
-            .map_err(|error| Self::map_error(&error))
+            .map_err(|error| Self::map_error(&error));
+        if let Err(error) = &result {
+            self.note(error);
+        }
+        result
     }
 
     fn ids(
@@ -455,13 +538,18 @@ impl TwilightTransport {
         response: InteractionResponse,
     ) -> Result<(), TransportError> {
         let (application_id, interaction_id) = Self::ids(&request)?;
-
-        self.client
+        self.preflight()?;
+        let result = self
+            .client
             .interaction(application_id)
             .create_response(interaction_id, &request.interaction_token, &response)
             .await
             .map(|_| ())
-            .map_err(|error| Self::map_error(&error))
+            .map_err(|error| Self::map_error(&error));
+        if let Err(error) = &result {
+            self.note(error);
+        }
+        result
     }
 
     fn map_error(error: &twilight_http::Error) -> TransportError {
@@ -513,19 +601,31 @@ impl TwilightTransport {
             .map_err(|_| TransportError::Rejected { status: 400 })?;
         let guild_id = Id::<GuildMarker>::new_checked(raw_id)
             .ok_or(TransportError::Rejected { status: 400 })?;
+        self.preflight()?;
         match self.client.guild(guild_id).await {
             Ok(_) => Ok(GuildPresenceInspection {
                 provider_guild_id: provider_guild_id.to_owned(),
                 present: true,
             }),
             Err(error) => match error.kind() {
-                ErrorType::Response { status, .. } if matches!(status.get(), 403 | 404) => {
+                ErrorType::Response { status, .. } if status.get() == 404 => {
                     Ok(GuildPresenceInspection {
                         provider_guild_id: provider_guild_id.to_owned(),
                         present: false,
                     })
                 }
-                _ => Err(Self::map_error(&error)),
+                ErrorType::Response { status, .. } if status.get() == 403 => {
+                    self.note(&TransportError::Rejected { status: 403 });
+                    Ok(GuildPresenceInspection {
+                        provider_guild_id: provider_guild_id.to_owned(),
+                        present: false,
+                    })
+                }
+                _ => {
+                    let mapped = Self::map_error(&error);
+                    self.note(&mapped);
+                    Err(mapped)
+                }
             },
         }
     }
@@ -640,6 +740,145 @@ pub enum TransportAdmission {
     Wait { retry_after_ms: u64 },
 }
 
+/// Discord counts HTTP 401, 403, and 429 toward `10_000` invalid requests in
+/// ten minutes. The circuit opens before that ban.
+pub const INVALID_REQUEST_WINDOW_MS: u64 = 600_000;
+pub const INVALID_REQUEST_LIMIT: u32 = 10_000;
+pub const INVALID_REQUEST_CIRCUIT: u32 = 8_000;
+
+#[derive(Clone, Debug, Default)]
+pub struct InvalidRequestBudget {
+    observed_at_ms: Vec<u64>,
+    credentials_rejected: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EgressGuard {
+    Open,
+    CredentialsRejected,
+    CircuitOpen { retry_after_ms: u64 },
+}
+
+impl InvalidRequestBudget {
+    /// Drops hits outside the ten-minute window and reports whether egress may continue.
+    pub fn guard(&mut self, now_ms: u64) -> EgressGuard {
+        self.prune(now_ms);
+        if self.credentials_rejected {
+            return EgressGuard::CredentialsRejected;
+        }
+        let count = self.count(now_ms);
+        if count < INVALID_REQUEST_CIRCUIT {
+            return EgressGuard::Open;
+        }
+        let oldest = self.observed_at_ms.first().copied().unwrap_or(now_ms);
+        EgressGuard::CircuitOpen {
+            retry_after_ms: INVALID_REQUEST_WINDOW_MS
+                .saturating_sub(now_ms.saturating_sub(oldest))
+                .max(1),
+        }
+    }
+
+    /// Records a provider status. Only 401, 403, and 429 count. 401 stops later egress.
+    pub fn observe_status(&mut self, status: u16, now_ms: u64) {
+        if status == 401 {
+            self.credentials_rejected = true;
+        }
+        if matches!(status, 401 | 403 | 429) {
+            self.observed_at_ms.push(now_ms);
+        }
+    }
+
+    #[must_use]
+    pub fn count(&mut self, now_ms: u64) -> u32 {
+        self.prune(now_ms);
+        u32::try_from(self.observed_at_ms.len()).unwrap_or(u32::MAX)
+    }
+
+    fn prune(&mut self, now_ms: u64) {
+        self.observed_at_ms
+            .retain(|observed| now_ms.saturating_sub(*observed) < INVALID_REQUEST_WINDOW_MS);
+    }
+}
+
+#[derive(Debug, Default)]
+struct TransportGovernor {
+    budget: InvalidRequestBudget,
+    http_429: u64,
+    blocked_until_ms: u64,
+}
+
+impl TransportGovernor {
+    fn preflight(&mut self, now_ms: u64) -> Result<(), TransportError> {
+        if now_ms < self.blocked_until_ms {
+            return Err(TransportError::RateLimited {
+                retry_after_ms: self.blocked_until_ms - now_ms,
+            });
+        }
+        match self.budget.guard(now_ms) {
+            EgressGuard::Open => Ok(()),
+            EgressGuard::CredentialsRejected => Err(TransportError::Rejected { status: 401 }),
+            EgressGuard::CircuitOpen { retry_after_ms } => {
+                Err(TransportError::RateLimited { retry_after_ms })
+            }
+        }
+    }
+
+    fn note(&mut self, error: &TransportError, now_ms: u64) {
+        match error {
+            TransportError::RateLimited { retry_after_ms } => {
+                self.http_429 = self.http_429.saturating_add(1);
+                self.blocked_until_ms = now_ms.saturating_add(*retry_after_ms);
+                self.budget.observe_status(429, now_ms);
+            }
+            TransportError::Rejected { status } => self.budget.observe_status(*status, now_ms),
+            TransportError::Unavailable(_) => {}
+        }
+    }
+}
+
+fn unix_now_ms() -> u64 {
+    u64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |duration| duration.as_millis()),
+    )
+    .unwrap_or(u64::MAX)
+}
+
+/// Form body for a refresh-token grant. It does not carry an authorization code.
+#[must_use]
+pub fn refresh_grant_form(refresh_token: &str) -> [(&str, &str); 2] {
+    [
+        ("grant_type", "refresh_token"),
+        ("refresh_token", refresh_token),
+    ]
+}
+
+/// Maps one Discord limit onto the global, route, or shared-resource window.
+/// The channel window stays open until a channel limit is observed.
+#[must_use]
+pub fn admission_after_limit(
+    global: bool,
+    shared_resource: bool,
+    retry_after_ms: u64,
+) -> TransportAdmission {
+    let blocked = RateSnapshot {
+        remaining: 0,
+        retry_after_ms,
+    };
+    let open = RateSnapshot {
+        remaining: 1,
+        retry_after_ms: 0,
+    };
+    if global {
+        admit_discord_request(blocked, open, open, open)
+    } else if shared_resource {
+        admit_discord_request(open, open, blocked, open)
+    } else {
+        admit_discord_request(open, blocked, open, open)
+    }
+}
+
 /// Admits work only when global, route, guild, and channel windows all have remaining budget.
 #[must_use]
 pub fn admit_discord_request(
@@ -732,9 +971,12 @@ fn diagnostic_command() -> Command {
 #[cfg(test)]
 mod governance_tests {
     use super::{
-        DIAGNOSTIC_COMMAND_NAME, DISCORD_EPOCH_MS, GatewayPhase, RateSnapshot, ShardReadiness,
-        TransportAdmission, acknowledgement_deadline_open, admit_discord_request,
-        diagnostic_command, interaction_created_ms, plan_gateway_session, shard_is_ready,
+        DIAGNOSTIC_COMMAND_NAME, DISCORD_EPOCH_MS, EgressGuard, GatewayPhase,
+        INVALID_REQUEST_CIRCUIT, INVALID_REQUEST_LIMIT, INVALID_REQUEST_WINDOW_MS,
+        InvalidRequestBudget, RateSnapshot, ShardReadiness, TransportAdmission,
+        acknowledgement_deadline_open, admission_after_limit, admit_discord_request,
+        diagnostic_command, interaction_created_ms, plan_gateway_session, refresh_grant_form,
+        shard_is_ready,
     };
 
     fn open() -> RateSnapshot {
@@ -768,6 +1010,46 @@ mod governance_tests {
             admit_discord_request(open(), open(), open(), open()),
             TransportAdmission::Admit
         );
+        assert_eq!(
+            admission_after_limit(true, false, 400),
+            TransportAdmission::Wait {
+                retry_after_ms: 400
+            }
+        );
+        assert_eq!(
+            admission_after_limit(false, true, 250),
+            TransportAdmission::Wait {
+                retry_after_ms: 250
+            }
+        );
+    }
+
+    #[test]
+    fn invalid_requests_open_the_circuit_before_the_ban_and_a_401_stops_egress() {
+        let mut budget = InvalidRequestBudget::default();
+        budget.observe_status(400, 0);
+        assert_eq!(budget.guard(0), EgressGuard::Open);
+        for index in 0..INVALID_REQUEST_CIRCUIT {
+            budget.observe_status(403, u64::from(index));
+        }
+        let now = u64::from(INVALID_REQUEST_CIRCUIT);
+        assert!(matches!(
+            budget.guard(now),
+            EgressGuard::CircuitOpen { .. }
+        ));
+        assert!(budget.count(now) < INVALID_REQUEST_LIMIT);
+        let mut rejected = InvalidRequestBudget::default();
+        rejected.observe_status(401, 0);
+        assert_eq!(rejected.guard(1), EgressGuard::CredentialsRejected);
+        rejected.observe_status(429, INVALID_REQUEST_WINDOW_MS);
+        assert_eq!(rejected.count(INVALID_REQUEST_WINDOW_MS), 1);
+    }
+
+    #[test]
+    fn refresh_grant_is_not_an_authorization_code() {
+        let form = refresh_grant_form("refresh-token");
+        assert_eq!(form[0], ("grant_type", "refresh_token"));
+        assert_eq!(form[1].0, "refresh_token");
     }
 
     #[test]

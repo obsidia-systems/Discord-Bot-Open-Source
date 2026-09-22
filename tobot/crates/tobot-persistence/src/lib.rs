@@ -804,6 +804,34 @@ impl Store {
         .await
     }
 
+    /// Replaces the OAuth credential ciphertext after a refresh grant. Session
+    /// absolute expiry is not a column of this update.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the credential row cannot be updated.
+    pub async fn refresh_oauth_credential(
+        &self,
+        credential_id: Uuid,
+        access_token_ciphertext: &[u8],
+        refresh_token_ciphertext: &[u8],
+        expires_at: OffsetDateTime,
+    ) -> Result<bool, sqlx::Error> {
+        let updated = sqlx::query(
+            "UPDATE identity.oauth_credential \
+             SET access_token_ciphertext = $2, refresh_token_ciphertext = $3, expires_at = $4 \
+             WHERE credential_id = $1 AND revoked_at IS NULL",
+        )
+        .bind(credential_id)
+        .bind(access_token_ciphertext)
+        .bind(refresh_token_ciphertext)
+        .bind(expires_at)
+        .execute(&self.pool)
+        .await?
+        .rows_affected();
+        Ok(updated == 1)
+    }
+
     /// Capability keys on the newest installation that are not Healthy.
     ///
     /// # Errors
