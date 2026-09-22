@@ -20,6 +20,9 @@ https://dash.tobot.test {
 	handle /api/* {
 		reverse_proxy control-plane:8080
 	}
+	handle /auth/login {
+		reverse_proxy dash:4321
+	}
 	handle /auth/* {
 		reverse_proxy control-plane:8080
 	}

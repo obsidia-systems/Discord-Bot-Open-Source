@@ -266,7 +266,7 @@ fn router(state: AppState) -> Router {
     Router::new()
         .route("/health/live", get(live))
         .route("/health/ready", get(ready))
-        .route("/auth/login", get(login))
+        .route("/auth/discord/start", get(login))
         .route("/auth/discord/callback", get(discord_callback))
         .route("/install/discord/callback", get(guild_install_callback))
         .route(
