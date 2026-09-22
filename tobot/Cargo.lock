@@ -2274,8 +2274,11 @@ version = "0.1.0"
 dependencies = [
  "base64",
  "redis",
+ "serde_json",
  "thiserror",
  "tobot-envelope",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

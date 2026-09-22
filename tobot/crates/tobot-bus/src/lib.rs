@@ -99,46 +99,27 @@ impl RedisStreamConsumer {
         })
     }
 
-    /// Creates the durable group when absent and reads new messages.
+    /// Reads this consumer's unacknowledged deliveries before any new entry.
+    /// A restarted process with the same name resumes that pending cursor.
     ///
     /// # Errors
     ///
     /// Returns a Redis error or a malformed-message error.
     pub async fn read(&self) -> Result<Vec<BusMessage>, BusError> {
         let mut connection = open_connection(&self.client).await?;
-        let create: redis::RedisResult<()> = connection
-            .xgroup_create_mkstream(EVENT_STREAM, &self.group, "0")
-            .await;
-        if let Err(error) = create
-            && !error.to_string().contains("BUSYGROUP")
-        {
-            return Err(BusError::Redis(error));
+        ensure_group(&mut connection, &self.group).await?;
+        let pending = read_entries(&mut connection, &self.group, &self.consumer, "0", None).await?;
+        if !pending.is_empty() {
+            return Ok(pending);
         }
-        let options = StreamReadOptions::default()
-            .group(&self.group, &self.consumer)
-            .count(50)
-            .block(1_000);
-        let reply: Option<StreamReadReply> = connection
-            .xread_options(&[EVENT_STREAM], &[">"], &options)
-            .await?;
-        let mut messages = Vec::new();
-        for key in reply.unwrap_or_default().keys {
-            for entry in key.ids {
-                let Some(value) = entry.map.get("envelope") else {
-                    continue;
-                };
-                let encoded: String =
-                    from_redis_value(value.clone()).map_err(|_| BusError::InvalidEnvelope)?;
-                let envelope = URL_SAFE_NO_PAD
-                    .decode(encoded)
-                    .map_err(|_| BusError::InvalidEnvelope)?;
-                messages.push(BusMessage {
-                    stream_id: entry.id,
-                    envelope,
-                });
-            }
-        }
-        Ok(messages)
+        read_entries(
+            &mut connection,
+            &self.group,
+            &self.consumer,
+            ">",
+            Some(1_000),
+        )
+        .await
     }
 
     /// # Errors
@@ -151,4 +132,52 @@ impl RedisStreamConsumer {
             .await?;
         Ok(())
     }
+}
+
+async fn ensure_group(connection: &mut MultiplexedConnection, group: &str) -> Result<(), BusError> {
+    let create: redis::RedisResult<()> = connection
+        .xgroup_create_mkstream(EVENT_STREAM, group, "0")
+        .await;
+    if let Err(error) = create
+        && !error.to_string().contains("BUSYGROUP")
+    {
+        return Err(BusError::Redis(error));
+    }
+    Ok(())
+}
+
+async fn read_entries(
+    connection: &mut MultiplexedConnection,
+    group: &str,
+    consumer: &str,
+    position: &str,
+    block_ms: Option<usize>,
+) -> Result<Vec<BusMessage>, BusError> {
+    let mut options = StreamReadOptions::default()
+        .group(group, consumer)
+        .count(50);
+    if let Some(block_ms) = block_ms {
+        options = options.block(block_ms);
+    }
+    let reply: Option<StreamReadReply> = connection
+        .xread_options(&[EVENT_STREAM], &[position], &options)
+        .await?;
+    let mut messages = Vec::new();
+    for key in reply.unwrap_or_default().keys {
+        for entry in key.ids {
+            let Some(value) = entry.map.get("envelope") else {
+                continue;
+            };
+            let encoded: String =
+                from_redis_value(value.clone()).map_err(|_| BusError::InvalidEnvelope)?;
+            let envelope = URL_SAFE_NO_PAD
+                .decode(encoded)
+                .map_err(|_| BusError::InvalidEnvelope)?;
+            messages.push(BusMessage {
+                stream_id: entry.id,
+                envelope,
+            });
+        }
+    }
+    Ok(messages)
 }

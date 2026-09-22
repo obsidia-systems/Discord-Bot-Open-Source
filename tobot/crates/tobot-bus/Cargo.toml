@@ -12,5 +12,12 @@ redis.workspace = true
 thiserror.workspace = true
 tobot-envelope = { path = "../tobot-envelope" }
 
+[dev-dependencies]
+redis.workspace = true
+serde_json.workspace = true
+tobot-envelope = { path = "../tobot-envelope" }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+uuid.workspace = true
+
 [lints]
 workspace = true

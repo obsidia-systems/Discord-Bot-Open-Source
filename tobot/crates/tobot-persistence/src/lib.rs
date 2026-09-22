@@ -141,7 +141,7 @@ pub struct VerifyingInstallation<'a> {
     pub received_at: OffsetDateTime,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Clone, Debug, sqlx::FromRow)]
 pub struct ClaimedInstallationVerification {
     pub installation_id: Uuid,
     pub tenant_id: Uuid,

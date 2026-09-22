@@ -17,6 +17,7 @@ uuid.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
+sqlx.workspace = true
 time.workspace = true
 tobot-core = { path = "../tobot-core" }
 tobot-envelope = { path = "../tobot-envelope" }

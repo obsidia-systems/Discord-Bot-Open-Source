@@ -1,0 +1,330 @@
+//! Query inbox replay and installation negatives that the domain types cannot
+//! prove: a foreign session, a bound redirect, and `Installed` only after both
+//! capability rows are Healthy.
+
+use std::env;
+
+use time::{Duration, OffsetDateTime};
+use tobot_envelope::{EventEnvelope, TraceContext};
+use tobot_persistence::{
+    ClaimedInstallationVerification, NewInstallAuthorization, Store, VerifyingInstallation,
+};
+use uuid::Uuid;
+
+#[tokio::test]
+async fn restarted_projection_keeps_its_inbox_cursor() -> Result<(), String> {
+    let Some(store) = connect().await? else {
+        return Ok(());
+    };
+    let tenant_id = Uuid::now_v7();
+    let guild_id = format!("guild-{tenant_id}");
+    let installed = installation_event(tenant_id, &guild_id, 2, "Installed");
+    let raw = serde_json::to_vec(&installed).map_err(|error| error.to_string())?;
+    let first_at = OffsetDateTime::now_utc()
+        .replace_nanosecond(0)
+        .map_err(|error| error.to_string())?;
+    store
+        .apply_installation_projection(&installed, &raw, "1-0", first_at)
+        .await
+        .map_err(|error| error.to_string())?;
+    store
+        .apply_installation_projection(&installed, &raw, "1-0", first_at + Duration::minutes(5))
+        .await
+        .map_err(|error| error.to_string())?;
+    let shell = store
+        .guild_shell_for_provider_guilds(tenant_id, std::slice::from_ref(&guild_id))
+        .await
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "installed shell was not projected".to_owned())?;
+    if shell.projection_watermark != first_at || shell.installation_generation != Some(2) {
+        return Err("replaying an inbox entry moved the projection".to_owned());
+    }
+
+    let older = installation_event(tenant_id, &guild_id, 1, "Verifying");
+    let older_raw = serde_json::to_vec(&older).map_err(|error| error.to_string())?;
+    store
+        .apply_installation_projection(&older, &older_raw, "1-1", first_at + Duration::minutes(6))
+        .await
+        .map_err(|error| error.to_string())?;
+    let after_older = store
+        .guild_shell_for_provider_guilds(tenant_id, &[guild_id])
+        .await
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "shell disappeared after an older fact".to_owned())?;
+    if after_older.installation_state != "Installed"
+        || after_older.installation_generation != Some(2)
+    {
+        return Err("an older generation replaced the installed projection".to_owned());
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn install_callback_rejects_a_foreign_session_and_stays_degraded_without_presence()
+-> Result<(), String> {
+    let Some(store) = connect().await? else {
+        return Ok(());
+    };
+    let now = OffsetDateTime::now_utc();
+    let account_id = Uuid::now_v7();
+    let session_id = Uuid::now_v7();
+    let guild_id = format!("guild-{account_id}");
+    let redirect_uri = "https://dash.tobot.test/install/discord/callback";
+    let transaction_id = Uuid::now_v7();
+    create_install(
+        &store,
+        transaction_id,
+        account_id,
+        session_id,
+        &guild_id,
+        redirect_uri,
+        now + Duration::minutes(10),
+    )
+    .await?;
+    let state_hash = state_hash_for(&guild_id);
+
+    if store
+        .consume_install_authorization(&state_hash, account_id, Uuid::now_v7(), now)
+        .await
+        .map_err(|error| error.to_string())?
+        .is_some()
+    {
+        return Err("a foreign session consumed the install".to_owned());
+    }
+    let consumed = store
+        .consume_install_authorization(&state_hash, account_id, session_id, now)
+        .await
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "the bound session did not consume the install".to_owned())?;
+    if consumed.redirect_uri != redirect_uri {
+        return Err("consume returned a redirect other than the bound one".to_owned());
+    }
+    if store
+        .consume_install_authorization(&state_hash, account_id, session_id, now)
+        .await
+        .map_err(|error| error.to_string())?
+        .is_some()
+    {
+        return Err("install state was replayed".to_owned());
+    }
+
+    let hint = "callback-hint-is-not-the-guild";
+    let tenant_id = store
+        .record_verifying_installation(VerifyingInstallation {
+            transaction_id: consumed.transaction_id,
+            candidate_tenant_id: Uuid::now_v7(),
+            provider_guild_id: &guild_id,
+            application_id: "app",
+            generation: consumed.generation,
+            frozen_manifest: &consumed.frozen_manifest,
+            provider_guild_hint: Some(hint),
+            permissions_hint: Some("8"),
+            received_at: now,
+        })
+        .await
+        .map_err(|error| error.to_string())?;
+    let stored_guild: String = sqlx::query_scalar(
+        "SELECT provider_tenant_ref FROM installation.tenant WHERE tenant_id = $1",
+    )
+    .bind(tenant_id)
+    .fetch_one(store.pool())
+    .await
+    .map_err(|error| error.to_string())?;
+    if stored_guild != guild_id {
+        return Err("the callback hint became the tenant reference".to_owned());
+    }
+
+    let claim = claim_guild(&store, &guild_id, now).await?;
+    reject_stale_fence(&store, &claim, now).await?;
+    store
+        .complete_installation_verification(&claim, false, now)
+        .await
+        .map_err(|error| error.to_string())?;
+    let persisted = installation_state(&store, claim.installation_id).await?;
+    if persisted != "Degraded" {
+        return Err("missing bot presence became Installed".to_owned());
+    }
+    let installed = verify_guild(&store, now, true).await?;
+    if installed != "Installed" {
+        return Err("healthy capabilities stayed below Installed".to_owned());
+    }
+    Ok(())
+}
+
+async fn claim_guild(
+    store: &Store,
+    guild_id: &str,
+    now: OffsetDateTime,
+) -> Result<ClaimedInstallationVerification, String> {
+    let claim = store
+        .claim_installation_verification(now)
+        .await
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "verifying installation was not claimed".to_owned())?;
+    if claim.provider_guild_id != guild_id {
+        return Err("verification claim belonged to another guild".to_owned());
+    }
+    Ok(claim)
+}
+
+async fn reject_stale_fence(
+    store: &Store,
+    claim: &ClaimedInstallationVerification,
+    now: OffsetDateTime,
+) -> Result<(), String> {
+    let stale = ClaimedInstallationVerification {
+        fencing_token: 0,
+        ..claim.clone()
+    };
+    if store
+        .complete_installation_verification(&stale, false, now)
+        .await
+        .is_ok()
+    {
+        return Err("a stale fencing token completed verification".to_owned());
+    }
+    Ok(())
+}
+
+async fn verify_guild(
+    store: &Store,
+    now: OffsetDateTime,
+    bot_present: bool,
+) -> Result<String, String> {
+    let account_id = Uuid::now_v7();
+    let session_id = Uuid::now_v7();
+    let guild_id = format!("guild-{account_id}");
+    let transaction_id = Uuid::now_v7();
+    create_install(
+        store,
+        transaction_id,
+        account_id,
+        session_id,
+        &guild_id,
+        "https://dash.tobot.test/install/discord/callback",
+        now + Duration::minutes(10),
+    )
+    .await?;
+    let consumed = store
+        .consume_install_authorization(&state_hash_for(&guild_id), account_id, session_id, now)
+        .await
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "healthy install was not consumed".to_owned())?;
+    store
+        .record_verifying_installation(VerifyingInstallation {
+            transaction_id,
+            candidate_tenant_id: Uuid::now_v7(),
+            provider_guild_id: &guild_id,
+            application_id: "app",
+            generation: consumed.generation,
+            frozen_manifest: &consumed.frozen_manifest,
+            provider_guild_hint: None,
+            permissions_hint: None,
+            received_at: now,
+        })
+        .await
+        .map_err(|error| error.to_string())?;
+    let claim = claim_guild(store, &guild_id, now).await?;
+    store
+        .complete_installation_verification(&claim, bot_present, now)
+        .await
+        .map_err(|error| error.to_string())?;
+    installation_state(store, claim.installation_id).await
+}
+
+async fn create_install(
+    store: &Store,
+    transaction_id: Uuid,
+    account_id: Uuid,
+    session_id: Uuid,
+    guild_id: &str,
+    redirect_uri: &str,
+    expires_at: OffsetDateTime,
+) -> Result<(), String> {
+    let scopes = vec!["bot".to_owned(), "applications.commands".to_owned()];
+    let manifest = serde_json::json!({ "permissions": "0" });
+    store
+        .create_guild_install_authorization(NewInstallAuthorization {
+            transaction_id,
+            state_hash: &state_hash_for(guild_id),
+            verifier_ciphertext: b"ciphertext-not-a-verifier",
+            account_id,
+            session_id,
+            provider_guild_id: guild_id,
+            redirect_uri,
+            requested_scopes: &scopes,
+            frozen_manifest: &manifest,
+            expires_at,
+            preset: "GuildInstall",
+        })
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+async fn installation_state(store: &Store, installation_id: Uuid) -> Result<String, String> {
+    sqlx::query_scalar("SELECT state FROM installation.installation WHERE installation_id = $1")
+        .bind(installation_id)
+        .fetch_one(store.pool())
+        .await
+        .map_err(|error| error.to_string())
+}
+
+fn state_hash_for(guild_id: &str) -> Vec<u8> {
+    guild_id.as_bytes().to_vec()
+}
+
+fn installation_event(
+    tenant_id: Uuid,
+    guild_id: &str,
+    generation: i64,
+    state: &str,
+) -> EventEnvelope {
+    let event_id = Uuid::now_v7();
+    EventEnvelope {
+        event_id,
+        schema_name: "InstallationStateChanged".to_owned(),
+        schema_version: 1,
+        occurred_at: "2026-09-22T08:20:18Z".to_owned(),
+        received_at: "2026-09-22T08:20:18Z".to_owned(),
+        application_id: "app".to_owned(),
+        tenant_id: Some(tenant_id),
+        guild_id: Some(guild_id.to_owned()),
+        shard_id: None,
+        session_id: None,
+        gateway_sequence: None,
+        correlation_id: event_id,
+        causation_id: None,
+        trace_context: TraceContext {
+            trace_id: event_id.to_string(),
+            span_id: event_id.to_string(),
+        },
+        payload: serde_json::json!({
+            "generation": generation,
+            "state": state,
+            "capabilities": { "bot_presence": "Healthy" }
+        }),
+    }
+}
+
+async fn connect() -> Result<Option<Store>, String> {
+    let Ok(url) = env::var("TOBOT_TEST_DATABASE_URL") else {
+        if env::var("TOBOT_REQUIRE_POSTGRES").is_ok() {
+            return Err("TOBOT_TEST_DATABASE_URL is required".to_owned());
+        }
+        return Ok(None);
+    };
+    let database_name = url
+        .split('?')
+        .next()
+        .and_then(|path| path.rsplit('/').next())
+        .unwrap_or("");
+    if database_name != "tobot_test" {
+        return Err("refusing to run receipts against a database other than tobot_test".to_owned());
+    }
+    let store = Store::connect(&url)
+        .await
+        .map_err(|error| error.to_string())?;
+    store.migrate().await.map_err(|error| error.to_string())?;
+    Ok(Some(store))
+}
