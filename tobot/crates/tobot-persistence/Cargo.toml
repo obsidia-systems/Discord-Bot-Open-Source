@@ -9,6 +9,7 @@ publish.workspace = true
 [dependencies]
 serde_json.workspace = true
 sqlx.workspace = true
+subtle.workspace = true
 time.workspace = true
 tobot-core = { path = "../tobot-core" }
 tobot-envelope = { path = "../tobot-envelope" }

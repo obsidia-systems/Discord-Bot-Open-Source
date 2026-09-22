@@ -2,6 +2,7 @@
 //! deployment; application binaries never auto-migrate production databases.
 
 use sqlx::{PgPool, postgres::PgPoolOptions};
+use subtle::ConstantTimeEq;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tobot_core::{TenantContext, TenantId};
 use tobot_envelope::{EventEnvelope, TraceContext};
@@ -166,6 +167,7 @@ pub struct ConsumedInstallAuthorization {
     pub redirect_uri: String,
     pub requested_scopes: Vec<String>,
     pub frozen_manifest: serde_json::Value,
+    pub preset: String,
 }
 
 pub struct VerifyingInstallation<'a> {
@@ -361,7 +363,7 @@ impl Store {
              WHERE state_hash = $1 AND account_id = $2 AND session_id = $3 \
                AND consumed_at IS NULL AND expires_at >= $4 \
              RETURNING transaction_id, provider_guild_id, generation, verifier_ciphertext, \
-                       redirect_uri, requested_scopes, frozen_manifest",
+                       redirect_uri, requested_scopes, frozen_manifest, preset",
         )
         .bind(state_hash)
         .bind(account_id)
@@ -381,6 +383,30 @@ impl Store {
         &self,
         request: VerifyingInstallation<'_>,
     ) -> Result<Uuid, sqlx::Error> {
+        self.insert_verifying_installation(request, false)
+            .await?
+            .ok_or(sqlx::Error::RowNotFound)
+    }
+
+    /// Opens the next installation generation only when the current one is
+    /// `Degraded` and a required capability is not Healthy. Discord inspection
+    /// still decides the resulting state.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error and leaves the current generation unchanged.
+    pub async fn record_repair_installation(
+        &self,
+        request: VerifyingInstallation<'_>,
+    ) -> Result<Option<Uuid>, sqlx::Error> {
+        self.insert_verifying_installation(request, true).await
+    }
+
+    async fn insert_verifying_installation(
+        &self,
+        request: VerifyingInstallation<'_>,
+        repair_only: bool,
+    ) -> Result<Option<Uuid>, sqlx::Error> {
         let mut transaction = self.pool.begin().await?;
         sqlx::query(
             "INSERT INTO installation.tenant \
@@ -402,6 +428,12 @@ impl Store {
         .bind(request.application_id)
         .fetch_one(&mut *transaction)
         .await?;
+        if repair_only
+            && !missing_capability_allows_repair(&mut transaction, tenant_id, request.generation)
+                .await?
+        {
+            return Ok(None);
+        }
         let installation_id = Uuid::now_v7();
         sqlx::query(
             "INSERT INTO installation.installation \
@@ -452,7 +484,7 @@ impl Store {
         )
         .await?;
         transaction.commit().await?;
-        Ok(tenant_id)
+        Ok(Some(tenant_id))
     }
 
     /// Claims one due verification with a short lease and fencing token.
@@ -579,6 +611,74 @@ impl Store {
         transaction.commit().await
     }
 
+    /// Newest `Installed` guild ids for one application. A departure that already
+    /// moved the newest generation off `Installed` is not listed.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the installation rows cannot be read.
+    pub async fn installed_provider_guild_ids(
+        &self,
+        application_id: &str,
+    ) -> Result<Vec<String>, sqlx::Error> {
+        sqlx::query_scalar(
+            "SELECT tenant.provider_tenant_ref \
+             FROM installation.installation AS install \
+             JOIN installation.tenant AS tenant ON tenant.tenant_id = install.tenant_id \
+             WHERE tenant.tenant_type = 'Guild' \
+               AND tenant.application_id = $1 \
+               AND install.state = 'Installed' \
+               AND install.generation = ( \
+                 SELECT MAX(newest.generation) FROM installation.installation AS newest \
+                 WHERE newest.tenant_id = install.tenant_id \
+               ) \
+             ORDER BY tenant.provider_tenant_ref",
+        )
+        .bind(application_id)
+        .fetch_all(&self.pool)
+        .await
+    }
+
+    /// Marks the newest `Installed` generation `Degraded` after Discord reports
+    /// that the bot left the guild. An outage is not this call. A guild with
+    /// no installed generation is left unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error and leaves the installation unchanged.
+    pub async fn record_bot_departure(
+        &self,
+        application_id: &str,
+        provider_guild_id: &str,
+        observed_at: OffsetDateTime,
+    ) -> Result<bool, sqlx::Error> {
+        let mut transaction = self.pool.begin().await?;
+        let latest =
+            lock_latest_installation(&mut transaction, provider_guild_id, application_id).await?;
+        let Some((installation_id, tenant_id, generation)) = latest else {
+            return Ok(false);
+        };
+        mark_bot_presence_absent(&mut transaction, installation_id, observed_at).await?;
+        insert_installation_state_event(
+            &mut transaction,
+            InstallationStateEvent {
+                tenant_id,
+                provider_guild_id,
+                application_id,
+                generation,
+                state: "Degraded",
+                capabilities: serde_json::json!({
+                    "application_install_context": "Healthy",
+                    "bot_presence": "Degraded"
+                }),
+                occurred_at: observed_at,
+            },
+        )
+        .await?;
+        transaction.commit().await?;
+        Ok(true)
+    }
+
     /// Releases a transiently failed claim for bounded retry.
     ///
     /// # Errors
@@ -616,8 +716,16 @@ impl Store {
             .execute(&mut *transaction)
             .await?;
         let generation: i64 = sqlx::query_scalar(
-            "SELECT COALESCE(MAX(generation), 0) + 1 \
-             FROM installation.authorization_transaction WHERE provider_guild_id = $1",
+            "SELECT GREATEST( \
+               COALESCE((SELECT MAX(generation) FROM installation.authorization_transaction \
+                         WHERE provider_guild_id = $1), 0), \
+               COALESCE((SELECT MAX(install.generation) \
+                         FROM installation.installation AS install \
+                         JOIN installation.tenant AS tenant \
+                           ON tenant.tenant_id = install.tenant_id \
+                         WHERE tenant.tenant_type = 'Guild' \
+                           AND tenant.provider_tenant_ref = $1), 0) \
+             ) + 1",
         )
         .bind(request.provider_guild_id)
         .fetch_one(&mut *transaction)
@@ -694,6 +802,56 @@ impl Store {
         .bind(now)
         .fetch_optional(&self.pool)
         .await
+    }
+
+    /// Capability keys on the newest installation that are not Healthy.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the capability rows cannot be read.
+    pub async fn missing_capability_keys(
+        &self,
+        tenant_id: Uuid,
+    ) -> Result<Vec<String>, sqlx::Error> {
+        sqlx::query_scalar(
+            "SELECT capability.capability_key \
+             FROM installation.installation AS install \
+             JOIN installation.module_capability AS capability \
+               ON capability.installation_id = install.installation_id \
+             WHERE install.tenant_id = $1 \
+               AND install.generation = ( \
+                 SELECT MAX(generation) FROM installation.installation WHERE tenant_id = $1 \
+               ) \
+               AND capability.health_state <> 'Healthy' \
+             ORDER BY capability.capability_key",
+        )
+        .bind(tenant_id)
+        .fetch_all(&self.pool)
+        .await
+    }
+
+    /// Compares a presented CSRF digest with the active session. An expired,
+    /// revoked, or unknown session does not match.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the session digest cannot be read.
+    pub async fn active_session_csrf_matches(
+        &self,
+        session_id: Uuid,
+        presented_hash: &[u8],
+        now: OffsetDateTime,
+    ) -> Result<bool, sqlx::Error> {
+        let stored: Option<Vec<u8>> = sqlx::query_scalar(
+            "SELECT csrf_secret_hash FROM identity.authorization_session \
+             WHERE session_id = $1 AND revoked_at IS NULL \
+               AND idle_expires_at >= $2 AND absolute_expires_at >= $2",
+        )
+        .bind(session_id)
+        .bind(now)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(stored.is_some_and(|hash| hash.as_slice().ct_eq(presented_hash).unwrap_u8() == 1))
     }
 
     /// Replaces one account's guild discovery snapshot atomically. The
@@ -886,6 +1044,7 @@ impl Store {
         .bind(request.absolute_expires_at)
         .execute(&mut *transaction)
         .await?;
+        revoke_other_sessions(&mut transaction, account_id, request.session_id).await?;
         transaction.commit().await?;
         Ok(CreatedAuthorization {
             account_id,
@@ -1578,6 +1737,113 @@ async fn insert_audit_event(
     .execute(&mut **transaction)
     .await?;
     Ok(())
+}
+
+async fn lock_latest_installation(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    provider_guild_id: &str,
+    application_id: &str,
+) -> Result<Option<(Uuid, Uuid, i64)>, sqlx::Error> {
+    let latest: Option<(Uuid, Uuid, i64, String)> = sqlx::query_as(
+        "SELECT install.installation_id, install.tenant_id, install.generation, install.state \
+         FROM installation.installation AS install \
+         JOIN installation.tenant AS tenant ON tenant.tenant_id = install.tenant_id \
+         WHERE tenant.tenant_type = 'Guild' \
+           AND tenant.provider_tenant_ref = $1 \
+           AND tenant.application_id = $2 \
+         ORDER BY install.generation DESC \
+         LIMIT 1 \
+         FOR UPDATE OF install",
+    )
+    .bind(provider_guild_id)
+    .bind(application_id)
+    .fetch_optional(&mut **transaction)
+    .await?;
+    let Some((installation_id, tenant_id, generation, state)) = latest else {
+        return Ok(None);
+    };
+    if state != "Installed" {
+        return Ok(None);
+    }
+    let updated = sqlx::query(
+        "UPDATE installation.installation SET state = 'Degraded' \
+         WHERE installation_id = $1 AND state = 'Installed'",
+    )
+    .bind(installation_id)
+    .execute(&mut **transaction)
+    .await?
+    .rows_affected();
+    if updated == 1 {
+        Ok(Some((installation_id, tenant_id, generation)))
+    } else {
+        Ok(None)
+    }
+}
+
+async fn mark_bot_presence_absent(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    installation_id: Uuid,
+    observed_at: OffsetDateTime,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO installation.module_capability \
+         (installation_id, module_key, capability_key, health_state, reason_code, observed_at) \
+         VALUES ($1, 'platform_probe', 'bot_presence', 'Degraded', \
+                 'bot_guild_presence_absent', $2) \
+         ON CONFLICT (installation_id, module_key, capability_key) DO UPDATE SET \
+           health_state = EXCLUDED.health_state, reason_code = EXCLUDED.reason_code, \
+           observed_at = EXCLUDED.observed_at",
+    )
+    .bind(installation_id)
+    .bind(observed_at)
+    .execute(&mut **transaction)
+    .await?;
+    Ok(())
+}
+
+async fn revoke_other_sessions(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    account_id: Uuid,
+    session_id: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE identity.authorization_session \
+         SET revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP) \
+         WHERE account_id = $1 AND session_id <> $2 AND revoked_at IS NULL",
+    )
+    .bind(account_id)
+    .bind(session_id)
+    .execute(&mut **transaction)
+    .await?;
+    Ok(())
+}
+
+async fn missing_capability_allows_repair(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    next_generation: i64,
+) -> Result<bool, sqlx::Error> {
+    let latest: Option<(Uuid, i64, String)> = sqlx::query_as(
+        "SELECT installation_id, generation, state FROM installation.installation \
+         WHERE tenant_id = $1 ORDER BY generation DESC LIMIT 1 FOR UPDATE",
+    )
+    .bind(tenant_id)
+    .fetch_optional(&mut **transaction)
+    .await?;
+    let Some((installation_id, generation, state)) = latest else {
+        return Ok(false);
+    };
+    if state != "Degraded" || next_generation <= generation {
+        return Ok(false);
+    }
+    let missing: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM installation.module_capability \
+         WHERE installation_id = $1 AND health_state <> 'Healthy'",
+    )
+    .bind(installation_id)
+    .fetch_one(&mut **transaction)
+    .await?;
+    Ok(missing > 0)
 }
 
 async fn insert_installation_state_event(

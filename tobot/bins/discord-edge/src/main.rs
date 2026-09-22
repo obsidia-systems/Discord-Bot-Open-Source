@@ -197,14 +197,28 @@ async fn run_gateway(
         };
         health.observe(&event);
         match &event {
-            Event::Ready(_) => info!(shard = shard.id().number(), "gateway identify completed"),
-            Event::Resumed => info!(shard = shard.id().number(), "gateway resume completed"),
+            Event::Ready(ready) => {
+                info!(shard = shard.id().number(), "gateway identify completed");
+                let present: Vec<String> = ready
+                    .guilds
+                    .iter()
+                    .map(|guild| guild.id.to_string())
+                    .collect();
+                reconcile_installed_snapshot(store, application_id, &present).await;
+            }
+            Event::Resumed => {
+                info!(shard = shard.id().number(), "gateway resume completed");
+                reconcile_installed_presence(discord, store, application_id).await;
+            }
             Event::GatewayInvalidateSession(_) => {
                 store.delete_gateway_session(0).await?;
                 warn!(shard = shard.id().number(), "gateway session invalidated");
             }
             Event::GuildCreate(guild) => {
                 register_diagnostic(discord, application_snowflake, guild.id().get()).await;
+            }
+            Event::GuildDelete(deletion) => {
+                observe_guild_departure(store, application_id, deletion).await;
             }
             _ => {}
         }
@@ -263,6 +277,92 @@ fn ingress_failure_class(error: &anyhow::Error) -> String {
         message
     };
     safe.trim().to_owned()
+}
+
+/// Discord omits `unavailable` when the bot is removed. `true` is an outage
+/// and must leave the installation alone.
+fn bot_left_guild(unavailable: Option<bool>) -> bool {
+    unavailable.is_none()
+}
+
+fn guilds_absent_from_snapshot<'a>(installed: &'a [String], present: &[String]) -> Vec<&'a str> {
+    installed
+        .iter()
+        .filter(|guild_id| !present.iter().any(|present_id| present_id == *guild_id))
+        .map(String::as_str)
+        .collect()
+}
+
+async fn reconcile_installed_snapshot(store: &Store, application_id: &str, present: &[String]) {
+    let Ok(installed) = store.installed_provider_guild_ids(application_id).await else {
+        warn!("installed guilds could not be listed for presence reconciliation");
+        return;
+    };
+    for guild_id in guilds_absent_from_snapshot(&installed, present) {
+        record_absent_bot(store, application_id, guild_id).await;
+    }
+}
+
+async fn reconcile_installed_presence(
+    discord: &TwilightTransport,
+    store: &Store,
+    application_id: &str,
+) {
+    let Ok(installed) = store.installed_provider_guild_ids(application_id).await else {
+        warn!("installed guilds could not be listed for presence reconciliation");
+        return;
+    };
+    for guild_id in installed {
+        match discord.inspect_guild_presence(&guild_id).await {
+            Ok(observation)
+                if !observation.present && observation.provider_guild_id == guild_id =>
+            {
+                record_absent_bot(store, application_id, &guild_id).await;
+            }
+            Ok(_) => {}
+            Err(error) => warn!(
+                guild_id = %guild_id,
+                class = transport_class(&error),
+                "presence reconciliation skipped"
+            ),
+        }
+    }
+}
+
+async fn record_absent_bot(store: &Store, application_id: &str, guild_id: &str) {
+    match store
+        .record_bot_departure(application_id, guild_id, OffsetDateTime::now_utc())
+        .await
+    {
+        Ok(true) => {
+            info!(guild_id = %guild_id, "installed guild has no bot; installation degraded");
+        }
+        Ok(false) => {}
+        Err(_) => warn!(guild_id = %guild_id, "absent bot was not recorded"),
+    }
+}
+
+async fn observe_guild_departure(
+    store: &Store,
+    application_id: &str,
+    deletion: &twilight_model::gateway::payload::incoming::GuildDelete,
+) {
+    let guild_id = deletion.id.to_string();
+    if !bot_left_guild(deletion.unavailable) {
+        info!(
+            guild_id = %guild_id,
+            "guild unavailable; installation unchanged"
+        );
+        return;
+    }
+    match store
+        .record_bot_departure(application_id, &guild_id, OffsetDateTime::now_utc())
+        .await
+    {
+        Ok(true) => info!(guild_id = %guild_id, "bot left guild; installation degraded"),
+        Ok(false) => info!(guild_id = %guild_id, "bot left a guild with no installed shell"),
+        Err(_) => warn!(guild_id = %guild_id, "bot departure was not recorded"),
+    }
 }
 
 async fn register_diagnostic(discord: &TwilightTransport, application_id: u64, guild_id: u64) {
@@ -591,6 +691,24 @@ mod tests {
     use tobot_discord_adapter::shard_is_ready;
     use tower::ServiceExt as _;
     use twilight_gateway::Event;
+
+    #[test]
+    fn ready_snapshot_marks_only_missing_installed_guilds() {
+        let installed = vec!["111".to_owned(), "222".to_owned()];
+        let present = vec!["222".to_owned(), "333".to_owned()];
+        assert_eq!(
+            super::guilds_absent_from_snapshot(&installed, &present),
+            vec!["111"]
+        );
+        assert!(super::guilds_absent_from_snapshot(&installed, &installed).is_empty());
+    }
+
+    #[test]
+    fn guild_delete_without_unavailable_means_the_bot_left() {
+        assert!(super::bot_left_guild(None));
+        assert!(!super::bot_left_guild(Some(true)));
+        assert!(!super::bot_left_guild(Some(false)));
+    }
 
     #[test]
     fn shard_becomes_ready_only_after_session_and_heartbeat_ack() {

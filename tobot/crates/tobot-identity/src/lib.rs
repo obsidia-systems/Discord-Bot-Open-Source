@@ -37,6 +37,8 @@ pub enum IdentityError {
     RedirectMismatch,
     #[error("OAuth scopes do not match the transaction")]
     ScopeMismatch,
+    #[error("PKCE method is not S256")]
+    PkceRejected,
     #[error("CSRF proof does not match the active session")]
     InvalidCsrf,
     #[error("request Origin does not match the allowed dashboard origin")]
@@ -97,6 +99,24 @@ impl OAuthTransaction {
         }
         self.consumed_at = Some(now);
         Ok(())
+    }
+}
+
+#[must_use]
+pub const fn pkce_s256() -> &'static str {
+    "S256"
+}
+
+/// `plain` and every method other than S256 are rejected before token exchange.
+///
+/// # Errors
+///
+/// Returns [`IdentityError::PkceRejected`] when the method is not S256.
+pub fn reject_pkce_method(method: &str) -> Result<(), IdentityError> {
+    if method == pkce_s256() {
+        Ok(())
+    } else {
+        Err(IdentityError::PkceRejected)
     }
 }
 
@@ -331,6 +351,12 @@ mod tests {
             ),
             Err(IdentityError::ScopeMismatch)
         );
+        assert_eq!(
+            reject_pkce_method("plain"),
+            Err(IdentityError::PkceRejected)
+        );
+        assert_eq!(reject_pkce_method(""), Err(IdentityError::PkceRejected));
+        assert_eq!(reject_pkce_method(pkce_s256()), Ok(()));
     }
 
     #[test]

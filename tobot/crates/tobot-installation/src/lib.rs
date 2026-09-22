@@ -3,7 +3,7 @@
 use std::time::SystemTime;
 
 use serde::Serialize;
-use tobot_identity::OAuthTransaction;
+use tobot_identity::{OAuthTransaction, pkce_s256};
 use url::Url;
 use uuid::Uuid;
 
@@ -272,7 +272,7 @@ impl UserInstallAuthorization {
             .append_pair("scope", &self.scopes.join(" "))
             .append_pair("state", &self.state)
             .append_pair("code_challenge", &self.code_challenge)
-            .append_pair("code_challenge_method", "S256")
+            .append_pair("code_challenge_method", pkce_s256())
             .append_pair("permissions", "0")
             .append_pair("integration_type", "1");
         Ok(url)
@@ -296,7 +296,7 @@ fn guild_authorize_url(
         .append_pair("scope", &scopes.join(" "))
         .append_pair("state", state)
         .append_pair("code_challenge", code_challenge)
-        .append_pair("code_challenge_method", "S256")
+        .append_pair("code_challenge_method", pkce_s256())
         .append_pair("guild_id", guild_id)
         .append_pair("disable_guild_select", "true")
         .append_pair("integration_type", "0")

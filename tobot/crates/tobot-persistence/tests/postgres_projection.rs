@@ -145,9 +145,93 @@ async fn install_callback_rejects_a_foreign_session_and_stays_degraded_without_p
         return Err("missing bot presence became Installed".to_owned());
     }
     admit_repair(&store, account_id, session_id, &guild_id, now).await?;
+    execute_repair(&store, account_id, session_id, &guild_id, tenant_id, now).await?;
+    leave_installed_guild(&store, &guild_id, tenant_id, now).await?;
     let installed = verify_guild(&store, now, true).await?;
     if installed != "Installed" {
         return Err("healthy capabilities stayed below Installed".to_owned());
+    }
+    Ok(())
+}
+
+async fn leave_installed_guild(
+    store: &Store,
+    guild_id: &str,
+    tenant_id: Uuid,
+    now: OffsetDateTime,
+) -> Result<(), String> {
+    let installed = store
+        .installed_provider_guild_ids("app")
+        .await
+        .map_err(|error| error.to_string())?;
+    if !installed.iter().any(|id| id == guild_id) {
+        return Err("the installed guild was missing from presence reconciliation".to_owned());
+    }
+    if !store
+        .record_bot_departure("app", guild_id, now)
+        .await
+        .map_err(|error| error.to_string())?
+    {
+        return Err("leaving the guild left the installation Installed".to_owned());
+    }
+    let after = store
+        .installed_provider_guild_ids("app")
+        .await
+        .map_err(|error| error.to_string())?;
+    if after.iter().any(|id| id == guild_id) {
+        return Err("a departed guild stayed in the installed reconciliation set".to_owned());
+    }
+    if store
+        .record_bot_departure("app", guild_id, now + Duration::seconds(1))
+        .await
+        .map_err(|error| error.to_string())?
+    {
+        return Err("a second departure rewrote the degraded installation".to_owned());
+    }
+    if store
+        .record_bot_departure("app", "guild-not-installed", now)
+        .await
+        .map_err(|error| error.to_string())?
+    {
+        return Err("an unknown guild was degraded".to_owned());
+    }
+    let generation: i64 = sqlx::query_scalar(
+        "SELECT generation FROM installation.installation \
+         WHERE tenant_id = $1 AND state = 'Degraded' \
+         ORDER BY generation DESC LIMIT 1",
+    )
+    .bind(tenant_id)
+    .fetch_one(store.pool())
+    .await
+    .map_err(|error| error.to_string())?;
+    if generation != 2 {
+        return Err("departure degraded a generation other than the installed one".to_owned());
+    }
+    let raw: Vec<u8> = sqlx::query_scalar(
+        "SELECT envelope FROM installation.event_outbox \
+         WHERE tenant_id = $1 AND topic = 'InstallationStateChanged' \
+         ORDER BY available_at DESC, outbox_id DESC LIMIT 1",
+    )
+    .bind(tenant_id)
+    .fetch_one(store.pool())
+    .await
+    .map_err(|error| error.to_string())?;
+    let event: EventEnvelope = serde_json::from_slice(&raw).map_err(|error| error.to_string())?;
+    store
+        .apply_installation_projection(&event, &raw, "departure-1", now)
+        .await
+        .map_err(|error| error.to_string())?;
+    let guilds = [guild_id.to_owned()];
+    let shell = store
+        .guild_shell_for_provider_guilds(tenant_id, &guilds)
+        .await
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "departure was not projected".to_owned())?;
+    if shell.installation_state != "Degraded" || shell.health_state != "Degraded" {
+        return Err("the projected shell stayed Installed after the bot left".to_owned());
+    }
+    if shell.capabilities["bot_presence"] != "Degraded" {
+        return Err("the projected shell hid the missing bot".to_owned());
     }
     Ok(())
 }
@@ -306,6 +390,96 @@ async fn admit_repair(
         || subject_ref != guild_id
     {
         return Err("repair admission was not audited against the guild".to_owned());
+    }
+    Ok(())
+}
+
+async fn execute_repair(
+    store: &Store,
+    account_id: Uuid,
+    session_id: Uuid,
+    guild_id: &str,
+    tenant_id: Uuid,
+    now: OffsetDateTime,
+) -> Result<(), String> {
+    let missing = store
+        .missing_capability_keys(tenant_id)
+        .await
+        .map_err(|error| error.to_string())?;
+    if missing != ["bot_presence"] {
+        return Err("repair started without the missing bot capability".to_owned());
+    }
+    let state_hash = format!("repair-{guild_id}").into_bytes();
+    if store
+        .consume_install_authorization(&state_hash, account_id, Uuid::now_v7(), now)
+        .await
+        .map_err(|error| error.to_string())?
+        .is_some()
+    {
+        return Err("a foreign session consumed the repair".to_owned());
+    }
+    let consumed = store
+        .consume_install_authorization(&state_hash, account_id, session_id, now)
+        .await
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "the bound session did not consume the repair".to_owned())?;
+    if consumed.preset != "GuildRepair" || consumed.generation != 2 {
+        return Err("repair consumption did not keep the admitted generation".to_owned());
+    }
+    if store
+        .consume_install_authorization(&state_hash, account_id, session_id, now)
+        .await
+        .map_err(|error| error.to_string())?
+        .is_some()
+    {
+        return Err("repair state was replayed".to_owned());
+    }
+    let repaired = store
+        .record_repair_installation(VerifyingInstallation {
+            transaction_id: consumed.transaction_id,
+            candidate_tenant_id: Uuid::now_v7(),
+            provider_guild_id: guild_id,
+            application_id: "app",
+            generation: consumed.generation,
+            frozen_manifest: &consumed.frozen_manifest,
+            provider_guild_hint: Some("callback-hint-is-not-the-guild"),
+            permissions_hint: Some("8"),
+            received_at: now,
+        })
+        .await
+        .map_err(|error| error.to_string())?;
+    if repaired != Some(tenant_id) {
+        return Err("missing-capability repair did not open a generation".to_owned());
+    }
+    let claim = claim_guild(store, guild_id, now).await?;
+    if claim.generation != 2 {
+        return Err("verification claimed a generation other than the repair".to_owned());
+    }
+    store
+        .complete_installation_verification(&claim, true, now)
+        .await
+        .map_err(|error| error.to_string())?;
+    if installation_state(store, claim.installation_id).await? != "Installed" {
+        return Err("restored bot presence left the repair Degraded".to_owned());
+    }
+    let previous: String = sqlx::query_scalar(
+        "SELECT state FROM installation.installation \
+         WHERE tenant_id = $1 AND generation = 1",
+    )
+    .bind(tenant_id)
+    .fetch_one(store.pool())
+    .await
+    .map_err(|error| error.to_string())?;
+    if previous != "Degraded" {
+        return Err("repair replaced the previous degraded generation".to_owned());
+    }
+    if !store
+        .missing_capability_keys(tenant_id)
+        .await
+        .map_err(|error| error.to_string())?
+        .is_empty()
+    {
+        return Err("a healthy repair still reported a missing capability".to_owned());
     }
     Ok(())
 }

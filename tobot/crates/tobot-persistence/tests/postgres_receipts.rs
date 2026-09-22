@@ -224,26 +224,15 @@ async fn oauth_replay_and_revoked_session_fail_closed_in_postgres() -> Result<()
     }
 
     let session_id = Uuid::now_v7();
-    let scopes = vec!["identify".to_owned()];
-    store
-        .create_discord_authorization(NewDiscordAuthorization {
-            candidate_account_id: Uuid::now_v7(),
-            provider_user_id: &Uuid::now_v7().to_string(),
-            username: "operator",
-            display_name: None,
-            credential_id: Uuid::now_v7(),
-            access_token_ciphertext: b"access-ciphertext",
-            refresh_token_ciphertext: b"refresh-ciphertext",
-            scopes: &scopes,
-            credential_expires_at: now + Duration::hours(1),
-            session_id,
-            csrf_secret_hash: b"csrf-hash",
-            csrf_secret_ciphertext: b"csrf-ciphertext",
-            idle_expires_at: now + Duration::hours(12),
-            absolute_expires_at: now + Duration::days(7),
-        })
-        .await
-        .map_err(|error| error.to_string())?;
+    open_session(
+        &store,
+        &Uuid::now_v7().to_string(),
+        session_id,
+        now + Duration::hours(12),
+        now + Duration::days(7),
+        now,
+    )
+    .await?;
     let authorized = store
         .authorize_session(session_id, now)
         .await
@@ -251,6 +240,22 @@ async fn oauth_replay_and_revoked_session_fail_closed_in_postgres() -> Result<()
     if authorized.is_none() {
         return Err("a live session was not authorized".to_owned());
     }
+    if !store
+        .active_session_csrf_matches(session_id, b"csrf-hash", now + Duration::seconds(1))
+        .await
+        .map_err(|error| error.to_string())?
+    {
+        return Err("the session CSRF digest did not match".to_owned());
+    }
+    if store
+        .active_session_csrf_matches(session_id, b"other-hash", now + Duration::seconds(1))
+        .await
+        .map_err(|error| error.to_string())?
+    {
+        return Err("a foreign CSRF digest matched the session".to_owned());
+    }
+    reject_expired_sessions(&store, now).await?;
+    rotate_session(&store, now).await?;
     store
         .revoke_session(session_id, now + Duration::seconds(1))
         .await
@@ -262,6 +267,125 @@ async fn oauth_replay_and_revoked_session_fail_closed_in_postgres() -> Result<()
     if revoked.is_some() {
         return Err("a revoked session stayed authorized".to_owned());
     }
+    Ok(())
+}
+
+async fn reject_expired_sessions(store: &Store, now: OffsetDateTime) -> Result<(), String> {
+    let idle = Uuid::now_v7();
+    open_session(
+        store,
+        &Uuid::now_v7().to_string(),
+        idle,
+        now - Duration::seconds(1),
+        now + Duration::days(7),
+        now,
+    )
+    .await?;
+    if store
+        .authorize_session(idle, now)
+        .await
+        .map_err(|error| error.to_string())?
+        .is_some()
+    {
+        return Err("an idle-expired session stayed authorized".to_owned());
+    }
+    if store
+        .active_session_csrf_matches(idle, b"csrf-hash", now)
+        .await
+        .map_err(|error| error.to_string())?
+    {
+        return Err("an idle-expired session still matched CSRF".to_owned());
+    }
+    let absolute = Uuid::now_v7();
+    open_session(
+        store,
+        &Uuid::now_v7().to_string(),
+        absolute,
+        now + Duration::hours(12),
+        now - Duration::seconds(1),
+        now,
+    )
+    .await?;
+    if store
+        .authorize_session(absolute, now)
+        .await
+        .map_err(|error| error.to_string())?
+        .is_some()
+    {
+        return Err("an absolute-expired session stayed authorized".to_owned());
+    }
+    Ok(())
+}
+
+async fn rotate_session(store: &Store, now: OffsetDateTime) -> Result<(), String> {
+    let provider_user_id = Uuid::now_v7().to_string();
+    let first = Uuid::now_v7();
+    open_session(
+        store,
+        &provider_user_id,
+        first,
+        now + Duration::hours(12),
+        now + Duration::days(7),
+        now,
+    )
+    .await?;
+    let second = Uuid::now_v7();
+    open_session(
+        store,
+        &provider_user_id,
+        second,
+        now + Duration::hours(12),
+        now + Duration::days(7),
+        now + Duration::seconds(1),
+    )
+    .await?;
+    if store
+        .authorize_session(first, now + Duration::seconds(2))
+        .await
+        .map_err(|error| error.to_string())?
+        .is_some()
+    {
+        return Err("a rotated session stayed authorized".to_owned());
+    }
+    if store
+        .authorize_session(second, now + Duration::seconds(2))
+        .await
+        .map_err(|error| error.to_string())?
+        .is_none()
+    {
+        return Err("the replacement session was not authorized".to_owned());
+    }
+    Ok(())
+}
+
+async fn open_session(
+    store: &Store,
+    provider_user_id: &str,
+    session_id: Uuid,
+    idle_expires_at: OffsetDateTime,
+    absolute_expires_at: OffsetDateTime,
+    now: OffsetDateTime,
+) -> Result<(), String> {
+    let scopes = vec!["identify".to_owned()];
+    store
+        .create_discord_authorization(NewDiscordAuthorization {
+            candidate_account_id: Uuid::now_v7(),
+            provider_user_id,
+            username: "operator",
+            display_name: None,
+            credential_id: Uuid::now_v7(),
+            access_token_ciphertext: b"access-ciphertext",
+            refresh_token_ciphertext: b"refresh-ciphertext",
+            scopes: &scopes,
+            credential_expires_at: now + Duration::hours(1),
+            session_id,
+            csrf_secret_hash: b"csrf-hash",
+            csrf_secret_ciphertext: b"csrf-ciphertext",
+            idle_expires_at,
+            absolute_expires_at,
+        })
+        .await
+        .map_err(|error| error.to_string())?;
     Ok(())
 }
 

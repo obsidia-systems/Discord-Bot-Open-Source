@@ -18,7 +18,7 @@ use tobot_core::{Clock, SystemClock, render_gauges};
 use tobot_delivery_client::InstallationInspectionClient;
 use tobot_discord_adapter::{DiscordGuildObservation, DiscordOAuthClient};
 use tobot_identity::{
-    AuthorizationSession, oauth_state_hash, opaque_secret_hash, opaque_secrets_match,
+    AuthorizationSession, oauth_state_hash, opaque_secret_hash, opaque_secrets_match, pkce_s256,
 };
 use tobot_identity_service::{OAuthService, OAuthServiceError};
 use tobot_installation::{
@@ -27,8 +27,9 @@ use tobot_installation::{
 };
 use tobot_outbox::InstallationOutboxRelay;
 use tobot_persistence::{
-    ActiveAuthorizationSession, AuditFact, GuildDiscoveryObservation, GuildShellSummary,
-    NewDiscordAuthorization, NewInstallAuthorization, Store, VerifyingInstallation,
+    ActiveAuthorizationSession, AuditFact, ConsumedInstallAuthorization, GuildDiscoveryObservation,
+    GuildShellSummary, NewDiscordAuthorization, NewInstallAuthorization, Store,
+    VerifyingInstallation,
 };
 use tobot_secret_store::{SecretStore, VaultTransitStore};
 use tower_http::{
@@ -618,7 +619,7 @@ async fn complete_guild_install_callback(
         .exchange_code(code, &consumed.redirect_uri, &verifier)
         .await
         .map_err(|_| BrowserFailure::Unavailable)?;
-    let mut expected_scopes = consumed.requested_scopes;
+    let mut expected_scopes = consumed.requested_scopes.clone();
     expected_scopes.sort_unstable();
     expected_scopes.dedup();
     let observed_guild_id = observed_install_guild(
@@ -627,21 +628,8 @@ async fn complete_guild_install_callback(
         tokens.guild.as_ref().map(|guild| guild.id.as_str()),
         &consumed.provider_guild_id,
     )?;
-    let tenant_id = state
-        .store
-        .record_verifying_installation(VerifyingInstallation {
-            transaction_id: consumed.transaction_id,
-            candidate_tenant_id: Uuid::now_v7(),
-            provider_guild_id: &observed_guild_id,
-            application_id: &state.discord_application_id,
-            generation: consumed.generation,
-            frozen_manifest: &consumed.frozen_manifest,
-            provider_guild_hint: query.guild_id.as_deref(),
-            permissions_hint: query.permissions.as_deref(),
-            received_at: now,
-        })
-        .await
-        .map_err(|_| BrowserFailure::Unavailable)?;
+    let tenant_id =
+        record_callback_installation(state, &consumed, &observed_guild_id, query, now).await?;
     if let Err(cause) = state.discord_oauth.revoke_token(&tokens.access_token).await {
         warn!(
             transaction_id = %consumed.transaction_id,
@@ -650,6 +638,40 @@ async fn complete_guild_install_callback(
         );
     }
     Ok(tenant_id)
+}
+
+async fn record_callback_installation(
+    state: &AppState,
+    consumed: &ConsumedInstallAuthorization,
+    observed_guild_id: &str,
+    query: &InstallCallbackQuery,
+    now: time::OffsetDateTime,
+) -> Result<Uuid, BrowserFailure> {
+    let verifying = VerifyingInstallation {
+        transaction_id: consumed.transaction_id,
+        candidate_tenant_id: Uuid::now_v7(),
+        provider_guild_id: observed_guild_id,
+        application_id: &state.discord_application_id,
+        generation: consumed.generation,
+        frozen_manifest: &consumed.frozen_manifest,
+        provider_guild_hint: query.guild_id.as_deref(),
+        permissions_hint: query.permissions.as_deref(),
+        received_at: now,
+    };
+    if consumed.preset == InstallPreset::GuildRepair.as_str() {
+        state
+            .store
+            .record_repair_installation(verifying)
+            .await
+            .map_err(|_| BrowserFailure::Unavailable)?
+            .ok_or(BrowserFailure::Rejected)
+    } else {
+        state
+            .store
+            .record_verifying_installation(verifying)
+            .await
+            .map_err(|_| BrowserFailure::Unavailable)
+    }
 }
 
 fn observed_install_guild(
@@ -767,6 +789,17 @@ async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let Ok(Some(session)) = state.store.authorize_session(session_id, now).await else {
         return clear_session_response(StatusCode::UNAUTHORIZED);
     };
+    let proof_hash = opaque_secret_hash(proof);
+    let Ok(csrf_matches) = state
+        .store
+        .active_session_csrf_matches(session_id, &proof_hash, now)
+        .await
+    else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    if !csrf_matches {
+        return StatusCode::FORBIDDEN.into_response();
+    }
     let Ok(ciphertext) = std::str::from_utf8(&session.csrf_secret_ciphertext) else {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
@@ -1127,6 +1160,12 @@ async fn start_guild_repair(
     if shell.installation_state != "Degraded" {
         return StatusCode::CONFLICT.into_response();
     }
+    let Ok(missing) = state.store.missing_capability_keys(tenant_id).await else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    if missing.is_empty() {
+        return StatusCode::CONFLICT.into_response();
+    }
     let Some(provider_guild_id) = shell.provider_guild_id else {
         return StatusCode::NOT_FOUND.into_response();
     };
@@ -1246,6 +1285,15 @@ async fn authorize_mutation(
         .await
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?
         .ok_or(StatusCode::UNAUTHORIZED)?;
+    let proof_hash = opaque_secret_hash(proof);
+    let csrf_matches = state
+        .store
+        .active_session_csrf_matches(session_id, &proof_hash, now)
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    if !csrf_matches {
+        return Err(StatusCode::FORBIDDEN);
+    }
     let ciphertext = std::str::from_utf8(&session.csrf_secret_ciphertext)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let context = format!("tobot:session-csrf:{session_id}");
@@ -1317,7 +1365,7 @@ async fn login(State(state): State<AppState>) -> Response {
         .append_pair("scope", &start.scopes.join(" "))
         .append_pair("state", &start.state)
         .append_pair("code_challenge", &start.code_challenge)
-        .append_pair("code_challenge_method", "S256");
+        .append_pair("code_challenge_method", pkce_s256());
     let cookie = format!(
         "__Host-tobot_oauth_state={}; Path=/; Max-Age=600; Secure; HttpOnly; SameSite=Lax",
         start.state
