@@ -7,7 +7,10 @@ use std::env;
 use time::{Duration, OffsetDateTime};
 use tobot_core::{TenantContext, TenantId, TenantType};
 use tobot_envelope::{EventEnvelope, TraceContext};
-use tobot_persistence::{ClaimedOutboxEntry, NewDiscordAuthorization, NewOAuthTransaction, Store};
+use tobot_persistence::{
+    ClaimedOutboxEntry, GuildDiscoveryObservation, NewDiscordAuthorization, NewOAuthTransaction,
+    Store,
+};
 use uuid::Uuid;
 
 #[tokio::test]
@@ -292,6 +295,12 @@ async fn refreshed_credential_keeps_absolute_expiry(
     if after.access_token_ciphertext.as_slice() != b"refreshed-access" {
         return Err("credential refresh did not store the new access token".to_owned());
     }
+    if after.refresh_token_ciphertext.as_slice() != b"refreshed-refresh" {
+        return Err("credential refresh did not store the new refresh token".to_owned());
+    }
+    if after.credential_expires_at != now + Duration::hours(2) {
+        return Err("credential refresh did not store the new expiry".to_owned());
+    }
     if !store
         .active_session_csrf_matches(session_id, b"csrf-hash", now + Duration::seconds(1))
         .await
@@ -393,6 +402,63 @@ async fn rotate_session(store: &Store, now: OffsetDateTime) -> Result<(), String
         .is_none()
     {
         return Err("the replacement session was not authorized".to_owned());
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn empty_discovery_snapshot_stays_fresh_until_its_window() -> Result<(), String> {
+    let Some(store) = connect().await? else {
+        return Ok(());
+    };
+    let now = OffsetDateTime::now_utc();
+    let session_id = Uuid::now_v7();
+    open_session(
+        &store,
+        &Uuid::now_v7().to_string(),
+        session_id,
+        now + Duration::hours(1),
+        now + Duration::days(1),
+        now,
+    )
+    .await?;
+    let session = store
+        .authorize_session(session_id, now)
+        .await
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "the discovery session was not authorized".to_owned())?;
+    let observations: [GuildDiscoveryObservation<'_>; 0] = [];
+    store
+        .replace_guild_discovery(
+            session.account_id,
+            &observations,
+            now,
+            now + Duration::minutes(15),
+        )
+        .await
+        .map_err(|error| error.to_string())?;
+    if !store
+        .discovery_snapshot_fresh(session.account_id, now)
+        .await
+        .map_err(|error| error.to_string())?
+    {
+        return Err("an empty discovery snapshot was not fresh".to_owned());
+    }
+    if !store
+        .fresh_discovered_guild_ids(session.account_id, now)
+        .await
+        .map_err(|error| error.to_string())?
+        .is_empty()
+    {
+        return Err("an empty discovery snapshot listed a guild".to_owned());
+    }
+    let after_window = now + Duration::minutes(15) + Duration::seconds(1);
+    if store
+        .discovery_snapshot_fresh(session.account_id, after_window)
+        .await
+        .map_err(|error| error.to_string())?
+    {
+        return Err("the discovery snapshot stayed fresh after its window".to_owned());
     }
     Ok(())
 }

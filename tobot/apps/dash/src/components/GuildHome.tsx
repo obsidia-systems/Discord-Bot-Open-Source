@@ -38,6 +38,7 @@ export function GuildHome({ tenantId }: GuildHomeProps) {
       }
       if (result.kind === "no-access") {
         setState({ kind: "no-access" });
+        timer = window.setTimeout(() => void tick(), 15_000);
         return;
       }
       if (result.kind === "unavailable") {

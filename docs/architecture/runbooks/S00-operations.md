@@ -77,6 +77,24 @@ Outbox publication is fenced. A worker that dies mid-publish leaves the lease to
 
 Logout sets `revoked_at` immediately. A stolen cookie fails the next `authorize_session` check. Rotating `credential_generation` on the account invalidates every session still on the old generation. Idle lifetime is 12 hours. Absolute lifetime is 7 days and does not slide.
 
+## Local restore
+
+On 2026-09-22 `pg_dump -Fc` of database `tobot` was restored with `pg_restore` into a new database `tobot_restore` on the same Postgres. The copy matched the live database: both guild shells (generations 11 and 2, both `Installed`), 8 edge outbox rows, 4 installation rows, and migration 11. `tobot_restore` and the dump file were then removed. The live database was not replaced. This is not WAL point-in-time recovery; the Compose volume still has no archive.
+
+## S0 threat review (local, 2026-09-22)
+
+This is a review of the checks S0 can actually meet. It is not a release pass. Later-slice decisions in DR-025 through DR-049 that belong to billing, AI, workflows, assets, or moderation have no S0 tables and are not treated as passed.
+
+| Check | Local result |
+|---|---|
+| DR-039 Redis after the outbox | `/probe` at 22:23:16Z returned `Acknowledged.` (`callback_ms` 380) while the relay could not resolve Redis. At 22:23:46Z the relay published the 2 waiting facts. Discord was not called again. |
+| DR-059 `tenant_id` is not a snowflake | Shell routes use UUID v7. Discord guild ids stay in `provider_guild_id`. |
+| DR-060 due-work lease | PostgreSQL proves a 15-second lease takeover. This session did not kill a worker again. |
+| DR-025, DR-026, DR-027, DR-032, DR-049 | PKCE S256, single-use state, Origin plus CSRF header, discovery not used as install authority, permission union `0`, and idle/absolute session expiry are covered by the PostgreSQL tests and the control-plane code. A signed-in browser idle slide is still not shown. |
+| DR-035, DR-036 | The bot token is mounted on Edge and Delivery only. Public `/metrics` stays rejected. |
+| Forbidden §25 columns for Identity and Installation | Identity does not own the tenant registry or the bot token. Installation does not store login sessions, and `Installed` still requires both capabilities. A snowflake is not `tenant_id`. |
+| Still blocking | Duplicate interaction delivery, a slow consumer, the signed-in foreign-tenant click, and point-in-time recovery. |
+
 ## What this runbook does not demonstrate
 
-A live Discord interaction, Gateway resume against the provider, and HTTP 429 from Discord still have to be executed against a sandbox application before S0 is releasable. Backup execution and the threat-model review are also still open. The Delivery and Control Plane relay restarts already recovered an accepted fact in under 60 seconds.
+Duplicate interaction delivery, a slow consumer, a signed-in foreign-tenant click, and point-in-time recovery are still open. Gateway Identify, Resume, a live HTTP 429, and one `/probe` during a Redis outage are already recorded in the S0 ledger.

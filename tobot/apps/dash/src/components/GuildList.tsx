@@ -23,12 +23,23 @@ export function GuildList({
   onInstall,
 }: GuildListProps) {
   if (guilds.length === 0) {
-    return <p className="text-zinc-700">No servers were observed for this account.</p>;
+    return (
+      <p className="text-zinc-700">
+        No servers you can manage were observed. Discord requires Manage Server
+        to add an application.
+      </p>
+    );
   }
 
   return (
     <>
-      <p className="text-sm text-zinc-600">{discoveryExpiryLabel(nowUnix, expiresAtUnix)}</p>
+      <p className="text-sm text-zinc-600">
+        Servers where you are the owner, an administrator, or can manage the
+        server. Discord requires Manage Server to add an application.
+      </p>
+      <p className="mt-2 text-sm text-zinc-600">
+        {discoveryExpiryLabel(nowUnix, expiresAtUnix)}
+      </p>
       <ul className="mt-4 list-none p-0">
         {guilds.map((guild) => {
           const view = installationView({

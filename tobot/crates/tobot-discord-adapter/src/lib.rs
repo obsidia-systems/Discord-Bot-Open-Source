@@ -1033,10 +1033,7 @@ mod governance_tests {
             budget.observe_status(403, u64::from(index));
         }
         let now = u64::from(INVALID_REQUEST_CIRCUIT);
-        assert!(matches!(
-            budget.guard(now),
-            EgressGuard::CircuitOpen { .. }
-        ));
+        assert!(matches!(budget.guard(now), EgressGuard::CircuitOpen { .. }));
         assert!(budget.count(now) < INVALID_REQUEST_LIMIT);
         let mut rejected = InvalidRequestBudget::default();
         rejected.observe_status(401, 0);

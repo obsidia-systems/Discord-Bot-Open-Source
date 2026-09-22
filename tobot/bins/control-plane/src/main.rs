@@ -16,7 +16,7 @@ use tobot_bus::{RedisStreamConsumer, RedisStreamPublisher};
 use tobot_config::ControlPlaneConfig;
 use tobot_core::{Clock, SystemClock, render_gauges};
 use tobot_delivery_client::InstallationInspectionClient;
-use tobot_discord_adapter::{DiscordGuildObservation, DiscordOAuthClient};
+use tobot_discord_adapter::{DiscordGuildObservation, DiscordOAuthClient, TransportError};
 use tobot_identity::{
     AuthorizationSession, oauth_state_hash, opaque_secret_hash, opaque_secrets_match, pkce_s256,
 };
@@ -282,21 +282,29 @@ fn bearer_matches(headers: &HeaderMap, expected_token: &str) -> bool {
 
 async fn run_query_projector(store: Store, consumer: RedisStreamConsumer) -> anyhow::Result<()> {
     loop {
-        for message in consumer.read().await? {
-            let parsed = tobot_envelope::EventEnvelope::parse_s0(&message.envelope)?;
-            if parsed.event.schema_name == "InstallationStateChanged" {
-                store
-                    .apply_installation_projection(
-                        &parsed.event,
-                        &message.envelope,
-                        &message.stream_id,
-                        time::OffsetDateTime::now_utc(),
-                    )
-                    .await?;
-            }
-            consumer.acknowledge(&message.stream_id).await?;
+        if let Err(cause) = project_available(&store, &consumer).await {
+            error!(error = %cause, "installation projection paused");
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
     }
+}
+
+async fn project_available(store: &Store, consumer: &RedisStreamConsumer) -> anyhow::Result<()> {
+    for message in consumer.read().await? {
+        let parsed = tobot_envelope::EventEnvelope::parse_s0(&message.envelope)?;
+        if parsed.event.schema_name == "InstallationStateChanged" {
+            store
+                .apply_installation_projection(
+                    &parsed.event,
+                    &message.envelope,
+                    &message.stream_id,
+                    time::OffsetDateTime::now_utc(),
+                )
+                .await?;
+        }
+        consumer.acknowledge(&message.stream_id).await?;
+    }
+    Ok(())
 }
 
 async fn run_installation_relay(relay: InstallationOutboxRelay) -> anyhow::Result<()> {
@@ -579,14 +587,11 @@ async fn complete_guild_install_callback(
         .await
         .map_err(|_| BrowserFailure::Unavailable)?
         .ok_or(BrowserFailure::Expired)?;
-    let login_access_token = decrypt_access_token(state, &session)
-        .await
-        .map_err(|_| BrowserFailure::Unavailable)?;
-    let live_guilds = state
-        .discord_oauth
-        .current_user_guilds(&login_access_token)
-        .await
-        .map_err(|_| BrowserFailure::Unavailable)?;
+    let live_guilds = match live_user_guilds(state, &session).await {
+        Ok(guilds) => guilds,
+        Err(StatusCode::UNAUTHORIZED) => return Err(BrowserFailure::Expired),
+        Err(_) => return Err(BrowserFailure::Unavailable),
+    };
     let consumed = state
         .store
         .consume_install_authorization(
@@ -917,6 +922,21 @@ fn discovery_response_items(
         .collect()
 }
 
+fn presentation_guilds(guilds: Vec<DiscordGuildObservation>) -> Vec<DiscordGuildObservation> {
+    guilds
+        .into_iter()
+        .filter(|guild| has_live_guild_install_authority(guild.owner, &guild.permissions))
+        .collect()
+}
+
+fn session_status(status: StatusCode) -> Response {
+    if status == StatusCode::UNAUTHORIZED {
+        clear_session_response(status)
+    } else {
+        status.into_response()
+    }
+}
+
 async fn guilds(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let Some(session_id) = session_id(&headers) else {
         return StatusCode::UNAUTHORIZED.into_response();
@@ -925,42 +945,14 @@ async fn guilds(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let Ok(Some(session)) = state.store.authorize_session(session_id, now).await else {
         return clear_session_response(StatusCode::UNAUTHORIZED);
     };
-    let Ok(ciphertext) = std::str::from_utf8(&session.access_token_ciphertext) else {
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    let discovered = match live_user_guilds(&state, &session).await {
+        Ok(guilds) => presentation_guilds(guilds),
+        Err(status) => return session_status(status),
     };
-    let credential_context = format!("tobot:discord-oauth:{}", session.credential_id);
-    let Ok(plaintext) = state
-        .secret_store
-        .decrypt(ciphertext, credential_context.as_bytes())
-        .await
+    let Ok(expires_at) = persist_discovery(&state, session.account_id, &discovered, now).await
     else {
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
     };
-    let Ok(access_token) = String::from_utf8(plaintext) else {
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    };
-    let Ok(discovered) = state.discord_oauth.current_user_guilds(&access_token).await else {
-        return StatusCode::BAD_GATEWAY.into_response();
-    };
-    let expires_at = now + time::Duration::minutes(15);
-    let records = discovered
-        .iter()
-        .map(|guild| GuildDiscoveryObservation {
-            provider_guild_id: &guild.id,
-            guild_name: &guild.name,
-            icon_hash: guild.icon.as_deref(),
-            owner_hint: guild.owner,
-            permissions_hint: &guild.permissions,
-        })
-        .collect::<Vec<_>>();
-    if state
-        .store
-        .replace_guild_discovery(session.account_id, &records, now, expires_at)
-        .await
-        .is_err()
-    {
-        return StatusCode::SERVICE_UNAVAILABLE.into_response();
-    }
     let provider_guild_ids = discovered
         .iter()
         .map(|guild| guild.id.clone())
@@ -1010,6 +1002,9 @@ async fn guild_shell(
     let Ok(Some(session)) = state.store.authorize_session(session_id, now).await else {
         return clear_session_response(StatusCode::UNAUTHORIZED);
     };
+    if let Err(status) = ensure_fresh_discovery(&state, &session, now).await {
+        return session_status(status);
+    }
     let Ok(provider_guild_ids) = state
         .store
         .fresh_discovered_guild_ids(session.account_id, now)
@@ -1055,12 +1050,9 @@ async fn start_guild_install(
         Ok(authorization) => authorization,
         Err(status) => return status.into_response(),
     };
-    let access_token = match decrypt_access_token(&state, &session).await {
-        Ok(token) => token,
-        Err(status) => return status.into_response(),
-    };
-    let Ok(guilds) = state.discord_oauth.current_user_guilds(&access_token).await else {
-        return StatusCode::BAD_GATEWAY.into_response();
+    let guilds = match live_user_guilds(&state, &session).await {
+        Ok(guilds) => guilds,
+        Err(status) => return session_status(status),
     };
     let Some(guild) = guilds.iter().find(|guild| guild.id == guild_id) else {
         return StatusCode::FORBIDDEN.into_response();
@@ -1143,6 +1135,9 @@ async fn start_guild_repair(
         Err(status) => return status.into_response(),
     };
     let now = time::OffsetDateTime::from(state.clock.now());
+    if let Err(status) = ensure_fresh_discovery(&state, &session, now).await {
+        return session_status(status);
+    }
     let Ok(provider_guild_ids) = state
         .store
         .fresh_discovered_guild_ids(session.account_id, now)
@@ -1169,12 +1164,9 @@ async fn start_guild_repair(
     let Some(provider_guild_id) = shell.provider_guild_id else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let access_token = match decrypt_access_token(&state, &session).await {
-        Ok(token) => token,
-        Err(status) => return status.into_response(),
-    };
-    let Ok(guilds) = state.discord_oauth.current_user_guilds(&access_token).await else {
-        return StatusCode::BAD_GATEWAY.into_response();
+    let guilds = match live_user_guilds(&state, &session).await {
+        Ok(guilds) => guilds,
+        Err(status) => return session_status(status),
     };
     let Some(guild) = guilds
         .into_iter()
@@ -1309,13 +1301,136 @@ async fn authorize_mutation(
     Ok((session_id, session))
 }
 
+async fn ensure_fresh_discovery(
+    state: &AppState,
+    session: &ActiveAuthorizationSession,
+    now: time::OffsetDateTime,
+) -> Result<(), StatusCode> {
+    let fresh = state
+        .store
+        .discovery_snapshot_fresh(session.account_id, now)
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    if fresh {
+        return Ok(());
+    }
+    let guilds = presentation_guilds(live_user_guilds(state, session).await?);
+    persist_discovery(state, session.account_id, &guilds, now).await?;
+    Ok(())
+}
+
+async fn persist_discovery(
+    state: &AppState,
+    account_id: Uuid,
+    guilds: &[DiscordGuildObservation],
+    now: time::OffsetDateTime,
+) -> Result<time::OffsetDateTime, StatusCode> {
+    let expires_at = now + time::Duration::minutes(15);
+    let records = guilds
+        .iter()
+        .map(|guild| GuildDiscoveryObservation {
+            provider_guild_id: &guild.id,
+            guild_name: &guild.name,
+            icon_hash: guild.icon.as_deref(),
+            owner_hint: guild.owner,
+            permissions_hint: &guild.permissions,
+        })
+        .collect::<Vec<_>>();
+    state
+        .store
+        .replace_guild_discovery(account_id, &records, now, expires_at)
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    Ok(expires_at)
+}
+
+async fn live_user_guilds(
+    state: &AppState,
+    session: &ActiveAuthorizationSession,
+) -> Result<Vec<DiscordGuildObservation>, StatusCode> {
+    let now = time::OffsetDateTime::from(state.clock.now());
+    let (access_token, refreshed) = if session.credential_expires_at <= now {
+        (refresh_discord_credential(state, session).await?, true)
+    } else {
+        (decrypt_access_token(state, session).await?, false)
+    };
+    match state.discord_oauth.current_user_guilds(&access_token).await {
+        Ok(guilds) => Ok(guilds),
+        Err(TransportError::Rejected { status: 401 }) if !refreshed => {
+            let access_token = refresh_discord_credential(state, session).await?;
+            match state.discord_oauth.current_user_guilds(&access_token).await {
+                Ok(guilds) => Ok(guilds),
+                Err(TransportError::Rejected { status: 401 }) => Err(StatusCode::UNAUTHORIZED),
+                Err(_) => Err(StatusCode::BAD_GATEWAY),
+            }
+        }
+        Err(TransportError::Rejected { status: 401 }) => Err(StatusCode::UNAUTHORIZED),
+        Err(_) => Err(StatusCode::BAD_GATEWAY),
+    }
+}
+
+async fn refresh_discord_credential(
+    state: &AppState,
+    session: &ActiveAuthorizationSession,
+) -> Result<String, StatusCode> {
+    let context = format!("tobot:discord-oauth:{}", session.credential_id);
+    let refresh_token = decrypt_secret(state, &session.refresh_token_ciphertext, &context).await?;
+    let tokens = match state
+        .discord_oauth
+        .refresh_access_token(&refresh_token)
+        .await
+    {
+        Ok(tokens) => tokens,
+        Err(TransportError::Rejected { status: 400 | 401 }) => {
+            return Err(StatusCode::UNAUTHORIZED);
+        }
+        Err(_) => return Err(StatusCode::BAD_GATEWAY),
+    };
+    let access_ciphertext = state
+        .secret_store
+        .encrypt(tokens.access_token.as_bytes(), context.as_bytes())
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    let refresh_ciphertext = state
+        .secret_store
+        .encrypt(tokens.refresh_token.as_bytes(), context.as_bytes())
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    let expires_in = i64::try_from(tokens.expires_in_seconds).unwrap_or(i64::MAX);
+    let expires_at =
+        time::OffsetDateTime::from(state.clock.now()) + time::Duration::seconds(expires_in);
+    let updated = state
+        .store
+        .refresh_oauth_credential(
+            session.credential_id,
+            access_ciphertext.as_bytes(),
+            refresh_ciphertext.as_bytes(),
+            expires_at,
+        )
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    if updated {
+        Ok(tokens.access_token)
+    } else {
+        Err(StatusCode::UNAUTHORIZED)
+    }
+}
+
 async fn decrypt_access_token(
     state: &AppState,
     session: &ActiveAuthorizationSession,
 ) -> Result<String, StatusCode> {
-    let ciphertext = std::str::from_utf8(&session.access_token_ciphertext)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let context = format!("tobot:discord-oauth:{}", session.credential_id);
+    decrypt_secret(state, &session.access_token_ciphertext, &context).await
+}
+
+async fn decrypt_secret(
+    state: &AppState,
+    ciphertext: &[u8],
+    context: &str,
+) -> Result<String, StatusCode> {
+    let ciphertext =
+        std::str::from_utf8(ciphertext).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let plaintext = state
         .secret_store
         .decrypt(ciphertext, context.as_bytes())
@@ -1383,7 +1498,7 @@ use axum::http::HeaderName;
 mod tests {
     use super::{
         BrowserFailure, DiscordGuildObservation, GuildShellSummary, discovery_response_items,
-        install_error_path, login_error_path,
+        install_error_path, login_error_path, presentation_guilds,
     };
     use uuid::Uuid;
 
@@ -1400,6 +1515,22 @@ mod tests {
             owner: false,
             permissions: "0".to_owned(),
         }
+    }
+
+    #[test]
+    fn discovery_lists_only_guilds_that_can_add_the_application() {
+        let mut manager = guild("2", "Manager");
+        manager.permissions = "32".to_owned();
+        let mut admin = guild("3", "Admin");
+        admin.permissions = "8".to_owned();
+        let mut owner = guild("4", "Owner");
+        owner.owner = true;
+        let listed = presentation_guilds(vec![guild("1", "Member"), manager, admin, owner]);
+        let ids = listed
+            .iter()
+            .map(|guild| guild.id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(ids, ["2", "3", "4"]);
     }
 
     #[test]

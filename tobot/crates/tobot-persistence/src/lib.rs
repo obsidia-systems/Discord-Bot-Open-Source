@@ -121,6 +121,8 @@ pub struct ActiveAuthorizationSession {
     pub account_id: Uuid,
     pub credential_id: Uuid,
     pub access_token_ciphertext: Vec<u8>,
+    pub refresh_token_ciphertext: Vec<u8>,
+    pub credential_expires_at: OffsetDateTime,
     pub csrf_secret_ciphertext: Vec<u8>,
     pub idle_expires_at: OffsetDateTime,
     pub absolute_expires_at: OffsetDateTime,
@@ -795,7 +797,9 @@ impl Store {
                AND credential.generation = session.credential_generation \
                AND credential.revoked_at IS NULL \
              RETURNING session.account_id, credential.credential_id, \
-                       credential.access_token_ciphertext, session.csrf_secret_ciphertext, \
+                       credential.access_token_ciphertext, credential.refresh_token_ciphertext, \
+                       credential.expires_at AS credential_expires_at, \
+                       session.csrf_secret_ciphertext, \
                        session.idle_expires_at, session.absolute_expires_at",
         )
         .bind(session_id)
@@ -918,7 +922,41 @@ impl Store {
             .execute(&mut *transaction)
             .await?;
         }
+        sqlx::query(
+            "INSERT INTO identity.guild_discovery_snapshot (account_id, observed_at, expires_at) \
+             VALUES ($1, $2, $3) \
+             ON CONFLICT (account_id) DO UPDATE \
+             SET observed_at = EXCLUDED.observed_at, expires_at = EXCLUDED.expires_at",
+        )
+        .bind(account_id)
+        .bind(observed_at)
+        .bind(expires_at)
+        .execute(&mut *transaction)
+        .await?;
         transaction.commit().await
+    }
+
+    /// True while this account's discovery snapshot is inside its 15-minute
+    /// window, including a snapshot whose manageable guild list is empty.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the snapshot row cannot be read.
+    pub async fn discovery_snapshot_fresh(
+        &self,
+        account_id: Uuid,
+        now: OffsetDateTime,
+    ) -> Result<bool, sqlx::Error> {
+        sqlx::query_scalar(
+            "SELECT EXISTS ( \
+               SELECT 1 FROM identity.guild_discovery_snapshot \
+               WHERE account_id = $1 AND expires_at >= $2 \
+             )",
+        )
+        .bind(account_id)
+        .bind(now)
+        .fetch_one(&self.pool)
+        .await
     }
 
     /// Returns presentation-only guild identifiers that remain within the
