@@ -15,5 +15,13 @@ tobot-envelope = { path = "../tobot-envelope" }
 tobot-installation = { path = "../tobot-installation" }
 uuid.workspace = true
 
+[dev-dependencies]
+serde_json.workspace = true
+time.workspace = true
+tobot-core = { path = "../tobot-core" }
+tobot-envelope = { path = "../tobot-envelope" }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+uuid.workspace = true
+
 [lints]
 workspace = true

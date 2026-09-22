@@ -16,6 +16,23 @@ jobs:
     defaults:
       run:
         working-directory: tobot
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: tobot
+          POSTGRES_PASSWORD: development-only
+          POSTGRES_DB: tobot_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tobot -d tobot_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TOBOT_TEST_DATABASE_URL: postgres://tobot:development-only@localhost:5432/tobot_test
+      TOBOT_REQUIRE_POSTGRES: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.98.0
