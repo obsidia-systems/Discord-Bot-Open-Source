@@ -93,8 +93,23 @@ This is a review of the checks S0 can actually meet. It is not a release pass. L
 | DR-025, DR-026, DR-027, DR-032, DR-049 | PKCE S256, single-use state, Origin plus CSRF header, discovery not used as install authority, permission union `0`, and idle/absolute session expiry are covered by the PostgreSQL tests and the control-plane code. A signed-in browser idle slide is still not shown. |
 | DR-035, DR-036 | The bot token is mounted on Edge and Delivery only. Public `/metrics` stays rejected. |
 | Forbidden §25 columns for Identity and Installation | Identity does not own the tenant registry or the bot token. Installation does not store login sessions, and `Installed` still requires both capabilities. A snowflake is not `tenant_id`. |
-| Still blocking | Duplicate interaction delivery, a slow consumer, the signed-in foreign-tenant click, and point-in-time recovery. |
+| Still open, deferred | See the deferred list below. The foreign-tenant click is done: on 2026-09-22 the signed-in operator opened `/guild/00000000-0000-7000-8000-000000000001` and the page reported no access. |
+
+## Deferred checks
+
+On 2026-09-22 the operator decided not to run these yet. They stay open. They are not passed, and they are not required before the empty-database demo.
+
+| Check | Why it waits |
+|---|---|
+| Live duplicate interaction | PostgreSQL already rejects a second receipt. A live Discord retry was not captured. |
+| Slow consumer | The Redis outage already showed the Discord acknowledgement does not wait for the bus. |
+| Acknowledgement p99 | The live samples are three calls, not a percentile. |
+| Invalid-request circuit on a second replica | The local stack runs one Delivery process. |
+| Browser idle slide and the 7-day cap | PostgreSQL proves the idle slide stops at the absolute expiry. A 7-day browser wait adds no new fact. |
+| Point-in-time recovery | The local Compose Postgres has no WAL archive. The `tobot_restore` drill is the backup evidence. |
+| Clean CI bootstrap | Not part of the local proof. |
+| Threat-review sign-off | The review above is recorded. It does not clear the release gate while these rows stay deferred. |
 
 ## What this runbook does not demonstrate
 
-Duplicate interaction delivery, a slow consumer, a signed-in foreign-tenant click, and point-in-time recovery are still open. Gateway Identify, Resume, a live HTTP 429, and one `/probe` during a Redis outage are already recorded in the S0 ledger.
+The deferred rows above, and the empty-database demo in the S0 plan §8. Gateway Identify, Resume, a live HTTP 429, a signed-in foreign tenant, and one `/probe` during a Redis outage are already recorded.
