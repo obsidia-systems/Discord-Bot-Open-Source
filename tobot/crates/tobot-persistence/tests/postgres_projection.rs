@@ -186,18 +186,18 @@ async fn leave_installed_guild(
         .await
         .map_err(|error| error.to_string())?
     {
-        return Err("a second departure rewrote the degraded installation".to_owned());
+        return Err("a second departure rewrote the removed installation".to_owned());
     }
     if store
         .record_bot_departure("app", "guild-not-installed", now)
         .await
         .map_err(|error| error.to_string())?
     {
-        return Err("an unknown guild was degraded".to_owned());
+        return Err("an unknown guild was removed".to_owned());
     }
     let generation: i64 = sqlx::query_scalar(
         "SELECT generation FROM installation.installation \
-         WHERE tenant_id = $1 AND state = 'Degraded' \
+         WHERE tenant_id = $1 AND state = 'Removed' \
          ORDER BY generation DESC LIMIT 1",
     )
     .bind(tenant_id)
@@ -205,7 +205,7 @@ async fn leave_installed_guild(
     .await
     .map_err(|error| error.to_string())?;
     if generation != 2 {
-        return Err("departure degraded a generation other than the installed one".to_owned());
+        return Err("departure removed a generation other than the installed one".to_owned());
     }
     let raw: Vec<u8> = sqlx::query_scalar(
         "SELECT envelope FROM installation.event_outbox \
@@ -227,7 +227,7 @@ async fn leave_installed_guild(
         .await
         .map_err(|error| error.to_string())?
         .ok_or_else(|| "departure was not projected".to_owned())?;
-    if shell.installation_state != "Degraded" || shell.health_state != "Degraded" {
+    if shell.installation_state != "Removed" || shell.health_state != "Removed" {
         return Err("the projected shell stayed Installed after the bot left".to_owned());
     }
     if shell.capabilities["bot_presence"] != "Degraded" {

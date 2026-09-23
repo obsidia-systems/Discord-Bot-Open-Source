@@ -49,6 +49,20 @@ test("degraded shell lists unhealthy S0 capabilities", () => {
   );
 });
 
+test("removed shell keeps the server and lists the missing bot", () => {
+  assert.deepEqual(
+    installationView({
+      tenantId,
+      installationState: "Removed",
+      capabilities: {
+        bot_presence: "Degraded",
+        application_install_context: "Healthy",
+      },
+    }),
+    { kind: "removed", reasons: ["bot_presence: Degraded"] },
+  );
+});
+
 test("verifying is explicit", () => {
   assert.deepEqual(
     installationView({

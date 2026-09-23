@@ -70,19 +70,17 @@ impl RedisStreamPublisher {
     /// Returns the Redis error without treating the fact as published.
     pub async fn publish(&self, event: &EventEnvelope, raw: &[u8]) -> Result<String, BusError> {
         let mut connection = open_connection(&self.client).await?;
-        let id: Option<String> = connection
-            .xadd(
-                EVENT_STREAM,
-                "*",
-                &[
-                    ("event_id", event.event_id.to_string()),
-                    ("schema_name", event.schema_name.clone()),
-                    ("schema_version", event.schema_version.to_string()),
-                    ("application_id", event.application_id.clone()),
-                    ("envelope", URL_SAFE_NO_PAD.encode(raw)),
-                ],
-            )
-            .await?;
+        let mut fields = vec![
+            ("event_id", event.event_id.to_string()),
+            ("schema_name", event.schema_name.clone()),
+            ("schema_version", event.schema_version.to_string()),
+            ("application_id", event.application_id.clone()),
+            ("envelope", URL_SAFE_NO_PAD.encode(raw)),
+        ];
+        if let Some(guild_id) = &event.guild_id {
+            fields.push(("guild_id", guild_id.clone()));
+        }
+        let id: Option<String> = connection.xadd(EVENT_STREAM, "*", &fields).await?;
         id.ok_or(BusError::MissingStreamId)
     }
 }

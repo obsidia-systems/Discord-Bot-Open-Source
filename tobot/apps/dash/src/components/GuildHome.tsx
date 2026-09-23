@@ -162,9 +162,24 @@ export function GuildHome({ tenantId }: GuildHomeProps) {
         <p className="mt-4 text-zinc-700">The application is installed on this server.</p>
       ) : null}
       {view.kind === "removed" ? (
-        <p className="mt-4 text-zinc-700">
-          The application was removed. The server record remains.
-        </p>
+        <div className="mt-4 border-l-2 border-zinc-950 pl-3" role="alert">
+          <p>The application was removed. The server record remains.</p>
+          {view.reasons.length > 0 ? (
+            <ul className="mt-2 list-disc pl-5">
+              {view.reasons.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+          ) : null}
+          <button
+            className="mt-4 border border-zinc-300 bg-white px-3 py-1.5 text-sm"
+            type="button"
+            onClick={() => void onRepair()}
+          >
+            Repair installation
+          </button>
+          {repairError ? <p className="mt-3">{repairError}</p> : null}
+        </div>
       ) : null}
       {view.kind === "pending" ? (
         <p className="mt-4 text-zinc-700">Installation is pending.</p>

@@ -150,6 +150,7 @@ async fn main() -> anyhow::Result<()> {
     )
     .context("cannot construct Installation inspection client")?;
     let verification_store = store.clone();
+    let projector_inspection = inspection.clone();
     let installation_relay = InstallationOutboxRelay::new(
         store.clone(),
         RedisStreamPublisher::connect(config.redis_url.expose_for_adapter())
@@ -199,7 +200,7 @@ async fn main() -> anyhow::Result<()> {
         }
         result = run_installation_verifier(verification_store, inspection) => result,
         result = run_installation_relay(installation_relay) => result,
-        result = run_query_projector(query_store, query_consumer) => result,
+        result = run_query_projector(query_store, query_consumer, projector_inspection) => result,
     }
 }
 
@@ -280,31 +281,132 @@ fn bearer_matches(headers: &HeaderMap, expected_token: &str) -> bool {
         == 1
 }
 
-async fn run_query_projector(store: Store, consumer: RedisStreamConsumer) -> anyhow::Result<()> {
+async fn run_query_projector(
+    store: Store,
+    consumer: RedisStreamConsumer,
+    inspection: InstallationInspectionClient,
+) -> anyhow::Result<()> {
     loop {
-        if let Err(cause) = project_available(&store, &consumer).await {
+        if let Err(cause) = project_available(&store, &consumer, &inspection).await {
             error!(error = %cause, "installation projection paused");
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
     }
 }
 
-async fn project_available(store: &Store, consumer: &RedisStreamConsumer) -> anyhow::Result<()> {
+async fn project_available(
+    store: &Store,
+    consumer: &RedisStreamConsumer,
+    inspection: &InstallationInspectionClient,
+) -> anyhow::Result<()> {
     for message in consumer.read().await? {
         let parsed = tobot_envelope::EventEnvelope::parse_s0(&message.envelope)?;
-        if parsed.event.schema_name == "InstallationStateChanged" {
-            store
-                .apply_installation_projection(
-                    &parsed.event,
-                    &message.envelope,
-                    &message.stream_id,
-                    time::OffsetDateTime::now_utc(),
-                )
-                .await?;
+        match parsed.event.schema_name.as_str() {
+            "InstallationStateChanged" => {
+                store
+                    .apply_installation_projection(
+                        &parsed.event,
+                        &message.envelope,
+                        &message.stream_id,
+                        time::OffsetDateTime::now_utc(),
+                    )
+                    .await?;
+            }
+            "GatewayEventAccepted" => {
+                apply_gateway_dispatch(store, inspection, &parsed.event).await?;
+            }
+            _ => {}
         }
         consumer.acknowledge(&message.stream_id).await?;
     }
     Ok(())
+}
+
+async fn apply_gateway_dispatch(
+    store: &Store,
+    inspection: &InstallationInspectionClient,
+    event: &tobot_envelope::EventEnvelope,
+) -> anyhow::Result<()> {
+    let Some(dispatch) = event.gateway_dispatch() else {
+        return Ok(());
+    };
+    match dispatch {
+        tobot_envelope::GatewayDispatch::Ready { present_guild_ids } => {
+            depart_guilds_absent_from_ready(store, &event.application_id, &present_guild_ids)
+                .await?;
+        }
+        tobot_envelope::GatewayDispatch::Resumed => {
+            reconcile_resumed_presence(store, inspection, &event.application_id).await?;
+        }
+        tobot_envelope::GatewayDispatch::GuildDelete { guild_id, bot_left } if bot_left => {
+            store
+                .record_bot_departure(
+                    &event.application_id,
+                    &guild_id,
+                    time::OffsetDateTime::now_utc(),
+                )
+                .await?;
+        }
+        tobot_envelope::GatewayDispatch::GuildDelete { guild_id, .. } => {
+            info!(guild_id, "guild unavailable; installation unchanged");
+        }
+        tobot_envelope::GatewayDispatch::GuildCreate { .. } => {}
+    }
+    Ok(())
+}
+
+async fn depart_guilds_absent_from_ready(
+    store: &Store,
+    application_id: &str,
+    present: &[String],
+) -> anyhow::Result<()> {
+    let installed = store.installed_provider_guild_ids(application_id).await?;
+    for guild_id in guilds_absent_from_snapshot(&installed, present) {
+        store
+            .record_bot_departure(application_id, guild_id, time::OffsetDateTime::now_utc())
+            .await?;
+    }
+    Ok(())
+}
+
+async fn reconcile_resumed_presence(
+    store: &Store,
+    inspection: &InstallationInspectionClient,
+    application_id: &str,
+) -> anyhow::Result<()> {
+    let installed = store.installed_provider_guild_ids(application_id).await?;
+    for guild_id in installed {
+        match inspection.inspect_guild_presence(&guild_id).await {
+            Ok(observation)
+                if !observation.present && observation.provider_guild_id == guild_id =>
+            {
+                store
+                    .record_bot_departure(
+                        application_id,
+                        &guild_id,
+                        time::OffsetDateTime::now_utc(),
+                    )
+                    .await?;
+            }
+            Ok(_) => {}
+            Err(TransportError::Unavailable(_) | TransportError::RateLimited { .. }) => {
+                warn!(guild_id, "presence reconciliation paused");
+                anyhow::bail!("presence reconciliation paused");
+            }
+            Err(TransportError::Rejected { status }) => {
+                warn!(guild_id, status, "presence reconciliation skipped");
+            }
+        }
+    }
+    Ok(())
+}
+
+fn guilds_absent_from_snapshot<'a>(installed: &'a [String], present: &[String]) -> Vec<&'a str> {
+    installed
+        .iter()
+        .filter(|guild_id| !present.iter().any(|present_id| present_id == *guild_id))
+        .map(String::as_str)
+        .collect()
 }
 
 async fn run_installation_relay(relay: InstallationOutboxRelay) -> anyhow::Result<()> {
@@ -440,7 +542,7 @@ async fn discord_callback(
         )
             .into_response(),
         Err(reason) => {
-            record_browser_audit(&state, "oauth_rejected", reason).await;
+            record_browser_audit(&state, "login_rejected", reason).await;
             (
                 [(header::SET_COOKIE, clear_cookie)],
                 Redirect::to(login_error_path(reason)),
@@ -536,6 +638,20 @@ async fn complete_discord_callback(
         })
         .await
         .map_err(|_| BrowserFailure::Unavailable)?;
+    if let Err(error) = state
+        .store
+        .record_audit_event(AuditFact {
+            outcome: "login_succeeded",
+            reason_code: "oauth_callback",
+            account_id: None,
+            session_id: Some(session.id),
+            subject_ref: None,
+            occurred_at: time::OffsetDateTime::from(now),
+        })
+        .await
+    {
+        warn!(error = %error, "login success was not audited");
+    }
     Ok(session.id)
 }
 
@@ -581,9 +697,7 @@ async fn complete_guild_install_callback(
     }
     let session_id = session_id(headers).ok_or(BrowserFailure::Rejected)?;
     let now = time::OffsetDateTime::from(state.clock.now());
-    let session = state
-        .store
-        .authorize_session(session_id, now)
+    let session = authorize_browser_session(state, session_id, now)
         .await
         .map_err(|_| BrowserFailure::Unavailable)?
         .ok_or(BrowserFailure::Expired)?;
@@ -633,8 +747,15 @@ async fn complete_guild_install_callback(
         tokens.guild.as_ref().map(|guild| guild.id.as_str()),
         &consumed.provider_guild_id,
     )?;
-    let tenant_id =
-        record_callback_installation(state, &consumed, &observed_guild_id, query, now).await?;
+    let tenant_id = record_callback_installation(
+        state,
+        &consumed,
+        &observed_guild_id,
+        query,
+        now,
+        session.account_id,
+    )
+    .await?;
     if let Err(cause) = state.discord_oauth.revoke_token(&tokens.access_token).await {
         warn!(
             transaction_id = %consumed.transaction_id,
@@ -651,6 +772,7 @@ async fn record_callback_installation(
     observed_guild_id: &str,
     query: &InstallCallbackQuery,
     now: time::OffsetDateTime,
+    actor_account_id: Uuid,
 ) -> Result<Uuid, BrowserFailure> {
     let verifying = VerifyingInstallation {
         transaction_id: consumed.transaction_id,
@@ -663,7 +785,26 @@ async fn record_callback_installation(
         permissions_hint: query.permissions.as_deref(),
         received_at: now,
     };
-    if consumed.preset == InstallPreset::GuildRepair.as_str() {
+    let repair = consumed.preset == InstallPreset::GuildRepair.as_str();
+    let existing_tenant = state
+        .store
+        .guild_tenant_id(&state.discord_application_id, observed_guild_id)
+        .await
+        .map_err(|_| BrowserFailure::Unavailable)?;
+    let bound_tenant = match (repair, existing_tenant) {
+        (true, Some(tenant_id)) => tenant_id,
+        (true, None) => return Err(BrowserFailure::Rejected),
+        (false, tenant_id) => tenant_id.unwrap_or(verifying.candidate_tenant_id),
+    };
+    let schema_name = if repair {
+        "AdmitGuildRepair"
+    } else {
+        "AdmitGuildInstall"
+    };
+    if !admit_installation_command(schema_name, actor_account_id, bound_tenant) {
+        return Err(BrowserFailure::Rejected);
+    }
+    if repair {
         state
             .store
             .record_repair_installation(verifying)
@@ -734,7 +875,7 @@ async fn csrf(State(state): State<AppState>, headers: HeaderMap) -> Response {
         return StatusCode::UNAUTHORIZED.into_response();
     };
     let now = time::OffsetDateTime::from(state.clock.now());
-    let Ok(Some(session)) = state.store.authorize_session(session_id, now).await else {
+    let Ok(Some(session)) = authorize_browser_session(&state, session_id, now).await else {
         return clear_session_response(StatusCode::UNAUTHORIZED);
     };
     let Ok(ciphertext) = std::str::from_utf8(&session.csrf_secret_ciphertext) else {
@@ -791,7 +932,7 @@ async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Response {
         return StatusCode::FORBIDDEN.into_response();
     }
     let now = time::OffsetDateTime::from(state.clock.now());
-    let Ok(Some(session)) = state.store.authorize_session(session_id, now).await else {
+    let Ok(Some(session)) = authorize_browser_session(&state, session_id, now).await else {
         return clear_session_response(StatusCode::UNAUTHORIZED);
     };
     let proof_hash = opaque_secret_hash(proof);
@@ -929,6 +1070,47 @@ fn presentation_guilds(guilds: Vec<DiscordGuildObservation>) -> Vec<DiscordGuild
         .collect()
 }
 
+async fn authorize_browser_session(
+    state: &AppState,
+    session_id: Uuid,
+    now: time::OffsetDateTime,
+) -> Result<Option<ActiveAuthorizationSession>, sqlx::Error> {
+    let session = state.store.authorize_session(session_id, now).await?;
+    if session.is_none() {
+        record_observed_session_expiry(state, session_id, now).await;
+    }
+    Ok(session)
+}
+
+async fn record_observed_session_expiry(
+    state: &AppState,
+    session_id: Uuid,
+    now: time::OffsetDateTime,
+) {
+    let Ok(Some(outcome)) = state.store.observed_session_expiry(session_id, now).await else {
+        return;
+    };
+    let outcome = match outcome.as_str() {
+        "session_idle_expired" => "session_idle_expired",
+        "session_absolute_expired" => "session_absolute_expired",
+        _ => return,
+    };
+    if let Err(error) = state
+        .store
+        .record_audit_event(AuditFact {
+            outcome,
+            reason_code: "session_deadline",
+            account_id: None,
+            session_id: Some(session_id),
+            subject_ref: None,
+            occurred_at: now,
+        })
+        .await
+    {
+        warn!(error = %error, "session expiry was not audited");
+    }
+}
+
 fn session_status(status: StatusCode) -> Response {
     if status == StatusCode::UNAUTHORIZED {
         clear_session_response(status)
@@ -942,7 +1124,7 @@ async fn guilds(State(state): State<AppState>, headers: HeaderMap) -> Response {
         return StatusCode::UNAUTHORIZED.into_response();
     };
     let now = time::OffsetDateTime::from(state.clock.now());
-    let Ok(Some(session)) = state.store.authorize_session(session_id, now).await else {
+    let Ok(Some(session)) = authorize_browser_session(&state, session_id, now).await else {
         return clear_session_response(StatusCode::UNAUTHORIZED);
     };
     let discovered = match live_user_guilds(&state, &session).await {
@@ -999,7 +1181,7 @@ async fn guild_shell(
         return StatusCode::UNAUTHORIZED.into_response();
     };
     let now = time::OffsetDateTime::from(state.clock.now());
-    let Ok(Some(session)) = state.store.authorize_session(session_id, now).await else {
+    let Ok(Some(session)) = authorize_browser_session(&state, session_id, now).await else {
         return clear_session_response(StatusCode::UNAUTHORIZED);
     };
     if let Err(status) = ensure_fresh_discovery(&state, &session, now).await {
@@ -1059,6 +1241,17 @@ async fn start_guild_install(
     };
     if !has_live_guild_install_authority(guild.owner, &guild.permissions) {
         return StatusCode::FORBIDDEN.into_response();
+    }
+    let bound_tenant = match state
+        .store
+        .guild_tenant_id(&state.discord_application_id, &guild_id)
+        .await
+    {
+        Ok(tenant_id) => tenant_id.unwrap_or_else(Uuid::now_v7),
+        Err(_) => return StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    };
+    if !admit_installation_command("AdmitGuildInstall", session.account_id, bound_tenant) {
+        return StatusCode::CONFLICT.into_response();
     }
 
     let authorization = GuildInstallAuthorization::new(
@@ -1152,7 +1345,10 @@ async fn start_guild_repair(
     else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    if shell.installation_state != "Degraded" {
+    if shell.installation_state != "Degraded" && shell.installation_state != "Removed" {
+        return StatusCode::CONFLICT.into_response();
+    }
+    if !admit_installation_command("AdmitGuildRepair", session.account_id, tenant_id) {
         return StatusCode::CONFLICT.into_response();
     }
     let Ok(missing) = state.store.missing_capability_keys(tenant_id).await else {
@@ -1214,6 +1410,40 @@ async fn start_guild_repair(
         .into_response()
 }
 
+fn admit_installation_command(schema_name: &str, actor_account_id: Uuid, tenant_id: Uuid) -> bool {
+    let now = time::OffsetDateTime::now_utc();
+    let Some(deadline) = now.checked_add(time::Duration::minutes(10)) else {
+        return false;
+    };
+    let Ok(deadline_at) = deadline.format(&time::format_description::well_known::Rfc3339) else {
+        return false;
+    };
+    let correlation_id = Uuid::now_v7();
+    let command = tobot_envelope::CommandEnvelope {
+        command_id: Uuid::now_v7(),
+        schema_name: schema_name.to_owned(),
+        schema_version: 1,
+        actor_account_id,
+        tenant_id,
+        idempotency_key: Uuid::now_v7(),
+        deadline_at,
+        correlation_id,
+        trace_context: tobot_envelope::TraceContext {
+            trace_id: correlation_id.to_string(),
+            span_id: Uuid::now_v7().to_string(),
+        },
+        payload: serde_json::json!({}),
+    };
+    let Ok(raw) = serde_json::to_vec(&command) else {
+        return false;
+    };
+    let Ok(parsed) = tobot_envelope::CommandEnvelope::parse_s0(&raw) else {
+        return false;
+    };
+    parsed.command.schema_name == schema_name
+        && parsed.command.admit(tenant_id, false) == tobot_envelope::CommandAdmission::Admit
+}
+
 async fn persist_install_authorization(
     state: &AppState,
     handoff: &GuildInstallAuthorization,
@@ -1271,9 +1501,7 @@ async fn authorize_mutation(
         return Err(StatusCode::FORBIDDEN);
     }
     let now = time::OffsetDateTime::from(state.clock.now());
-    let session = state
-        .store
-        .authorize_session(session_id, now)
+    let session = authorize_browser_session(state, session_id, now)
         .await
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?
         .ok_or(StatusCode::UNAUTHORIZED)?;
@@ -1497,8 +1725,9 @@ use axum::http::HeaderName;
 #[cfg(test)]
 mod tests {
     use super::{
-        BrowserFailure, DiscordGuildObservation, GuildShellSummary, discovery_response_items,
-        install_error_path, login_error_path, presentation_guilds,
+        BrowserFailure, DiscordGuildObservation, GuildShellSummary, admit_installation_command,
+        discovery_response_items, guilds_absent_from_snapshot, install_error_path,
+        login_error_path, presentation_guilds,
     };
     use uuid::Uuid;
 
@@ -1515,6 +1744,43 @@ mod tests {
             owner: false,
             permissions: "0".to_owned(),
         }
+    }
+
+    #[test]
+    fn ready_snapshot_marks_only_missing_installed_guilds() {
+        let installed = vec!["111".to_owned(), "222".to_owned()];
+        let present = vec!["222".to_owned(), "333".to_owned()];
+        assert_eq!(
+            guilds_absent_from_snapshot(&installed, &present),
+            vec!["111"]
+        );
+        assert!(guilds_absent_from_snapshot(&installed, &installed).is_empty());
+    }
+
+    #[test]
+    fn installation_command_binds_the_actor_and_tenant() {
+        let tenant = Uuid::now_v7();
+        let actor = Uuid::now_v7();
+        assert!(admit_installation_command(
+            "AdmitGuildInstall",
+            actor,
+            tenant
+        ));
+        assert!(admit_installation_command(
+            "AdmitGuildRepair",
+            actor,
+            tenant
+        ));
+        assert!(!admit_installation_command(
+            "AdmitGuildInstall",
+            Uuid::nil(),
+            tenant
+        ));
+        assert!(!admit_installation_command(
+            "GuildInstallRequested",
+            actor,
+            tenant
+        ));
     }
 
     #[test]

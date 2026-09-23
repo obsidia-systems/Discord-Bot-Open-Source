@@ -85,6 +85,10 @@ fn delivery_router(state: Arc<DeliveryState>) -> Router {
             "/internal/v1/installations/inspect-guild",
             post(inspect_guild),
         )
+        .route(
+            "/internal/v1/commands/diagnostic",
+            post(register_diagnostic),
+        )
         .with_state(state)
 }
 
@@ -150,6 +154,55 @@ const fn transport_readiness(credentials_present: bool, database_ready: bool) ->
         StatusCode::NO_CONTENT
     } else {
         StatusCode::SERVICE_UNAVAILABLE
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct DiagnosticCommandRequest {
+    application_id: u64,
+    guild_id: u64,
+}
+
+async fn register_diagnostic(
+    State(state): State<Arc<DeliveryState>>,
+    headers: HeaderMap,
+    Json(request): Json<DiagnosticCommandRequest>,
+) -> StatusCode {
+    if !authorized(&headers, &state.service_token) {
+        return StatusCode::UNAUTHORIZED;
+    }
+    match state
+        .transport
+        .register_diagnostic_command(request.application_id, request.guild_id)
+        .await
+    {
+        Ok(()) => StatusCode::NO_CONTENT,
+        Err(error) => {
+            warn!(
+                guild_id = request.guild_id,
+                class = transport_class(&error),
+                "diagnostic command registration failed"
+            );
+            transport_status(&error)
+        }
+    }
+}
+
+fn transport_class(error: &TransportError) -> &'static str {
+    match error {
+        TransportError::RateLimited { .. } => "RateLimited",
+        TransportError::Rejected { .. } => "Rejected",
+        TransportError::Unavailable(_) => "Unavailable",
+    }
+}
+
+fn transport_status(error: &TransportError) -> StatusCode {
+    match error {
+        TransportError::RateLimited { .. } => StatusCode::TOO_MANY_REQUESTS,
+        TransportError::Rejected { status } => {
+            StatusCode::from_u16(*status).unwrap_or(StatusCode::BAD_GATEWAY)
+        }
+        TransportError::Unavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
     }
 }
 

@@ -391,8 +391,8 @@ impl Store {
     }
 
     /// Opens the next installation generation only when the current one is
-    /// `Degraded` and a required capability is not Healthy. Discord inspection
-    /// still decides the resulting state.
+    /// `Degraded` or `Removed` and a required capability is not Healthy.
+    /// Discord inspection still decides the resulting state.
     ///
     /// # Errors
     ///
@@ -641,9 +641,29 @@ impl Store {
         .await
     }
 
-    /// Marks the newest `Installed` generation `Degraded` after Discord reports
-    /// that the bot left the guild. An outage is not this call. A guild with
-    /// no installed generation is left unchanged.
+    /// Guild tenant for one application, when Installation already created it.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the tenant row cannot be read.
+    pub async fn guild_tenant_id(
+        &self,
+        application_id: &str,
+        provider_guild_id: &str,
+    ) -> Result<Option<Uuid>, sqlx::Error> {
+        sqlx::query_scalar(
+            "SELECT tenant_id FROM installation.tenant \
+             WHERE tenant_type = 'Guild' AND provider_tenant_ref = $1 AND application_id = $2",
+        )
+        .bind(provider_guild_id)
+        .bind(application_id)
+        .fetch_optional(&self.pool)
+        .await
+    }
+
+    /// Marks the newest `Installed` generation `Removed` after Discord reports
+    /// that the bot left the guild. The tenant row stays. An outage is not this
+    /// call. A guild with no installed generation is left unchanged.
     ///
     /// # Errors
     ///
@@ -668,7 +688,7 @@ impl Store {
                 provider_guild_id,
                 application_id,
                 generation,
-                state: "Degraded",
+                state: "Removed",
                 capabilities: serde_json::json!({
                     "application_install_context": "Healthy",
                     "bot_presence": "Degraded"
@@ -801,6 +821,32 @@ impl Store {
                        credential.expires_at AS credential_expires_at, \
                        session.csrf_secret_ciphertext, \
                        session.idle_expires_at, session.absolute_expires_at",
+        )
+        .bind(session_id)
+        .bind(now)
+        .fetch_optional(&self.pool)
+        .await
+    }
+
+    /// Names the deadline a still-present session has already passed.
+    /// Revocation is recorded when the session is revoked, not here.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the session row cannot be read.
+    pub async fn observed_session_expiry(
+        &self,
+        session_id: Uuid,
+        now: OffsetDateTime,
+    ) -> Result<Option<String>, sqlx::Error> {
+        sqlx::query_scalar(
+            "SELECT CASE \
+               WHEN absolute_expires_at < $2 THEN 'session_absolute_expired' \
+               WHEN idle_expires_at < $2 THEN 'session_idle_expired' \
+             END \
+             FROM identity.authorization_session \
+             WHERE session_id = $1 AND revoked_at IS NULL \
+               AND (absolute_expires_at < $2 OR idle_expires_at < $2)",
         )
         .bind(session_id)
         .bind(now)
@@ -1415,6 +1461,86 @@ impl Store {
         Ok(())
     }
 
+    /// Stores one relevant Gateway dispatch in the Edge inbox and outbox.
+    /// A repeated application, shard, session, and sequence is not a second fact.
+    /// Ready and Resume have no tenant, so those rows leave `tenant_id` empty.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the technical identity is incomplete or the
+    /// receipt cannot be committed with its outbox row.
+    pub async fn accept_gateway_dispatch(
+        &self,
+        event: &EventEnvelope,
+        raw: &[u8],
+    ) -> Result<bool, sqlx::Error> {
+        let (Some(shard_id), Some(session_id), Some(gateway_sequence)) = (
+            event.shard_id,
+            event.session_id.as_deref(),
+            event.gateway_sequence,
+        ) else {
+            return Err(sqlx::Error::Protocol(
+                "gateway dispatch is missing its technical identity".to_owned(),
+            ));
+        };
+        let shard_id = i32::try_from(shard_id).map_err(|_| {
+            sqlx::Error::Protocol("gateway shard id exceeds PostgreSQL integer range".to_owned())
+        })?;
+        let gateway_sequence = i64::try_from(gateway_sequence).map_err(|_| {
+            sqlx::Error::Protocol("gateway sequence exceeds PostgreSQL bigint range".to_owned())
+        })?;
+        let partition_key = event
+            .guild_id
+            .clone()
+            .unwrap_or_else(|| event.application_id.clone());
+        let mut transaction = self.pool.begin().await?;
+        let inserted = sqlx::query(
+            "INSERT INTO edge.gateway_receipt \
+             (application_id, shard_id, session_id, gateway_sequence, event_id) \
+             VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING",
+        )
+        .bind(&event.application_id)
+        .bind(shard_id)
+        .bind(session_id)
+        .bind(gateway_sequence)
+        .bind(event.event_id)
+        .execute(&mut *transaction)
+        .await?
+        .rows_affected()
+            == 1;
+        if !inserted {
+            transaction.commit().await?;
+            return Ok(false);
+        }
+        sqlx::query(
+            "INSERT INTO edge.event_inbox \
+             (event_id, tenant_id, schema_name, schema_version, raw_envelope) \
+             VALUES ($1, $2, $3, $4, $5)",
+        )
+        .bind(event.event_id)
+        .bind(event.tenant_id)
+        .bind(&event.schema_name)
+        .bind(i32::from(event.schema_version))
+        .bind(raw)
+        .execute(&mut *transaction)
+        .await?;
+        sqlx::query(
+            "INSERT INTO edge.event_outbox \
+             (outbox_id, tenant_id, event_id, topic, partition_key, envelope) \
+             VALUES ($1, $2, $3, $4, $5, $6)",
+        )
+        .bind(Uuid::now_v7())
+        .bind(event.tenant_id)
+        .bind(event.event_id)
+        .bind(&event.schema_name)
+        .bind(partition_key)
+        .bind(raw)
+        .execute(&mut *transaction)
+        .await?;
+        transaction.commit().await?;
+        Ok(true)
+    }
+
     /// Loads the shard session saved from the last Ready or Resume.
     ///
     /// # Errors
@@ -1653,7 +1779,8 @@ impl Store {
     ) -> Result<i64, sqlx::Error> {
         sqlx::query_scalar(
             "SELECT count(*)::bigint FROM identity.audit_event \
-             WHERE outcome IN ('oauth_rejected', 'install_rejected') AND occurred_at >= $1",
+             WHERE outcome IN ('oauth_rejected', 'install_rejected', 'login_rejected') \
+               AND occurred_at >= $1",
         )
         .bind(since)
         .fetch_one(&self.pool)
@@ -1728,6 +1855,59 @@ impl Store {
         .execute(&self.pool)
         .await?;
         Ok(result.rows_affected() == 1)
+    }
+
+    /// Extends the Edge lease while the same owner is still publishing.
+    /// A stolen lease updates nothing.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the lease cannot be extended.
+    pub async fn renew_edge_outbox_lease(
+        &self,
+        lease_token: Uuid,
+        lease_until: OffsetDateTime,
+    ) -> Result<u64, sqlx::Error> {
+        self.renew_outbox_lease(
+            "UPDATE edge.event_outbox SET lease_expires_at = $2 \
+             WHERE lease_token = $1 AND published_at IS NULL",
+            lease_token,
+            lease_until,
+        )
+        .await
+    }
+
+    /// Extends the Installation lease while the same owner is still publishing.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the lease cannot be extended.
+    pub async fn renew_installation_outbox_lease(
+        &self,
+        lease_token: Uuid,
+        lease_until: OffsetDateTime,
+    ) -> Result<u64, sqlx::Error> {
+        self.renew_outbox_lease(
+            "UPDATE installation.event_outbox SET lease_expires_at = $2 \
+             WHERE lease_token = $1 AND published_at IS NULL",
+            lease_token,
+            lease_until,
+        )
+        .await
+    }
+
+    async fn renew_outbox_lease(
+        &self,
+        statement: &'static str,
+        lease_token: Uuid,
+        lease_until: OffsetDateTime,
+    ) -> Result<u64, sqlx::Error> {
+        let result = sqlx::query(statement)
+            .bind(lease_token)
+            .bind(lease_until)
+            .execute(&self.pool)
+            .await?;
+        Ok(result.rows_affected())
     }
 
     /// # Errors
@@ -1832,7 +2012,7 @@ async fn lock_latest_installation(
         return Ok(None);
     }
     let updated = sqlx::query(
-        "UPDATE installation.installation SET state = 'Degraded' \
+        "UPDATE installation.installation SET state = 'Removed' \
          WHERE installation_id = $1 AND state = 'Installed'",
     )
     .bind(installation_id)
@@ -1899,7 +2079,7 @@ async fn missing_capability_allows_repair(
     let Some((installation_id, generation, state)) = latest else {
         return Ok(false);
     };
-    if state != "Degraded" || next_generation <= generation {
+    if (state != "Degraded" && state != "Removed") || next_generation <= generation {
         return Ok(false);
     }
     let missing: i64 = sqlx::query_scalar(

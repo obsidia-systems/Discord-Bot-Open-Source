@@ -6,6 +6,7 @@ use std::time::Duration;
 use tobot_discord_adapter::GuildPresenceInspection;
 use tobot_discord_adapter::{DiscordTransport, InteractionCallback, TransportError};
 
+#[derive(Clone)]
 pub struct InternalDeliveryTransport {
     client: reqwest::Client,
     base_url: String,
@@ -104,12 +105,40 @@ impl InternalDeliveryTransport {
         })
     }
 
+    /// Asks Delivery to register the guild diagnostic command. This is the only
+    /// product Discord HTTP Edge is allowed to trigger.
+    ///
+    /// # Errors
+    ///
+    /// Returns a classified error when Delivery or Discord rejects the command.
+    pub async fn register_diagnostic_command(
+        &self,
+        application_id: u64,
+        guild_id: u64,
+    ) -> Result<(), TransportError> {
+        self.post_json(
+            "/internal/v1/commands/diagnostic",
+            &serde_json::json!({
+                "application_id": application_id,
+                "guild_id": guild_id
+            }),
+        )
+        .await
+    }
+
     async fn send(&self, path: &str, callback: InteractionCallback) -> Result<(), TransportError> {
+        let body = serde_json::to_value(&callback).map_err(|_| {
+            TransportError::Unavailable("interaction callback could not be encoded".to_owned())
+        })?;
+        self.post_json(path, &body).await
+    }
+
+    async fn post_json(&self, path: &str, body: &serde_json::Value) -> Result<(), TransportError> {
         let response = self
             .client
             .post(format!("{}{path}", self.base_url))
             .bearer_auth(&self.service_token)
-            .json(&callback)
+            .json(body)
             .send()
             .await
             .map_err(|_| TransportError::Unavailable("Delivery is unavailable".to_owned()))?;

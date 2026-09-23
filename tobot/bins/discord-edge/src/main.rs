@@ -55,7 +55,7 @@ async fn main() -> anyhow::Result<()> {
     let delivery_transport =
         InternalDeliveryTransport::new(&delivery_url, internal_service_token.clone())
             .context("invalid Delivery transport configuration")?;
-    let interaction_edge = InteractionEdge::new(store.clone(), delivery_transport);
+    let interaction_edge = InteractionEdge::new(store.clone(), delivery_transport.clone());
     let discord = TwilightTransport::new(bot_token.clone());
     let health = EdgeHealth::new(0);
     let health_bind: std::net::SocketAddr = std::env::var("TOBOT_EDGE_HEALTH_BIND")
@@ -66,10 +66,6 @@ async fn main() -> anyhow::Result<()> {
         health: health.clone(),
         service_token: internal_service_token,
     }));
-    let application_snowflake: u64 = application_id
-        .parse()
-        .context("TOBOT_DISCORD_APPLICATION_ID is not a snowflake")?;
-
     info!(%application_id, ingress = "gateway", shard = 0, "discord edge starting");
     tokio::select! {
         result = axum::serve(tokio::net::TcpListener::bind(health_bind).await?, app) => {
@@ -82,7 +78,7 @@ async fn main() -> anyhow::Result<()> {
             &interaction_edge,
             &store,
             &application_id,
-            application_snowflake,
+            &delivery_transport,
         ) => result,
     }
 }
@@ -94,7 +90,7 @@ async fn supervise_gateway(
     interaction_edge: &InteractionEdge<InternalDeliveryTransport>,
     store: &Store,
     application_id: &str,
-    application_snowflake: u64,
+    delivery: &InternalDeliveryTransport,
 ) -> anyhow::Result<()> {
     observe_rate_limit(discord, bot_token).await;
     loop {
@@ -117,12 +113,11 @@ async fn supervise_gateway(
         let mut shard = connect_shard(bot_token, phase, stored)?;
         run_gateway(
             &mut shard,
-            discord,
             health,
             interaction_edge,
             store,
             application_id,
-            application_snowflake,
+            delivery,
         )
         .await?;
         health.disconnected();
@@ -183,13 +178,15 @@ fn transport_class(error: &tobot_discord_adapter::TransportError) -> &'static st
 
 async fn run_gateway(
     shard: &mut Shard,
-    discord: &TwilightTransport,
     health: &EdgeHealth,
     interaction_edge: &InteractionEdge<InternalDeliveryTransport>,
     store: &Store,
     application_id: &str,
-    application_snowflake: u64,
+    delivery: &InternalDeliveryTransport,
 ) -> anyhow::Result<()> {
+    let application_snowflake: u64 = application_id
+        .parse()
+        .context("TOBOT_DISCORD_APPLICATION_ID is not a snowflake")?;
     while let Some(next_event) = shard.next_event(EventTypeFlags::all()).await {
         let Ok(event) = next_event else {
             warn!(shard = shard.id().number(), "gateway event error");
@@ -204,21 +201,66 @@ async fn run_gateway(
                     .iter()
                     .map(|guild| guild.id.to_string())
                     .collect();
-                reconcile_installed_snapshot(store, application_id, &present).await;
+                persist_gateway_dispatch(
+                    shard,
+                    store,
+                    application_id,
+                    None,
+                    serde_json::json!({
+                        "dispatch": "Ready",
+                        "present_guild_ids": present
+                    }),
+                )
+                .await;
             }
             Event::Resumed => {
                 info!(shard = shard.id().number(), "gateway resume completed");
-                reconcile_installed_presence(discord, store, application_id).await;
+                persist_gateway_dispatch(
+                    shard,
+                    store,
+                    application_id,
+                    None,
+                    serde_json::json!({"dispatch": "Resumed"}),
+                )
+                .await;
             }
             Event::GatewayInvalidateSession(_) => {
                 store.delete_gateway_session(0).await?;
                 warn!(shard = shard.id().number(), "gateway session invalidated");
             }
             Event::GuildCreate(guild) => {
-                register_diagnostic(discord, application_snowflake, guild.id().get()).await;
+                let guild_id = guild.id().get();
+                let guild_text = guild_id.to_string();
+                persist_gateway_dispatch(
+                    shard,
+                    store,
+                    application_id,
+                    Some(&guild_text),
+                    serde_json::json!({"dispatch": "GuildCreate"}),
+                )
+                .await;
+                register_diagnostic(delivery, application_snowflake, guild_id).await;
             }
             Event::GuildDelete(deletion) => {
-                observe_guild_departure(store, application_id, deletion).await;
+                let guild_id = deletion.id.to_string();
+                let bot_left = bot_left_guild(deletion.unavailable);
+                if !bot_left {
+                    info!(
+                        guild_id = %guild_id,
+                        "guild unavailable; installation unchanged"
+                    );
+                }
+                persist_gateway_dispatch(
+                    shard,
+                    store,
+                    application_id,
+                    Some(&guild_id),
+                    serde_json::json!({
+                        "dispatch": "GuildDelete",
+                        "bot_left": bot_left
+                    }),
+                )
+                .await;
             }
             _ => {}
         }
@@ -285,88 +327,64 @@ fn bot_left_guild(unavailable: Option<bool>) -> bool {
     unavailable.is_none()
 }
 
-fn guilds_absent_from_snapshot<'a>(installed: &'a [String], present: &[String]) -> Vec<&'a str> {
-    installed
-        .iter()
-        .filter(|guild_id| !present.iter().any(|present_id| present_id == *guild_id))
-        .map(String::as_str)
-        .collect()
-}
-
-async fn reconcile_installed_snapshot(store: &Store, application_id: &str, present: &[String]) {
-    let Ok(installed) = store.installed_provider_guild_ids(application_id).await else {
-        warn!("installed guilds could not be listed for presence reconciliation");
-        return;
-    };
-    for guild_id in guilds_absent_from_snapshot(&installed, present) {
-        record_absent_bot(store, application_id, guild_id).await;
-    }
-}
-
-async fn reconcile_installed_presence(
-    discord: &TwilightTransport,
+async fn persist_gateway_dispatch(
+    shard: &Shard,
     store: &Store,
     application_id: &str,
+    guild_id: Option<&str>,
+    payload: serde_json::Value,
 ) {
-    let Ok(installed) = store.installed_provider_guild_ids(application_id).await else {
-        warn!("installed guilds could not be listed for presence reconciliation");
+    let Some(session) = shard.session() else {
+        warn!("gateway dispatch has no session; fact was not stored");
         return;
     };
-    for guild_id in installed {
-        match discord.inspect_guild_presence(&guild_id).await {
-            Ok(observation)
-                if !observation.present && observation.provider_guild_id == guild_id =>
-            {
-                record_absent_bot(store, application_id, &guild_id).await;
-            }
-            Ok(_) => {}
-            Err(error) => warn!(
-                guild_id = %guild_id,
-                class = transport_class(&error),
-                "presence reconciliation skipped"
-            ),
-        }
-    }
-}
-
-async fn record_absent_bot(store: &Store, application_id: &str, guild_id: &str) {
-    match store
-        .record_bot_departure(application_id, guild_id, OffsetDateTime::now_utc())
-        .await
-    {
-        Ok(true) => {
-            info!(guild_id = %guild_id, "installed guild has no bot; installation degraded");
-        }
-        Ok(false) => {}
-        Err(_) => warn!(guild_id = %guild_id, "absent bot was not recorded"),
-    }
-}
-
-async fn observe_guild_departure(
-    store: &Store,
-    application_id: &str,
-    deletion: &twilight_model::gateway::payload::incoming::GuildDelete,
-) {
-    let guild_id = deletion.id.to_string();
-    if !bot_left_guild(deletion.unavailable) {
-        info!(
-            guild_id = %guild_id,
-            "guild unavailable; installation unchanged"
-        );
+    let now = OffsetDateTime::now_utc();
+    let Ok(timestamp) = now.format(&Rfc3339) else {
+        warn!("gateway dispatch clock could not be formatted");
         return;
-    }
-    match store
-        .record_bot_departure(application_id, &guild_id, OffsetDateTime::now_utc())
-        .await
-    {
-        Ok(true) => info!(guild_id = %guild_id, "bot left guild; installation degraded"),
-        Ok(false) => info!(guild_id = %guild_id, "bot left a guild with no installed shell"),
-        Err(_) => warn!(guild_id = %guild_id, "bot departure was not recorded"),
+    };
+    let correlation_id = Uuid::now_v7();
+    let event = EventEnvelope {
+        event_id: Uuid::now_v7(),
+        schema_name: "GatewayEventAccepted".to_owned(),
+        schema_version: 1,
+        occurred_at: timestamp.clone(),
+        received_at: timestamp,
+        application_id: application_id.to_owned(),
+        tenant_id: None,
+        guild_id: guild_id.map(ToOwned::to_owned),
+        shard_id: Some(shard.id().number()),
+        session_id: Some(session.id().to_owned()),
+        gateway_sequence: Some(session.sequence()),
+        correlation_id,
+        causation_id: None,
+        trace_context: TraceContext {
+            trace_id: correlation_id.to_string(),
+            span_id: Uuid::now_v7().to_string(),
+        },
+        payload,
+    };
+    let Ok(raw) = serde_json::to_vec(&event) else {
+        warn!("gateway dispatch envelope could not be encoded");
+        return;
+    };
+    match store.accept_gateway_dispatch(&event, &raw).await {
+        Ok(true) => info!(
+            schema_name = %event.schema_name,
+            event_id = %event.event_id,
+            "gateway dispatch stored"
+        ),
+        Ok(false) => info!(event_id = %event.event_id, "gateway dispatch duplicate"),
+        Err(_) => warn!("gateway dispatch was not stored"),
     }
 }
 
-async fn register_diagnostic(discord: &TwilightTransport, application_id: u64, guild_id: u64) {
-    match discord
+async fn register_diagnostic(
+    delivery: &InternalDeliveryTransport,
+    application_id: u64,
+    guild_id: u64,
+) {
+    match delivery
         .register_diagnostic_command(application_id, guild_id)
         .await
     {
@@ -691,17 +709,6 @@ mod tests {
     use tobot_discord_adapter::shard_is_ready;
     use tower::ServiceExt as _;
     use twilight_gateway::Event;
-
-    #[test]
-    fn ready_snapshot_marks_only_missing_installed_guilds() {
-        let installed = vec!["111".to_owned(), "222".to_owned()];
-        let present = vec!["222".to_owned(), "333".to_owned()];
-        assert_eq!(
-            super::guilds_absent_from_snapshot(&installed, &present),
-            vec!["111"]
-        );
-        assert!(super::guilds_absent_from_snapshot(&installed, &installed).is_empty());
-    }
 
     #[test]
     fn guild_delete_without_unavailable_means_the_bot_left() {

@@ -22,7 +22,7 @@ export type InstallationView =
   | { kind: "verifying" }
   | { kind: "installed" }
   | { kind: "degraded"; reasons: string[] }
-  | { kind: "removed" }
+  | { kind: "removed"; reasons: string[] }
   | { kind: "pending" }
   | { kind: "unknown" };
 
@@ -51,7 +51,10 @@ export function installationView(input: {
         reasons: capabilityReasons(input.capabilities),
       };
     case "Removed":
-      return { kind: "removed" };
+      return {
+        kind: "removed",
+        reasons: capabilityReasons(input.capabilities),
+      };
     case "Pending":
       return { kind: "pending" };
     default:

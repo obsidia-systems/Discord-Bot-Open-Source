@@ -1,11 +1,21 @@
 //! Transactional outbox relay. A failed bus publish deliberately leaves the
 //! lease to expire; it never marks a fact as published on uncertain outcome.
 
+use std::time::Instant;
+
 use time::{Duration, OffsetDateTime};
 use tobot_bus::{BusError, RedisStreamPublisher};
 use tobot_envelope::{EnvelopeError, EventEnvelope};
 use tobot_persistence::Store;
 use uuid::Uuid;
+
+const LEASE_HEARTBEAT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// A claim that is still publishing renews once this much wall time has passed.
+#[must_use]
+pub fn lease_renewal_due(elapsed: std::time::Duration) -> bool {
+    elapsed >= LEASE_HEARTBEAT
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum RelayError {
@@ -50,7 +60,21 @@ impl EdgeOutboxRelay {
             .claim_edge_outbox(now, now + Duration::seconds(15), lease_token, batch_size)
             .await?;
         let mut published = 0;
+        let mut started = Instant::now();
         for entry in entries {
+            if lease_renewal_due(started.elapsed()) {
+                let extended = self
+                    .store
+                    .renew_edge_outbox_lease(
+                        lease_token,
+                        OffsetDateTime::now_utc() + Duration::seconds(15),
+                    )
+                    .await?;
+                if extended == 0 {
+                    break;
+                }
+                started = Instant::now();
+            }
             let parsed = EventEnvelope::parse_s0(&entry.envelope)?;
             self.publisher
                 .publish(&parsed.event, &entry.envelope)
@@ -88,7 +112,21 @@ impl InstallationOutboxRelay {
             .claim_installation_outbox(now, now + Duration::seconds(15), lease_token, batch_size)
             .await?;
         let mut published = 0;
+        let mut started = Instant::now();
         for entry in entries {
+            if lease_renewal_due(started.elapsed()) {
+                let extended = self
+                    .store
+                    .renew_installation_outbox_lease(
+                        lease_token,
+                        OffsetDateTime::now_utc() + Duration::seconds(15),
+                    )
+                    .await?;
+                if extended == 0 {
+                    break;
+                }
+                started = Instant::now();
+            }
             let parsed = EventEnvelope::parse_s0(&entry.envelope)?;
             self.publisher
                 .publish(&parsed.event, &entry.envelope)
@@ -149,5 +187,11 @@ mod tests {
             LeaseDecision::Takeover
         );
         assert_eq!(lease_decision(None, other, false), LeaseDecision::Takeover);
+    }
+
+    #[test]
+    fn lease_renewal_waits_until_the_batch_is_still_in_flight() {
+        assert!(!lease_renewal_due(std::time::Duration::from_millis(100)));
+        assert!(lease_renewal_due(std::time::Duration::from_secs(5)));
     }
 }

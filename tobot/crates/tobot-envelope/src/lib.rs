@@ -141,6 +141,48 @@ impl EventEnvelope {
             sequence: self.gateway_sequence?,
         })
     }
+
+    /// Reads an S0 gateway dispatch. Interaction receipts omit `dispatch` and
+    /// return `None` so a consumer does not treat them as presence evidence.
+    #[must_use]
+    pub fn gateway_dispatch(&self) -> Option<GatewayDispatch> {
+        if self.schema_name != "GatewayEventAccepted" {
+            return None;
+        }
+        match self.payload.get("dispatch").and_then(Value::as_str)? {
+            "Ready" => {
+                let present_guild_ids = string_array(self.payload.get("present_guild_ids")?)?;
+                Some(GatewayDispatch::Ready { present_guild_ids })
+            }
+            "Resumed" => Some(GatewayDispatch::Resumed),
+            "GuildCreate" => Some(GatewayDispatch::GuildCreate {
+                guild_id: self.guild_id.clone()?,
+            }),
+            "GuildDelete" => Some(GatewayDispatch::GuildDelete {
+                guild_id: self.guild_id.clone()?,
+                bot_left: self.payload.get("bot_left").and_then(Value::as_bool)?,
+            }),
+            _ => None,
+        }
+    }
+}
+
+fn string_array(value: &Value) -> Option<Vec<String>> {
+    value
+        .as_array()?
+        .iter()
+        .map(|item| item.as_str().map(ToOwned::to_owned))
+        .collect()
+}
+
+/// Relevant non-interaction Gateway dispatches. Presence comparison uses the
+/// Ready snapshot; Resume carries no guild list.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum GatewayDispatch {
+    Ready { present_guild_ids: Vec<String> },
+    Resumed,
+    GuildCreate { guild_id: String },
+    GuildDelete { guild_id: String, bot_left: bool },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -282,6 +324,36 @@ mod tests {
             .unwrap_or_else(|| panic!("gateway event did not produce a technical key"));
         assert_eq!(key.sequence, 42);
         assert_eq!(parsed.raw, VALID_GATEWAY.as_bytes());
+        assert_eq!(parsed.event.gateway_dispatch(), None);
+    }
+
+    #[test]
+    fn gateway_dispatch_keeps_ready_guilds_and_a_real_departure() {
+        let ready = VALID_GATEWAY.replace(
+            r#""payload":{"kind":"INTERACTION_CREATE"}"#,
+            r#""payload":{"dispatch":"Ready","present_guild_ids":["222"]}"#,
+        );
+        let parsed = EventEnvelope::parse_s0(ready.as_bytes())
+            .unwrap_or_else(|error| panic!("ready dispatch rejected: {error}"));
+        assert_eq!(
+            parsed.event.gateway_dispatch(),
+            Some(GatewayDispatch::Ready {
+                present_guild_ids: vec!["222".to_owned()]
+            })
+        );
+        let left = VALID_GATEWAY.replace(
+            r#""payload":{"kind":"INTERACTION_CREATE"}"#,
+            r#""payload":{"dispatch":"GuildDelete","bot_left":true}"#,
+        );
+        let parsed = EventEnvelope::parse_s0(left.as_bytes())
+            .unwrap_or_else(|error| panic!("guild delete rejected: {error}"));
+        assert_eq!(
+            parsed.event.gateway_dispatch(),
+            Some(GatewayDispatch::GuildDelete {
+                guild_id: "456".to_owned(),
+                bot_left: true
+            })
+        );
     }
 
     #[test]
