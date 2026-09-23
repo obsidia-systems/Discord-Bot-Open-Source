@@ -10,6 +10,9 @@ use uuid::Uuid;
 const ADMINISTRATOR: u64 = 1 << 3;
 const MANAGE_GUILD: u64 = 1 << 5;
 
+/// Discord Moderate Members. Administrator stays off this union.
+pub const SAFETY_GUILD_PERMISSIONS: &str = "1099511627776";
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct S0Manifest {
     pub module: &'static str,
@@ -25,6 +28,29 @@ impl Default for S0Manifest {
             module: "platform_probe",
             oauth_scopes: ["applications.commands", "bot"],
             guild_permissions: "0",
+            gateway_intents: ["GUILDS"],
+            bot_presence_required: true,
+        }
+    }
+}
+
+/// Guild install and repair for the safety operator loop. Verification still
+/// uses the two S0 capabilities; a missing Moderate Members bit does not degrade.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct SafetyManifest {
+    pub module: &'static str,
+    pub oauth_scopes: [&'static str; 2],
+    pub guild_permissions: &'static str,
+    pub gateway_intents: [&'static str; 1],
+    pub bot_presence_required: bool,
+}
+
+impl Default for SafetyManifest {
+    fn default() -> Self {
+        Self {
+            module: "safety_operator_loop",
+            oauth_scopes: ["applications.commands", "bot"],
+            guild_permissions: SAFETY_GUILD_PERMISSIONS,
             gateway_intents: ["GUILDS"],
             bot_presence_required: true,
         }
@@ -64,8 +90,8 @@ impl GuildInstallAuthorization {
         }
     }
 
-    /// Creates the named `GuildInstall` preset with an explicit zero
-    /// permission union because the S0 probe requires no guild permissions.
+    /// Creates the named `GuildInstall` preset. The permission union is Moderate
+    /// Members. Administrator stays off.
     ///
     /// # Errors
     ///
@@ -78,7 +104,7 @@ impl GuildInstallAuthorization {
             &self.state,
             &self.code_challenge,
             &self.provider_guild_id,
-            S0Manifest::default().guild_permissions,
+            SAFETY_GUILD_PERMISSIONS,
         )
     }
 }
@@ -158,11 +184,10 @@ pub fn aggregate_installation_state(evidence: &[CapabilityEvidence]) -> &'static
     if complete { "Installed" } else { "Degraded" }
 }
 
-/// S0 repair asks only for the missing named permission delta. The probe
-/// needs no guild permission, so the delta stays zero and never Administrator.
+/// Repair asks for Moderate Members. It never asks for Administrator.
 #[must_use]
 pub const fn repair_permission_union() -> &'static str {
-    "0"
+    SAFETY_GUILD_PERMISSIONS
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -383,7 +408,10 @@ mod tests {
             parameters.get("disable_guild_select").map(AsRef::as_ref),
             Some("true")
         );
-        assert_eq!(parameters.get("permissions").map(AsRef::as_ref), Some("0"));
+        assert_eq!(
+            parameters.get("permissions").map(AsRef::as_ref),
+            Some(SAFETY_GUILD_PERMISSIONS)
+        );
         assert_eq!(
             parameters.get("integration_type").map(AsRef::as_ref),
             Some("0")
@@ -406,7 +434,7 @@ mod tests {
         let missing = s0_verification_evidence(false);
         assert_eq!(aggregate_installation_state(&missing), "Degraded");
         let plan = repair_plan(&missing);
-        assert_eq!(plan.permission_union, "0");
+        assert_eq!(plan.permission_union, SAFETY_GUILD_PERMISSIONS);
         assert_eq!(plan.reasons, ["bot_guild_presence_absent"]);
         let bits = plan.permission_union.parse::<u64>().unwrap_or(u64::MAX);
         assert_eq!(bits & (1 << 3), 0);
@@ -453,7 +481,10 @@ mod tests {
             parameters.get("disable_guild_select").map(AsRef::as_ref),
             Some("true")
         );
-        assert_eq!(parameters.get("permissions").map(AsRef::as_ref), Some("0"));
+        assert_eq!(
+            parameters.get("permissions").map(AsRef::as_ref),
+            Some(SAFETY_GUILD_PERMISSIONS)
+        );
         assert_eq!(parameters.get("prompt").map(AsRef::as_ref), Some("consent"));
         assert!(!callback_hint_grants_authority(Some("123"), Some("8")));
         assert_eq!(InstallPreset::GuildRepair.as_str(), "GuildRepair");

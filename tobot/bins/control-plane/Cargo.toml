@@ -8,6 +8,7 @@ publish.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+async-trait.workspace = true
 axum.workspace = true
 http.workspace = true
 sqlx.workspace = true
@@ -20,6 +21,7 @@ tower-http.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 tobot-bus = { path = "../../crates/tobot-bus" }
+tobot-cases = { path = "../../crates/tobot-cases" }
 tobot-config = { path = "../../crates/tobot-config" }
 tobot-core = { path = "../../crates/tobot-core" }
 tobot-delivery-client = { path = "../../crates/tobot-delivery-client" }

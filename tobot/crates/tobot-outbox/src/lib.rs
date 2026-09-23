@@ -6,7 +6,7 @@ use std::time::Instant;
 use time::{Duration, OffsetDateTime};
 use tobot_bus::{BusError, RedisStreamPublisher};
 use tobot_envelope::{EnvelopeError, EventEnvelope};
-use tobot_persistence::{EdgeRelayStore, InstallationStore};
+use tobot_persistence::{EdgeRelayStore, InstallationStore, ModerationStore};
 use uuid::Uuid;
 
 const LEASE_HEARTBEAT: std::time::Duration = std::time::Duration::from_secs(5);
@@ -34,6 +34,11 @@ pub struct EdgeOutboxRelay {
 
 pub struct InstallationOutboxRelay {
     store: InstallationStore,
+    publisher: RedisStreamPublisher,
+}
+
+pub struct ModerationOutboxRelay {
+    store: ModerationStore,
     publisher: RedisStreamPublisher,
 }
 
@@ -134,6 +139,63 @@ impl InstallationOutboxRelay {
             if self
                 .store
                 .mark_installation_outbox_published(
+                    entry.outbox_id,
+                    lease_token,
+                    entry.fencing_token,
+                    now,
+                )
+                .await?
+            {
+                published += 1;
+            }
+        }
+        Ok(published)
+    }
+}
+
+impl ModerationOutboxRelay {
+    #[must_use]
+    pub fn new(store: ModerationStore, publisher: RedisStreamPublisher) -> Self {
+        Self { store, publisher }
+    }
+
+    /// # Errors
+    ///
+    /// Returns the first persistence, envelope, or Redis failure without
+    /// acknowledging uncertain publication.
+    pub async fn relay_once(
+        &self,
+        now: OffsetDateTime,
+        batch_size: i64,
+    ) -> Result<usize, RelayError> {
+        let lease_token = Uuid::now_v7();
+        let entries = self
+            .store
+            .claim_moderation_outbox(now, now + Duration::seconds(15), lease_token, batch_size)
+            .await?;
+        let mut published = 0;
+        let mut started = Instant::now();
+        for entry in entries {
+            if lease_renewal_due(started.elapsed()) {
+                let extended = self
+                    .store
+                    .renew_moderation_outbox_lease(
+                        lease_token,
+                        OffsetDateTime::now_utc() + Duration::seconds(15),
+                    )
+                    .await?;
+                if extended == 0 {
+                    break;
+                }
+                started = Instant::now();
+            }
+            let parsed = EventEnvelope::parse_s0(&entry.envelope)?;
+            self.publisher
+                .publish(&parsed.event, &entry.envelope)
+                .await?;
+            if self
+                .store
+                .mark_moderation_outbox_published(
                     entry.outbox_id,
                     lease_token,
                     entry.fencing_token,

@@ -1,6 +1,8 @@
 //! Public Control Plane surface. OAuth and installation routes remain at the
 //! app origin when the reverse proxy forwards these paths to this binary.
 
+mod cases_http;
+
 use std::{collections::HashMap, net::SocketAddr};
 
 use anyhow::Context;
@@ -15,21 +17,22 @@ use subtle::ConstantTimeEq;
 use tobot_bus::{RedisStreamConsumer, RedisStreamPublisher};
 use tobot_config::ControlPlaneConfig;
 use tobot_core::{Clock, SystemClock, render_gauges};
-use tobot_delivery_client::InstallationInspectionClient;
+use tobot_delivery_client::{CasesDeliveryClient, InstallationInspectionClient};
 use tobot_discord_adapter::{DiscordGuildObservation, DiscordOAuthClient, TransportError};
 use tobot_identity::{
     AuthorizationSession, oauth_state_hash, opaque_secret_hash, opaque_secrets_match, pkce_s256,
 };
 use tobot_identity_service::{OAuthService, OAuthServiceError};
 use tobot_installation::{
-    GuildInstallAuthorization, GuildRepairAuthorization, InstallPreset, S0Manifest,
+    GuildInstallAuthorization, GuildRepairAuthorization, InstallPreset, SafetyManifest,
     granted_install_scopes_match, has_live_guild_install_authority, is_existing_user_grant,
 };
-use tobot_outbox::InstallationOutboxRelay;
+use tobot_outbox::{InstallationOutboxRelay, ModerationOutboxRelay};
 use tobot_persistence::{
     ActiveAuthorizationSession, AuditFact, ConsumedInstallAuthorization, ControlPlaneDatabase,
     GuildDiscoveryObservation, GuildShellSummary, IdentityStore, InstallationStore,
-    NewDiscordAuthorization, NewInstallAuthorization, QueryStore, VerifyingInstallation,
+    ModerationStore, NewDiscordAuthorization, NewInstallAuthorization, QueryStore,
+    VerifyingInstallation,
 };
 use tobot_secret_store::{SecretStore, VaultTransitStore};
 use tower_http::{
@@ -107,6 +110,9 @@ struct AppState {
     identity: IdentityStore,
     installation: InstallationStore,
     query: QueryStore,
+    moderation: ModerationStore,
+    cases_gateway: cases_http::DeliveryGateway,
+    service_token: String,
     secret_store: VaultTransitStore,
     oauth: OAuthService<VaultTransitStore>,
     discord_oauth: DiscordOAuthClient,
@@ -119,6 +125,7 @@ struct AppState {
 }
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .json()
@@ -167,26 +174,36 @@ async fn main() -> anyhow::Result<()> {
     .context("cannot construct Query/Status stream consumer")?;
     let query_store = database.query.clone();
     let installation_for_projection = database.installation.clone();
+    let case_runtime = prepare_cases(&config, &database)?;
     let metrics_state = MetricsState {
         identity: database.identity.clone(),
         installation: database.installation.clone(),
         query: database.query.clone(),
         consumer: query_consumer.clone(),
-        service_token: config
-            .internal_service_token
-            .expose_for_adapter()
-            .to_owned(),
+        service_token: case_runtime.service_token.clone(),
         clock: SystemClock,
     };
     let metrics_address: SocketAddr = config
         .metrics_bind
         .parse()
         .context("invalid TOBOT_CONTROL_METRICS_BIND")?;
+    let CaseRuntime {
+        gateway,
+        service_token,
+        relay: moderation_relay,
+        query: case_query,
+        consumer: case_consumer,
+        recovery_store,
+    } = case_runtime;
+    let recovery_gateway = gateway.clone();
     let app = router(AppState {
         oauth: OAuthService::new(database.identity.clone(), secret_store.clone()),
         identity: database.identity,
         installation: database.installation,
         query: database.query,
+        moderation: database.moderation,
+        cases_gateway: gateway,
+        service_token,
         secret_store,
         discord_oauth,
         discord_client_id: config.discord_client_id,
@@ -213,7 +230,49 @@ async fn main() -> anyhow::Result<()> {
             query_consumer,
             projector_inspection,
         ) => result,
+        result = run_case_projector(case_query, case_consumer) => result,
+        result = run_moderation_relay(moderation_relay) => result,
+        result = run_case_recovery(recovery_store, recovery_gateway) => result,
     }
+}
+
+struct CaseRuntime {
+    gateway: cases_http::DeliveryGateway,
+    service_token: String,
+    relay: ModerationOutboxRelay,
+    query: QueryStore,
+    consumer: RedisStreamConsumer,
+    recovery_store: ModerationStore,
+}
+
+fn prepare_cases(
+    config: &ControlPlaneConfig,
+    database: &ControlPlaneDatabase,
+) -> anyhow::Result<CaseRuntime> {
+    let service_token = config
+        .internal_service_token
+        .expose_for_adapter()
+        .to_owned();
+    let gateway = cases_http::DeliveryGateway::new(
+        CasesDeliveryClient::new(&config.delivery_url, service_token.clone())
+            .context("cannot construct cases delivery client")?,
+    );
+    let publisher = RedisStreamPublisher::connect(config.redis_url.expose_for_adapter())
+        .context("cannot construct moderation outbox publisher")?;
+    let consumer = RedisStreamConsumer::connect(
+        config.redis_url.expose_for_adapter(),
+        "case-status-s1",
+        "control-plane",
+    )
+    .context("cannot construct case projection consumer")?;
+    Ok(CaseRuntime {
+        gateway,
+        service_token,
+        relay: ModerationOutboxRelay::new(database.moderation.clone(), publisher),
+        query: database.query.clone(),
+        consumer,
+        recovery_store: database.moderation.clone(),
+    })
 }
 
 #[derive(Clone)]
@@ -336,6 +395,63 @@ async fn project_available(
         consumer.acknowledge(&message.stream_id).await?;
     }
     Ok(())
+}
+
+async fn run_case_projector(
+    query: QueryStore,
+    consumer: RedisStreamConsumer,
+) -> anyhow::Result<()> {
+    loop {
+        if let Err(cause) = project_cases(&query, &consumer).await {
+            error!(error = %cause, "case projection paused");
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        }
+    }
+}
+
+async fn project_cases(query: &QueryStore, consumer: &RedisStreamConsumer) -> anyhow::Result<()> {
+    for message in consumer.read().await? {
+        let parsed = tobot_envelope::EventEnvelope::parse_s0(&message.envelope)?;
+        if parsed.event.schema_name.starts_with("Moderation") {
+            query
+                .apply_case_projection(
+                    &parsed.event,
+                    &message.envelope,
+                    &message.stream_id,
+                    time::OffsetDateTime::now_utc(),
+                )
+                .await?;
+        }
+        consumer.acknowledge(&message.stream_id).await?;
+    }
+    Ok(())
+}
+
+async fn run_moderation_relay(relay: ModerationOutboxRelay) -> anyhow::Result<()> {
+    loop {
+        match relay.relay_once(time::OffsetDateTime::now_utc(), 100).await {
+            Ok(0) => tokio::time::sleep(std::time::Duration::from_millis(250)).await,
+            Ok(count) => info!(count, "relayed moderation outbox facts"),
+            Err(cause) => {
+                error!(error = %cause, "moderation outbox relay failed");
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
+        }
+    }
+}
+
+async fn run_case_recovery(
+    store: ModerationStore,
+    gateway: cases_http::DeliveryGateway,
+) -> anyhow::Result<()> {
+    loop {
+        match tobot_cases::resume_stale_cases(&store, &gateway, time::OffsetDateTime::now_utc()).await {
+            Ok(0) => {}
+            Ok(count) => info!(count, "resumed executing moderation cases"),
+            Err(cause) => error!(error = %cause, "moderation recovery failed"),
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    }
 }
 
 async fn apply_gateway_dispatch(
@@ -504,6 +620,18 @@ fn router(state: AppState) -> Router {
         .route("/api/v1/csrf", get(csrf))
         .route("/api/v1/guilds", get(guilds))
         .route("/api/v1/guilds/{tenant_id}", get(guild_shell))
+        .route(
+            "/internal/v1/moderation/actions",
+            post(cases_http::submit_moderation_action),
+        )
+        .route(
+            "/api/v1/guilds/{tenant_id}/cases",
+            get(cases_http::list_cases),
+        )
+        .route(
+            "/api/v1/guilds/{tenant_id}/cases/{case_id}",
+            get(cases_http::case_detail),
+        )
         .layer(SetResponseHeaderLayer::if_not_present(
             header::X_CONTENT_TYPE_OPTIONS,
             HeaderValue::from_static("nosniff"),
@@ -1295,7 +1423,7 @@ async fn start_guild_install(
     else {
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
     };
-    let Ok(frozen_manifest) = serde_json::to_value(S0Manifest::default()) else {
+    let Ok(frozen_manifest) = serde_json::to_value(SafetyManifest::default()) else {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
     if state
@@ -1486,7 +1614,7 @@ async fn persist_install_authorization(
         )
         .await
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-    let frozen_manifest = serde_json::to_value(S0Manifest::default())
+    let frozen_manifest = serde_json::to_value(SafetyManifest::default())
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     state
         .installation

@@ -159,7 +159,15 @@ export function GuildHome({ tenantId }: GuildHomeProps) {
         </div>
       ) : null}
       {view.kind === "installed" ? (
-        <p className="mt-4 text-zinc-700">The application is installed on this server.</p>
+        <>
+          <p className="mt-4 text-zinc-700">The application is installed on this server.</p>
+          <a
+            className="mt-4 inline-block underline decoration-zinc-400 underline-offset-4 hover:decoration-zinc-950"
+            href={`/guild/${tenantId}/cases`}
+          >
+            Cases
+          </a>
+        </>
       ) : null}
       {view.kind === "removed" ? (
         <div className="mt-4 border-l-2 border-zinc-950 pl-3" role="alert">

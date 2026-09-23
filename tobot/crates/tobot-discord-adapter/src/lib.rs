@@ -5,21 +5,23 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::{sync::Mutex, time::Duration};
 use thiserror::Error;
-use twilight_http::{api_error::ApiError, error::ErrorType};
+use twilight_http::{api_error::ApiError, error::ErrorType, request::AuditLogReason};
 use twilight_model::{
     application::{
-        command::{Command, CommandType},
+        command::{Command, CommandOption, CommandOptionType, CommandType},
         interaction::InteractionContextType,
     },
     channel::message::MessageFlags,
+    guild::Permissions,
     http::interaction::{InteractionResponse, InteractionResponseData, InteractionResponseType},
     id::{
         Id,
-        marker::{ApplicationMarker, CommandVersionMarker, GuildMarker, InteractionMarker},
+        marker::{ApplicationMarker, CommandVersionMarker, GuildMarker, InteractionMarker, UserMarker},
     },
 };
 
 pub const DIAGNOSTIC_COMMAND_NAME: &str = "probe";
+pub const TIMEOUT_COMMAND_NAME: &str = "timeout";
 pub const DIAGNOSTIC_ACKNOWLEDGEMENT: &str = "Acknowledged.";
 pub const INTERACTION_ACK_DEADLINE_MS: u64 = 3_000;
 const DISCORD_EPOCH_MS: u64 = 1_420_070_400_000;
@@ -47,6 +49,183 @@ pub enum TransportError {
     Rejected { status: u16 },
     #[error("Discord transport failed: {0}")]
     Unavailable(String),
+}
+
+/// Separate capability facts. A later field must not overwrite an earlier one.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum CapabilityDecision {
+    Allowed,
+    Denied,
+    Blocked,
+    Unknown,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ModerationPreflightReport {
+    pub actor_permission: CapabilityDecision,
+    pub bot_permission: CapabilityDecision,
+    pub owner_protection: CapabilityDecision,
+    pub hierarchy: CapabilityDecision,
+    pub protected_target: CapabilityDecision,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RoleGrant {
+    pub id: u64,
+    pub position: i64,
+    pub moderate_members: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MemberGrant {
+    pub user_id: u64,
+    pub role_ids: Vec<u64>,
+}
+
+/// Read-only guild snapshot. Missing members stay absent instead of being guessed.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GuildAccessSnapshot {
+    pub guild_id: u64,
+    pub owner_id: u64,
+    pub roles: Vec<RoleGrant>,
+    pub actor: Option<MemberGrant>,
+    pub bot: Option<MemberGrant>,
+    pub target: Option<MemberGrant>,
+    pub protected_targets: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TimeoutOutcome {
+    Applied,
+    Blocked,
+    Failed,
+    RateLimited,
+    OutcomeUncertain,
+}
+
+/// Denied wins over Blocked. Unknown wins over Allowed so a read failure is not permission.
+#[must_use]
+pub fn combine_preflight(report: &ModerationPreflightReport) -> CapabilityDecision {
+    let decisions = [
+        report.actor_permission,
+        report.owner_protection,
+        report.hierarchy,
+        report.protected_target,
+        report.bot_permission,
+    ];
+    if decisions.contains(&CapabilityDecision::Denied) {
+        return CapabilityDecision::Denied;
+    }
+    if decisions.contains(&CapabilityDecision::Unknown) {
+        return CapabilityDecision::Unknown;
+    }
+    if decisions.contains(&CapabilityDecision::Blocked) {
+        return CapabilityDecision::Blocked;
+    }
+    CapabilityDecision::Allowed
+}
+
+/// Classifies a timeout mutation without a network call.
+#[must_use]
+pub fn classify_timeout_result(result: Result<(), &TransportError>) -> TimeoutOutcome {
+    match result {
+        Ok(()) => TimeoutOutcome::Applied,
+        Err(TransportError::RateLimited { .. }) => TimeoutOutcome::RateLimited,
+        Err(TransportError::Rejected { status: 403 | 404 }) => TimeoutOutcome::Blocked,
+        Err(TransportError::Unavailable(_)) => TimeoutOutcome::OutcomeUncertain,
+        Err(TransportError::Rejected { .. }) => TimeoutOutcome::Failed,
+    }
+}
+
+/// Actor permission, bot permission, owner protection, hierarchy, and protected targets stay separate.
+#[must_use]
+pub fn decide_preflight(snapshot: &GuildAccessSnapshot) -> ModerationPreflightReport {
+    let protected = if snapshot
+        .protected_targets
+        .iter()
+        .any(|target| target == &snapshot_target(snapshot))
+    {
+        CapabilityDecision::Denied
+    } else {
+        CapabilityDecision::Allowed
+    };
+    ModerationPreflightReport {
+        actor_permission: actor_permission(snapshot),
+        bot_permission: bot_permission(snapshot),
+        owner_protection: owner_protection(snapshot),
+        hierarchy: hierarchy(snapshot),
+        protected_target: protected,
+    }
+}
+
+fn snapshot_target(snapshot: &GuildAccessSnapshot) -> String {
+    snapshot
+        .target
+        .as_ref()
+        .map(|member| member.user_id.to_string())
+        .unwrap_or_default()
+}
+
+fn actor_permission(snapshot: &GuildAccessSnapshot) -> CapabilityDecision {
+    let Some(actor) = &snapshot.actor else {
+        return CapabilityDecision::Denied;
+    };
+    if actor.user_id == snapshot.owner_id || holds_moderate(snapshot, actor) {
+        CapabilityDecision::Allowed
+    } else {
+        CapabilityDecision::Denied
+    }
+}
+
+fn bot_permission(snapshot: &GuildAccessSnapshot) -> CapabilityDecision {
+    match &snapshot.bot {
+        Some(bot) if holds_moderate(snapshot, bot) => CapabilityDecision::Allowed,
+        Some(_) | None => CapabilityDecision::Blocked,
+    }
+}
+
+fn owner_protection(snapshot: &GuildAccessSnapshot) -> CapabilityDecision {
+    match &snapshot.target {
+        Some(target) if target.user_id == snapshot.owner_id => CapabilityDecision::Denied,
+        Some(_) => CapabilityDecision::Allowed,
+        None => CapabilityDecision::Unknown,
+    }
+}
+
+fn hierarchy(snapshot: &GuildAccessSnapshot) -> CapabilityDecision {
+    let (Some(actor), Some(bot), Some(target)) = (&snapshot.actor, &snapshot.bot, &snapshot.target)
+    else {
+        return CapabilityDecision::Unknown;
+    };
+    let actor_outranks = actor.user_id == snapshot.owner_id
+        || top_position(snapshot, actor) > top_position(snapshot, target);
+    let bot_outranks = top_position(snapshot, bot) > top_position(snapshot, target);
+    if actor_outranks && bot_outranks {
+        CapabilityDecision::Allowed
+    } else {
+        CapabilityDecision::Denied
+    }
+}
+
+fn holds_moderate(snapshot: &GuildAccessSnapshot, member: &MemberGrant) -> bool {
+    let mut roles = member.role_ids.clone();
+    if !roles.contains(&snapshot.guild_id) {
+        roles.push(snapshot.guild_id);
+    }
+    snapshot
+        .roles
+        .iter()
+        .any(|role| roles.contains(&role.id) && role.moderate_members)
+}
+
+fn top_position(snapshot: &GuildAccessSnapshot, member: &MemberGrant) -> i64 {
+    snapshot
+        .roles
+        .iter()
+        .filter(|role| member.role_ids.contains(&role.id))
+        .map(|role| role.position)
+        .max()
+        .unwrap_or(0)
 }
 
 pub struct OAuthTokenSet {
@@ -534,12 +713,12 @@ impl TwilightTransport {
             .ok_or(TransportError::Rejected { status: 400 })?;
         let guild_id = Id::<GuildMarker>::new_checked(guild_id)
             .ok_or(TransportError::Rejected { status: 400 })?;
-        let command = diagnostic_command();
+        let commands = [diagnostic_command(), timeout_command()];
         self.preflight()?;
         let result = self
             .client
             .interaction(application_id)
-            .set_guild_commands(guild_id, &[command])
+            .set_guild_commands(guild_id, &commands)
             .await
             .map(|_| ())
             .map_err(|error| Self::map_error(&error));
@@ -663,6 +842,228 @@ impl TwilightTransport {
     }
 }
 
+impl TwilightTransport {
+    /// Read-only preflight. It does not change the member.
+    ///
+    /// # Errors
+    ///
+    /// Returns a classified transport error. A rate limit is not turned into a permission.
+    pub async fn moderation_preflight(
+        &self,
+        guild_id: u64,
+        actor_user_id: u64,
+        target_user_id: u64,
+        protected_targets: &[String],
+    ) -> Result<ModerationPreflightReport, TransportError> {
+        let guild_id = snowflake::<GuildMarker>(guild_id)?;
+        let actor_user_id = snowflake::<UserMarker>(actor_user_id)?;
+        let target_user_id = snowflake::<UserMarker>(target_user_id)?;
+        self.preflight()?;
+        let guild = self.guild_model(guild_id).await?;
+        let bot_user = self.current_bot_user().await?;
+        let actor = self.member_grant(guild_id, actor_user_id).await?;
+        let bot = self.member_grant(guild_id, bot_user).await?;
+        let target = self.member_grant(guild_id, target_user_id).await?;
+        Ok(decide_preflight(&GuildAccessSnapshot {
+            guild_id: guild.id.get(),
+            owner_id: guild.owner_id.get(),
+            roles: guild
+                .roles
+                .iter()
+                .map(|role| RoleGrant {
+                    id: role.id.get(),
+                    position: role.position,
+                    moderate_members: role.permissions.contains(Permissions::MODERATE_MEMBERS),
+                })
+                .collect(),
+            actor,
+            bot,
+            target,
+            protected_targets: protected_targets.to_vec(),
+        }))
+    }
+
+    /// # Errors
+    ///
+    /// Returns a classified transport error when Discord does not confirm the timeout.
+    pub async fn apply_member_timeout(
+        &self,
+        guild_id: u64,
+        user_id: u64,
+        until_unix: i64,
+        reason: &str,
+    ) -> Result<(), TransportError> {
+        let until = twilight_model::util::Timestamp::from_secs(until_unix)
+            .map_err(|_| TransportError::Rejected { status: 400 })?;
+        self.patch_timeout(guild_id, user_id, Some(until), reason).await
+    }
+
+    /// An already clear timeout is a no-op.
+    ///
+    /// # Errors
+    ///
+    /// Returns a classified transport error when Discord does not confirm the clear.
+    pub async fn clear_member_timeout(
+        &self,
+        guild_id: u64,
+        user_id: u64,
+        reason: &str,
+    ) -> Result<(), TransportError> {
+        if !self.member_timeout_active(guild_id, user_id).await? {
+            return Ok(());
+        }
+        self.patch_timeout(guild_id, user_id, None, reason).await
+    }
+
+    /// # Errors
+    ///
+    /// Returns a classified transport error when the member cannot be read.
+    pub async fn member_timeout_active(
+        &self,
+        guild_id: u64,
+        user_id: u64,
+    ) -> Result<bool, TransportError> {
+        let guild_id = snowflake::<GuildMarker>(guild_id)?;
+        let user_id = snowflake::<UserMarker>(user_id)?;
+        self.preflight()?;
+        let member = self.member_model(guild_id, user_id).await?;
+        let Some(until) = member.communication_disabled_until else {
+            return Ok(false);
+        };
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |elapsed| i64::try_from(elapsed.as_secs()).unwrap_or(i64::MAX));
+        Ok(until.as_secs() > now)
+    }
+
+    /// # Errors
+    ///
+    /// Returns a classified transport error when Discord rejects the follow-up.
+    pub async fn create_followup(
+        &self,
+        request: InteractionCallback,
+        content: &str,
+    ) -> Result<(), TransportError> {
+        let (application_id, _) = Self::ids(&request)?;
+        self.preflight()?;
+        let result = self
+            .client
+            .interaction(application_id)
+            .create_followup(&request.interaction_token)
+            .content(content)
+            .flags(MessageFlags::EPHEMERAL)
+            .await
+            .map(|_| ())
+            .map_err(|error| Self::map_error(&error));
+        if let Err(error) = &result {
+            self.note(error);
+        }
+        result
+    }
+
+    async fn patch_timeout(
+        &self,
+        guild_id: u64,
+        user_id: u64,
+        until: Option<twilight_model::util::Timestamp>,
+        reason: &str,
+    ) -> Result<(), TransportError> {
+        let guild_id = snowflake::<GuildMarker>(guild_id)?;
+        let user_id = snowflake::<UserMarker>(user_id)?;
+        self.preflight()?;
+        let reason = bounded_audit_reason(reason);
+        let result = self
+            .client
+            .update_guild_member(guild_id, user_id)
+            .communication_disabled_until(until)
+            .reason(&reason)
+            .await
+            .map(|_| ())
+            .map_err(|error| Self::map_error(&error));
+        if let Err(error) = &result {
+            self.note(error);
+        }
+        result
+    }
+
+    async fn guild_model(
+        &self,
+        guild_id: Id<GuildMarker>,
+    ) -> Result<twilight_model::guild::Guild, TransportError> {
+        let response = self
+            .client
+            .guild(guild_id)
+            .await
+            .map_err(|error| self.noted(&error))?;
+        response.model().await.map_err(|error| self.note_text(error))
+    }
+
+    async fn current_bot_user(&self) -> Result<Id<UserMarker>, TransportError> {
+        let response = self
+            .client
+            .current_user()
+            .await
+            .map_err(|error| self.noted(&error))?;
+        let user = response.model().await.map_err(|error| self.note_text(error))?;
+        Ok(user.id)
+    }
+
+    async fn member_grant(
+        &self,
+        guild_id: Id<GuildMarker>,
+        user_id: Id<UserMarker>,
+    ) -> Result<Option<MemberGrant>, TransportError> {
+        match self.member_model(guild_id, user_id).await {
+            Ok(member) => Ok(Some(MemberGrant {
+                user_id: user_id.get(),
+                role_ids: member.roles.iter().map(|role| role.get()).collect(),
+            })),
+            Err(TransportError::Rejected { status: 404 }) => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
+    async fn member_model(
+        &self,
+        guild_id: Id<GuildMarker>,
+        user_id: Id<UserMarker>,
+    ) -> Result<twilight_model::guild::Member, TransportError> {
+        let response = self
+            .client
+            .guild_member(guild_id, user_id)
+            .await
+            .map_err(|error| self.noted(&error))?;
+        response.model().await.map_err(|error| self.note_text(error))
+    }
+
+    fn noted(&self, error: &twilight_http::Error) -> TransportError {
+        let mapped = Self::map_error(error);
+        self.note(&mapped);
+        mapped
+    }
+
+    fn note_text(&self, error: impl std::fmt::Display) -> TransportError {
+        let mapped = TransportError::Unavailable(error.to_string());
+        self.note(&mapped);
+        mapped
+    }
+}
+
+fn snowflake<T>(raw: u64) -> Result<Id<T>, TransportError> {
+    Id::new_checked(raw).ok_or(TransportError::Rejected { status: 400 })
+}
+
+fn bounded_audit_reason(reason: &str) -> String {
+    let mut bounded = String::new();
+    for character in reason.chars() {
+        if bounded.len() + character.len_utf8() > 500 {
+            break;
+        }
+        bounded.push(character);
+    }
+    bounded
+}
+
 #[async_trait]
 impl DiscordTransport for TwilightTransport {
     async fn respond_to_interaction(
@@ -693,6 +1094,48 @@ impl DiscordTransport for TwilightTransport {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn timeout_classification_does_not_call_discord() {
+        assert_eq!(classify_timeout_result(Ok(())), TimeoutOutcome::Applied);
+        assert_eq!(
+            classify_timeout_result(Err(&TransportError::Rejected { status: 403 })),
+            TimeoutOutcome::Blocked
+        );
+        assert_eq!(
+            classify_timeout_result(Err(&TransportError::RateLimited { retry_after_ms: 1 })),
+            TimeoutOutcome::RateLimited
+        );
+        assert_eq!(
+            classify_timeout_result(Err(&TransportError::Unavailable("lost".to_owned()))),
+            TimeoutOutcome::OutcomeUncertain
+        );
+        let denied = decide_preflight(&GuildAccessSnapshot {
+            guild_id: 1,
+            owner_id: 9,
+            roles: vec![RoleGrant {
+                id: 2,
+                position: 1,
+                moderate_members: true,
+            }],
+            actor: Some(MemberGrant {
+                user_id: 3,
+                role_ids: vec![2],
+            }),
+            bot: Some(MemberGrant {
+                user_id: 4,
+                role_ids: vec![2],
+            }),
+            target: Some(MemberGrant {
+                user_id: 9,
+                role_ids: vec![],
+            }),
+            protected_targets: Vec::new(),
+        });
+        assert_eq!(denied.owner_protection, CapabilityDecision::Denied);
+        assert_eq!(denied.actor_permission, CapabilityDecision::Allowed);
+        assert_eq!(combine_preflight(&denied), CapabilityDecision::Denied);
+    }
 
     #[test]
     fn response_data_only_sets_ephemeral_when_requested() {
@@ -997,6 +1440,85 @@ fn diagnostic_command() -> Command {
         nsfw: Some(false),
         options: Vec::new(),
         version: Id::<CommandVersionMarker>::new(1),
+    }
+}
+
+#[allow(deprecated)]
+fn timeout_command() -> Command {
+    Command {
+        application_id: None,
+        contexts: Some(vec![InteractionContextType::Guild]),
+        default_member_permissions: Some(Permissions::MODERATE_MEMBERS),
+        dm_permission: Some(false),
+        description: "Time out a member, or clear that timeout.".to_owned(),
+        description_localizations: None,
+        guild_id: None,
+        id: None,
+        integration_types: None,
+        kind: CommandType::ChatInput,
+        name: TIMEOUT_COMMAND_NAME.to_owned(),
+        name_localizations: None,
+        nsfw: Some(false),
+        options: vec![timeout_subcommand("set", true), timeout_subcommand("clear", false)],
+        version: Id::<CommandVersionMarker>::new(1),
+    }
+}
+
+fn timeout_subcommand(name: &str, with_duration: bool) -> CommandOption {
+    let mut options = vec![command_option(
+        "user",
+        "Member",
+        CommandOptionType::User,
+        Some(true),
+        None,
+    )];
+    if with_duration {
+        options.push(command_option(
+            "duration",
+            "Duration, for example 10m or 10 minutos",
+            CommandOptionType::String,
+            Some(true),
+            None,
+        ));
+    }
+    options.push(command_option(
+        "reason",
+        "Reason shown on the case",
+        CommandOptionType::String,
+        Some(false),
+        None,
+    ));
+    command_option(
+        name,
+        if with_duration { "Apply a timeout" } else { "Clear a timeout" },
+        CommandOptionType::SubCommand,
+        None,
+        Some(options),
+    )
+}
+
+fn command_option(
+    name: &str,
+    description: &str,
+    kind: CommandOptionType,
+    required: Option<bool>,
+    options: Option<Vec<CommandOption>>,
+) -> CommandOption {
+    CommandOption {
+        autocomplete: None,
+        channel_types: None,
+        choices: None,
+        description: description.to_owned(),
+        description_localizations: None,
+        kind,
+        max_length: None,
+        max_value: None,
+        min_length: None,
+        min_value: None,
+        name: name.to_owned(),
+        name_localizations: None,
+        options,
+        required,
     }
 }
 

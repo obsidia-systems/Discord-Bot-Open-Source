@@ -89,6 +89,17 @@ fn delivery_router(state: Arc<DeliveryState>) -> Router {
             "/internal/v1/commands/diagnostic",
             post(register_diagnostic),
         )
+        .route("/internal/v1/moderation/preflight", post(moderation_preflight))
+        .route("/internal/v1/moderation/timeout", post(apply_timeout))
+        .route(
+            "/internal/v1/moderation/clear-timeout",
+            post(clear_timeout),
+        )
+        .route(
+            "/internal/v1/moderation/observe-timeout",
+            post(observe_timeout),
+        )
+        .route("/internal/v1/interactions/followup", post(follow_up))
         .with_state(state)
 }
 
@@ -185,6 +196,145 @@ async fn register_diagnostic(
             );
             transport_status(&error)
         }
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct PreflightRequest {
+    guild_id: String,
+    actor_user_id: String,
+    target_user_id: String,
+    protected_targets: Vec<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct TimeoutRequest {
+    guild_id: String,
+    user_id: String,
+    until_unix: Option<i64>,
+    audit_reason: String,
+}
+
+#[derive(serde::Deserialize)]
+struct ObserveRequest {
+    guild_id: String,
+    user_id: String,
+}
+
+#[derive(serde::Deserialize)]
+struct FollowupRequest {
+    #[serde(flatten)]
+    callback: InteractionCallback,
+    content: String,
+}
+
+async fn moderation_preflight(
+    State(state): State<Arc<DeliveryState>>,
+    headers: HeaderMap,
+    Json(request): Json<PreflightRequest>,
+) -> Response {
+    if !authorized(&headers, &state.service_token) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    let Ok(guild_id) = request.guild_id.parse::<u64>() else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    let Ok(actor_user_id) = request.actor_user_id.parse::<u64>() else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    let Ok(target_user_id) = request.target_user_id.parse::<u64>() else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    match state
+        .transport
+        .moderation_preflight(guild_id, actor_user_id, target_user_id, &request.protected_targets)
+        .await
+    {
+        Ok(report) => Json(report).into_response(),
+        Err(error) => transport_status(&error).into_response(),
+    }
+}
+
+async fn apply_timeout(
+    State(state): State<Arc<DeliveryState>>,
+    headers: HeaderMap,
+    Json(request): Json<TimeoutRequest>,
+) -> Response {
+    timeout_mutation(&state, &headers, &request, true).await
+}
+
+async fn clear_timeout(
+    State(state): State<Arc<DeliveryState>>,
+    headers: HeaderMap,
+    Json(request): Json<TimeoutRequest>,
+) -> Response {
+    timeout_mutation(&state, &headers, &request, false).await
+}
+
+async fn timeout_mutation(
+    state: &DeliveryState,
+    headers: &HeaderMap,
+    request: &TimeoutRequest,
+    apply: bool,
+) -> Response {
+    if !authorized(headers, &state.service_token) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    let (Ok(guild_id), Ok(user_id)) = (request.guild_id.parse::<u64>(), request.user_id.parse::<u64>()) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    let result = if apply {
+        let Some(until_unix) = request.until_unix else {
+            return StatusCode::BAD_REQUEST.into_response();
+        };
+        state
+            .transport
+            .apply_member_timeout(guild_id, user_id, until_unix, &request.audit_reason)
+            .await
+    } else {
+        state
+            .transport
+            .clear_member_timeout(guild_id, user_id, &request.audit_reason)
+            .await
+    };
+    match result {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(error) => transport_status(&error).into_response(),
+    }
+}
+
+async fn observe_timeout(
+    State(state): State<Arc<DeliveryState>>,
+    headers: HeaderMap,
+    Json(request): Json<ObserveRequest>,
+) -> Response {
+    if !authorized(&headers, &state.service_token) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    let (Ok(guild_id), Ok(user_id)) = (request.guild_id.parse::<u64>(), request.user_id.parse::<u64>()) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    match state.transport.member_timeout_active(guild_id, user_id).await {
+        Ok(active) => Json(serde_json::json!({ "active": active })).into_response(),
+        Err(error) => transport_status(&error).into_response(),
+    }
+}
+
+async fn follow_up(
+    State(state): State<Arc<DeliveryState>>,
+    headers: HeaderMap,
+    Json(request): Json<FollowupRequest>,
+) -> StatusCode {
+    if !authorized(&headers, &state.service_token) {
+        return StatusCode::UNAUTHORIZED;
+    }
+    match state
+        .transport
+        .create_followup(request.callback, &request.content)
+        .await
+    {
+        Ok(()) => StatusCode::NO_CONTENT,
+        Err(error) => transport_status(&error),
     }
 }
 

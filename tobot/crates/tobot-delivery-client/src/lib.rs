@@ -6,6 +6,22 @@ use std::time::Duration;
 use tobot_discord_adapter::GuildPresenceInspection;
 use tobot_discord_adapter::{DiscordTransport, InteractionCallback, TransportError};
 
+mod cases;
+
+pub use cases::{CasesDeliveryClient, ModerationCommandClient, ModerationCommandResponse};
+
+pub(crate) fn classify_status(status: u16) -> TransportError {
+    if status == 429 {
+        return TransportError::RateLimited {
+            retry_after_ms: 1_000,
+        };
+    }
+    if (400..500).contains(&status) {
+        return TransportError::Rejected { status };
+    }
+    TransportError::Unavailable(format!("upstream returned HTTP {status}"))
+}
+
 #[derive(Clone)]
 pub struct InternalDeliveryTransport {
     client: reqwest::Client,
@@ -163,6 +179,23 @@ impl InternalDeliveryTransport {
         Err(TransportError::Unavailable(
             "Delivery is unavailable".to_owned(),
         ))
+    }
+
+    /// # Errors
+    ///
+    /// Returns a classified error when Discord rejects the follow-up.
+    pub async fn follow_up(
+        &self,
+        callback: InteractionCallback,
+        content: &str,
+    ) -> Result<(), TransportError> {
+        let mut body = serde_json::to_value(&callback).map_err(|_| {
+            TransportError::Unavailable("interaction callback could not be encoded".to_owned())
+        })?;
+        if let Some(object) = body.as_object_mut() {
+            object.insert("content".to_owned(), serde_json::Value::String(content.to_owned()));
+        }
+        self.post_json("/internal/v1/interactions/followup", &body).await
     }
 }
 

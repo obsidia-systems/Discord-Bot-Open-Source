@@ -245,3 +245,76 @@ export async function logoutSession(): Promise<"done" | Failure> {
     return "unavailable";
   }
 }
+
+export type CaseSummary = {
+  case_id: string;
+  display_number: number;
+  action: string;
+  target_label: string;
+  status: string;
+  projection_watermark_unix: number;
+};
+
+export type CaseDetail = CaseSummary & {
+  actor_provider_user_id: string;
+  target_user_id: string;
+  reason: string;
+  expires_at_unix: number | null;
+};
+
+export async function readCases(
+  tenantId: string,
+): Promise<
+  | { kind: "ready"; cases: CaseSummary[] }
+  | { kind: "unauthenticated" }
+  | { kind: "no-access" }
+  | { kind: "unavailable" }
+> {
+  try {
+    const response = await fetch(`/api/v1/guilds/${encodeURIComponent(tenantId)}/cases`, {
+      credentials: "include",
+      cache: "no-store",
+      headers: jsonHeaders,
+    });
+    const access = guildHomeAccess(response.status);
+    if (access === "unauthenticated") return { kind: "unauthenticated" };
+    if (access === "no-access") return { kind: "no-access" };
+    if (access !== "ok") return { kind: "unavailable" };
+    const body = (await response.json()) as { cases?: CaseSummary[] };
+    return { kind: "ready", cases: Array.isArray(body.cases) ? body.cases : [] };
+  } catch {
+    return { kind: "unavailable" };
+  }
+}
+
+export async function readCase(
+  tenantId: string,
+  caseId: string,
+): Promise<
+  | { kind: "ready"; body: CaseDetail }
+  | { kind: "unauthenticated" }
+  | { kind: "no-access" }
+  | { kind: "unavailable" }
+> {
+  try {
+    const response = await fetch(
+      `/api/v1/guilds/${encodeURIComponent(tenantId)}/cases/${encodeURIComponent(caseId)}`,
+      {
+        credentials: "include",
+        cache: "no-store",
+        headers: jsonHeaders,
+      },
+    );
+    const access = guildHomeAccess(response.status);
+    if (access === "unauthenticated") return { kind: "unauthenticated" };
+    if (access === "no-access") return { kind: "no-access" };
+    if (access !== "ok") return { kind: "unavailable" };
+    const body = (await response.json()) as Partial<CaseDetail>;
+    if (typeof body.status !== "string" || typeof body.projection_watermark_unix !== "number") {
+      return { kind: "unavailable" };
+    }
+    return { kind: "ready", body: body as CaseDetail };
+  } catch {
+    return { kind: "unavailable" };
+  }
+}

@@ -18,23 +18,34 @@ use std::{
 use subtle::ConstantTimeEq;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tobot_core::render_gauges;
-use tobot_delivery_client::InternalDeliveryTransport;
+use tobot_delivery_client::{InternalDeliveryTransport, ModerationCommandClient};
 use tobot_discord_adapter::{
-    DIAGNOSTIC_COMMAND_NAME, GatewayPhase, GatewaySessionStart, InteractionCallback,
-    ShardReadiness, acknowledgement_deadline_open, interaction_created_ms, plan_gateway_session,
-    shard_is_ready,
+    DIAGNOSTIC_COMMAND_NAME, TIMEOUT_COMMAND_NAME, DiscordTransport, GatewayPhase,
+    GatewaySessionStart, InteractionCallback, ShardReadiness, acknowledgement_deadline_open,
+    interaction_created_ms, plan_gateway_session, shard_is_ready,
 };
 use tobot_envelope::{EventEnvelope, TraceContext};
-use tobot_interaction_edge::{InteractionEdge, InteractionIngressRequest, ProbeAcknowledgement};
+use tobot_interaction_edge::{
+    IngressOutcome, InteractionEdge, InteractionIngressRequest, ProbeAcknowledgement,
+};
 use tobot_persistence::EdgeStore;
 use tracing::{info, warn};
 use twilight_gateway::{
     ConfigBuilder, Event, EventTypeFlags, Intents, Session, Shard, ShardId, StreamExt as _,
 };
 use twilight_model::{
-    application::interaction::InteractionData, gateway::payload::incoming::InteractionCreate,
+    application::interaction::{
+        InteractionData,
+        application_command::{CommandData, CommandOptionValue},
+    },
+    gateway::payload::incoming::InteractionCreate,
 };
 use uuid::Uuid;
+
+struct EdgeClients {
+    delivery: InternalDeliveryTransport,
+    cases: ModerationCommandClient,
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -56,7 +67,15 @@ async fn main() -> anyhow::Result<()> {
     let delivery_transport =
         InternalDeliveryTransport::new(&delivery_url, internal_service_token.clone())
             .context("invalid Delivery transport configuration")?;
-    let interaction_edge = InteractionEdge::new(store.clone(), delivery_transport.clone());
+    let control_url = std::env::var("TOBOT_CONTROL_URL")
+        .unwrap_or_else(|_| "http://control-plane:8080".to_owned());
+    let cases = ModerationCommandClient::new(&control_url, internal_service_token.clone())
+        .context("invalid Control Plane command client")?;
+    let clients = EdgeClients {
+        delivery: delivery_transport.clone(),
+        cases,
+    };
+    let interaction_edge = InteractionEdge::new(store.clone(), delivery_transport);
     let discord = GatewaySessionStart::new(bot_token.clone());
     let health = EdgeHealth::new(0);
     let health_bind: std::net::SocketAddr = std::env::var("TOBOT_EDGE_HEALTH_BIND")
@@ -79,7 +98,7 @@ async fn main() -> anyhow::Result<()> {
             &interaction_edge,
             &store,
             &application_id,
-            &delivery_transport,
+            &clients,
         ) => result,
     }
 }
@@ -91,7 +110,7 @@ async fn supervise_gateway(
     interaction_edge: &InteractionEdge<InternalDeliveryTransport>,
     store: &EdgeStore,
     application_id: &str,
-    delivery: &InternalDeliveryTransport,
+    clients: &EdgeClients,
 ) -> anyhow::Result<()> {
     observe_rate_limit(discord).await;
     loop {
@@ -118,7 +137,7 @@ async fn supervise_gateway(
             interaction_edge,
             store,
             application_id,
-            delivery,
+            clients,
         )
         .await?;
         health.disconnected();
@@ -183,7 +202,7 @@ async fn run_gateway(
     interaction_edge: &InteractionEdge<InternalDeliveryTransport>,
     store: &EdgeStore,
     application_id: &str,
-    delivery: &InternalDeliveryTransport,
+    clients: &EdgeClients,
 ) -> anyhow::Result<()> {
     let application_snowflake: u64 = application_id
         .parse()
@@ -224,6 +243,10 @@ async fn run_gateway(
                     serde_json::json!({"dispatch": "Resumed"}),
                 )
                 .await;
+                // Resume does not repeat GuildCreate, so the command list would
+                // stay on the previous registration until the next identify.
+                publish_installed_commands(clients, store, application_id, application_snowflake)
+                    .await;
             }
             Event::GatewayInvalidateSession(_) => {
                 store.delete_gateway_session(0).await?;
@@ -240,7 +263,7 @@ async fn run_gateway(
                     serde_json::json!({"dispatch": "GuildCreate"}),
                 )
                 .await;
-                register_diagnostic(delivery, application_snowflake, guild_id).await;
+                register_diagnostic(clients, application_snowflake, guild_id).await;
             }
             Event::GuildDelete(deletion) => {
                 let guild_id = deletion.id.to_string();
@@ -266,7 +289,15 @@ async fn run_gateway(
             _ => {}
         }
         if let Event::InteractionCreate(interaction) = event {
-            dispatch_interaction(shard, interaction_edge, store, application_id, interaction).await;
+            dispatch_interaction(
+                shard,
+                interaction_edge,
+                clients,
+                store,
+                application_id,
+                interaction,
+            )
+            .await;
         }
         persist_session(shard, store).await?;
     }
@@ -276,6 +307,7 @@ async fn run_gateway(
 async fn dispatch_interaction(
     shard: &Shard,
     interaction_edge: &InteractionEdge<InternalDeliveryTransport>,
+    clients: &EdgeClients,
     store: &EdgeStore,
     application_id: &str,
     interaction: Box<InteractionCreate>,
@@ -291,12 +323,15 @@ async fn dispatch_interaction(
     let sequence = session.sequence();
     let shard_id = shard.id().number();
     if let Err(error) = accept_interaction(
-        interaction_edge,
-        store,
-        application_id,
-        shard_id,
-        &session_id,
-        sequence,
+        &InteractionDispatch {
+            edge: interaction_edge,
+            clients,
+            store,
+            application_id,
+            shard_id,
+            session_id: &session_id,
+            gateway_sequence: sequence,
+        },
         *interaction,
     )
     .await
@@ -380,25 +415,53 @@ async fn persist_gateway_dispatch(
     }
 }
 
+async fn publish_installed_commands(
+    clients: &EdgeClients,
+    store: &EdgeStore,
+    application_id: &str,
+    application_snowflake: u64,
+) {
+    let guilds = match store.installed_provider_guild_ids(application_id).await {
+        Ok(guilds) => guilds,
+        Err(error) => {
+            warn!(%error, "installed command publish failed");
+            return;
+        }
+    };
+    let mut published = 0_u32;
+    for guild_id in guilds {
+        let Ok(guild_id) = guild_id.parse() else {
+            continue;
+        };
+        if register_diagnostic(clients, application_snowflake, guild_id).await {
+            published += 1;
+        }
+    }
+    info!(published, "installed guild command lists published");
+}
+
 async fn register_diagnostic(
-    delivery: &InternalDeliveryTransport,
+    clients: &EdgeClients,
     application_id: u64,
     guild_id: u64,
-) {
-    match delivery
+) -> bool {
+    match clients
+        .delivery
         .register_diagnostic_command(application_id, guild_id)
         .await
     {
-        Ok(()) => info!(
-            guild_id,
-            command = DIAGNOSTIC_COMMAND_NAME,
-            "diagnostic command registered"
-        ),
-        Err(error) => warn!(
-            guild_id,
-            class = transport_class(&error),
-            "diagnostic command registration failed"
-        ),
+        Ok(()) => {
+            info!(guild_id, "guild command list registered");
+            true
+        }
+        Err(error) => {
+            warn!(
+                guild_id,
+                class = transport_class(&error),
+                "diagnostic command registration failed"
+            );
+            false
+        }
     }
 }
 
@@ -568,13 +631,14 @@ fn diagnostic_envelopes(
     interaction: &twilight_model::application::interaction::Interaction,
     identity: DiagnosticIdentity<'_>,
     now: &OffsetDateTime,
+    kind: &str,
 ) -> anyhow::Result<(EventEnvelope, EventEnvelope)> {
     let timestamp = now.format(&Rfc3339)?;
     let correlation_id = Uuid::now_v7();
     let gateway_event_id = Uuid::now_v7();
     let payload = serde_json::json!({
         "interaction_id": interaction.id.to_string(),
-        "kind": "S0DiagnosticInteraction"
+        "kind": kind
     });
     let gateway_event = EventEnvelope {
         event_id: gateway_event_id,
@@ -619,31 +683,40 @@ fn diagnostic_envelopes(
     Ok((gateway_event, interaction_event))
 }
 
-async fn accept_interaction(
-    interaction_edge: &InteractionEdge<InternalDeliveryTransport>,
-    store: &EdgeStore,
-    configured_application_id: &str,
+struct InteractionDispatch<'a> {
+    edge: &'a InteractionEdge<InternalDeliveryTransport>,
+    clients: &'a EdgeClients,
+    store: &'a EdgeStore,
+    application_id: &'a str,
     shard_id: u32,
-    session_id: &str,
+    session_id: &'a str,
     gateway_sequence: u64,
+}
+
+async fn accept_interaction(
+    ingress: &InteractionDispatch<'_>,
     interaction: InteractionCreate,
 ) -> anyhow::Result<()> {
     let interaction = interaction.0;
     let application_id = interaction.application_id.to_string();
-    if application_id != configured_application_id {
+    if application_id != ingress.application_id {
         anyhow::bail!("received interaction for an unexpected application");
     }
-    if !matches!(
-        interaction.data,
-        Some(InteractionData::ApplicationCommand(ref data)) if data.name == DIAGNOSTIC_COMMAND_NAME
-    ) {
+    let Some(InteractionData::ApplicationCommand(data)) = &interaction.data else {
+        return Ok(());
+    };
+    if data.name == TIMEOUT_COMMAND_NAME {
+        return accept_timeout(ingress, &interaction, data).await;
+    }
+    if data.name != DIAGNOSTIC_COMMAND_NAME {
         return Ok(());
     }
     let guild_id = interaction
         .guild_id
         .map(|id| id.to_string())
         .context("S0 diagnostic interaction must originate from a guild")?;
-    let context = store
+    let context = ingress
+        .store
         .resolve_active_guild_tenant(&application_id, &guild_id)
         .await?
         .context("interaction belongs to no active installed guild")?;
@@ -654,11 +727,12 @@ async fn accept_interaction(
             application_id: &application_id,
             guild_id: &guild_id,
             tenant_id: context.tenant_id.as_uuid(),
-            shard_id,
-            session_id,
-            gateway_sequence,
+            shard_id: ingress.shard_id,
+            session_id: ingress.session_id,
+            gateway_sequence: ingress.gateway_sequence,
         },
         &now,
+        "S0DiagnosticInteraction",
     )?;
     let gateway_raw = serde_json::to_vec(&gateway_event)?;
     let interaction_raw = serde_json::to_vec(&interaction_event)?;
@@ -671,7 +745,8 @@ async fn accept_interaction(
         ephemeral: true,
     };
     let started = Instant::now();
-    let result = interaction_edge
+    let result = ingress
+        .edge
         .accept_and_acknowledge(InteractionIngressRequest {
             context,
             callback,
@@ -695,6 +770,152 @@ async fn accept_interaction(
     Ok(())
 }
 
+async fn accept_timeout(
+    ingress: &InteractionDispatch<'_>,
+    interaction: &twilight_model::application::interaction::Interaction,
+    data: &CommandData,
+) -> anyhow::Result<()> {
+    let Some(guild_id) = interaction.guild_id.map(|id| id.to_string()) else {
+        return Ok(());
+    };
+    let application_id = interaction.application_id.to_string();
+    let tenant = ingress
+        .store
+        .resolve_active_guild_tenant(&application_id, &guild_id)
+        .await?;
+    if timeout_ingress(tenant.is_some()) == TimeoutIngress::RejectBeforeTimeout {
+        let callback = interaction_callback(interaction);
+        let _sent = ingress
+            .clients
+            .delivery
+            .respond_to_interaction(callback)
+            .await;
+        return Ok(());
+    }
+    let Some(fields) = timeout_fields(data) else {
+        return Ok(());
+    };
+    let context = tenant.context("timeout tenant disappeared")?;
+    let now = OffsetDateTime::now_utc();
+    let (gateway_event, interaction_event) = diagnostic_envelopes(
+        interaction,
+        DiagnosticIdentity {
+            application_id: &application_id,
+            guild_id: &guild_id,
+            tenant_id: context.tenant_id.as_uuid(),
+            shard_id: ingress.shard_id,
+            session_id: ingress.session_id,
+            gateway_sequence: ingress.gateway_sequence,
+        },
+        &now,
+        "ModerationCommand",
+    )?;
+    let gateway_raw = serde_json::to_vec(&gateway_event)?;
+    let interaction_raw = serde_json::to_vec(&interaction_event)?;
+    let callback = interaction_callback(interaction);
+    let acknowledged = ingress
+        .edge
+        .accept_and_acknowledge(InteractionIngressRequest {
+            context,
+            callback: callback.clone(),
+            gateway_event: &gateway_event,
+            gateway_raw: &gateway_raw,
+            interaction_event: &interaction_event,
+            interaction_raw: &interaction_raw,
+            acknowledgement: ProbeAcknowledgement::Deferred,
+            now,
+        })
+        .await?;
+    if acknowledged.outcome != IngressOutcome::Deferred {
+        return Ok(());
+    }
+    let deadline = (now + time::Duration::minutes(2)).format(&Rfc3339)?;
+    let response = ingress
+        .clients
+        .cases
+        .submit(&serde_json::json!({
+            "guild_id": guild_id,
+            "actor_provider_user_id": interaction.author_id().map(|id| id.to_string()).unwrap_or_default(),
+            "target_user_id": fields.target_user_id,
+            "action_type": fields.action_type,
+            "duration_text": fields.duration,
+            "reason": fields.reason,
+            "interaction_id": interaction.id.to_string(),
+            "correlation_id": interaction_event.correlation_id,
+            "deadline_at": deadline,
+        }))
+        .await;
+    let follow_up = match response {
+        Ok(body) => body.follow_up,
+        Err(_) => "The action is Uncertain.".to_owned(),
+    };
+    if let Err(error) = ingress.clients.delivery.follow_up(callback, &follow_up).await {
+        warn!(class = transport_class(&error), "timeout follow-up was not delivered");
+    }
+    Ok(())
+}
+
+fn interaction_callback(
+    interaction: &twilight_model::application::interaction::Interaction,
+) -> InteractionCallback {
+    InteractionCallback {
+        application_id: interaction.application_id.get(),
+        interaction_id: interaction.id.get(),
+        interaction_token: interaction.token.clone(),
+        ephemeral: true,
+    }
+}
+
+struct TimeoutFields {
+    action_type: String,
+    target_user_id: String,
+    duration: Option<String>,
+    reason: String,
+}
+
+fn timeout_fields(data: &CommandData) -> Option<TimeoutFields> {
+    let sub = data.options.first()?;
+    let CommandOptionValue::SubCommand(options) = &sub.value else {
+        return None;
+    };
+    let action_type = match sub.name.as_str() {
+        "set" => "timeout",
+        "clear" => "remove_timeout",
+        _ => return None,
+    };
+    let mut target_user_id = None;
+    let mut duration = None;
+    let mut reason = String::new();
+    for option in options {
+        match (option.name.as_str(), &option.value) {
+            ("user", CommandOptionValue::User(id)) => target_user_id = Some(id.to_string()),
+            ("duration", CommandOptionValue::String(value)) => duration = Some(value.clone()),
+            ("reason", CommandOptionValue::String(value)) => reason.clone_from(value),
+            _ => {}
+        }
+    }
+    Some(TimeoutFields {
+        action_type: action_type.to_owned(),
+        target_user_id: target_user_id?,
+        duration,
+        reason,
+    })
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum TimeoutIngress {
+    RejectBeforeTimeout,
+    DeferThenCommand,
+}
+
+fn timeout_ingress(has_active_tenant: bool) -> TimeoutIngress {
+    if has_active_tenant {
+        TimeoutIngress::DeferThenCommand
+    } else {
+        TimeoutIngress::RejectBeforeTimeout
+    }
+}
+
 fn unix_millis(now: OffsetDateTime) -> u64 {
     u64::try_from(now.unix_timestamp_nanos() / 1_000_000).unwrap_or(u64::MAX)
 }
@@ -710,6 +931,18 @@ mod tests {
     use tobot_discord_adapter::shard_is_ready;
     use tower::ServiceExt as _;
     use twilight_gateway::Event;
+
+    #[test]
+    fn timeout_without_a_tenant_is_rejected_before_the_command() {
+        assert_eq!(
+            super::timeout_ingress(false),
+            super::TimeoutIngress::RejectBeforeTimeout
+        );
+        assert_eq!(
+            super::timeout_ingress(true),
+            super::TimeoutIngress::DeferThenCommand
+        );
+    }
 
     #[test]
     fn guild_delete_without_unavailable_means_the_bot_left() {

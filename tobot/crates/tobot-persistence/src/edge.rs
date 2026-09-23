@@ -453,6 +453,35 @@ impl EdgeStore {
             tenant_type: tobot_core::TenantType::Guild,
         }))
     }
+
+    /// Guild ids whose newest installation generation is `Installed`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the installation rows cannot be read.
+    pub async fn installed_provider_guild_ids(
+        &self,
+        application_id: &str,
+    ) -> Result<Vec<String>, sqlx::Error> {
+        sqlx::query_scalar(
+            "SELECT tenant.provider_tenant_ref \
+             FROM installation.tenant AS tenant \
+             JOIN installation.installation AS installation \
+               ON installation.tenant_id = tenant.tenant_id \
+             WHERE tenant.tenant_type = 'Guild' \
+               AND tenant.application_id = $1 \
+               AND tenant.state = 'Active' \
+               AND installation.state = 'Installed' \
+               AND installation.generation = ( \
+                 SELECT max(newest.generation) \
+                 FROM installation.installation AS newest \
+                 WHERE newest.tenant_id = tenant.tenant_id \
+               )",
+        )
+        .bind(application_id)
+        .fetch_all(&self.pool)
+        .await
+    }
     /// Writes the receipt and its outbox fact in one transaction. The tenant
     /// context is bound before SQL is issued.
     ///

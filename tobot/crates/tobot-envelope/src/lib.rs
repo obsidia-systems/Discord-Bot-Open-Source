@@ -26,6 +26,11 @@ pub enum S0EventName {
     GatewayEventAccepted,
     InteractionAccepted,
     InstallationStateChanged,
+    ModerationCaseOpened,
+    ModerationActionAuthorized,
+    ModerationActionRejected,
+    ModerationActionFailed,
+    ModerationActionApplied,
 }
 
 impl TryFrom<&str> for S0EventName {
@@ -36,6 +41,11 @@ impl TryFrom<&str> for S0EventName {
             "GatewayEventAccepted" => Ok(Self::GatewayEventAccepted),
             "InteractionAccepted" => Ok(Self::InteractionAccepted),
             "InstallationStateChanged" => Ok(Self::InstallationStateChanged),
+            "ModerationCaseOpened" => Ok(Self::ModerationCaseOpened),
+            "ModerationActionAuthorized" => Ok(Self::ModerationActionAuthorized),
+            "ModerationActionRejected" => Ok(Self::ModerationActionRejected),
+            "ModerationActionFailed" => Ok(Self::ModerationActionFailed),
+            "ModerationActionApplied" => Ok(Self::ModerationActionApplied),
             _ => Err(EnvelopeError::UnsupportedSchemaName(value.to_owned())),
         }
     }
@@ -189,6 +199,7 @@ pub enum GatewayDispatch {
 pub enum S0CommandName {
     AdmitGuildInstall,
     AdmitGuildRepair,
+    SubmitModerationAction,
 }
 
 impl TryFrom<&str> for S0CommandName {
@@ -198,6 +209,7 @@ impl TryFrom<&str> for S0CommandName {
         match value {
             "AdmitGuildInstall" => Ok(Self::AdmitGuildInstall),
             "AdmitGuildRepair" => Ok(Self::AdmitGuildRepair),
+            "SubmitModerationAction" => Ok(Self::SubmitModerationAction),
             _ => Err(EnvelopeError::UnsupportedSchemaName(value.to_owned())),
         }
     }
@@ -281,6 +293,35 @@ impl CommandEnvelope {
             return CommandAdmission::Reject(CommandReject::DeadlinePassed);
         }
         CommandAdmission::Admit
+    }
+}
+
+/// The only action types this slice admits. Every other moderation action fails closed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ModerationActionType {
+    Timeout,
+    RemoveTimeout,
+}
+
+impl ModerationActionType {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Timeout => "timeout",
+            Self::RemoveTimeout => "remove_timeout",
+        }
+    }
+}
+
+impl TryFrom<&str> for ModerationActionType {
+    type Error = EnvelopeError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "timeout" => Ok(Self::Timeout),
+            "remove_timeout" => Ok(Self::RemoveTimeout),
+            _ => Err(EnvelopeError::UnsupportedSchemaName(value.to_owned())),
+        }
     }
 }
 
@@ -420,5 +461,37 @@ mod tests {
             CommandEnvelope::parse_s0(requested.as_bytes()),
             Err(EnvelopeError::UnsupportedSchemaName(_))
         ));
+    }
+
+    #[test]
+    fn moderation_action_and_role_assignment_fail_closed() {
+        assert_eq!(
+            ModerationActionType::try_from("timeout"),
+            Ok(ModerationActionType::Timeout)
+        );
+        assert_eq!(
+            ModerationActionType::try_from("remove_timeout"),
+            Ok(ModerationActionType::RemoveTimeout)
+        );
+        for action in ["kick", "ban", "quarantine", "warn", "purge"] {
+            assert!(matches!(
+                ModerationActionType::try_from(action),
+                Err(EnvelopeError::UnsupportedSchemaName(_))
+            ));
+        }
+        let role = VALID_GATEWAY.replace("GatewayEventAccepted", "RoleAssignmentApplied");
+        assert!(matches!(
+            EventEnvelope::parse_s0(role.as_bytes()),
+            Err(EnvelopeError::UnsupportedSchemaName(_))
+        ));
+        let noted = VALID_GATEWAY.replace("GatewayEventAccepted", "ModerationCaseNoted");
+        assert!(matches!(
+            EventEnvelope::parse_s0(noted.as_bytes()),
+            Err(EnvelopeError::UnsupportedSchemaName(_))
+        ));
+        let opened = VALID_GATEWAY.replace("GatewayEventAccepted", "ModerationCaseOpened");
+        let parsed = EventEnvelope::parse_s0(opened.as_bytes())
+            .unwrap_or_else(|error| panic!("opened fact rejected: {error}"));
+        assert_eq!(parsed.event_name, S0EventName::ModerationCaseOpened);
     }
 }

@@ -11,12 +11,14 @@ mod edge;
 mod edge_relay;
 mod identity;
 mod installation;
+mod moderation;
 mod owners;
 mod query;
 
+pub use moderation::{ModerationCaseRecord, NewModerationCase, PinnedPolicy};
 pub use owners::{
     ControlPlaneDatabase, EdgeRelayStore, EdgeStore, IdentityStore, InstallationStore, Migrations,
-    QueryStore,
+    ModerationStore, QueryStore,
 };
 
 pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!();
@@ -35,6 +37,13 @@ pub(crate) const INSTALLATION_RELAY_GAUGE: &str = "SELECT \
      COALESCE(max(publish_attempts) FILTER (WHERE published_at IS NULL), 0)::bigint AS max_publish_attempts, \
      count(*) FILTER (WHERE published_at IS NULL AND lease_expires_at IS NOT NULL AND lease_expires_at < $1)::bigint AS expired_leases \
      FROM installation.event_outbox";
+
+pub(crate) const MODERATION_RELAY_GAUGE: &str = "SELECT \
+     count(*) FILTER (WHERE published_at IS NULL)::bigint AS unpublished, \
+     COALESCE(FLOOR(EXTRACT(EPOCH FROM ($1 - min(available_at) FILTER (WHERE published_at IS NULL)))), 0)::bigint AS oldest_age_seconds, \
+     COALESCE(max(publish_attempts) FILTER (WHERE published_at IS NULL), 0)::bigint AS max_publish_attempts, \
+     count(*) FILTER (WHERE published_at IS NULL AND lease_expires_at IS NOT NULL AND lease_expires_at < $1)::bigint AS expired_leases \
+     FROM moderation.event_outbox";
 
 pub(crate) const EDGE_RELAY_GAUGE: &str = "SELECT \
      count(*) FILTER (WHERE published_at IS NULL)::bigint AS unpublished, \
@@ -218,6 +227,21 @@ pub struct GuildShellProjection {
     pub capabilities: serde_json::Value,
     pub projection_watermark: OffsetDateTime,
     pub probe_state: String,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct CaseProjection {
+    pub case_id: Uuid,
+    pub tenant_id: Uuid,
+    pub display_number: i64,
+    pub action: String,
+    pub target_label: String,
+    pub target_user_id: String,
+    pub actor_provider_user_id: String,
+    pub reason: String,
+    pub status: String,
+    pub expires_at: Option<OffsetDateTime>,
+    pub projection_watermark: OffsetDateTime,
 }
 
 pub(crate) struct InstallationStateEvent<'a> {

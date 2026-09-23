@@ -6,7 +6,7 @@
 
 | Attribute | Value |
 |---|---|
-| Status | Planned. Implementation is not authorized until this file is the approved next slice. |
+| Status | Slice demonstrated. S0 release gates stay Partial. |
 | Slice | S1 — Safety operator loop |
 | Outcome | A moderator applies one communication timeout in Discord and sees that case on `dash.*`. |
 | Normative inputs | 02 Cases, Auto Mod, Assignment, Transport, Capability; 03 §8.6 moderation leaves and §8.7–8.8; 04 §9.9 and §9.17a; 05 §10.5; 08 §12.5 case tables; 14 invariant 232 and the Cases / Assignment rows of §25; 15 §26.1–26.4; 13 hierarchy, dual-writer, and member-role writer tests that this slice names. |
@@ -125,7 +125,7 @@ Edge continues to call defer and follow-up. The follow-up text states the case d
 
 Cases has no method that adds or removes a member role. The Delivery client held by Cases has no role-mutation method. That is the invariant 232 boundary for this slice. Assignment is not built, so there is no second Transport client to police at runtime.
 
-Duration is admitted only inside Discord's documented timeout maximum. A longer value is `Rejected` before any HTTP call. The command accepts a duration in English and Spanish unit tokens, the same way other Tobot parsers accept both languages.
+Duration is admitted only inside Discord's documented timeout maximum. A longer value is `Rejected` before any HTTP call. The command accepts a duration in English and Spanish unit tokens, the same way other Tobot parsers accept both languages. A bare number is minutes: `1` is one minute.
 
 ## 6. Data
 
@@ -233,3 +233,33 @@ Consume case facts on `case-status-s1`. Add the list and detail routes on the gu
 Run the §9 script on one live guild. Record the case ids and the single timeout in the S0 ledger's successor note, or in this file's execution section once it exists. Leave S0 gates Partial.
 
 **Exit:** the demo script's seven steps have a recorded result. Live `Installed` rows that were not repaired stay `Installed`.
+
+## 11. Execution tracking
+
+Updated as packages land. A package is Complete only when its exit evidence exists. S0 gates stay Partial.
+
+| Package | Status | Evidence |
+|---|---|---|
+| WP1 — Contracts and Moderation facade | Complete | `moderation_action_and_role_assignment_fail_closed` passed. `one_idempotency_key_confirms_one_timeout` and `two_workers_with_one_key_send_one_timeout` inserted one case per key on `tobot_test`. Workspace clippy is clean. |
+| WP2 — Delivery preflight and timeout | Complete | `timeout_classification_does_not_call_discord` passed. `GatewaySessionStart` still only calls `GET /gateway/bot`. Product timeout HTTP is on `TwilightTransport`. |
+| WP3 — Case lifecycle | Complete | `hierarchy_deny_does_not_call_timeout`, `two_workers_with_one_key_send_one_timeout`, and `follow_up_failure_leaves_applied_unchanged` passed on `tobot_test` (2026-09-23). |
+| WP4 — Discord command | Complete for the automated exit | `timeout_without_a_tenant_is_rejected_before_the_command` passed. `acknowledgement_closes_at_three_seconds` still bounds the defer window. `accept_timeout` defers and returns before command-HTTP unless the outcome is `Deferred`. After the second edge deploy, Resume published the command list on both Installed guilds (`published: 2`). |
+| WP5 — Case projection and dash screen | Complete | Unauthenticated case API is 401. A signed-in session cannot open cases for a guild it cannot access. The case detail for an accessible guild shows status and watermark. |
+| WP6 — Demo hardening | Complete | Case 10 was frozen `Executing` with receipt `Transmitted`, then Control Plane was SIGKILLed. The new process logged `resumed executing moderation cases` count 1 at 2026-09-23T17:09:43Z. The case reached `Applied` with one `ModerationActionApplied` and receipt `Confirmed` in under 1 second, without a second timeout. Newest guild generations stay Installed. The same-invocation proof remains the `tobot_test` dual-writer test. |
+
+Deploy notes, 2026-09-23:
+
+- Each discord-edge start probed `GET /gateway/bot` once, logged HTTP 429 (`retry_after_ms` about 4500, `global` false), then Resume with `remaining` 1000. The second start was required so Resume would publish `/timeout` on guilds that were already present.
+- A live `/timeout set` with duration `1` returned `The action is Rejected.` and wrote no case. A bare number is now minutes. Control Plane is rebuilt for that parser; Edge is not restarted for it.
+- After that parser change, guild `1507220191078252674` (OBSIDIA INTERNAL) has cases 1 and 2, both `timeout` and `Rejected`. Durations were 600s and 60s. The actor is the guild owner, so actor permission and owner protection pass. The remaining deny was role hierarchy: the bot's highest role was not above the target. No timeout HTTP was sent.
+- Case 3 is `Failed` with no action receipt. It went `ModerationCaseOpened` then `ModerationActionFailed`, so preflight returned `Blocked` or `Unknown` before the timeout HTTP. The newest Installed generation still freezes `guild_permissions` `"0"`. Raising the bot role cleared hierarchy; the bot role still lacks Moderate Members.
+- Case 4 is another `Failed` with no receipt. Case 5 is `timeout`, 60 seconds, `Applied`, receipt `Confirmed`, and the query projection has a watermark. The five case facts are projected.
+- `/timeout clear` opened case 8 as `remove_timeout` and left it `Applied`. That clear moved cases 5, 6, and 7 from `Applied` to `Compensated`. A timeout does not become `Compensated` when its minute elapses.
+- Case 10 was SIGKILLed while `Executing` and receipt `Transmitted`. Recovery resumed that one case to `Applied` / `Confirmed` with a single `ModerationActionApplied`. Edge was not restarted. Newest generations remain Installed.
+- S0 release gates stay Partial.
+
+Deviations recorded with the code, not treated as passed gates:
+
+- `Rejected` and `Failed` are not advanced to `Closed` in this slice. `OutcomeUncertain` is not advanced to `Unresolved`.
+- The case projection stores actor, reason, and expiry in addition to the minimum list.
+- The member-role boundary is `cases_delivery_client_has_no_role_mutation`, which asserts the client operation names. It is not a compile-fail test.

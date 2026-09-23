@@ -8,6 +8,7 @@ members = [
   "crates/tobot-discord-adapter",
   "crates/tobot-delivery-client",
   "crates/tobot-bus",
+  "crates/tobot-cases",
   "crates/tobot-core",
   "crates/tobot-envelope",
   "crates/tobot-identity",

@@ -317,6 +317,34 @@ impl InstallationStore {
         .fetch_optional(&self.pool)
         .await
     }
+
+    /// Tenant whose newest generation is `Installed` and whose tenant row is `Active`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a database error if the installation cannot be read.
+    pub async fn installed_guild_tenant(
+        &self,
+        application_id: &str,
+        provider_guild_id: &str,
+    ) -> Result<Option<Uuid>, sqlx::Error> {
+        sqlx::query_scalar(
+            "SELECT tenant.tenant_id FROM installation.tenant AS tenant \
+             JOIN installation.installation AS install ON install.tenant_id = tenant.tenant_id \
+             WHERE tenant.tenant_type = 'Guild' AND tenant.provider_tenant_ref = $1 \
+               AND tenant.application_id = $2 AND tenant.state = 'Active' \
+               AND install.state = 'Installed' \
+               AND install.generation = ( \
+                 SELECT MAX(newest.generation) FROM installation.installation AS newest \
+                 WHERE newest.tenant_id = tenant.tenant_id \
+               )",
+        )
+        .bind(provider_guild_id)
+        .bind(application_id)
+        .fetch_optional(&self.pool)
+        .await
+    }
+
     /// Marks the newest `Installed` generation `Removed` after Discord reports
     /// that the bot left the guild. The tenant row stays. An outage is not this
     /// call. A guild with no installed generation is left unchanged.

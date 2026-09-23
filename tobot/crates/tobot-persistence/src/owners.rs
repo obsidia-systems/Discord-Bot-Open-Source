@@ -58,14 +58,19 @@ owner_store!(
     QueryStore,
     "Rebuildable guild-shell projection. It does not own identity or installation writes."
 );
+owner_store!(
+    ModerationStore,
+    "Cases, receipts, policy revisions, and the moderation outbox. No other facade exposes these writes."
+);
 
-/// The three facades Control Plane is allowed to hold. The projector receives
+/// The facades Control Plane is allowed to hold. The projector receives
 /// installation and query on their own; this bundle does not add cross-module methods.
 #[derive(Clone)]
 pub struct ControlPlaneDatabase {
     pub identity: IdentityStore,
     pub installation: InstallationStore,
     pub query: QueryStore,
+    pub moderation: ModerationStore,
 }
 
 impl ControlPlaneDatabase {
@@ -77,7 +82,8 @@ impl ControlPlaneDatabase {
         Ok(Self {
             identity: IdentityStore { pool: pool.clone() },
             installation: InstallationStore { pool: pool.clone() },
-            query: QueryStore { pool },
+            query: QueryStore { pool: pool.clone() },
+            moderation: ModerationStore { pool },
         })
     }
 }
