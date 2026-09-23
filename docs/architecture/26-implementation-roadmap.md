@@ -14,7 +14,7 @@ Program locks (greenfield Tobot, Rust platform, twin-track, money late) are in t
 |---|---|
 | Status | Sequence only |
 | Authority | 01–23 remain normative |
-| Next plan | `roadmap/S01-safety-operator-loop.md` |
+| Next plan | `roadmap/S02-messaging-proof.md` |
 
 ## 1. What becomes true, in order
 
@@ -119,4 +119,4 @@ Those four facts are demonstrated. The running cookie origin is `dash.*`, record
 
 ## 7. Next
 
-`roadmap/S01-safety-operator-loop.md` is the current slice plan. Implement that file. Do not plan S2 in the same pass.
+`roadmap/S02-messaging-proof.md` is the current slice plan. S1 is demonstrated in `roadmap/S01-safety-operator-loop.md`. Implement S2 from that file. Do not plan S3 in the same pass.
