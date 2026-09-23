@@ -11,14 +11,18 @@ mod edge;
 mod edge_relay;
 mod identity;
 mod installation;
+mod messaging;
 mod moderation;
 mod owners;
 mod query;
 
+pub use messaging::{
+    JoinDecision, MessageIntent, MessagingOutbox, NewJoin, WelcomeRevision, WelcomeStatus,
+};
 pub use moderation::{ModerationCaseRecord, NewModerationCase, PinnedPolicy};
 pub use owners::{
-    ControlPlaneDatabase, EdgeRelayStore, EdgeStore, IdentityStore, InstallationStore, Migrations,
-    ModerationStore, QueryStore,
+    ControlPlaneDatabase, DeliveryIntentStore, EdgeRelayStore, EdgeStore, IdentityStore,
+    InstallationStore, LifecycleStore, Migrations, ModerationStore, QueryStore,
 };
 
 pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!();

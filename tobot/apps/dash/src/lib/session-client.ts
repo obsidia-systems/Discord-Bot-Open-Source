@@ -255,6 +255,87 @@ export type CaseSummary = {
   projection_watermark_unix: number;
 };
 
+export type WelcomeBody = {
+  revision_id: string | null;
+  revision: number | null;
+  channel_id: string | null;
+  body: string | null;
+  last_delivery: {
+    intent_id: string;
+    status: string;
+    provider_message_id: string | null;
+    projection_watermark_unix: number;
+  } | null;
+};
+
+export type WelcomeChannel = { id: string; name: string };
+
+export async function readWelcomeStatus(tenantId: string): Promise<
+  | { kind: "ready"; body: WelcomeBody }
+  | { kind: "unauthenticated" }
+  | { kind: "no-access" }
+  | { kind: "unavailable" }
+> {
+  try {
+    const response = await fetch(`/api/v1/guilds/${encodeURIComponent(tenantId)}/welcome`, {
+      credentials: "include", cache: "no-store", headers: jsonHeaders,
+    });
+    const access = guildHomeAccess(response.status);
+    if (access === "unauthenticated") return { kind: "unauthenticated" };
+    if (access === "no-access") return { kind: "no-access" };
+    if (access !== "ok") return { kind: "unavailable" };
+    return { kind: "ready", body: (await response.json()) as WelcomeBody };
+  } catch {
+    return { kind: "unavailable" };
+  }
+}
+
+export async function readWelcome(tenantId: string): Promise<
+  | { kind: "ready"; body: WelcomeBody; channels: WelcomeChannel[] }
+  | { kind: "unauthenticated" }
+  | { kind: "no-access" }
+  | { kind: "unavailable" }
+> {
+  try {
+    const path = `/api/v1/guilds/${encodeURIComponent(tenantId)}/welcome`;
+    const [status, channelResponse] = await Promise.all([
+      readWelcomeStatus(tenantId),
+      fetch(`${path}/channels`, { credentials: "include", cache: "no-store", headers: jsonHeaders }),
+    ]);
+    if (status.kind !== "ready") return status;
+    if (!channelResponse.ok) return { kind: "unavailable" };
+    const body = status.body;
+    const channels = (await channelResponse.json()) as WelcomeChannel[];
+    if (!Array.isArray(channels) || !body || typeof body !== "object") return { kind: "unavailable" };
+    return { kind: "ready", body, channels };
+  } catch {
+    return { kind: "unavailable" };
+  }
+}
+
+export async function publishWelcome(tenantId: string, channelId: string, body: string): Promise<
+  "done" | "unauthenticated" | "no-access" | "invalid" | "unavailable"
+> {
+  const csrf = await readCsrfToken();
+  if (csrf.kind !== "token") return csrf.kind;
+  try {
+    const response = await fetch(`/api/v1/guilds/${encodeURIComponent(tenantId)}/welcome`, {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      headers: { ...jsonHeaders, "content-type": "application/json", "x-csrf-token": csrf.value },
+      body: JSON.stringify({ channel_id: channelId, body }),
+    });
+    if (response.status === 201) return "done";
+    if (response.status === 401) return "unauthenticated";
+    if (response.status === 404 || response.status === 403) return "no-access";
+    if (response.status === 400) return "invalid";
+    return "unavailable";
+  } catch {
+    return "unavailable";
+  }
+}
+
 export type CaseDetail = CaseSummary & {
   actor_provider_user_id: string;
   target_user_id: string;

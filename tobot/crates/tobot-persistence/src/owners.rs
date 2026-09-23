@@ -62,6 +62,14 @@ owner_store!(
     ModerationStore,
     "Cases, receipts, policy revisions, and the moderation outbox. No other facade exposes these writes."
 );
+owner_store!(
+    LifecycleStore,
+    "Published welcome revisions, join decisions, and lifecycle outbox."
+);
+owner_store!(
+    DeliveryIntentStore,
+    "Message intents, attempts, nonces, and delivery outbox."
+);
 
 /// The facades Control Plane is allowed to hold. The projector receives
 /// installation and query on their own; this bundle does not add cross-module methods.
@@ -71,6 +79,7 @@ pub struct ControlPlaneDatabase {
     pub installation: InstallationStore,
     pub query: QueryStore,
     pub moderation: ModerationStore,
+    pub lifecycle: LifecycleStore,
 }
 
 impl ControlPlaneDatabase {
@@ -83,7 +92,8 @@ impl ControlPlaneDatabase {
             identity: IdentityStore { pool: pool.clone() },
             installation: InstallationStore { pool: pool.clone() },
             query: QueryStore { pool: pool.clone() },
-            moderation: ModerationStore { pool },
+            moderation: ModerationStore { pool: pool.clone() },
+            lifecycle: LifecycleStore { pool },
         })
     }
 }

@@ -31,6 +31,16 @@ pub enum S0EventName {
     ModerationActionRejected,
     ModerationActionFailed,
     ModerationActionApplied,
+    LifecycleDecisionCreated,
+    LifecycleDeliveryRequested,
+    LifecycleEventSuppressed,
+    MessageDefinitionPublished,
+    DeliveryQueued,
+    DeliveryAttempted,
+    DeliverySucceeded,
+    DeliveryBlocked,
+    DeliveryOutcomeUncertain,
+    DeliveryDeadLettered,
 }
 
 impl TryFrom<&str> for S0EventName {
@@ -46,6 +56,16 @@ impl TryFrom<&str> for S0EventName {
             "ModerationActionRejected" => Ok(Self::ModerationActionRejected),
             "ModerationActionFailed" => Ok(Self::ModerationActionFailed),
             "ModerationActionApplied" => Ok(Self::ModerationActionApplied),
+            "LifecycleDecisionCreated" => Ok(Self::LifecycleDecisionCreated),
+            "LifecycleDeliveryRequested" => Ok(Self::LifecycleDeliveryRequested),
+            "LifecycleEventSuppressed" => Ok(Self::LifecycleEventSuppressed),
+            "MessageDefinitionPublished" => Ok(Self::MessageDefinitionPublished),
+            "DeliveryQueued" => Ok(Self::DeliveryQueued),
+            "DeliveryAttempted" => Ok(Self::DeliveryAttempted),
+            "DeliverySucceeded" => Ok(Self::DeliverySucceeded),
+            "DeliveryBlocked" => Ok(Self::DeliveryBlocked),
+            "DeliveryOutcomeUncertain" => Ok(Self::DeliveryOutcomeUncertain),
+            "DeliveryDeadLettered" => Ok(Self::DeliveryDeadLettered),
             _ => Err(EnvelopeError::UnsupportedSchemaName(value.to_owned())),
         }
     }
@@ -99,6 +119,32 @@ pub enum EnvelopeError {
     UnsupportedSchemaName(String),
     #[error("gateway event needs shard, session and sequence")]
     MissingGatewayIdentity,
+    #[error("welcome body or channel is invalid")]
+    InvalidWelcomeBody,
+}
+
+/// A plain-text welcome can interpolate only the member mention.
+/// # Errors
+/// Returns an error for empty, oversized, broad-mention, or unknown placeholders.
+pub fn validate_welcome_body(body: &str) -> Result<(), EnvelopeError> {
+    if body.trim().is_empty()
+        || body.chars().count() > 2000
+        || body.contains("@everyone")
+        || body.contains("@here")
+    {
+        return Err(EnvelopeError::InvalidWelcomeBody);
+    }
+    let remainder = body.replace("{member}", "");
+    if remainder.contains('{') || remainder.contains('}') {
+        return Err(EnvelopeError::InvalidWelcomeBody);
+    }
+    // Discord user IDs are at most 20 decimal digits. Reserve the rendered
+    // mention length so a valid revision cannot turn into an oversized POST.
+    let rendered_max = body.chars().count() + body.matches("{member}").count() * (23 - 8);
+    if rendered_max > 2000 {
+        return Err(EnvelopeError::InvalidWelcomeBody);
+    }
+    Ok(())
 }
 
 impl EventEnvelope {
@@ -200,6 +246,7 @@ pub enum S0CommandName {
     AdmitGuildInstall,
     AdmitGuildRepair,
     SubmitModerationAction,
+    PublishWelcomeRevision,
 }
 
 impl TryFrom<&str> for S0CommandName {
@@ -210,6 +257,7 @@ impl TryFrom<&str> for S0CommandName {
             "AdmitGuildInstall" => Ok(Self::AdmitGuildInstall),
             "AdmitGuildRepair" => Ok(Self::AdmitGuildRepair),
             "SubmitModerationAction" => Ok(Self::SubmitModerationAction),
+            "PublishWelcomeRevision" => Ok(Self::PublishWelcomeRevision),
             _ => Err(EnvelopeError::UnsupportedSchemaName(value.to_owned())),
         }
     }
@@ -272,6 +320,29 @@ impl CommandEnvelope {
             ));
         }
         let command_name = S0CommandName::try_from(command.schema_name.as_str())?;
+        if command_name == S0CommandName::PublishWelcomeRevision {
+            let body = command
+                .payload
+                .get("body")
+                .and_then(Value::as_str)
+                .ok_or(EnvelopeError::InvalidWelcomeBody)?;
+            let channel = command
+                .payload
+                .get("channel_id")
+                .and_then(Value::as_str)
+                .ok_or(EnvelopeError::InvalidWelcomeBody)?;
+            let guild = command
+                .payload
+                .get("guild_id")
+                .and_then(Value::as_str)
+                .ok_or(EnvelopeError::InvalidWelcomeBody)?;
+            validate_welcome_body(body)?;
+            if !matches!(channel.parse::<u64>(), Ok(1..))
+                || !matches!(guild.parse::<u64>(), Ok(1..))
+            {
+                return Err(EnvelopeError::InvalidWelcomeBody);
+            }
+        }
         Ok(ParsedCommand {
             command,
             command_name,
@@ -336,6 +407,72 @@ pub struct GatewayDeduplicationKey<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn s2_welcome_command_and_fact_allowlist_fail_closed() {
+        let tenant = Uuid::now_v7();
+        let command = CommandEnvelope {
+            command_id: Uuid::now_v7(),
+            schema_name: "PublishWelcomeRevision".to_owned(),
+            schema_version: 1,
+            actor_account_id: Uuid::now_v7(),
+            tenant_id: tenant,
+            idempotency_key: Uuid::now_v7(),
+            deadline_at: "2026-09-23T00:00:00Z".to_owned(),
+            correlation_id: Uuid::now_v7(),
+            trace_context: TraceContext {
+                trace_id: "trace".to_owned(),
+                span_id: "span".to_owned(),
+            },
+            payload: serde_json::json!({"guild_id":"456","channel_id":"123","body":"Hello {member}"}),
+        };
+        let raw =
+            serde_json::to_vec(&command).unwrap_or_else(|error| panic!("encode failed: {error}"));
+        assert_eq!(
+            CommandEnvelope::parse_s0(&raw).map(|p| p.command_name),
+            Ok(S0CommandName::PublishWelcomeRevision)
+        );
+        for name in [
+            "AutoReplyMatched",
+            "ScheduleActivated",
+            "RoleAssignmentApplied",
+            "MessageDefinitionRetired",
+            "DeliveryRetryScheduled",
+            "AutoReplyDeliveryRequested",
+            "DeliveryOccurrenceDue",
+        ] {
+            assert!(matches!(
+                S0EventName::try_from(name),
+                Err(EnvelopeError::UnsupportedSchemaName(_))
+            ));
+        }
+        for name in [
+            "LifecycleDecisionCreated",
+            "LifecycleDeliveryRequested",
+            "LifecycleEventSuppressed",
+            "MessageDefinitionPublished",
+            "DeliveryQueued",
+            "DeliveryAttempted",
+            "DeliverySucceeded",
+            "DeliveryBlocked",
+            "DeliveryOutcomeUncertain",
+            "DeliveryDeadLettered",
+        ] {
+            assert!(S0EventName::try_from(name).is_ok());
+            let event = VALID_GATEWAY.replace("GatewayEventAccepted", name);
+            assert!(EventEnvelope::parse_s0(event.as_bytes()).is_ok());
+        }
+        for body in ["@everyone hello", "@here hello", "", "{other}"] {
+            let mut rejected = command.clone();
+            rejected.payload["body"] = serde_json::json!(body);
+            let raw = serde_json::to_vec(&rejected)
+                .unwrap_or_else(|error| panic!("encode failed: {error}"));
+            assert_eq!(
+                CommandEnvelope::parse_s0(&raw).err(),
+                Some(EnvelopeError::InvalidWelcomeBody)
+            );
+        }
+    }
 
     const VALID_GATEWAY: &str = r#"{
         "event_id":"019a3dc6-0989-7000-8000-000000000001",

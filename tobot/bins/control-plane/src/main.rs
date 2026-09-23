@@ -2,6 +2,7 @@
 //! app origin when the reverse proxy forwards these paths to this binary.
 
 mod cases_http;
+mod welcome;
 
 use std::{collections::HashMap, net::SocketAddr};
 
@@ -17,7 +18,9 @@ use subtle::ConstantTimeEq;
 use tobot_bus::{RedisStreamConsumer, RedisStreamPublisher};
 use tobot_config::ControlPlaneConfig;
 use tobot_core::{Clock, SystemClock, render_gauges};
-use tobot_delivery_client::{CasesDeliveryClient, InstallationInspectionClient};
+use tobot_delivery_client::{
+    CasesDeliveryClient, InstallationInspectionClient, WelcomeDeliveryClient,
+};
 use tobot_discord_adapter::{DiscordGuildObservation, DiscordOAuthClient, TransportError};
 use tobot_identity::{
     AuthorizationSession, oauth_state_hash, opaque_secret_hash, opaque_secrets_match, pkce_s256,
@@ -27,12 +30,12 @@ use tobot_installation::{
     GuildInstallAuthorization, GuildRepairAuthorization, InstallPreset, SafetyManifest,
     granted_install_scopes_match, has_live_guild_install_authority, is_existing_user_grant,
 };
-use tobot_outbox::{InstallationOutboxRelay, ModerationOutboxRelay};
+use tobot_outbox::{InstallationOutboxRelay, MessagingOutboxRelay, ModerationOutboxRelay};
 use tobot_persistence::{
     ActiveAuthorizationSession, AuditFact, ConsumedInstallAuthorization, ControlPlaneDatabase,
-    GuildDiscoveryObservation, GuildShellSummary, IdentityStore, InstallationStore,
-    ModerationStore, NewDiscordAuthorization, NewInstallAuthorization, QueryStore,
-    VerifyingInstallation,
+    DeliveryIntentStore, GuildDiscoveryObservation, GuildShellSummary, IdentityStore,
+    InstallationStore, LifecycleStore, MessagingOutbox, ModerationStore, NewDiscordAuthorization,
+    NewInstallAuthorization, QueryStore, VerifyingInstallation,
 };
 use tobot_secret_store::{SecretStore, VaultTransitStore};
 use tower_http::{
@@ -111,6 +114,8 @@ struct AppState {
     installation: InstallationStore,
     query: QueryStore,
     moderation: ModerationStore,
+    lifecycle: LifecycleStore,
+    welcome_delivery: WelcomeDeliveryClient,
     cases_gateway: cases_http::DeliveryGateway,
     service_token: String,
     secret_store: VaultTransitStore,
@@ -175,6 +180,35 @@ async fn main() -> anyhow::Result<()> {
     let query_store = database.query.clone();
     let installation_for_projection = database.installation.clone();
     let case_runtime = prepare_cases(&config, &database)?;
+    let welcome_delivery = WelcomeDeliveryClient::new(
+        &config.delivery_url,
+        config
+            .internal_service_token
+            .expose_for_adapter()
+            .to_owned(),
+    )
+    .context("cannot construct welcome delivery client")?;
+    let welcome_dispatch = welcome_delivery.clone();
+    let lifecycle_consumer = RedisStreamConsumer::connect(
+        config.redis_url.expose_for_adapter(),
+        "lifecycle-s2",
+        "control-plane",
+    )
+    .context("cannot construct lifecycle consumer")?;
+    let delivery_intents =
+        DeliveryIntentStore::connect(config.database_url.expose_for_adapter()).await?;
+    let lifecycle_relay = MessagingOutboxRelay::new(
+        MessagingOutbox::Lifecycle(database.lifecycle.clone()),
+        RedisStreamPublisher::connect(config.redis_url.expose_for_adapter())?,
+    );
+    let lifecycle_worker_store = database.lifecycle.clone();
+    let lifecycle_api_store = database.lifecycle.clone();
+    let welcome_query = database.query.clone();
+    let welcome_consumer = RedisStreamConsumer::connect(
+        config.redis_url.expose_for_adapter(),
+        "welcome-status-s2",
+        "control-plane",
+    )?;
     let metrics_state = MetricsState {
         identity: database.identity.clone(),
         installation: database.installation.clone(),
@@ -202,6 +236,8 @@ async fn main() -> anyhow::Result<()> {
         installation: database.installation,
         query: database.query,
         moderation: database.moderation,
+        lifecycle: lifecycle_api_store,
+        welcome_delivery,
         cases_gateway: gateway,
         service_token,
         secret_store,
@@ -233,6 +269,9 @@ async fn main() -> anyhow::Result<()> {
         result = run_case_projector(case_query, case_consumer) => result,
         result = run_moderation_relay(moderation_relay) => result,
         result = run_case_recovery(recovery_store, recovery_gateway) => result,
+        result = welcome::run_lifecycle(lifecycle_worker_store, delivery_intents, lifecycle_consumer, welcome_dispatch) => result,
+        result = welcome::run_lifecycle_relay(lifecycle_relay) => result,
+        result = run_welcome_projector(welcome_query, welcome_consumer) => result,
     }
 }
 
@@ -409,6 +448,47 @@ async fn run_case_projector(
     }
 }
 
+async fn run_welcome_projector(
+    query: QueryStore,
+    consumer: RedisStreamConsumer,
+) -> anyhow::Result<()> {
+    loop {
+        match project_welcome(&query, &consumer).await {
+            Ok(()) => {}
+            Err(error) => {
+                error!(%error, "welcome projection paused");
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
+        }
+    }
+}
+
+async fn project_welcome(query: &QueryStore, consumer: &RedisStreamConsumer) -> anyhow::Result<()> {
+    for message in consumer.read().await? {
+        let parsed = tobot_envelope::EventEnvelope::parse_s0(&message.envelope)?;
+        if matches!(
+            parsed.event.schema_name.as_str(),
+            "DeliveryQueued"
+                | "DeliveryAttempted"
+                | "DeliverySucceeded"
+                | "DeliveryBlocked"
+                | "DeliveryOutcomeUncertain"
+                | "DeliveryDeadLettered"
+        ) {
+            query
+                .apply_welcome_delivery(
+                    &parsed.event,
+                    &message.envelope,
+                    &message.stream_id,
+                    time::OffsetDateTime::now_utc(),
+                )
+                .await?;
+        }
+        consumer.acknowledge(&message.stream_id).await?;
+    }
+    Ok(())
+}
+
 async fn project_cases(query: &QueryStore, consumer: &RedisStreamConsumer) -> anyhow::Result<()> {
     for message in consumer.read().await? {
         let parsed = tobot_envelope::EventEnvelope::parse_s0(&message.envelope)?;
@@ -445,7 +525,9 @@ async fn run_case_recovery(
     gateway: cases_http::DeliveryGateway,
 ) -> anyhow::Result<()> {
     loop {
-        match tobot_cases::resume_stale_cases(&store, &gateway, time::OffsetDateTime::now_utc()).await {
+        match tobot_cases::resume_stale_cases(&store, &gateway, time::OffsetDateTime::now_utc())
+            .await
+        {
             Ok(0) => {}
             Ok(count) => info!(count, "resumed executing moderation cases"),
             Err(cause) => error!(error = %cause, "moderation recovery failed"),
@@ -620,6 +702,14 @@ fn router(state: AppState) -> Router {
         .route("/api/v1/csrf", get(csrf))
         .route("/api/v1/guilds", get(guilds))
         .route("/api/v1/guilds/{tenant_id}", get(guild_shell))
+        .route(
+            "/api/v1/guilds/{tenant_id}/welcome",
+            get(welcome::get_welcome).post(welcome::publish),
+        )
+        .route(
+            "/api/v1/guilds/{tenant_id}/welcome/channels",
+            get(welcome::channels),
+        )
         .route(
             "/internal/v1/moderation/actions",
             post(cases_http::submit_moderation_action),

@@ -6,7 +6,7 @@
 
 | Attribute | Value |
 |---|---|
-| Status | Not started. S0 release gates stay Partial. S1 stays demonstrated. |
+| Status | Live welcome create is proven in guild `1507220191078252674`; restart and blocked-channel parts of the S2 demo remain open. S0 release gates stay Partial. S1 stays demonstrated. |
 | Slice | S2 — Messaging proof |
 | Outcome | One non-bot member join posts one guild welcome message, and the operator sees that delivery on `dash.*`. |
 | Normative inputs | 02 Lifecycle, Message Catalog, Delivery; 03 §8.6 lifecycle, catalog, and delivery leaves; 04 §9.3 and §9.8; 05 §10.1 and §10.2; 07 inbox/outbox; 11 backpressure for one tenant's delivery claim; 13 the delivery rows named in §7; 14 DR-012 and DR-032. |
@@ -239,9 +239,17 @@ Updated as packages land. A package is Complete only when its exit evidence exis
 
 | Package | Status | Evidence |
 |---|---|---|
-| WP1 — Contracts | Not started | |
-| WP2 — Welcome revision and join decision | Not started | |
-| WP3 — Delivery create | Not started | |
-| WP4 — Member join on Edge | Not started | Do not deploy the new identify until the portal Guild Members toggle is confirmed. |
-| WP5 — Welcome screen | Not started | |
-| WP6 — Demo | Not started | Live join and Delivery SIGKILL are not run until WP4 and WP5 have exits. |
+| WP1 — Contracts | Complete | Envelope tests cover every admitted S2 fact, rejected auto-reply/schedule/role names, and broad-mention rejection. |
+| WP2 — Welcome revision and join decision | Complete | `postgres_messaging`: immutable superseded revision, pinned in-flight intent, bot suppression. |
+| WP3 — Delivery create | Complete | `postgres_messaging`: duplicate join, one live claim, terminal Blocked, uncertain nonce reconciliation, dead letter, tenant claim rotation, outbox projection. Two live joins each created one confirmed attempt and one Discord message. |
+| WP4 — Member join on Edge | Complete | Edge emits member joins and raw `MESSAGE_CREATE` nonce; unit test checks nonce capture and terminal `4014`. The operator confirmed the portal Guild Members toggle. A fresh `Identify` completed at 20:09:10 UTC, and the human joins at 20:13:03 and 20:16:41 UTC were admitted. Bot suppression passed on `tobot_test`. |
+| WP5 — Welcome screen | Complete in code | Dashboard check/build pass; the live unauthenticated GET returned 401. API uses session, tenant discovery, Origin, and CSRF guards. Live foreign-tenant and status display checks are part of WP6. |
+| WP6 — Demo | Partial | Steps 1–5 were observed in guild `1507220191078252674`. The operator chose to defer steps 6–7: SIGKILL recovery and blocked-channel demonstrations. |
+
+Local verification: `cargo test --workspace` ran against a disposable PostgreSQL 16 database named `tobot_test`; `cargo clippy --workspace --all-targets -- -D warnings`, `pnpm --filter @tobot/dash check`, and `pnpm --filter @tobot/dash build` passed. The running `tobot` database and Discord guild were not changed by these checks.
+
+Deployment verification: images for Control Plane, Delivery, Edge, and Migrate were rebuilt; Migrate exited 0 and the live database contains `lifecycle.event_outbox`, `delivery.message_intent`, and `query_status.welcome_delivery`. The stored pre-S2 Gateway session was cleared before restarting Edge so that the new intents were sent in a fresh `Identify`.
+
+Live welcome evidence, 2026-09-23 UTC: tenant `01a0c830-c467-70fb-a89e-40a77dc81748`, guild `1507220191078252674`, channel `1507221622891876382`, non-bot member `1084247768815644683`. The 20:13:03 join pinned revision 2, intent `01a0cfe6-7c46-74c1-8f43-91fdf78f7109`, and returned Discord message `1552412507333722193`. The 20:16:41 rejoin pinned revision 4, intent `01a0cfe9-cf8e-77dd-9274-ab8f4e9f0435`, and returned message `1552413421100597269`. Each intent has exactly one `message_attempt` with result `Confirmed`; the current `query_status.welcome_delivery` row is `Sent` for the second intent and contains its provider message id and a watermark of 20:16:42 UTC. The operator confirmed that the channel message appeared. These were two separate joins, so two messages are expected.
+
+Live duplicate check: replayed the exact 20:16:41 `GatewayEventAccepted` envelope once into `tobot:events:v1` as Redis entry `1790194722546-0`. Consumer group `lifecycle-s2` acknowledged it with no pending entry. The original join still had one decision, one intent, and one confirmed attempt. No second create was scheduled.

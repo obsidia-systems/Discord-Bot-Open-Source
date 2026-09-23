@@ -12,14 +12,14 @@ use axum::{
 use std::{net::SocketAddr, sync::Arc};
 use subtle::ConstantTimeEq;
 use time::OffsetDateTime;
-use tobot_bus::RedisStreamPublisher;
+use tobot_bus::{RedisStreamConsumer, RedisStreamPublisher};
 use tobot_core::render_gauges;
 use tobot_discord_adapter::{
     DiscordTransport, GuildPresenceInspection, InteractionCallback, TransportError,
     TwilightTransport,
 };
-use tobot_outbox::EdgeOutboxRelay;
-use tobot_persistence::EdgeRelayStore;
+use tobot_outbox::{EdgeOutboxRelay, MessagingOutboxRelay};
+use tobot_persistence::{DeliveryIntentStore, EdgeRelayStore, MessageIntent, MessagingOutbox};
 use tracing::{error, info, warn};
 
 struct DeliveryState {
@@ -27,6 +27,8 @@ struct DeliveryState {
     service_token: String,
     credentials_present: bool,
     store: Option<EdgeRelayStore>,
+    message_store: Option<DeliveryIntentStore>,
+    message_notify: tokio::sync::Notify,
 }
 
 #[tokio::main]
@@ -50,21 +52,32 @@ async fn main() -> anyhow::Result<()> {
     let redis_url = std::env::var("TOBOT_REDIS_URL").context("missing TOBOT_REDIS_URL")?;
     let database_url = std::env::var("TOBOT_DATABASE_URL").context("missing TOBOT_DATABASE_URL")?;
     let store = EdgeRelayStore::connect(&database_url).await?;
+    let message_store = DeliveryIntentStore::connect(&database_url).await?;
     let publisher = RedisStreamPublisher::connect(&redis_url)?;
     let relay = EdgeOutboxRelay::new(store.clone(), publisher);
+    let message_relay = MessagingOutboxRelay::new(
+        MessagingOutbox::Delivery(message_store.clone()),
+        RedisStreamPublisher::connect(&redis_url)?,
+    );
+    let nonce_consumer = RedisStreamConsumer::connect(&redis_url, "delivery-nonce-s2", "delivery")?;
     let state = Arc::new(DeliveryState {
         transport: TwilightTransport::new(bot_token),
         service_token,
         credentials_present: true,
         store: Some(store),
+        message_store: Some(message_store.clone()),
+        message_notify: tokio::sync::Notify::new(),
     });
     let app = delivery_router(Arc::clone(&state));
-    let metrics = metrics_router(state);
+    let metrics = metrics_router(Arc::clone(&state));
     info!(%bind, %metrics_bind, "delivery starting with private typed transport ingress");
     let listener = tokio::net::TcpListener::bind(bind).await?;
     let metrics_listener = tokio::net::TcpListener::bind(metrics_bind).await?;
     tokio::select! {
         result = run_relay(relay) => result,
+        result = run_message_claims(message_store.clone(), Arc::clone(&state)) => result,
+        result = run_message_reconciliation(message_store, nonce_consumer) => result,
+        result = run_message_relay(message_relay) => result,
         result = axum::serve(listener, app) => {
             result.context("Delivery private listener failed")
         },
@@ -89,17 +102,19 @@ fn delivery_router(state: Arc<DeliveryState>) -> Router {
             "/internal/v1/commands/diagnostic",
             post(register_diagnostic),
         )
-        .route("/internal/v1/moderation/preflight", post(moderation_preflight))
-        .route("/internal/v1/moderation/timeout", post(apply_timeout))
         .route(
-            "/internal/v1/moderation/clear-timeout",
-            post(clear_timeout),
+            "/internal/v1/moderation/preflight",
+            post(moderation_preflight),
         )
+        .route("/internal/v1/moderation/timeout", post(apply_timeout))
+        .route("/internal/v1/moderation/clear-timeout", post(clear_timeout))
         .route(
             "/internal/v1/moderation/observe-timeout",
             post(observe_timeout),
         )
         .route("/internal/v1/interactions/followup", post(follow_up))
+        .route("/internal/v1/messages/text-channels", post(text_channels))
+        .route("/internal/v1/messages/create", post(create_message))
         .with_state(state)
 }
 
@@ -247,7 +262,12 @@ async fn moderation_preflight(
     };
     match state
         .transport
-        .moderation_preflight(guild_id, actor_user_id, target_user_id, &request.protected_targets)
+        .moderation_preflight(
+            guild_id,
+            actor_user_id,
+            target_user_id,
+            &request.protected_targets,
+        )
         .await
     {
         Ok(report) => Json(report).into_response(),
@@ -280,7 +300,10 @@ async fn timeout_mutation(
     if !authorized(headers, &state.service_token) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
-    let (Ok(guild_id), Ok(user_id)) = (request.guild_id.parse::<u64>(), request.user_id.parse::<u64>()) else {
+    let (Ok(guild_id), Ok(user_id)) = (
+        request.guild_id.parse::<u64>(),
+        request.user_id.parse::<u64>(),
+    ) else {
         return StatusCode::BAD_REQUEST.into_response();
     };
     let result = if apply {
@@ -311,10 +334,17 @@ async fn observe_timeout(
     if !authorized(&headers, &state.service_token) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
-    let (Ok(guild_id), Ok(user_id)) = (request.guild_id.parse::<u64>(), request.user_id.parse::<u64>()) else {
+    let (Ok(guild_id), Ok(user_id)) = (
+        request.guild_id.parse::<u64>(),
+        request.user_id.parse::<u64>(),
+    ) else {
         return StatusCode::BAD_REQUEST.into_response();
     };
-    match state.transport.member_timeout_active(guild_id, user_id).await {
+    match state
+        .transport
+        .member_timeout_active(guild_id, user_id)
+        .await
+    {
         Ok(active) => Json(serde_json::json!({ "active": active })).into_response(),
         Err(error) => transport_status(&error).into_response(),
     }
@@ -436,6 +466,202 @@ fn authorized(headers: &HeaderMap, expected_token: &str) -> bool {
         == 1
 }
 
+#[derive(serde::Deserialize)]
+struct TextChannelsRequest {
+    guild_id: String,
+}
+
+async fn text_channels(
+    State(state): State<Arc<DeliveryState>>,
+    headers: HeaderMap,
+    Json(request): Json<TextChannelsRequest>,
+) -> Response {
+    if !authorized(&headers, &state.service_token) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    let Ok(guild_id) = request.guild_id.parse::<u64>() else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    match state.transport.list_text_channels(guild_id).await {
+        Ok(channels) => Json(channels).into_response(),
+        Err(error) => transport_status(&error).into_response(),
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct CreateMessageRequest {
+    intent_id: uuid::Uuid,
+}
+
+async fn create_message(
+    State(state): State<Arc<DeliveryState>>,
+    headers: HeaderMap,
+    Json(request): Json<CreateMessageRequest>,
+) -> StatusCode {
+    if !authorized(&headers, &state.service_token) {
+        return StatusCode::UNAUTHORIZED;
+    }
+    let Some(store) = &state.message_store else {
+        return StatusCode::SERVICE_UNAVAILABLE;
+    };
+    match store.status_by_id(request.intent_id).await {
+        Ok(Some(_)) => state.message_notify.notify_one(),
+        Ok(None) => return StatusCode::NOT_FOUND,
+        Err(_) => return StatusCode::SERVICE_UNAVAILABLE,
+    }
+    StatusCode::ACCEPTED
+}
+
+async fn run_message_relay(relay: MessagingOutboxRelay) -> anyhow::Result<()> {
+    loop {
+        match relay.relay_once(OffsetDateTime::now_utc()).await {
+            Ok(0) => tokio::time::sleep(std::time::Duration::from_millis(250)).await,
+            Ok(count) => info!(count, "relayed delivery facts"),
+            Err(error) => {
+                error!(%error, "delivery outbox relay paused");
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
+        }
+    }
+}
+
+async fn run_message_claims(
+    store: DeliveryIntentStore,
+    state: Arc<DeliveryState>,
+) -> anyhow::Result<()> {
+    let mut last_tenant = None;
+    loop {
+        match store
+            .claim_next_after(OffsetDateTime::now_utc(), last_tenant)
+            .await
+        {
+            Ok(Some(intent)) => {
+                last_tenant = Some(intent.tenant_id);
+                if let Err(error) = send_message_intent(&store, &state, &intent).await {
+                    error!(%error, intent_id=%intent.intent_id, "message create worker paused");
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                }
+            }
+            Ok(None) => tokio::select! {
+                () = state.message_notify.notified() => {},
+                () = tokio::time::sleep(std::time::Duration::from_millis(250)) => {},
+            },
+            Err(error) => {
+                error!(%error, "message intent claim paused");
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
+        }
+    }
+}
+
+async fn send_message_intent(
+    store: &DeliveryIntentStore,
+    state: &DeliveryState,
+    intent: &MessageIntent,
+) -> anyhow::Result<()> {
+    let now = OffsetDateTime::now_utc();
+    if !store.mark_sending(intent, now).await? {
+        return Ok(());
+    }
+    let (Ok(channel), Ok(member), Ok(nonce)) = (
+        intent.channel_id.parse::<u64>(),
+        intent.member_id.parse::<u64>(),
+        intent.nonce.parse::<u64>(),
+    ) else {
+        store
+            .finish(intent, "Blocked", None, OffsetDateTime::now_utc())
+            .await?;
+        return Ok(());
+    };
+    let outcome = state
+        .transport
+        .create_channel_message(channel, member, &intent.content, nonce)
+        .await;
+    match outcome {
+        Ok(message_id) => {
+            store
+                .finish(intent, "Sent", Some(&message_id), OffsetDateTime::now_utc())
+                .await?;
+        }
+        Err(TransportError::Rejected {
+            status: 403 | 400 | 404,
+        }) => {
+            store
+                .finish(intent, "Blocked", None, OffsetDateTime::now_utc())
+                .await?;
+        }
+        Err(TransportError::RateLimited { retry_after_ms }) => {
+            store
+                .release_rate_limited(intent, OffsetDateTime::now_utc())
+                .await?;
+            tokio::time::sleep(std::time::Duration::from_millis(retry_after_ms)).await;
+        }
+        Err(error) => {
+            warn!(intent_id=%intent.intent_id, class=transport_class(&error), "message create outcome uncertain");
+            store
+                .finish(intent, "OutcomeUncertain", None, OffsetDateTime::now_utc())
+                .await?;
+        }
+    }
+    Ok(())
+}
+
+async fn run_message_reconciliation(
+    store: DeliveryIntentStore,
+    consumer: RedisStreamConsumer,
+) -> anyhow::Result<()> {
+    loop {
+        match reconcile_messages(&store, &consumer).await {
+            Ok(()) => {}
+            Err(error) => {
+                error!(%error, "message nonce reconciliation paused");
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
+        }
+    }
+}
+
+async fn reconcile_messages(
+    store: &DeliveryIntentStore,
+    consumer: &RedisStreamConsumer,
+) -> anyhow::Result<()> {
+    for message in consumer.read().await? {
+        let parsed = tobot_envelope::EventEnvelope::parse_s0(&message.envelope)?;
+        if parsed.event.schema_name == "GatewayEventAccepted"
+            && parsed.event.payload["dispatch"] == "MessageCreate"
+        {
+            let payload = &parsed.event.payload;
+            if let (Some(nonce), Some(message_id), Some(channel), Some(author)) = (
+                payload["nonce"].as_str(),
+                payload["message_id"].as_str(),
+                payload["channel_id"].as_str(),
+                payload["author_id"].as_str(),
+            ) && let Some(intent) = store.by_nonce(nonce).await?
+                && intent.channel_id == channel
+                && intent.application_id == author
+                && matches!(intent.status.as_str(), "Sending" | "OutcomeUncertain")
+            {
+                store
+                    .finish(&intent, "Sent", Some(message_id), OffsetDateTime::now_utc())
+                    .await?;
+            }
+        }
+        consumer.acknowledge(&message.stream_id).await?;
+    }
+    let now = OffsetDateTime::now_utc();
+    for intent in store.needing_reconciliation(now).await? {
+        if intent.status == "Sending" {
+            store.finish(&intent, "OutcomeUncertain", None, now).await?;
+        } else if intent
+            .uncertain_at
+            .is_some_and(|at| now - at > time::Duration::seconds(60))
+        {
+            store.finish(&intent, "DeadLetter", None, now).await?;
+        }
+    }
+    Ok(())
+}
+
 fn status_for(result: &Result<(), TransportError>) -> StatusCode {
     let Err(error) = result else {
         return StatusCode::NO_CONTENT;
@@ -503,6 +729,8 @@ mod tests {
             service_token: "internal".to_owned(),
             credentials_present: true,
             store: None,
+            message_store: None,
+            message_notify: tokio::sync::Notify::new(),
         });
         let app = delivery_router(state);
         let metrics = app
@@ -521,6 +749,23 @@ mod tests {
         if webhook.status() != StatusCode::NOT_FOUND {
             return Err("delivery accepted an interaction webhook route".to_owned());
         }
+        let create = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/internal/v1/messages/create")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"intent_id":"019a3dc6-0989-7000-8000-000000000001"}"#,
+                    ))
+                    .map_err(|error| error.to_string())?,
+            )
+            .await
+            .map_err(|_| "message create request failed".to_owned())?;
+        if create.status() != StatusCode::UNAUTHORIZED {
+            return Err("message create accepted an anonymous request".to_owned());
+        }
         let live = app
             .oneshot(request("/health/live")?)
             .await
@@ -538,6 +783,8 @@ mod tests {
             service_token: "internal".to_owned(),
             credentials_present: true,
             store: None,
+            message_store: None,
+            message_notify: tokio::sync::Notify::new(),
         });
         let app = metrics_router(state);
         let anonymous = app

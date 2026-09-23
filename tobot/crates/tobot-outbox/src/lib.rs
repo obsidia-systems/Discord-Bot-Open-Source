@@ -6,7 +6,7 @@ use std::time::Instant;
 use time::{Duration, OffsetDateTime};
 use tobot_bus::{BusError, RedisStreamPublisher};
 use tobot_envelope::{EnvelopeError, EventEnvelope};
-use tobot_persistence::{EdgeRelayStore, InstallationStore, ModerationStore};
+use tobot_persistence::{EdgeRelayStore, InstallationStore, MessagingOutbox, ModerationStore};
 use uuid::Uuid;
 
 const LEASE_HEARTBEAT: std::time::Duration = std::time::Duration::from_secs(5);
@@ -40,6 +40,37 @@ pub struct InstallationOutboxRelay {
 pub struct ModerationOutboxRelay {
     store: ModerationStore,
     publisher: RedisStreamPublisher,
+}
+
+pub struct MessagingOutboxRelay {
+    store: MessagingOutbox,
+    publisher: RedisStreamPublisher,
+}
+
+impl MessagingOutboxRelay {
+    #[must_use]
+    pub fn new(store: MessagingOutbox, publisher: RedisStreamPublisher) -> Self {
+        Self { store, publisher }
+    }
+
+    /// # Errors
+    /// Returns the first database, envelope, or Redis error without acknowledging it.
+    pub async fn relay_once(&self, now: OffsetDateTime) -> Result<usize, RelayError> {
+        let token = Uuid::now_v7();
+        let entries = self.store.claim(now, token).await?;
+        let mut count = 0;
+        for entry in entries {
+            let parsed = EventEnvelope::parse_s0(&entry.envelope)?;
+            self.publisher
+                .publish(&parsed.event, &entry.envelope)
+                .await?;
+            self.store
+                .published(&entry, token, OffsetDateTime::now_utc())
+                .await?;
+            count += 1;
+        }
+        Ok(count)
+    }
 }
 
 impl EdgeOutboxRelay {

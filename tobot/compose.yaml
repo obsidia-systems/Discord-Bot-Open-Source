@@ -96,6 +96,7 @@ services:
       TOBOT_CONTROL_URL: ${TOBOT_CONTROL_URL:-http://control-plane:8080}
       TOBOT_INTERNAL_SERVICE_TOKEN: ${TOBOT_INTERNAL_SERVICE_TOKEN:?set TOBOT_INTERNAL_SERVICE_TOKEN}
       TOBOT_EDGE_HEALTH_BIND: 0.0.0.0:8082
+      TOBOT_GUILD_MEMBERS_INTENT_CONFIRMED: ${TOBOT_GUILD_MEMBERS_INTENT_CONFIRMED:-false}
     depends_on:
       migrate:
         condition: service_completed_successfully

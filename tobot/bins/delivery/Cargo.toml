@@ -21,8 +21,10 @@ tracing-subscriber.workspace = true
 tobot-bus = { path = "../../crates/tobot-bus" }
 tobot-core = { path = "../../crates/tobot-core" }
 tobot-discord-adapter = { path = "../../crates/tobot-discord-adapter" }
+tobot-envelope = { path = "../../crates/tobot-envelope" }
 tobot-outbox = { path = "../../crates/tobot-outbox" }
 tobot-persistence = { path = "../../crates/tobot-persistence" }
+uuid.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

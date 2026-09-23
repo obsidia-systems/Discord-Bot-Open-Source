@@ -8,6 +8,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
+use futures_util::StreamExt as _;
 use std::{
     sync::{
         Arc,
@@ -20,8 +21,8 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tobot_core::render_gauges;
 use tobot_delivery_client::{InternalDeliveryTransport, ModerationCommandClient};
 use tobot_discord_adapter::{
-    DIAGNOSTIC_COMMAND_NAME, TIMEOUT_COMMAND_NAME, DiscordTransport, GatewayPhase,
-    GatewaySessionStart, InteractionCallback, ShardReadiness, acknowledgement_deadline_open,
+    DIAGNOSTIC_COMMAND_NAME, DiscordTransport, GatewayPhase, GatewaySessionStart,
+    InteractionCallback, ShardReadiness, TIMEOUT_COMMAND_NAME, acknowledgement_deadline_open,
     interaction_created_ms, plan_gateway_session, shard_is_ready,
 };
 use tobot_envelope::{EventEnvelope, TraceContext};
@@ -31,7 +32,7 @@ use tobot_interaction_edge::{
 use tobot_persistence::EdgeStore;
 use tracing::{info, warn};
 use twilight_gateway::{
-    ConfigBuilder, Event, EventTypeFlags, Intents, Session, Shard, ShardId, StreamExt as _,
+    CloseFrame, ConfigBuilder, Event, EventTypeFlags, Intents, Message, Session, Shard, ShardId,
 };
 use twilight_model::{
     application::interaction::{
@@ -156,7 +157,14 @@ fn connect_shard(
     phase: GatewayPhase,
     stored: Option<tobot_persistence::GatewaySessionRecord>,
 ) -> anyhow::Result<Shard> {
-    let mut builder = ConfigBuilder::new(bot_token.to_owned(), Intents::GUILDS);
+    // The privileged intent is enabled only after the portal toggle is confirmed.
+    let intents = if std::env::var("TOBOT_GUILD_MEMBERS_INTENT_CONFIRMED").as_deref() == Ok("true")
+    {
+        Intents::GUILDS | Intents::GUILD_MEMBERS | Intents::GUILD_MESSAGES
+    } else {
+        Intents::GUILDS
+    };
+    let mut builder = ConfigBuilder::new(bot_token.to_owned(), intents);
     if phase == GatewayPhase::Resume {
         let stored = stored.context("resume planned without a stored session")?;
         let sequence =
@@ -196,6 +204,7 @@ fn transport_class(error: &tobot_discord_adapter::TransportError) -> &'static st
     }
 }
 
+#[allow(clippy::too_many_lines)]
 async fn run_gateway(
     shard: &mut Shard,
     health: &EdgeHealth,
@@ -207,11 +216,32 @@ async fn run_gateway(
     let application_snowflake: u64 = application_id
         .parse()
         .context("TOBOT_DISCORD_APPLICATION_ID is not a snowflake")?;
-    while let Some(next_event) = shard.next_event(EventTypeFlags::all()).await {
-        let Ok(event) = next_event else {
-            warn!(shard = shard.id().number(), "gateway event error");
-            continue;
+    while let Some(next_message) = shard.next().await {
+        let (event, raw_nonce) = match next_message {
+            Ok(Message::Close(frame)) => (Event::GatewayClose(frame), None),
+            Ok(Message::Text(raw)) => {
+                // Twilight's Message model omits nonce. Preserve that one raw
+                // gateway field before deserializing the typed event.
+                let raw_nonce = message_create_nonce(&raw);
+                match twilight_gateway::parse(raw, EventTypeFlags::all()) {
+                    Ok(Some(event)) => (event.into(), raw_nonce),
+                    Ok(None) => continue,
+                    Err(error) => {
+                        warn!(%error, "gateway event parse failed");
+                        continue;
+                    }
+                }
+            }
+            Err(error) => {
+                warn!(%error, "gateway event receive failed");
+                continue;
+            }
         };
+        if gateway_close_requires_stop(&event) {
+            anyhow::bail!(
+                "gateway closed 4014; Guild Members intent must be enabled in the developer portal"
+            );
+        }
         health.observe(&event);
         match &event {
             Event::Ready(ready) => {
@@ -286,6 +316,39 @@ async fn run_gateway(
                 )
                 .await;
             }
+            Event::MemberAdd(member) => {
+                if let Some(joined_at) = member.joined_at {
+                    let guild_id = member.guild_id.to_string();
+                    persist_gateway_dispatch(
+                        shard,
+                        store,
+                        application_id,
+                        Some(&guild_id),
+                        serde_json::json!({"dispatch":"GuildMemberAdd",
+                            "member_id":member.user.id.to_string(),"is_bot":member.user.bot,
+                            "joined_at":joined_at}),
+                    )
+                    .await;
+                }
+            }
+            Event::MessageCreate(message) => {
+                if let Some(nonce) = &raw_nonce
+                    && let Some(guild_id) = message.guild_id
+                {
+                    let guild_id = guild_id.to_string();
+                    persist_gateway_dispatch(
+                        shard,
+                        store,
+                        application_id,
+                        Some(&guild_id),
+                        serde_json::json!({"dispatch":"MessageCreate",
+                                "channel_id":message.channel_id.to_string(),
+                                "message_id":message.id.to_string(),
+                                "author_id":message.author.id.to_string(),"nonce":nonce}),
+                    )
+                    .await;
+                }
+            }
             _ => {}
         }
         if let Event::InteractionCreate(interaction) = event {
@@ -302,6 +365,28 @@ async fn run_gateway(
         persist_session(shard, store).await?;
     }
     Ok(())
+}
+
+fn message_create_nonce(raw: &str) -> Option<String> {
+    if !raw.contains("\"MESSAGE_CREATE\"") {
+        return None;
+    }
+    serde_json::from_str::<serde_json::Value>(raw)
+        .ok()
+        .filter(|value| value["t"] == "MESSAGE_CREATE")
+        .and_then(|value| {
+            value["d"]["nonce"]
+                .as_str()
+                .map(ToOwned::to_owned)
+                .or_else(|| value["d"]["nonce"].as_u64().map(|n| n.to_string()))
+        })
+}
+
+fn gateway_close_requires_stop(event: &Event) -> bool {
+    matches!(
+        event,
+        Event::GatewayClose(Some(CloseFrame { code: 4014, .. }))
+    )
 }
 
 async fn dispatch_interaction(
@@ -440,11 +525,7 @@ async fn publish_installed_commands(
     info!(published, "installed guild command lists published");
 }
 
-async fn register_diagnostic(
-    clients: &EdgeClients,
-    application_id: u64,
-    guild_id: u64,
-) -> bool {
+async fn register_diagnostic(clients: &EdgeClients, application_id: u64, guild_id: u64) -> bool {
     match clients
         .delivery
         .register_diagnostic_command(application_id, guild_id)
@@ -849,8 +930,16 @@ async fn accept_timeout(
         Ok(body) => body.follow_up,
         Err(_) => "The action is Uncertain.".to_owned(),
     };
-    if let Err(error) = ingress.clients.delivery.follow_up(callback, &follow_up).await {
-        warn!(class = transport_class(&error), "timeout follow-up was not delivered");
+    if let Err(error) = ingress
+        .clients
+        .delivery
+        .follow_up(callback, &follow_up)
+        .await
+    {
+        warn!(
+            class = transport_class(&error),
+            "timeout follow-up was not delivered"
+        );
     }
     Ok(())
 }
@@ -926,11 +1015,30 @@ fn elapsed_ms(started: Instant) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{EdgeHealth, EdgeMetricsState, gateway_metrics_router};
+    use super::{
+        EdgeHealth, EdgeMetricsState, gateway_close_requires_stop, gateway_metrics_router,
+        message_create_nonce,
+    };
     use axum::{body::Body, http::Request};
     use tobot_discord_adapter::shard_is_ready;
     use tower::ServiceExt as _;
-    use twilight_gateway::Event;
+    use twilight_gateway::{CloseFrame, Event};
+
+    #[test]
+    fn nonce_is_kept_from_raw_message_create_and_4014_stops_identify() {
+        let raw = r#"{"t":"MESSAGE_CREATE","d":{"nonce":"123456","id":"999"}}"#;
+        assert_eq!(message_create_nonce(raw).as_deref(), Some("123456"));
+        assert_eq!(
+            message_create_nonce(r#"{"t":"GUILD_MEMBER_ADD","d":{"nonce":"123456"}}"#),
+            None
+        );
+        assert!(gateway_close_requires_stop(&Event::GatewayClose(Some(
+            CloseFrame::new(4014, "privileged intent")
+        ))));
+        assert!(!gateway_close_requires_stop(&Event::GatewayClose(Some(
+            CloseFrame::new(1000, "normal")
+        ))));
+    }
 
     #[test]
     fn timeout_without_a_tenant_is_rejected_before_the_command() {

@@ -10,8 +10,8 @@ use uuid::Uuid;
 const ADMINISTRATOR: u64 = 1 << 3;
 const MANAGE_GUILD: u64 = 1 << 5;
 
-/// Discord Moderate Members. Administrator stays off this union.
-pub const SAFETY_GUILD_PERMISSIONS: &str = "1099511627776";
+/// Discord Moderate Members, View Channel, and Send Messages. Administrator stays off.
+pub const SAFETY_GUILD_PERMISSIONS: &str = "1099511630848";
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct S0Manifest {
@@ -34,14 +34,14 @@ impl Default for S0Manifest {
     }
 }
 
-/// Guild install and repair for the safety operator loop. Verification still
-/// uses the two S0 capabilities; a missing Moderate Members bit does not degrade.
+/// Guild install and repair permission union. Verification still uses the
+/// two S0 capabilities; missing product bits do not degrade an Installed row.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct SafetyManifest {
     pub module: &'static str,
     pub oauth_scopes: [&'static str; 2],
     pub guild_permissions: &'static str,
-    pub gateway_intents: [&'static str; 1],
+    pub gateway_intents: [&'static str; 3],
     pub bot_presence_required: bool,
 }
 
@@ -51,7 +51,7 @@ impl Default for SafetyManifest {
             module: "safety_operator_loop",
             oauth_scopes: ["applications.commands", "bot"],
             guild_permissions: SAFETY_GUILD_PERMISSIONS,
-            gateway_intents: ["GUILDS"],
+            gateway_intents: ["GUILDS", "GUILD_MEMBERS", "GUILD_MESSAGES"],
             bot_presence_required: true,
         }
     }

@@ -11,12 +11,18 @@ use twilight_model::{
         command::{Command, CommandOption, CommandOptionType, CommandType},
         interaction::InteractionContextType,
     },
-    channel::message::MessageFlags,
+    channel::{
+        ChannelType,
+        message::{AllowedMentions, MessageFlags},
+    },
     guild::Permissions,
     http::interaction::{InteractionResponse, InteractionResponseData, InteractionResponseType},
     id::{
         Id,
-        marker::{ApplicationMarker, CommandVersionMarker, GuildMarker, InteractionMarker, UserMarker},
+        marker::{
+            ApplicationMarker, ChannelMarker, CommandVersionMarker, GuildMarker, InteractionMarker,
+            UserMarker,
+        },
     },
 };
 
@@ -31,6 +37,12 @@ const GATEWAY_BOT_PROBE_ATTEMPTS: u8 = 8;
 pub struct GuildPresenceInspection {
     pub provider_guild_id: String,
     pub present: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct TextChannel {
+    pub id: String,
+    pub name: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -652,6 +664,64 @@ pub struct TwilightTransport {
 }
 
 impl TwilightTransport {
+    /// Lists only guild text channels for the welcome form.
+    /// # Errors
+    /// Returns a classified Discord transport error.
+    pub async fn list_text_channels(&self, guild: u64) -> Result<Vec<TextChannel>, TransportError> {
+        let guild_id = snowflake::<GuildMarker>(guild)?;
+        self.preflight()?;
+        let response = self
+            .client
+            .guild_channels(guild_id)
+            .await
+            .map_err(|error| self.noted(&error))?;
+        let channels = response
+            .models()
+            .await
+            .map_err(|error| self.note_text(error))?;
+        Ok(channels
+            .into_iter()
+            .filter(|channel| channel.kind == ChannelType::GuildText)
+            .map(|channel| TextChannel {
+                id: channel.id.to_string(),
+                name: channel.name.unwrap_or_else(|| "text-channel".to_owned()),
+            })
+            .collect())
+    }
+
+    /// Creates one plain-text message with its durable numeric nonce.
+    /// # Errors
+    /// Returns a classified Discord transport error. Callers must reconcile
+    /// any uncertain result by nonce before considering another POST.
+    pub async fn create_channel_message(
+        &self,
+        channel: u64,
+        member: u64,
+        content: &str,
+        nonce: u64,
+    ) -> Result<String, TransportError> {
+        let channel_id = snowflake::<ChannelMarker>(channel)?;
+        let member_id = snowflake::<UserMarker>(member)?;
+        let mentions = AllowedMentions {
+            users: vec![member_id],
+            ..AllowedMentions::default()
+        };
+        self.preflight()?;
+        let response = self
+            .client
+            .create_message(channel_id)
+            .content(content)
+            .nonce(nonce)
+            .allowed_mentions(Some(&mentions))
+            .await
+            .map_err(|error| self.noted(&error))?;
+        let message = response
+            .model()
+            .await
+            .map_err(|error| self.note_text(error))?;
+        Ok(message.id.to_string())
+    }
+
     #[must_use]
     pub fn new(bot_token: String) -> Self {
         // Twilight selects rustls without installing a process crypto provider.
@@ -895,7 +965,8 @@ impl TwilightTransport {
     ) -> Result<(), TransportError> {
         let until = twilight_model::util::Timestamp::from_secs(until_unix)
             .map_err(|_| TransportError::Rejected { status: 400 })?;
-        self.patch_timeout(guild_id, user_id, Some(until), reason).await
+        self.patch_timeout(guild_id, user_id, Some(until), reason)
+            .await
     }
 
     /// An already clear timeout is a no-op.
@@ -932,7 +1003,9 @@ impl TwilightTransport {
         };
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |elapsed| i64::try_from(elapsed.as_secs()).unwrap_or(i64::MAX));
+            .map_or(0, |elapsed| {
+                i64::try_from(elapsed.as_secs()).unwrap_or(i64::MAX)
+            });
         Ok(until.as_secs() > now)
     }
 
@@ -995,7 +1068,10 @@ impl TwilightTransport {
             .guild(guild_id)
             .await
             .map_err(|error| self.noted(&error))?;
-        response.model().await.map_err(|error| self.note_text(error))
+        response
+            .model()
+            .await
+            .map_err(|error| self.note_text(error))
     }
 
     async fn current_bot_user(&self) -> Result<Id<UserMarker>, TransportError> {
@@ -1004,7 +1080,10 @@ impl TwilightTransport {
             .current_user()
             .await
             .map_err(|error| self.noted(&error))?;
-        let user = response.model().await.map_err(|error| self.note_text(error))?;
+        let user = response
+            .model()
+            .await
+            .map_err(|error| self.note_text(error))?;
         Ok(user.id)
     }
 
@@ -1033,7 +1112,10 @@ impl TwilightTransport {
             .guild_member(guild_id, user_id)
             .await
             .map_err(|error| self.noted(&error))?;
-        response.model().await.map_err(|error| self.note_text(error))
+        response
+            .model()
+            .await
+            .map_err(|error| self.note_text(error))
     }
 
     fn noted(&self, error: &twilight_http::Error) -> TransportError {
@@ -1459,7 +1541,10 @@ fn timeout_command() -> Command {
         name: TIMEOUT_COMMAND_NAME.to_owned(),
         name_localizations: None,
         nsfw: Some(false),
-        options: vec![timeout_subcommand("set", true), timeout_subcommand("clear", false)],
+        options: vec![
+            timeout_subcommand("set", true),
+            timeout_subcommand("clear", false),
+        ],
         version: Id::<CommandVersionMarker>::new(1),
     }
 }
@@ -1490,7 +1575,11 @@ fn timeout_subcommand(name: &str, with_duration: bool) -> CommandOption {
     ));
     command_option(
         name,
-        if with_duration { "Apply a timeout" } else { "Clear a timeout" },
+        if with_duration {
+            "Apply a timeout"
+        } else {
+            "Clear a timeout"
+        },
         CommandOptionType::SubCommand,
         None,
         Some(options),

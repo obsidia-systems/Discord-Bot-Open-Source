@@ -7,8 +7,10 @@ use tobot_discord_adapter::GuildPresenceInspection;
 use tobot_discord_adapter::{DiscordTransport, InteractionCallback, TransportError};
 
 mod cases;
+mod welcome;
 
 pub use cases::{CasesDeliveryClient, ModerationCommandClient, ModerationCommandResponse};
+pub use welcome::WelcomeDeliveryClient;
 
 pub(crate) fn classify_status(status: u16) -> TransportError {
     if status == 429 {
@@ -193,9 +195,13 @@ impl InternalDeliveryTransport {
             TransportError::Unavailable("interaction callback could not be encoded".to_owned())
         })?;
         if let Some(object) = body.as_object_mut() {
-            object.insert("content".to_owned(), serde_json::Value::String(content.to_owned()));
+            object.insert(
+                "content".to_owned(),
+                serde_json::Value::String(content.to_owned()),
+            );
         }
-        self.post_json("/internal/v1/interactions/followup", &body).await
+        self.post_json("/internal/v1/interactions/followup", &body)
+            .await
     }
 }
 
