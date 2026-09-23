@@ -4,11 +4,19 @@
 
 use std::env;
 
+use sqlx::postgres::PgPoolOptions;
 use time::{Duration, OffsetDateTime};
 use tobot_envelope::{EventEnvelope, TraceContext};
 use tobot_persistence::{
-    ClaimedInstallationVerification, NewInstallAuthorization, Store, VerifyingInstallation,
+    ClaimedInstallationVerification, InstallationStore, Migrations, NewInstallAuthorization,
+    QueryStore, VerifyingInstallation,
 };
+
+struct Fixture {
+    installation: InstallationStore,
+    query: QueryStore,
+    pool: sqlx::PgPool,
+}
 use uuid::Uuid;
 
 #[tokio::test]
@@ -24,14 +32,17 @@ async fn restarted_projection_keeps_its_inbox_cursor() -> Result<(), String> {
         .replace_nanosecond(0)
         .map_err(|error| error.to_string())?;
     store
+        .query
         .apply_installation_projection(&installed, &raw, "1-0", first_at)
         .await
         .map_err(|error| error.to_string())?;
     store
+        .query
         .apply_installation_projection(&installed, &raw, "1-0", first_at + Duration::minutes(5))
         .await
         .map_err(|error| error.to_string())?;
     let shell = store
+        .query
         .guild_shell_for_provider_guilds(tenant_id, std::slice::from_ref(&guild_id))
         .await
         .map_err(|error| error.to_string())?
@@ -43,10 +54,12 @@ async fn restarted_projection_keeps_its_inbox_cursor() -> Result<(), String> {
     let older = installation_event(tenant_id, &guild_id, 1, "Verifying");
     let older_raw = serde_json::to_vec(&older).map_err(|error| error.to_string())?;
     store
+        .query
         .apply_installation_projection(&older, &older_raw, "1-1", first_at + Duration::minutes(6))
         .await
         .map_err(|error| error.to_string())?;
     let after_older = store
+        .query
         .guild_shell_for_provider_guilds(tenant_id, &[guild_id])
         .await
         .map_err(|error| error.to_string())?
@@ -84,6 +97,7 @@ async fn install_callback_rejects_a_foreign_session_and_stays_degraded_without_p
     let state_hash = state_hash_for(&guild_id);
 
     if store
+        .installation
         .consume_install_authorization(&state_hash, account_id, Uuid::now_v7(), now)
         .await
         .map_err(|error| error.to_string())?
@@ -92,6 +106,7 @@ async fn install_callback_rejects_a_foreign_session_and_stays_degraded_without_p
         return Err("a foreign session consumed the install".to_owned());
     }
     let consumed = store
+        .installation
         .consume_install_authorization(&state_hash, account_id, session_id, now)
         .await
         .map_err(|error| error.to_string())?
@@ -100,6 +115,7 @@ async fn install_callback_rejects_a_foreign_session_and_stays_degraded_without_p
         return Err("consume returned a redirect other than the bound one".to_owned());
     }
     if store
+        .installation
         .consume_install_authorization(&state_hash, account_id, session_id, now)
         .await
         .map_err(|error| error.to_string())?
@@ -110,6 +126,7 @@ async fn install_callback_rejects_a_foreign_session_and_stays_degraded_without_p
 
     let hint = "callback-hint-is-not-the-guild";
     let tenant_id = store
+        .installation
         .record_verifying_installation(VerifyingInstallation {
             transaction_id: consumed.transaction_id,
             candidate_tenant_id: Uuid::now_v7(),
@@ -127,7 +144,7 @@ async fn install_callback_rejects_a_foreign_session_and_stays_degraded_without_p
         "SELECT provider_tenant_ref FROM installation.tenant WHERE tenant_id = $1",
     )
     .bind(tenant_id)
-    .fetch_one(store.pool())
+    .fetch_one(&store.pool)
     .await
     .map_err(|error| error.to_string())?;
     if stored_guild != guild_id {
@@ -137,6 +154,7 @@ async fn install_callback_rejects_a_foreign_session_and_stays_degraded_without_p
     let claim = claim_guild(&store, &guild_id, now).await?;
     reject_stale_fence(&store, &claim, now).await?;
     store
+        .installation
         .complete_installation_verification(&claim, false, now)
         .await
         .map_err(|error| error.to_string())?;
@@ -155,12 +173,13 @@ async fn install_callback_rejects_a_foreign_session_and_stays_degraded_without_p
 }
 
 async fn leave_installed_guild(
-    store: &Store,
+    store: &Fixture,
     guild_id: &str,
     tenant_id: Uuid,
     now: OffsetDateTime,
 ) -> Result<(), String> {
     let installed = store
+        .installation
         .installed_provider_guild_ids("app")
         .await
         .map_err(|error| error.to_string())?;
@@ -168,6 +187,7 @@ async fn leave_installed_guild(
         return Err("the installed guild was missing from presence reconciliation".to_owned());
     }
     if !store
+        .installation
         .record_bot_departure("app", guild_id, now)
         .await
         .map_err(|error| error.to_string())?
@@ -175,6 +195,7 @@ async fn leave_installed_guild(
         return Err("leaving the guild left the installation Installed".to_owned());
     }
     let after = store
+        .installation
         .installed_provider_guild_ids("app")
         .await
         .map_err(|error| error.to_string())?;
@@ -182,6 +203,7 @@ async fn leave_installed_guild(
         return Err("a departed guild stayed in the installed reconciliation set".to_owned());
     }
     if store
+        .installation
         .record_bot_departure("app", guild_id, now + Duration::seconds(1))
         .await
         .map_err(|error| error.to_string())?
@@ -189,6 +211,7 @@ async fn leave_installed_guild(
         return Err("a second departure rewrote the removed installation".to_owned());
     }
     if store
+        .installation
         .record_bot_departure("app", "guild-not-installed", now)
         .await
         .map_err(|error| error.to_string())?
@@ -201,7 +224,7 @@ async fn leave_installed_guild(
          ORDER BY generation DESC LIMIT 1",
     )
     .bind(tenant_id)
-    .fetch_one(store.pool())
+    .fetch_one(&store.pool)
     .await
     .map_err(|error| error.to_string())?;
     if generation != 2 {
@@ -213,16 +236,18 @@ async fn leave_installed_guild(
          ORDER BY available_at DESC, outbox_id DESC LIMIT 1",
     )
     .bind(tenant_id)
-    .fetch_one(store.pool())
+    .fetch_one(&store.pool)
     .await
     .map_err(|error| error.to_string())?;
     let event: EventEnvelope = serde_json::from_slice(&raw).map_err(|error| error.to_string())?;
     store
+        .query
         .apply_installation_projection(&event, &raw, "departure-1", now)
         .await
         .map_err(|error| error.to_string())?;
     let guilds = [guild_id.to_owned()];
     let shell = store
+        .query
         .guild_shell_for_provider_guilds(tenant_id, &guilds)
         .await
         .map_err(|error| error.to_string())?
@@ -237,11 +262,12 @@ async fn leave_installed_guild(
 }
 
 async fn claim_guild(
-    store: &Store,
+    store: &Fixture,
     guild_id: &str,
     now: OffsetDateTime,
 ) -> Result<ClaimedInstallationVerification, String> {
     let claim = store
+        .installation
         .claim_installation_verification(now)
         .await
         .map_err(|error| error.to_string())?
@@ -253,7 +279,7 @@ async fn claim_guild(
 }
 
 async fn reject_stale_fence(
-    store: &Store,
+    store: &Fixture,
     claim: &ClaimedInstallationVerification,
     now: OffsetDateTime,
 ) -> Result<(), String> {
@@ -262,6 +288,7 @@ async fn reject_stale_fence(
         ..claim.clone()
     };
     if store
+        .installation
         .complete_installation_verification(&stale, false, now)
         .await
         .is_ok()
@@ -272,7 +299,7 @@ async fn reject_stale_fence(
 }
 
 async fn verify_guild(
-    store: &Store,
+    store: &Fixture,
     now: OffsetDateTime,
     bot_present: bool,
 ) -> Result<String, String> {
@@ -291,11 +318,13 @@ async fn verify_guild(
     )
     .await?;
     let consumed = store
+        .installation
         .consume_install_authorization(&state_hash_for(&guild_id), account_id, session_id, now)
         .await
         .map_err(|error| error.to_string())?
         .ok_or_else(|| "healthy install was not consumed".to_owned())?;
     store
+        .installation
         .record_verifying_installation(VerifyingInstallation {
             transaction_id,
             candidate_tenant_id: Uuid::now_v7(),
@@ -311,6 +340,7 @@ async fn verify_guild(
         .map_err(|error| error.to_string())?;
     let claim = claim_guild(store, &guild_id, now).await?;
     store
+        .installation
         .complete_installation_verification(&claim, bot_present, now)
         .await
         .map_err(|error| error.to_string())?;
@@ -318,7 +348,7 @@ async fn verify_guild(
 }
 
 async fn admit_repair(
-    store: &Store,
+    store: &Fixture,
     account_id: Uuid,
     session_id: Uuid,
     guild_id: &str,
@@ -333,6 +363,7 @@ async fn admit_repair(
     });
     let scopes = vec!["bot".to_owned(), "applications.commands".to_owned()];
     let generation = store
+        .installation
         .create_guild_install_authorization(NewInstallAuthorization {
             transaction_id: Uuid::now_v7(),
             state_hash: &format!("repair-{guild_id}").into_bytes(),
@@ -359,7 +390,7 @@ async fn admit_repair(
          WHERE tenant.provider_tenant_ref = $1 AND install.generation = 1",
     )
     .bind(guild_id)
-    .fetch_one(store.pool())
+    .fetch_one(&store.pool)
     .await
     .map_err(|error| error.to_string())?;
     if installation_state != "Degraded" || tenant_state != "Active" {
@@ -371,7 +402,7 @@ async fn admit_repair(
          WHERE provider_guild_id = $1 AND preset = 'GuildRepair'",
     )
     .bind(guild_id)
-    .fetch_one(store.pool())
+    .fetch_one(&store.pool)
     .await
     .map_err(|error| error.to_string())?;
     if permissions != "0" {
@@ -382,7 +413,7 @@ async fn admit_repair(
          FROM identity.audit_event WHERE subject_ref = $1",
     )
     .bind(guild_id)
-    .fetch_one(store.pool())
+    .fetch_one(&store.pool)
     .await
     .map_err(|error| error.to_string())?;
     if outcome != "repair_admitted"
@@ -395,7 +426,7 @@ async fn admit_repair(
 }
 
 async fn execute_repair(
-    store: &Store,
+    store: &Fixture,
     account_id: Uuid,
     session_id: Uuid,
     guild_id: &str,
@@ -403,6 +434,7 @@ async fn execute_repair(
     now: OffsetDateTime,
 ) -> Result<(), String> {
     let missing = store
+        .installation
         .missing_capability_keys(tenant_id)
         .await
         .map_err(|error| error.to_string())?;
@@ -411,6 +443,7 @@ async fn execute_repair(
     }
     let state_hash = format!("repair-{guild_id}").into_bytes();
     if store
+        .installation
         .consume_install_authorization(&state_hash, account_id, Uuid::now_v7(), now)
         .await
         .map_err(|error| error.to_string())?
@@ -419,6 +452,7 @@ async fn execute_repair(
         return Err("a foreign session consumed the repair".to_owned());
     }
     let consumed = store
+        .installation
         .consume_install_authorization(&state_hash, account_id, session_id, now)
         .await
         .map_err(|error| error.to_string())?
@@ -427,6 +461,7 @@ async fn execute_repair(
         return Err("repair consumption did not keep the admitted generation".to_owned());
     }
     if store
+        .installation
         .consume_install_authorization(&state_hash, account_id, session_id, now)
         .await
         .map_err(|error| error.to_string())?
@@ -435,6 +470,7 @@ async fn execute_repair(
         return Err("repair state was replayed".to_owned());
     }
     let repaired = store
+        .installation
         .record_repair_installation(VerifyingInstallation {
             transaction_id: consumed.transaction_id,
             candidate_tenant_id: Uuid::now_v7(),
@@ -456,6 +492,7 @@ async fn execute_repair(
         return Err("verification claimed a generation other than the repair".to_owned());
     }
     store
+        .installation
         .complete_installation_verification(&claim, true, now)
         .await
         .map_err(|error| error.to_string())?;
@@ -467,13 +504,14 @@ async fn execute_repair(
          WHERE tenant_id = $1 AND generation = 1",
     )
     .bind(tenant_id)
-    .fetch_one(store.pool())
+    .fetch_one(&store.pool)
     .await
     .map_err(|error| error.to_string())?;
     if previous != "Degraded" {
         return Err("repair replaced the previous degraded generation".to_owned());
     }
     if !store
+        .installation
         .missing_capability_keys(tenant_id)
         .await
         .map_err(|error| error.to_string())?
@@ -485,7 +523,7 @@ async fn execute_repair(
 }
 
 async fn create_install(
-    store: &Store,
+    store: &Fixture,
     transaction_id: Uuid,
     account_id: Uuid,
     session_id: Uuid,
@@ -496,6 +534,7 @@ async fn create_install(
     let scopes = vec!["bot".to_owned(), "applications.commands".to_owned()];
     let manifest = serde_json::json!({ "permissions": "0" });
     store
+        .installation
         .create_guild_install_authorization(NewInstallAuthorization {
             transaction_id,
             state_hash: &state_hash_for(guild_id),
@@ -515,10 +554,10 @@ async fn create_install(
     Ok(())
 }
 
-async fn installation_state(store: &Store, installation_id: Uuid) -> Result<String, String> {
+async fn installation_state(store: &Fixture, installation_id: Uuid) -> Result<String, String> {
     sqlx::query_scalar("SELECT state FROM installation.installation WHERE installation_id = $1")
         .bind(installation_id)
-        .fetch_one(store.pool())
+        .fetch_one(&store.pool)
         .await
         .map_err(|error| error.to_string())
 }
@@ -560,7 +599,7 @@ fn installation_event(
     }
 }
 
-async fn connect() -> Result<Option<Store>, String> {
+async fn connect() -> Result<Option<Fixture>, String> {
     let Ok(url) = env::var("TOBOT_TEST_DATABASE_URL") else {
         if env::var("TOBOT_REQUIRE_POSTGRES").is_ok() {
             return Err("TOBOT_TEST_DATABASE_URL is required".to_owned());
@@ -575,9 +614,25 @@ async fn connect() -> Result<Option<Store>, String> {
     if database_name != "tobot_test" {
         return Err("refusing to run receipts against a database other than tobot_test".to_owned());
     }
-    let store = Store::connect(&url)
+    let migrations = Migrations::connect(&url)
         .await
         .map_err(|error| error.to_string())?;
-    store.migrate().await.map_err(|error| error.to_string())?;
-    Ok(Some(store))
+    migrations
+        .migrate()
+        .await
+        .map_err(|error| error.to_string())?;
+    let pool = PgPoolOptions::new()
+        .max_connections(2)
+        .connect(&url)
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(Some(Fixture {
+        installation: InstallationStore::connect(&url)
+            .await
+            .map_err(|error| error.to_string())?,
+        query: QueryStore::connect(&url)
+            .await
+            .map_err(|error| error.to_string())?,
+        pool,
+    }))
 }

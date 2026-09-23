@@ -27,9 +27,9 @@ use tobot_installation::{
 };
 use tobot_outbox::InstallationOutboxRelay;
 use tobot_persistence::{
-    ActiveAuthorizationSession, AuditFact, ConsumedInstallAuthorization, GuildDiscoveryObservation,
-    GuildShellSummary, NewDiscordAuthorization, NewInstallAuthorization, Store,
-    VerifyingInstallation,
+    ActiveAuthorizationSession, AuditFact, ConsumedInstallAuthorization, ControlPlaneDatabase,
+    GuildDiscoveryObservation, GuildShellSummary, IdentityStore, InstallationStore,
+    NewDiscordAuthorization, NewInstallAuthorization, QueryStore, VerifyingInstallation,
 };
 use tobot_secret_store::{SecretStore, VaultTransitStore};
 use tower_http::{
@@ -77,7 +77,7 @@ async fn record_browser_audit(state: &AppState, outcome: &'static str, reason: B
         BrowserFailure::Unavailable => "unavailable",
     };
     if let Err(error) = state
-        .store
+        .identity
         .record_audit_event(AuditFact {
             outcome,
             reason_code,
@@ -104,7 +104,9 @@ fn oauth_consume_failure(error: &OAuthServiceError) -> BrowserFailure {
 
 #[derive(Clone)]
 struct AppState {
-    store: Store,
+    identity: IdentityStore,
+    installation: InstallationStore,
+    query: QueryStore,
     secret_store: VaultTransitStore,
     oauth: OAuthService<VaultTransitStore>,
     discord_oauth: DiscordOAuthClient,
@@ -127,7 +129,7 @@ async fn main() -> anyhow::Result<()> {
         .bind_address
         .parse()
         .context("invalid TOBOT_CONTROL_BIND")?;
-    let store = Store::connect(config.database_url.expose_for_adapter())
+    let database = ControlPlaneDatabase::connect(config.database_url.expose_for_adapter())
         .await
         .context("control-plane database is unavailable")?;
     let secret_store = VaultTransitStore::new(
@@ -149,10 +151,10 @@ async fn main() -> anyhow::Result<()> {
             .to_owned(),
     )
     .context("cannot construct Installation inspection client")?;
-    let verification_store = store.clone();
+    let verification_store = database.installation.clone();
     let projector_inspection = inspection.clone();
     let installation_relay = InstallationOutboxRelay::new(
-        store.clone(),
+        database.installation.clone(),
         RedisStreamPublisher::connect(config.redis_url.expose_for_adapter())
             .context("cannot construct Installation outbox publisher")?,
     );
@@ -163,9 +165,12 @@ async fn main() -> anyhow::Result<()> {
         "control-plane",
     )
     .context("cannot construct Query/Status stream consumer")?;
-    let query_store = store.clone();
+    let query_store = database.query.clone();
+    let installation_for_projection = database.installation.clone();
     let metrics_state = MetricsState {
-        store: store.clone(),
+        identity: database.identity.clone(),
+        installation: database.installation.clone(),
+        query: database.query.clone(),
         consumer: query_consumer.clone(),
         service_token: config
             .internal_service_token
@@ -178,8 +183,10 @@ async fn main() -> anyhow::Result<()> {
         .parse()
         .context("invalid TOBOT_CONTROL_METRICS_BIND")?;
     let app = router(AppState {
-        oauth: OAuthService::new(store.clone(), secret_store.clone()),
-        store,
+        oauth: OAuthService::new(database.identity.clone(), secret_store.clone()),
+        identity: database.identity,
+        installation: database.installation,
+        query: database.query,
         secret_store,
         discord_oauth,
         discord_client_id: config.discord_client_id,
@@ -200,13 +207,20 @@ async fn main() -> anyhow::Result<()> {
         }
         result = run_installation_verifier(verification_store, inspection) => result,
         result = run_installation_relay(installation_relay) => result,
-        result = run_query_projector(query_store, query_consumer, projector_inspection) => result,
+        result = run_query_projector(
+            query_store,
+            installation_for_projection,
+            query_consumer,
+            projector_inspection,
+        ) => result,
     }
 }
 
 #[derive(Clone)]
 struct MetricsState {
-    store: Store,
+    identity: IdentityStore,
+    installation: InstallationStore,
+    query: QueryStore,
     consumer: RedisStreamConsumer,
     service_token: String,
     clock: SystemClock,
@@ -233,10 +247,10 @@ async fn operational_metrics(State(state): State<MetricsState>, headers: HeaderM
 
 async fn control_metrics_body(state: &MetricsState) -> anyhow::Result<String> {
     let now = time::OffsetDateTime::from(state.clock.now());
-    let installation = state.store.installation_relay_gauge(now).await?;
-    let degraded = state.store.degraded_shell_count().await?;
+    let installation = state.installation.installation_relay_gauge(now).await?;
+    let degraded = state.query.degraded_shell_count().await?;
     let rejections = state
-        .store
+        .identity
         .recent_auth_rejection_count(now - time::Duration::minutes(15))
         .await?;
     let pending = state.consumer.pending_entries().await?;
@@ -282,12 +296,13 @@ fn bearer_matches(headers: &HeaderMap, expected_token: &str) -> bool {
 }
 
 async fn run_query_projector(
-    store: Store,
+    query: QueryStore,
+    installation: InstallationStore,
     consumer: RedisStreamConsumer,
     inspection: InstallationInspectionClient,
 ) -> anyhow::Result<()> {
     loop {
-        if let Err(cause) = project_available(&store, &consumer, &inspection).await {
+        if let Err(cause) = project_available(&query, &installation, &consumer, &inspection).await {
             error!(error = %cause, "installation projection paused");
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
@@ -295,7 +310,8 @@ async fn run_query_projector(
 }
 
 async fn project_available(
-    store: &Store,
+    query: &QueryStore,
+    store: &InstallationStore,
     consumer: &RedisStreamConsumer,
     inspection: &InstallationInspectionClient,
 ) -> anyhow::Result<()> {
@@ -303,7 +319,7 @@ async fn project_available(
         let parsed = tobot_envelope::EventEnvelope::parse_s0(&message.envelope)?;
         match parsed.event.schema_name.as_str() {
             "InstallationStateChanged" => {
-                store
+                query
                     .apply_installation_projection(
                         &parsed.event,
                         &message.envelope,
@@ -323,7 +339,7 @@ async fn project_available(
 }
 
 async fn apply_gateway_dispatch(
-    store: &Store,
+    store: &InstallationStore,
     inspection: &InstallationInspectionClient,
     event: &tobot_envelope::EventEnvelope,
 ) -> anyhow::Result<()> {
@@ -356,7 +372,7 @@ async fn apply_gateway_dispatch(
 }
 
 async fn depart_guilds_absent_from_ready(
-    store: &Store,
+    store: &InstallationStore,
     application_id: &str,
     present: &[String],
 ) -> anyhow::Result<()> {
@@ -370,7 +386,7 @@ async fn depart_guilds_absent_from_ready(
 }
 
 async fn reconcile_resumed_presence(
-    store: &Store,
+    store: &InstallationStore,
     inspection: &InstallationInspectionClient,
     application_id: &str,
 ) -> anyhow::Result<()> {
@@ -423,7 +439,7 @@ async fn run_installation_relay(relay: InstallationOutboxRelay) -> anyhow::Resul
 }
 
 async fn run_installation_verifier(
-    store: Store,
+    store: InstallationStore,
     inspection: InstallationInspectionClient,
 ) -> anyhow::Result<()> {
     loop {
@@ -619,7 +635,7 @@ async fn complete_discord_callback(
         .checked_add(std::time::Duration::from_secs(tokens.expires_in_seconds))
         .ok_or(BrowserFailure::Unavailable)?;
     state
-        .store
+        .identity
         .create_discord_authorization(NewDiscordAuthorization {
             candidate_account_id: Uuid::now_v7(),
             provider_user_id: &user.id,
@@ -639,7 +655,7 @@ async fn complete_discord_callback(
         .await
         .map_err(|_| BrowserFailure::Unavailable)?;
     if let Err(error) = state
-        .store
+        .identity
         .record_audit_event(AuditFact {
             outcome: "login_succeeded",
             reason_code: "oauth_callback",
@@ -707,7 +723,7 @@ async fn complete_guild_install_callback(
         Err(_) => return Err(BrowserFailure::Unavailable),
     };
     let consumed = state
-        .store
+        .installation
         .consume_install_authorization(
             &oauth_state_hash(callback_state),
             session.account_id,
@@ -787,7 +803,7 @@ async fn record_callback_installation(
     };
     let repair = consumed.preset == InstallPreset::GuildRepair.as_str();
     let existing_tenant = state
-        .store
+        .installation
         .guild_tenant_id(&state.discord_application_id, observed_guild_id)
         .await
         .map_err(|_| BrowserFailure::Unavailable)?;
@@ -806,14 +822,14 @@ async fn record_callback_installation(
     }
     if repair {
         state
-            .store
+            .installation
             .record_repair_installation(verifying)
             .await
             .map_err(|_| BrowserFailure::Unavailable)?
             .ok_or(BrowserFailure::Rejected)
     } else {
         state
-            .store
+            .installation
             .record_verifying_installation(verifying)
             .await
             .map_err(|_| BrowserFailure::Unavailable)
@@ -937,7 +953,7 @@ async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Response {
     };
     let proof_hash = opaque_secret_hash(proof);
     let Ok(csrf_matches) = state
-        .store
+        .identity
         .active_session_csrf_matches(session_id, &proof_hash, now)
         .await
     else {
@@ -963,11 +979,16 @@ async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Response {
     if !opaque_secrets_match(proof, &expected_proof) {
         return StatusCode::FORBIDDEN.into_response();
     }
-    if state.store.revoke_session(session_id, now).await.is_err() {
+    if state
+        .identity
+        .revoke_session(session_id, now)
+        .await
+        .is_err()
+    {
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
     }
     if let Err(error) = state
-        .store
+        .identity
         .record_audit_event(AuditFact {
             outcome: "session_revoked",
             reason_code: "logout",
@@ -1075,7 +1096,7 @@ async fn authorize_browser_session(
     session_id: Uuid,
     now: time::OffsetDateTime,
 ) -> Result<Option<ActiveAuthorizationSession>, sqlx::Error> {
-    let session = state.store.authorize_session(session_id, now).await?;
+    let session = state.identity.authorize_session(session_id, now).await?;
     if session.is_none() {
         record_observed_session_expiry(state, session_id, now).await;
     }
@@ -1087,7 +1108,11 @@ async fn record_observed_session_expiry(
     session_id: Uuid,
     now: time::OffsetDateTime,
 ) {
-    let Ok(Some(outcome)) = state.store.observed_session_expiry(session_id, now).await else {
+    let Ok(Some(outcome)) = state
+        .identity
+        .observed_session_expiry(session_id, now)
+        .await
+    else {
         return;
     };
     let outcome = match outcome.as_str() {
@@ -1096,7 +1121,7 @@ async fn record_observed_session_expiry(
         _ => return,
     };
     if let Err(error) = state
-        .store
+        .identity
         .record_audit_event(AuditFact {
             outcome,
             reason_code: "session_deadline",
@@ -1140,7 +1165,7 @@ async fn guilds(State(state): State<AppState>, headers: HeaderMap) -> Response {
         .map(|guild| guild.id.clone())
         .collect::<Vec<_>>();
     let Ok(summaries) = state
-        .store
+        .query
         .guild_shell_summaries_for_provider_guilds(&provider_guild_ids)
         .await
     else {
@@ -1188,14 +1213,14 @@ async fn guild_shell(
         return session_status(status);
     }
     let Ok(provider_guild_ids) = state
-        .store
+        .identity
         .fresh_discovered_guild_ids(session.account_id, now)
         .await
     else {
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
     };
     let Ok(Some(shell)) = state
-        .store
+        .query
         .guild_shell_for_provider_guilds(tenant_id, &provider_guild_ids)
         .await
     else {
@@ -1243,7 +1268,7 @@ async fn start_guild_install(
         return StatusCode::FORBIDDEN.into_response();
     }
     let bound_tenant = match state
-        .store
+        .installation
         .guild_tenant_id(&state.discord_application_id, &guild_id)
         .await
     {
@@ -1274,7 +1299,7 @@ async fn start_guild_install(
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
     if state
-        .store
+        .installation
         .create_guild_install_authorization(NewInstallAuthorization {
             transaction_id: authorization.id,
             state_hash: &oauth_state_hash(&authorization.state),
@@ -1332,14 +1357,14 @@ async fn start_guild_repair(
         return session_status(status);
     }
     let Ok(provider_guild_ids) = state
-        .store
+        .identity
         .fresh_discovered_guild_ids(session.account_id, now)
         .await
     else {
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
     };
     let Ok(Some(shell)) = state
-        .store
+        .query
         .guild_shell_for_provider_guilds(tenant_id, &provider_guild_ids)
         .await
     else {
@@ -1351,7 +1376,7 @@ async fn start_guild_repair(
     if !admit_installation_command("AdmitGuildRepair", session.account_id, tenant_id) {
         return StatusCode::CONFLICT.into_response();
     }
-    let Ok(missing) = state.store.missing_capability_keys(tenant_id).await else {
+    let Ok(missing) = state.installation.missing_capability_keys(tenant_id).await else {
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
     };
     if missing.is_empty() {
@@ -1464,7 +1489,7 @@ async fn persist_install_authorization(
     let frozen_manifest = serde_json::to_value(S0Manifest::default())
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     state
-        .store
+        .installation
         .create_guild_install_authorization(NewInstallAuthorization {
             transaction_id: handoff.id,
             state_hash: &oauth_state_hash(&handoff.state),
@@ -1507,7 +1532,7 @@ async fn authorize_mutation(
         .ok_or(StatusCode::UNAUTHORIZED)?;
     let proof_hash = opaque_secret_hash(proof);
     let csrf_matches = state
-        .store
+        .identity
         .active_session_csrf_matches(session_id, &proof_hash, now)
         .await
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
@@ -1535,7 +1560,7 @@ async fn ensure_fresh_discovery(
     now: time::OffsetDateTime,
 ) -> Result<(), StatusCode> {
     let fresh = state
-        .store
+        .identity
         .discovery_snapshot_fresh(session.account_id, now)
         .await
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
@@ -1565,7 +1590,7 @@ async fn persist_discovery(
         })
         .collect::<Vec<_>>();
     state
-        .store
+        .identity
         .replace_guild_discovery(account_id, &records, now, expires_at)
         .await
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
@@ -1628,7 +1653,7 @@ async fn refresh_discord_credential(
     let expires_at =
         time::OffsetDateTime::from(state.clock.now()) + time::Duration::seconds(expires_in);
     let updated = state
-        .store
+        .identity
         .refresh_oauth_credential(
             session.credential_id,
             access_ciphertext.as_bytes(),
@@ -1672,10 +1697,7 @@ async fn live() -> StatusCode {
 }
 
 async fn ready(State(state): State<AppState>) -> StatusCode {
-    let database_ready = sqlx::query("SELECT 1")
-        .execute(state.store.pool())
-        .await
-        .is_ok();
+    let database_ready = state.identity.ping().await.is_ok();
     let vault_ready = state.secret_store.health().await.is_ok();
     if database_ready && vault_ready {
         StatusCode::NO_CONTENT

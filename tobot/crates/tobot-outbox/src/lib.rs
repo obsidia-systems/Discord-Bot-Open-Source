@@ -6,7 +6,7 @@ use std::time::Instant;
 use time::{Duration, OffsetDateTime};
 use tobot_bus::{BusError, RedisStreamPublisher};
 use tobot_envelope::{EnvelopeError, EventEnvelope};
-use tobot_persistence::Store;
+use tobot_persistence::{EdgeRelayStore, InstallationStore};
 use uuid::Uuid;
 
 const LEASE_HEARTBEAT: std::time::Duration = std::time::Duration::from_secs(5);
@@ -28,18 +28,18 @@ pub enum RelayError {
 }
 
 pub struct EdgeOutboxRelay {
-    store: Store,
+    store: EdgeRelayStore,
     publisher: RedisStreamPublisher,
 }
 
 pub struct InstallationOutboxRelay {
-    store: Store,
+    store: InstallationStore,
     publisher: RedisStreamPublisher,
 }
 
 impl EdgeOutboxRelay {
     #[must_use]
-    pub fn new(store: Store, publisher: RedisStreamPublisher) -> Self {
+    pub fn new(store: EdgeRelayStore, publisher: RedisStreamPublisher) -> Self {
         Self { store, publisher }
     }
 
@@ -93,7 +93,7 @@ impl EdgeOutboxRelay {
 
 impl InstallationOutboxRelay {
     #[must_use]
-    pub fn new(store: Store, publisher: RedisStreamPublisher) -> Self {
+    pub fn new(store: InstallationStore, publisher: RedisStreamPublisher) -> Self {
         Self { store, publisher }
     }
 

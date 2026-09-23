@@ -5,7 +5,7 @@ use std::time::SystemTime;
 use thiserror::Error;
 use time::OffsetDateTime;
 use tobot_identity::{OAuthTransaction, oauth_state_hash};
-use tobot_persistence::{NewOAuthTransaction, Store};
+use tobot_persistence::{IdentityStore, NewOAuthTransaction};
 use tobot_secret_store::SecretStore;
 use uuid::Uuid;
 
@@ -38,7 +38,7 @@ pub enum OAuthServiceError {
 
 #[derive(Clone)]
 pub struct OAuthService<S> {
-    store: Store,
+    store: IdentityStore,
     secrets: S,
 }
 
@@ -47,7 +47,7 @@ where
     S: SecretStore,
 {
     #[must_use]
-    pub fn new(store: Store, secrets: S) -> Self {
+    pub fn new(store: IdentityStore, secrets: S) -> Self {
         Self { store, secrets }
     }
 

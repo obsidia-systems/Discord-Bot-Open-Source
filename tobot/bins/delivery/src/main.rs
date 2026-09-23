@@ -19,14 +19,14 @@ use tobot_discord_adapter::{
     TwilightTransport,
 };
 use tobot_outbox::EdgeOutboxRelay;
-use tobot_persistence::Store;
+use tobot_persistence::EdgeRelayStore;
 use tracing::{error, info, warn};
 
 struct DeliveryState {
     transport: TwilightTransport,
     service_token: String,
     credentials_present: bool,
-    store: Option<Store>,
+    store: Option<EdgeRelayStore>,
 }
 
 #[tokio::main]
@@ -49,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
         .context("invalid TOBOT_DELIVERY_METRICS_BIND")?;
     let redis_url = std::env::var("TOBOT_REDIS_URL").context("missing TOBOT_REDIS_URL")?;
     let database_url = std::env::var("TOBOT_DATABASE_URL").context("missing TOBOT_DATABASE_URL")?;
-    let store = Store::connect(&database_url).await?;
+    let store = EdgeRelayStore::connect(&database_url).await?;
     let publisher = RedisStreamPublisher::connect(&redis_url)?;
     let relay = EdgeOutboxRelay::new(store.clone(), publisher);
     let state = Arc::new(DeliveryState {
@@ -98,7 +98,7 @@ async fn live() -> StatusCode {
 
 async fn ready(State(state): State<Arc<DeliveryState>>) -> StatusCode {
     let database_ready = match &state.store {
-        Some(store) => sqlx::query("SELECT 1").execute(store.pool()).await.is_ok(),
+        Some(store) => store.ping().await.is_ok(),
         None => false,
     };
     transport_readiness(state.credentials_present, database_ready)

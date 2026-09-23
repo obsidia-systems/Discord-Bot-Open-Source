@@ -20,12 +20,13 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tobot_core::render_gauges;
 use tobot_delivery_client::InternalDeliveryTransport;
 use tobot_discord_adapter::{
-    DIAGNOSTIC_COMMAND_NAME, GatewayPhase, InteractionCallback, ShardReadiness, TwilightTransport,
-    acknowledgement_deadline_open, interaction_created_ms, plan_gateway_session, shard_is_ready,
+    DIAGNOSTIC_COMMAND_NAME, GatewayPhase, GatewaySessionStart, InteractionCallback,
+    ShardReadiness, acknowledgement_deadline_open, interaction_created_ms, plan_gateway_session,
+    shard_is_ready,
 };
 use tobot_envelope::{EventEnvelope, TraceContext};
 use tobot_interaction_edge::{InteractionEdge, InteractionIngressRequest, ProbeAcknowledgement};
-use tobot_persistence::Store;
+use tobot_persistence::EdgeStore;
 use tracing::{info, warn};
 use twilight_gateway::{
     ConfigBuilder, Event, EventTypeFlags, Intents, Session, Shard, ShardId, StreamExt as _,
@@ -49,14 +50,14 @@ async fn main() -> anyhow::Result<()> {
     let delivery_url = std::env::var("TOBOT_DELIVERY_URL").context("missing TOBOT_DELIVERY_URL")?;
     let internal_service_token = std::env::var("TOBOT_INTERNAL_SERVICE_TOKEN")
         .context("missing TOBOT_INTERNAL_SERVICE_TOKEN")?;
-    let store = Store::connect(&database_url)
+    let store = EdgeStore::connect(&database_url)
         .await
         .context("discord edge database unavailable")?;
     let delivery_transport =
         InternalDeliveryTransport::new(&delivery_url, internal_service_token.clone())
             .context("invalid Delivery transport configuration")?;
     let interaction_edge = InteractionEdge::new(store.clone(), delivery_transport.clone());
-    let discord = TwilightTransport::new(bot_token.clone());
+    let discord = GatewaySessionStart::new(bot_token.clone());
     let health = EdgeHealth::new(0);
     let health_bind: std::net::SocketAddr = std::env::var("TOBOT_EDGE_HEALTH_BIND")
         .unwrap_or_else(|_| "127.0.0.1:8082".to_owned())
@@ -85,14 +86,14 @@ async fn main() -> anyhow::Result<()> {
 
 async fn supervise_gateway(
     bot_token: &str,
-    discord: &TwilightTransport,
+    discord: &GatewaySessionStart,
     health: &EdgeHealth,
     interaction_edge: &InteractionEdge<InternalDeliveryTransport>,
-    store: &Store,
+    store: &EdgeStore,
     application_id: &str,
     delivery: &InternalDeliveryTransport,
 ) -> anyhow::Result<()> {
-    observe_rate_limit(discord, bot_token).await;
+    observe_rate_limit(discord).await;
     loop {
         let budget = discord.session_start_budget().await?;
         let stored = store.load_gateway_session(0).await?;
@@ -148,8 +149,8 @@ fn connect_shard(
     Ok(Shard::with_config(ShardId::ONE, builder.build()))
 }
 
-async fn observe_rate_limit(discord: &TwilightTransport, bot_token: &str) {
-    match discord.observe_gateway_bot_limit(bot_token).await {
+async fn observe_rate_limit(discord: &GatewaySessionStart) {
+    match discord.observe_gateway_bot_limit().await {
         Ok(Some(limit)) => {
             info!(
                 retry_after_ms = limit.retry_after_ms,
@@ -180,7 +181,7 @@ async fn run_gateway(
     shard: &mut Shard,
     health: &EdgeHealth,
     interaction_edge: &InteractionEdge<InternalDeliveryTransport>,
-    store: &Store,
+    store: &EdgeStore,
     application_id: &str,
     delivery: &InternalDeliveryTransport,
 ) -> anyhow::Result<()> {
@@ -275,7 +276,7 @@ async fn run_gateway(
 async fn dispatch_interaction(
     shard: &Shard,
     interaction_edge: &InteractionEdge<InternalDeliveryTransport>,
-    store: &Store,
+    store: &EdgeStore,
     application_id: &str,
     interaction: Box<InteractionCreate>,
 ) {
@@ -329,7 +330,7 @@ fn bot_left_guild(unavailable: Option<bool>) -> bool {
 
 async fn persist_gateway_dispatch(
     shard: &Shard,
-    store: &Store,
+    store: &EdgeStore,
     application_id: &str,
     guild_id: Option<&str>,
     payload: serde_json::Value,
@@ -401,7 +402,7 @@ async fn register_diagnostic(
     }
 }
 
-async fn persist_session(shard: &Shard, store: &Store) -> anyhow::Result<()> {
+async fn persist_session(shard: &Shard, store: &EdgeStore) -> anyhow::Result<()> {
     let (Some(session), Some(resume_url)) = (shard.session(), shard.resume_url()) else {
         return Ok(());
     };
@@ -620,7 +621,7 @@ fn diagnostic_envelopes(
 
 async fn accept_interaction(
     interaction_edge: &InteractionEdge<InternalDeliveryTransport>,
-    store: &Store,
+    store: &EdgeStore,
     configured_application_id: &str,
     shard_id: u32,
     session_id: &str,

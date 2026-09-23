@@ -9,7 +9,7 @@ use tobot_discord_adapter::{
 };
 use tobot_envelope::EventEnvelope;
 use tobot_persistence::{
-    GatewayInteractionAcceptance, InteractionAcceptance, InteractionAcknowledgement, Store,
+    EdgeStore, GatewayInteractionAcceptance, InteractionAcceptance, InteractionAcknowledgement,
 };
 use uuid::Uuid;
 
@@ -57,7 +57,7 @@ pub enum IngressError {
 }
 
 pub struct InteractionEdge<T> {
-    store: Store,
+    store: EdgeStore,
     transport: T,
 }
 
@@ -66,7 +66,7 @@ where
     T: DiscordTransport,
 {
     #[must_use]
-    pub fn new(store: Store, transport: T) -> Self {
+    pub fn new(store: EdgeStore, transport: T) -> Self {
         Self { store, transport }
     }
 

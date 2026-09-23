@@ -8,9 +8,15 @@ use time::{Duration, OffsetDateTime};
 use tobot_core::{TenantContext, TenantId, TenantType};
 use tobot_envelope::{EventEnvelope, TraceContext};
 use tobot_persistence::{
-    ClaimedOutboxEntry, GuildDiscoveryObservation, NewDiscordAuthorization, NewOAuthTransaction,
-    Store,
+    ClaimedOutboxEntry, EdgeRelayStore, EdgeStore, GuildDiscoveryObservation, IdentityStore,
+    Migrations, NewDiscordAuthorization, NewOAuthTransaction,
 };
+
+struct Fixture {
+    edge: EdgeStore,
+    relay: EdgeRelayStore,
+    identity: IdentityStore,
+}
 use uuid::Uuid;
 
 #[tokio::test]
@@ -40,12 +46,13 @@ async fn killed_edge_relay_is_reclaimed_only_after_the_lease_expires() -> Result
 }
 
 async fn accept_once(
-    store: &Store,
+    store: &Fixture,
     context: TenantContext,
     event: &EventEnvelope,
 ) -> Result<(), String> {
     let raw = serde_json::to_vec(event).map_err(|error| error.to_string())?;
     let inserted = store
+        .edge
         .accept_edge_event(context, event, &raw)
         .await
         .map_err(|error| error.to_string())?;
@@ -53,6 +60,7 @@ async fn accept_once(
         return Err("first edge acceptance did not persist a receipt".to_owned());
     }
     let duplicate = store
+        .edge
         .accept_edge_event(context, event, &raw)
         .await
         .map_err(|error| error.to_string())?;
@@ -63,13 +71,14 @@ async fn accept_once(
 }
 
 async fn claim_event(
-    store: &Store,
+    store: &Fixture,
     event: &EventEnvelope,
     now: OffsetDateTime,
     owner: Uuid,
     missing: &str,
 ) -> Result<ClaimedOutboxEntry, String> {
     let claimed = store
+        .relay
         .claim_edge_outbox(now, now + Duration::seconds(15), owner, 20)
         .await
         .map_err(|error| error.to_string())?;
@@ -80,12 +89,13 @@ async fn claim_event(
 }
 
 async fn reject_live_lease(
-    store: &Store,
+    store: &Fixture,
     event: &EventEnvelope,
     held: &ClaimedOutboxEntry,
     now: OffsetDateTime,
 ) -> Result<(), String> {
     let during_lease = store
+        .relay
         .claim_edge_outbox(
             now + Duration::seconds(1),
             now + Duration::seconds(16),
@@ -101,6 +111,7 @@ async fn reject_live_lease(
         return Err("a live lease was claimed by another relay".to_owned());
     }
     let stale_receipt = store
+        .relay
         .mark_edge_outbox_published(held.outbox_id, Uuid::now_v7(), held.fencing_token, now)
         .await
         .map_err(|error| error.to_string())?;
@@ -111,7 +122,7 @@ async fn reject_live_lease(
 }
 
 async fn reclaim_after_expiry(
-    store: &Store,
+    store: &Fixture,
     event: &EventEnvelope,
     killed_owner: Uuid,
     previous_fence: i64,
@@ -131,6 +142,7 @@ async fn reclaim_after_expiry(
         return Err("reclaim did not advance the fencing token".to_owned());
     }
     let killed_owner_after_takeover = store
+        .relay
         .mark_edge_outbox_published(
             second.outbox_id,
             killed_owner,
@@ -143,6 +155,7 @@ async fn reclaim_after_expiry(
         return Err("the killed relay published after its lease was taken".to_owned());
     }
     let published = store
+        .relay
         .mark_edge_outbox_published(
             second.outbox_id,
             recovered_owner,
@@ -155,6 +168,7 @@ async fn reclaim_after_expiry(
         return Err("the recovered relay did not record publication".to_owned());
     }
     let after_publish = store
+        .relay
         .claim_edge_outbox(
             recovered_at + Duration::seconds(1),
             recovered_at + Duration::seconds(16),
@@ -181,6 +195,7 @@ async fn oauth_replay_and_revoked_session_fail_closed_in_postgres() -> Result<()
     let state_hash = Uuid::now_v7().as_bytes().to_vec();
     let scopes = vec!["identify".to_owned(), "guilds".to_owned()];
     store
+        .identity
         .create_oauth_transaction(NewOAuthTransaction {
             transaction_id: Uuid::now_v7(),
             state_hash: &state_hash,
@@ -192,6 +207,7 @@ async fn oauth_replay_and_revoked_session_fail_closed_in_postgres() -> Result<()
         .await
         .map_err(|error| error.to_string())?;
     let consumed = store
+        .identity
         .consume_oauth_transaction(&state_hash, now)
         .await
         .map_err(|error| error.to_string())?;
@@ -199,6 +215,7 @@ async fn oauth_replay_and_revoked_session_fail_closed_in_postgres() -> Result<()
         return Err("unexpired oauth state was not consumed".to_owned());
     }
     let replay = store
+        .identity
         .consume_oauth_transaction(&state_hash, now + Duration::seconds(1))
         .await
         .map_err(|error| error.to_string())?;
@@ -208,6 +225,7 @@ async fn oauth_replay_and_revoked_session_fail_closed_in_postgres() -> Result<()
 
     let expired_hash = Uuid::now_v7().as_bytes().to_vec();
     store
+        .identity
         .create_oauth_transaction(NewOAuthTransaction {
             transaction_id: Uuid::now_v7(),
             state_hash: &expired_hash,
@@ -219,6 +237,7 @@ async fn oauth_replay_and_revoked_session_fail_closed_in_postgres() -> Result<()
         .await
         .map_err(|error| error.to_string())?;
     let expired = store
+        .identity
         .consume_oauth_transaction(&expired_hash, now)
         .await
         .map_err(|error| error.to_string())?;
@@ -237,6 +256,7 @@ async fn oauth_replay_and_revoked_session_fail_closed_in_postgres() -> Result<()
     )
     .await?;
     let authorized = store
+        .identity
         .authorize_session(session_id, now)
         .await
         .map_err(|error| error.to_string())?
@@ -252,10 +272,12 @@ async fn oauth_replay_and_revoked_session_fail_closed_in_postgres() -> Result<()
     reject_expired_sessions(&store, now).await?;
     rotate_session(&store, now).await?;
     store
+        .identity
         .revoke_session(session_id, now + Duration::seconds(1))
         .await
         .map_err(|error| error.to_string())?;
     let revoked = store
+        .identity
         .authorize_session(session_id, now + Duration::seconds(2))
         .await
         .map_err(|error| error.to_string())?;
@@ -266,13 +288,14 @@ async fn oauth_replay_and_revoked_session_fail_closed_in_postgres() -> Result<()
 }
 
 async fn refreshed_credential_keeps_absolute_expiry(
-    store: &Store,
+    store: &Fixture,
     session_id: Uuid,
     credential_id: Uuid,
     absolute_expires_at: OffsetDateTime,
     now: OffsetDateTime,
 ) -> Result<(), String> {
     if !store
+        .identity
         .refresh_oauth_credential(
             credential_id,
             b"refreshed-access",
@@ -285,6 +308,7 @@ async fn refreshed_credential_keeps_absolute_expiry(
         return Err("the oauth credential was not refreshed".to_owned());
     }
     let after = store
+        .identity
         .authorize_session(session_id, now + Duration::seconds(1))
         .await
         .map_err(|error| error.to_string())?
@@ -302,6 +326,7 @@ async fn refreshed_credential_keeps_absolute_expiry(
         return Err("credential refresh did not store the new expiry".to_owned());
     }
     if !store
+        .identity
         .active_session_csrf_matches(session_id, b"csrf-hash", now + Duration::seconds(1))
         .await
         .map_err(|error| error.to_string())?
@@ -309,6 +334,7 @@ async fn refreshed_credential_keeps_absolute_expiry(
         return Err("the session CSRF digest did not match".to_owned());
     }
     if store
+        .identity
         .active_session_csrf_matches(session_id, b"other-hash", now + Duration::seconds(1))
         .await
         .map_err(|error| error.to_string())?
@@ -318,7 +344,7 @@ async fn refreshed_credential_keeps_absolute_expiry(
     Ok(())
 }
 
-async fn reject_expired_sessions(store: &Store, now: OffsetDateTime) -> Result<(), String> {
+async fn reject_expired_sessions(store: &Fixture, now: OffsetDateTime) -> Result<(), String> {
     let idle = Uuid::now_v7();
     open_session(
         store,
@@ -330,6 +356,7 @@ async fn reject_expired_sessions(store: &Store, now: OffsetDateTime) -> Result<(
     )
     .await?;
     if store
+        .identity
         .authorize_session(idle, now)
         .await
         .map_err(|error| error.to_string())?
@@ -338,6 +365,7 @@ async fn reject_expired_sessions(store: &Store, now: OffsetDateTime) -> Result<(
         return Err("an idle-expired session stayed authorized".to_owned());
     }
     if store
+        .identity
         .active_session_csrf_matches(idle, b"csrf-hash", now)
         .await
         .map_err(|error| error.to_string())?
@@ -355,6 +383,7 @@ async fn reject_expired_sessions(store: &Store, now: OffsetDateTime) -> Result<(
     )
     .await?;
     if store
+        .identity
         .authorize_session(absolute, now)
         .await
         .map_err(|error| error.to_string())?
@@ -365,7 +394,7 @@ async fn reject_expired_sessions(store: &Store, now: OffsetDateTime) -> Result<(
     Ok(())
 }
 
-async fn rotate_session(store: &Store, now: OffsetDateTime) -> Result<(), String> {
+async fn rotate_session(store: &Fixture, now: OffsetDateTime) -> Result<(), String> {
     let provider_user_id = Uuid::now_v7().to_string();
     let first = Uuid::now_v7();
     open_session(
@@ -388,6 +417,7 @@ async fn rotate_session(store: &Store, now: OffsetDateTime) -> Result<(), String
     )
     .await?;
     if store
+        .identity
         .authorize_session(first, now + Duration::seconds(2))
         .await
         .map_err(|error| error.to_string())?
@@ -396,6 +426,7 @@ async fn rotate_session(store: &Store, now: OffsetDateTime) -> Result<(), String
         return Err("a rotated session stayed authorized".to_owned());
     }
     if store
+        .identity
         .authorize_session(second, now + Duration::seconds(2))
         .await
         .map_err(|error| error.to_string())?
@@ -423,12 +454,14 @@ async fn empty_discovery_snapshot_stays_fresh_until_its_window() -> Result<(), S
     )
     .await?;
     let session = store
+        .identity
         .authorize_session(session_id, now)
         .await
         .map_err(|error| error.to_string())?
         .ok_or_else(|| "the discovery session was not authorized".to_owned())?;
     let observations: [GuildDiscoveryObservation<'_>; 0] = [];
     store
+        .identity
         .replace_guild_discovery(
             session.account_id,
             &observations,
@@ -438,6 +471,7 @@ async fn empty_discovery_snapshot_stays_fresh_until_its_window() -> Result<(), S
         .await
         .map_err(|error| error.to_string())?;
     if !store
+        .identity
         .discovery_snapshot_fresh(session.account_id, now)
         .await
         .map_err(|error| error.to_string())?
@@ -445,6 +479,7 @@ async fn empty_discovery_snapshot_stays_fresh_until_its_window() -> Result<(), S
         return Err("an empty discovery snapshot was not fresh".to_owned());
     }
     if !store
+        .identity
         .fresh_discovered_guild_ids(session.account_id, now)
         .await
         .map_err(|error| error.to_string())?
@@ -454,6 +489,7 @@ async fn empty_discovery_snapshot_stays_fresh_until_its_window() -> Result<(), S
     }
     let after_window = now + Duration::minutes(15) + Duration::seconds(1);
     if store
+        .identity
         .discovery_snapshot_fresh(session.account_id, after_window)
         .await
         .map_err(|error| error.to_string())?
@@ -464,7 +500,7 @@ async fn empty_discovery_snapshot_stays_fresh_until_its_window() -> Result<(), S
 }
 
 async fn open_session(
-    store: &Store,
+    store: &Fixture,
     provider_user_id: &str,
     session_id: Uuid,
     idle_expires_at: OffsetDateTime,
@@ -473,6 +509,7 @@ async fn open_session(
 ) -> Result<(), String> {
     let scopes = vec!["identify".to_owned()];
     store
+        .identity
         .create_discord_authorization(NewDiscordAuthorization {
             candidate_account_id: Uuid::now_v7(),
             provider_user_id,
@@ -494,7 +531,7 @@ async fn open_session(
     Ok(())
 }
 
-async fn connect() -> Result<Option<Store>, String> {
+async fn connect() -> Result<Option<Fixture>, String> {
     let Ok(url) = env::var("TOBOT_TEST_DATABASE_URL") else {
         if env::var("TOBOT_REQUIRE_POSTGRES").is_ok() {
             return Err("TOBOT_TEST_DATABASE_URL is required".to_owned());
@@ -509,11 +546,24 @@ async fn connect() -> Result<Option<Store>, String> {
     if database_name != "tobot_test" {
         return Err("refusing to run receipts against a database other than tobot_test".to_owned());
     }
-    let store = Store::connect(&url)
+    let migrations = Migrations::connect(&url)
         .await
         .map_err(|error| error.to_string())?;
-    store.migrate().await.map_err(|error| error.to_string())?;
-    Ok(Some(store))
+    migrations
+        .migrate()
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(Some(Fixture {
+        edge: EdgeStore::connect(&url)
+            .await
+            .map_err(|error| error.to_string())?,
+        relay: EdgeRelayStore::connect(&url)
+            .await
+            .map_err(|error| error.to_string())?,
+        identity: IdentityStore::connect(&url)
+            .await
+            .map_err(|error| error.to_string())?,
+    }))
 }
 
 fn interaction_accepted(tenant_id: TenantId) -> EventEnvelope {

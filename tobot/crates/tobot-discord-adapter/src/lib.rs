@@ -348,6 +348,122 @@ pub trait DiscordTransport: Send + Sync {
     async fn defer_interaction(&self, request: InteractionCallback) -> Result<(), TransportError>;
 }
 
+/// Session-start budget for Edge. This type cannot register commands or inspect
+/// guilds; those calls stay on the Delivery transport.
+pub struct GatewaySessionStart {
+    client: twilight_http::Client,
+    governor: Mutex<TransportGovernor>,
+    token: String,
+}
+
+impl GatewaySessionStart {
+    #[must_use]
+    pub fn new(bot_token: String) -> Self {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        Self {
+            client: twilight_http::Client::new(bot_token.clone()),
+            governor: Mutex::new(TransportGovernor::default()),
+            token: bot_token,
+        }
+    }
+
+    fn governor(&self) -> std::sync::MutexGuard<'_, TransportGovernor> {
+        self.governor
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    fn preflight(&self) -> Result<(), TransportError> {
+        self.governor().preflight(unix_now_ms())
+    }
+
+    fn note(&self, error: &TransportError) {
+        self.governor().note(error, unix_now_ms());
+    }
+
+    /// Reads `GET /gateway/bot` session-start budget before a shard connects.
+    ///
+    /// # Errors
+    ///
+    /// Returns a classified transport error. The response body is not included.
+    pub async fn session_start_budget(&self) -> Result<SessionStartBudget, TransportError> {
+        self.preflight()?;
+        let response = self.client.gateway().authed().await.map_err(|error| {
+            let mapped = TwilightTransport::map_error(&error);
+            self.note(&mapped);
+            mapped
+        })?;
+        let info = response.model().await.map_err(|_| {
+            TransportError::Unavailable("gateway bot response unavailable".to_owned())
+        })?;
+        Ok(SessionStartBudget {
+            remaining: info.session_start_limit.remaining,
+            reset_after_ms: info.session_start_limit.reset_after,
+            max_concurrency: info.session_start_limit.max_concurrency,
+        })
+    }
+
+    /// Sends at most eight `GET /gateway/bot` requests with no local limiter,
+    /// and stops at the first Discord HTTP 429. This is the sandbox proof that
+    /// a real `retry_after` was observed. It does not keep requesting after that.
+    ///
+    /// # Errors
+    ///
+    /// Returns a classified transport error. The response body is not included
+    /// except for `retry_after` and `global`.
+    pub async fn observe_gateway_bot_limit(
+        &self,
+    ) -> Result<Option<ProviderRateLimit>, TransportError> {
+        let http = reqwest::Client::builder()
+            .connect_timeout(Duration::from_millis(500))
+            .timeout(Duration::from_secs(3))
+            .build()
+            .map_err(|_| {
+                TransportError::Unavailable("rate-limit probe client unavailable".to_owned())
+            })?;
+        for _ in 0..GATEWAY_BOT_PROBE_ATTEMPTS {
+            self.preflight()?;
+            let response = http
+                .get("https://discord.com/api/v10/gateway/bot")
+                .header("authorization", format!("Bot {}", self.token))
+                .header("user-agent", "DiscordBot (https://www.tobot.test, 0.1.0)")
+                .send()
+                .await
+                .map_err(|_| {
+                    TransportError::Unavailable("gateway bot probe unavailable".to_owned())
+                })?;
+            if response.status().as_u16() == 429 {
+                let body = response.json::<GatewayRateLimitBody>().await.map_err(|_| {
+                    TransportError::Unavailable("rate-limit body unavailable".to_owned())
+                })?;
+                let retry_after_ms = TwilightTransport::retry_after_ms(body.retry_after);
+                let TransportAdmission::Wait { retry_after_ms } =
+                    admission_after_limit(body.global, false, retry_after_ms)
+                else {
+                    return Ok(Some(ProviderRateLimit {
+                        retry_after_ms,
+                        global: body.global,
+                    }));
+                };
+                self.note(&TransportError::RateLimited { retry_after_ms });
+                return Ok(Some(ProviderRateLimit {
+                    retry_after_ms,
+                    global: body.global,
+                }));
+            }
+            let status = response.status();
+            if !status.is_success() {
+                let error = TransportError::Rejected {
+                    status: status.as_u16(),
+                };
+                self.note(&error);
+                return Err(error);
+            }
+        }
+        Ok(None)
+    }
+}
+
 /// Holds the bot-token HTTP client privately. Concrete response mapping is
 /// added only to the two trait methods; there is intentionally no `client()`
 /// escape hatch for arbitrary REST paths.
@@ -400,90 +516,6 @@ impl TwilightTransport {
             flags: ephemeral.then_some(MessageFlags::EPHEMERAL),
             ..InteractionResponseData::default()
         }
-    }
-
-    /// Reads `GET /gateway/bot` session-start budget before a shard connects.
-    ///
-    /// # Errors
-    ///
-    /// Returns a classified transport error. The response body is not included.
-    pub async fn session_start_budget(&self) -> Result<SessionStartBudget, TransportError> {
-        self.preflight()?;
-        let response = self.client.gateway().authed().await.map_err(|error| {
-            let mapped = Self::map_error(&error);
-            self.note(&mapped);
-            mapped
-        })?;
-        let info = response.model().await.map_err(|_| {
-            TransportError::Unavailable("gateway bot response unavailable".to_owned())
-        })?;
-        Ok(SessionStartBudget {
-            remaining: info.session_start_limit.remaining,
-            reset_after_ms: info.session_start_limit.reset_after,
-            max_concurrency: info.session_start_limit.max_concurrency,
-        })
-    }
-
-    /// Sends at most eight `GET /gateway/bot` requests with no local limiter,
-    /// and stops at the first Discord HTTP 429. This is the sandbox proof that
-    /// a real `retry_after` was observed. It does not keep requesting after that.
-    ///
-    /// # Errors
-    ///
-    /// Returns a classified transport error. The response body is not included
-    /// except for `retry_after` and `global`.
-    pub async fn observe_gateway_bot_limit(
-        &self,
-        bot_token: &str,
-    ) -> Result<Option<ProviderRateLimit>, TransportError> {
-        let _ = &self.client;
-        let http = reqwest::Client::builder()
-            .connect_timeout(Duration::from_millis(500))
-            .timeout(Duration::from_secs(3))
-            .build()
-            .map_err(|_| {
-                TransportError::Unavailable("rate-limit probe client unavailable".to_owned())
-            })?;
-        for _ in 0..GATEWAY_BOT_PROBE_ATTEMPTS {
-            self.preflight()?;
-            let response = http
-                .get("https://discord.com/api/v10/gateway/bot")
-                .header("authorization", format!("Bot {bot_token}"))
-                .header("user-agent", "DiscordBot (https://www.tobot.test, 0.1.0)")
-                .send()
-                .await
-                .map_err(|_| {
-                    TransportError::Unavailable("gateway bot probe unavailable".to_owned())
-                })?;
-            if response.status().as_u16() == 429 {
-                let body = response.json::<GatewayRateLimitBody>().await.map_err(|_| {
-                    TransportError::Unavailable("rate-limit body unavailable".to_owned())
-                })?;
-                let retry_after_ms = Self::retry_after_ms(body.retry_after);
-                let TransportAdmission::Wait { retry_after_ms } =
-                    admission_after_limit(body.global, false, retry_after_ms)
-                else {
-                    return Ok(Some(ProviderRateLimit {
-                        retry_after_ms,
-                        global: body.global,
-                    }));
-                };
-                self.note(&TransportError::RateLimited { retry_after_ms });
-                return Ok(Some(ProviderRateLimit {
-                    retry_after_ms,
-                    global: body.global,
-                }));
-            }
-            let status = response.status();
-            if !status.is_success() {
-                let error = TransportError::Rejected {
-                    status: status.as_u16(),
-                };
-                self.note(&error);
-                return Err(error);
-            }
-        }
-        Ok(None)
     }
 
     /// Registers the single guild-scoped diagnostic command. Unchanged
