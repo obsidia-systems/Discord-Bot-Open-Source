@@ -14,7 +14,7 @@ Program locks (greenfield Tobot, Rust platform, twin-track, money late) are in t
 |---|---|
 | Status | Sequence only |
 | Authority | 01–23 remain normative |
-| Next plan | `roadmap/S00-platform-skeleton.md` |
+| Next plan | `roadmap/S01-safety-operator-loop.md` |
 
 ## 1. What becomes true, in order
 
@@ -115,6 +115,8 @@ For each slice:
 
 S0 is done enough to start S1 when a test guild can install, an interaction is ACK’d, an operator can log in on `app.*`, and a killed worker does not lose accepted work. S0 does not need every §6.2 process or the full dashboard.
 
+Those four facts are demonstrated. The running cookie origin is `dash.*`, recorded as an accepted S0 deviation. S0 release gates stay open. Starting S1 does not close them.
+
 ## 7. Next
 
-Write `roadmap/S00-platform-skeleton.md` using the S0 reading list above. Do not plan S1 in the same pass.
+`roadmap/S01-safety-operator-loop.md` is the current slice plan. Implement that file. Do not plan S2 in the same pass.
