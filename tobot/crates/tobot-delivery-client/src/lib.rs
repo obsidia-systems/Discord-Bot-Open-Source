@@ -7,9 +7,11 @@ use tobot_discord_adapter::GuildPresenceInspection;
 use tobot_discord_adapter::{DiscordTransport, InteractionCallback, TransportError};
 
 mod cases;
+mod role;
 mod welcome;
 
 pub use cases::{CasesDeliveryClient, ModerationCommandClient, ModerationCommandResponse};
+pub use role::RoleDeliveryClient;
 pub use welcome::WelcomeDeliveryClient;
 
 pub(crate) fn classify_status(status: u16) -> TransportError {

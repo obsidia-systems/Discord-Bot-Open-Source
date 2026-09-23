@@ -44,7 +44,7 @@ pub(super) struct PublishRequest {
     body: String,
 }
 
-async fn access(
+pub(super) async fn access(
     state: &AppState,
     headers: &HeaderMap,
     tenant_id: Uuid,

@@ -70,6 +70,10 @@ owner_store!(
     DeliveryIntentStore,
     "Message intents, attempts, nonces, and delivery outbox."
 );
+owner_store!(
+    AssignmentStore,
+    "Automatic-role revisions, assignment intents, and the assignment outbox. No other facade writes these rows."
+);
 
 /// The facades Control Plane is allowed to hold. The projector receives
 /// installation and query on their own; this bundle does not add cross-module methods.
@@ -80,6 +84,7 @@ pub struct ControlPlaneDatabase {
     pub query: QueryStore,
     pub moderation: ModerationStore,
     pub lifecycle: LifecycleStore,
+    pub assignment: AssignmentStore,
 }
 
 impl ControlPlaneDatabase {
@@ -93,7 +98,8 @@ impl ControlPlaneDatabase {
             installation: InstallationStore { pool: pool.clone() },
             query: QueryStore { pool: pool.clone() },
             moderation: ModerationStore { pool: pool.clone() },
-            lifecycle: LifecycleStore { pool },
+            lifecycle: LifecycleStore { pool: pool.clone() },
+            assignment: AssignmentStore { pool },
         })
     }
 }

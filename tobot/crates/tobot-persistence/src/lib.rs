@@ -7,6 +7,7 @@ use tobot_core::{TenantContext, TenantId};
 use tobot_envelope::{EventEnvelope, TraceContext};
 use uuid::Uuid;
 
+mod assignment;
 mod edge;
 mod edge_relay;
 mod identity;
@@ -16,13 +17,14 @@ mod moderation;
 mod owners;
 mod query;
 
+pub use assignment::{NewRoleJoin, RoleIntent, RoleJoin, RoleRevision, RoleStatus};
 pub use messaging::{
     JoinDecision, MessageIntent, MessagingOutbox, NewJoin, WelcomeRevision, WelcomeStatus,
 };
 pub use moderation::{ModerationCaseRecord, NewModerationCase, PinnedPolicy};
 pub use owners::{
-    ControlPlaneDatabase, DeliveryIntentStore, EdgeRelayStore, EdgeStore, IdentityStore,
-    InstallationStore, LifecycleStore, Migrations, ModerationStore, QueryStore,
+    AssignmentStore, ControlPlaneDatabase, DeliveryIntentStore, EdgeRelayStore, EdgeStore,
+    IdentityStore, InstallationStore, LifecycleStore, Migrations, ModerationStore, QueryStore,
 };
 
 pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!();

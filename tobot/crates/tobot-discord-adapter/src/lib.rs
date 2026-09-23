@@ -21,7 +21,7 @@ use twilight_model::{
         Id,
         marker::{
             ApplicationMarker, ChannelMarker, CommandVersionMarker, GuildMarker, InteractionMarker,
-            UserMarker,
+            RoleMarker, UserMarker,
         },
     },
 };
@@ -43,6 +43,96 @@ pub struct GuildPresenceInspection {
 pub struct TextChannel {
     pub id: String,
     pub name: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct GuildRoleView {
+    pub id: String,
+    pub name: String,
+    pub managed: bool,
+    pub position: i64,
+    pub permissions: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RoleCatalog {
+    pub bot_highest_position: i64,
+    pub bot_permissions: String,
+    pub roles: Vec<GuildRoleView>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct MemberRoles {
+    pub role_ids: Vec<String>,
+    pub pending: bool,
+    pub bot: bool,
+}
+
+/// What the executor does before any member-role HTTP call.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RolePreflight {
+    Skip,
+    Fail,
+    Ready,
+}
+
+/// The next assignment step. A visible role never produces another PUT.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AssignmentStep {
+    Skip,
+    Fail,
+    Unchanged,
+    AppliedFromRead,
+    Put,
+}
+
+#[must_use]
+pub fn assignment_step(
+    put_count: i32,
+    role_present: bool,
+    preflight: RolePreflight,
+    deadline_passed: bool,
+) -> AssignmentStep {
+    if deadline_passed {
+        return AssignmentStep::Skip;
+    }
+    if role_present {
+        return if put_count == 0 {
+            AssignmentStep::Unchanged
+        } else {
+            AssignmentStep::AppliedFromRead
+        };
+    }
+    match preflight {
+        RolePreflight::Skip => AssignmentStep::Skip,
+        RolePreflight::Fail => AssignmentStep::Fail,
+        RolePreflight::Ready if put_count >= 2 => AssignmentStep::Fail,
+        RolePreflight::Ready => AssignmentStep::Put,
+    }
+}
+
+/// Live hierarchy and permission check. `@everyone` is the role whose id equals the guild id.
+#[must_use]
+pub fn classify_target_role(
+    guild_id: &str,
+    role: &GuildRoleView,
+    bot_highest_position: i64,
+    bot_permissions: u64,
+) -> RolePreflight {
+    let permissions: u64 = role.permissions.parse().unwrap_or(u64::MAX);
+    let sensitive = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 28) | (1 << 40);
+    let manage_roles = 1 << 28;
+    let administrator = 1 << 3;
+    if role.id == guild_id
+        || role.managed
+        || role.position >= bot_highest_position
+        || permissions & sensitive != 0
+        || (bot_permissions & manage_roles == 0 && bot_permissions & administrator == 0)
+    {
+        RolePreflight::Fail
+    } else {
+        RolePreflight::Ready
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -722,6 +812,92 @@ impl TwilightTransport {
         Ok(message.id.to_string())
     }
 
+    /// Disposable guild-role read for publish and execution. This is not a catalog write.
+    /// # Errors
+    /// Returns a classified Discord transport error.
+    pub async fn role_catalog(&self, guild: u64) -> Result<RoleCatalog, TransportError> {
+        let guild_id = snowflake::<GuildMarker>(guild)?;
+        self.preflight()?;
+        let roles = self
+            .client
+            .roles(guild_id)
+            .await
+            .map_err(|error| self.noted(&error))?
+            .models()
+            .await
+            .map_err(|error| self.note_text(error))?;
+        let me = self
+            .client
+            .current_user()
+            .await
+            .map_err(|error| self.noted(&error))?
+            .model()
+            .await
+            .map_err(|error| self.note_text(error))?;
+        let member = self.member_model(guild_id, me.id).await?;
+        let mut bits = 0u64;
+        let mut highest = 0i64;
+        for role in &roles {
+            if role.id.get() == guild || member.roles.contains(&role.id) {
+                bits |= role.permissions.bits();
+                highest = highest.max(role.position);
+            }
+        }
+        Ok(RoleCatalog {
+            bot_highest_position: highest,
+            bot_permissions: bits.to_string(),
+            roles: roles
+                .into_iter()
+                .map(|role| GuildRoleView {
+                    id: role.id.to_string(),
+                    name: role.name,
+                    managed: role.managed,
+                    position: role.position,
+                    permissions: role.permissions.bits().to_string(),
+                })
+                .collect(),
+        })
+    }
+
+    /// # Errors
+    /// Returns a classified Discord transport error. `404` means the member is gone.
+    pub async fn member_roles(&self, guild: u64, user: u64) -> Result<MemberRoles, TransportError> {
+        let guild_id = snowflake::<GuildMarker>(guild)?;
+        let user_id = snowflake::<UserMarker>(user)?;
+        self.preflight()?;
+        let member = self.member_model(guild_id, user_id).await?;
+        Ok(MemberRoles {
+            role_ids: member
+                .roles
+                .into_iter()
+                .map(|role| role.to_string())
+                .collect(),
+            pending: member.pending,
+            bot: member.user.bot,
+        })
+    }
+
+    /// Adds one role. There is no replace of the member's role list.
+    /// # Errors
+    /// Returns a classified Discord transport error.
+    pub async fn add_member_role(
+        &self,
+        guild: u64,
+        user: u64,
+        role: u64,
+        reason: &str,
+    ) -> Result<(), TransportError> {
+        let guild_id = snowflake::<GuildMarker>(guild)?;
+        let user_id = snowflake::<UserMarker>(user)?;
+        let role_id = snowflake::<RoleMarker>(role)?;
+        self.preflight()?;
+        let request = self
+            .client
+            .add_guild_member_role(guild_id, user_id, role_id)
+            .reason(reason);
+        request.await.map(|_| ()).map_err(|error| self.noted(&error))
+    }
+
     #[must_use]
     pub fn new(bot_token: String) -> Self {
         // Twilight selects rustls without installing a process crypto provider.
@@ -1176,6 +1352,44 @@ impl DiscordTransport for TwilightTransport {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn assignment_step_reads_before_a_second_put() {
+        assert_eq!(
+            assignment_step(1, true, RolePreflight::Ready, false),
+            AssignmentStep::AppliedFromRead
+        );
+        assert_eq!(
+            assignment_step(0, true, RolePreflight::Ready, false),
+            AssignmentStep::Unchanged
+        );
+        assert_eq!(
+            assignment_step(1, false, RolePreflight::Ready, false),
+            AssignmentStep::Put
+        );
+        assert_eq!(
+            assignment_step(2, false, RolePreflight::Ready, false),
+            AssignmentStep::Fail
+        );
+        assert_eq!(
+            assignment_step(0, false, RolePreflight::Ready, true),
+            AssignmentStep::Skip
+        );
+        let above = GuildRoleView {
+            id: "9".to_owned(),
+            name: "staff".to_owned(),
+            managed: false,
+            position: 5,
+            permissions: "0".to_owned(),
+        };
+        assert_eq!(classify_target_role("1", &above, 5, 1 << 28), RolePreflight::Fail);
+        let safe = GuildRoleView {
+            position: 1,
+            ..above
+        };
+        assert_eq!(classify_target_role("1", &safe, 5, 1 << 28), RolePreflight::Ready);
+        assert_eq!(classify_target_role("1", &safe, 5, 0), RolePreflight::Fail);
+    }
 
     #[test]
     fn timeout_classification_does_not_call_discord() {

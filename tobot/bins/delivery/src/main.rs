@@ -115,6 +115,9 @@ fn delivery_router(state: Arc<DeliveryState>) -> Router {
         .route("/internal/v1/interactions/followup", post(follow_up))
         .route("/internal/v1/messages/text-channels", post(text_channels))
         .route("/internal/v1/messages/create", post(create_message))
+        .route("/internal/v1/roles/catalog", post(role_catalog))
+        .route("/internal/v1/roles/member", post(member_roles))
+        .route("/internal/v1/roles/add", post(add_member_role))
         .with_state(state)
 }
 
@@ -491,6 +494,84 @@ async fn text_channels(
 #[derive(serde::Deserialize)]
 struct CreateMessageRequest {
     intent_id: uuid::Uuid,
+}
+
+#[derive(serde::Deserialize)]
+struct RoleGuildRequest {
+    guild_id: String,
+}
+
+#[derive(serde::Deserialize)]
+struct RoleMemberRequest {
+    guild_id: String,
+    user_id: String,
+}
+
+#[derive(serde::Deserialize)]
+struct AddRoleRequest {
+    guild_id: String,
+    user_id: String,
+    role_id: String,
+    reason: String,
+}
+
+async fn role_catalog(
+    State(state): State<Arc<DeliveryState>>,
+    headers: HeaderMap,
+    Json(request): Json<RoleGuildRequest>,
+) -> Response {
+    if !authorized(&headers, &state.service_token) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    let Ok(guild_id) = request.guild_id.parse::<u64>() else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    match state.transport.role_catalog(guild_id).await {
+        Ok(catalog) => Json(catalog).into_response(),
+        Err(error) => transport_status(&error).into_response(),
+    }
+}
+
+async fn member_roles(
+    State(state): State<Arc<DeliveryState>>,
+    headers: HeaderMap,
+    Json(request): Json<RoleMemberRequest>,
+) -> Response {
+    if !authorized(&headers, &state.service_token) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    let (Ok(guild_id), Ok(user_id)) = (request.guild_id.parse::<u64>(), request.user_id.parse::<u64>()) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    match state.transport.member_roles(guild_id, user_id).await {
+        Ok(member) => Json(member).into_response(),
+        Err(error) => transport_status(&error).into_response(),
+    }
+}
+
+async fn add_member_role(
+    State(state): State<Arc<DeliveryState>>,
+    headers: HeaderMap,
+    Json(request): Json<AddRoleRequest>,
+) -> StatusCode {
+    if !authorized(&headers, &state.service_token) {
+        return StatusCode::UNAUTHORIZED;
+    }
+    let (Ok(guild_id), Ok(user_id), Ok(role_id)) = (
+        request.guild_id.parse::<u64>(),
+        request.user_id.parse::<u64>(),
+        request.role_id.parse::<u64>(),
+    ) else {
+        return StatusCode::BAD_REQUEST;
+    };
+    match state
+        .transport
+        .add_member_role(guild_id, user_id, role_id, &request.reason)
+        .await
+    {
+        Ok(()) => StatusCode::NO_CONTENT,
+        Err(error) => transport_status(&error),
+    }
 }
 
 async fn create_message(

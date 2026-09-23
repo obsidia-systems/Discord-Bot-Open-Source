@@ -41,6 +41,12 @@ pub enum S0EventName {
     DeliveryBlocked,
     DeliveryOutcomeUncertain,
     DeliveryDeadLettered,
+    RolePolicyPublished,
+    RoleAssignmentPlanned,
+    RoleAssignmentApplied,
+    RoleAssignmentUnchanged,
+    RoleAssignmentSkipped,
+    RoleAssignmentFailed,
 }
 
 impl TryFrom<&str> for S0EventName {
@@ -66,6 +72,12 @@ impl TryFrom<&str> for S0EventName {
             "DeliveryBlocked" => Ok(Self::DeliveryBlocked),
             "DeliveryOutcomeUncertain" => Ok(Self::DeliveryOutcomeUncertain),
             "DeliveryDeadLettered" => Ok(Self::DeliveryDeadLettered),
+            "RolePolicyPublished" => Ok(Self::RolePolicyPublished),
+            "RoleAssignmentPlanned" => Ok(Self::RoleAssignmentPlanned),
+            "RoleAssignmentApplied" => Ok(Self::RoleAssignmentApplied),
+            "RoleAssignmentUnchanged" => Ok(Self::RoleAssignmentUnchanged),
+            "RoleAssignmentSkipped" => Ok(Self::RoleAssignmentSkipped),
+            "RoleAssignmentFailed" => Ok(Self::RoleAssignmentFailed),
             _ => Err(EnvelopeError::UnsupportedSchemaName(value.to_owned())),
         }
     }
@@ -121,7 +133,16 @@ pub enum EnvelopeError {
     MissingGatewayIdentity,
     #[error("welcome body or channel is invalid")]
     InvalidWelcomeBody,
+    #[error("automatic role revision is invalid")]
+    InvalidAutomaticRole,
 }
+
+/// Permission bits an automatic role must not grant.
+pub const SENSITIVE_ROLE_PERMISSIONS: u64 =
+    (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 28) | (1 << 40);
+
+/// Discord Manage Roles. Missing this bit blocks assignment and does not rewrite installation.
+pub const MANAGE_ROLES_PERMISSION: u64 = 1 << 28;
 
 /// A plain-text welcome can interpolate only the member mention.
 /// # Errors
@@ -143,6 +164,60 @@ pub fn validate_welcome_body(body: &str) -> Result<(), EnvelopeError> {
     let rendered_max = body.chars().count() + body.matches("{member}").count() * (23 - 8);
     if rendered_max > 2000 {
         return Err(EnvelopeError::InvalidWelcomeBody);
+    }
+    Ok(())
+}
+
+fn snowflake(value: &str) -> bool {
+    matches!(value.parse::<u64>(), Ok(1..))
+}
+
+/// One immediate human role. `@everyone`, managed, hierarchy, delay, and sensitive bits fail closed.
+/// # Errors
+/// Returns an error when the payload is not a publishable automatic role.
+pub fn validate_automatic_role(payload: &Value) -> Result<(), EnvelopeError> {
+    let guild = payload
+        .get("guild_id")
+        .and_then(Value::as_str)
+        .ok_or(EnvelopeError::InvalidAutomaticRole)?;
+    let role = payload
+        .get("role_id")
+        .and_then(Value::as_str)
+        .ok_or(EnvelopeError::InvalidAutomaticRole)?;
+    if !snowflake(guild) || !snowflake(role) || role == guild {
+        return Err(EnvelopeError::InvalidAutomaticRole);
+    }
+    if payload.get("managed").and_then(Value::as_bool) != Some(false) {
+        return Err(EnvelopeError::InvalidAutomaticRole);
+    }
+    let position = payload
+        .get("position")
+        .and_then(Value::as_i64)
+        .ok_or(EnvelopeError::InvalidAutomaticRole)?;
+    let bot_highest = payload
+        .get("bot_highest_position")
+        .and_then(Value::as_i64)
+        .ok_or(EnvelopeError::InvalidAutomaticRole)?;
+    if position >= bot_highest {
+        return Err(EnvelopeError::InvalidAutomaticRole);
+    }
+    let permissions = payload
+        .get("permissions")
+        .and_then(Value::as_str)
+        .ok_or(EnvelopeError::InvalidAutomaticRole)?;
+    let bits: u64 = permissions
+        .parse()
+        .map_err(|_| EnvelopeError::InvalidAutomaticRole)?;
+    if bits & SENSITIVE_ROLE_PERMISSIONS != 0 {
+        return Err(EnvelopeError::InvalidAutomaticRole);
+    }
+    if payload
+        .get("delay_seconds")
+        .and_then(Value::as_i64)
+        .unwrap_or(0)
+        > 0
+    {
+        return Err(EnvelopeError::InvalidAutomaticRole);
     }
     Ok(())
 }
@@ -247,6 +322,7 @@ pub enum S0CommandName {
     AdmitGuildRepair,
     SubmitModerationAction,
     PublishWelcomeRevision,
+    PublishAutomaticRoleRevision,
 }
 
 impl TryFrom<&str> for S0CommandName {
@@ -258,6 +334,7 @@ impl TryFrom<&str> for S0CommandName {
             "AdmitGuildRepair" => Ok(Self::AdmitGuildRepair),
             "SubmitModerationAction" => Ok(Self::SubmitModerationAction),
             "PublishWelcomeRevision" => Ok(Self::PublishWelcomeRevision),
+            "PublishAutomaticRoleRevision" => Ok(Self::PublishAutomaticRoleRevision),
             _ => Err(EnvelopeError::UnsupportedSchemaName(value.to_owned())),
         }
     }
@@ -342,6 +419,9 @@ impl CommandEnvelope {
             {
                 return Err(EnvelopeError::InvalidWelcomeBody);
             }
+        }
+        if command_name == S0CommandName::PublishAutomaticRoleRevision {
+            validate_automatic_role(&command.payload)?;
         }
         Ok(ParsedCommand {
             command,
@@ -435,7 +515,9 @@ mod tests {
         for name in [
             "AutoReplyMatched",
             "ScheduleActivated",
-            "RoleAssignmentApplied",
+            "RolePanelPublished",
+            "RoleResourceMutationRequested",
+            "RoleAssignmentScheduled",
             "MessageDefinitionRetired",
             "DeliveryRetryScheduled",
             "AutoReplyDeliveryRequested",
@@ -457,6 +539,12 @@ mod tests {
             "DeliveryBlocked",
             "DeliveryOutcomeUncertain",
             "DeliveryDeadLettered",
+            "RolePolicyPublished",
+            "RoleAssignmentPlanned",
+            "RoleAssignmentApplied",
+            "RoleAssignmentUnchanged",
+            "RoleAssignmentSkipped",
+            "RoleAssignmentFailed",
         ] {
             assert!(S0EventName::try_from(name).is_ok());
             let event = VALID_GATEWAY.replace("GatewayEventAccepted", name);
@@ -616,9 +704,9 @@ mod tests {
                 Err(EnvelopeError::UnsupportedSchemaName(_))
             ));
         }
-        let role = VALID_GATEWAY.replace("GatewayEventAccepted", "RoleAssignmentApplied");
+        let panel = VALID_GATEWAY.replace("GatewayEventAccepted", "RolePanelPublished");
         assert!(matches!(
-            EventEnvelope::parse_s0(role.as_bytes()),
+            EventEnvelope::parse_s0(panel.as_bytes()),
             Err(EnvelopeError::UnsupportedSchemaName(_))
         ));
         let noted = VALID_GATEWAY.replace("GatewayEventAccepted", "ModerationCaseNoted");
@@ -630,5 +718,62 @@ mod tests {
         let parsed = EventEnvelope::parse_s0(opened.as_bytes())
             .unwrap_or_else(|error| panic!("opened fact rejected: {error}"));
         assert_eq!(parsed.event_name, S0EventName::ModerationCaseOpened);
+    }
+
+    #[test]
+    fn automatic_role_publish_rejects_sensitive_and_closed_names() {
+        let tenant = Uuid::now_v7();
+        let mut command = CommandEnvelope {
+            command_id: Uuid::now_v7(),
+            schema_name: "PublishAutomaticRoleRevision".to_owned(),
+            schema_version: 1,
+            actor_account_id: Uuid::now_v7(),
+            tenant_id: tenant,
+            idempotency_key: Uuid::now_v7(),
+            deadline_at: "2026-09-23T00:00:00Z".to_owned(),
+            correlation_id: Uuid::now_v7(),
+            trace_context: TraceContext {
+                trace_id: "trace".to_owned(),
+                span_id: "span".to_owned(),
+            },
+            payload: serde_json::json!({
+                "guild_id":"100","role_id":"200","managed":false,"position":1,
+                "bot_highest_position":5,"permissions":"1024"
+            }),
+        };
+        let raw =
+            serde_json::to_vec(&command).unwrap_or_else(|error| panic!("encode failed: {error}"));
+        assert_eq!(
+            CommandEnvelope::parse_s0(&raw).map(|parsed| parsed.command_name),
+            Ok(S0CommandName::PublishAutomaticRoleRevision)
+        );
+        for payload in [
+            serde_json::json!({"guild_id":"100","role_id":"100","managed":false,"position":1,"bot_highest_position":5,"permissions":"0"}),
+            serde_json::json!({"guild_id":"100","role_id":"200","managed":true,"position":1,"bot_highest_position":5,"permissions":"0"}),
+            serde_json::json!({"guild_id":"100","role_id":"200","managed":false,"position":5,"bot_highest_position":5,"permissions":"0"}),
+            serde_json::json!({"guild_id":"100","role_id":"200","managed":false,"position":1,"bot_highest_position":5,"permissions":"8","delay_seconds":0}),
+            serde_json::json!({"guild_id":"100","role_id":"200","managed":false,"position":1,"bot_highest_position":5,"permissions":"0","delay_seconds":30}),
+        ] {
+            command.payload = payload;
+            let raw = serde_json::to_vec(&command)
+                .unwrap_or_else(|error| panic!("encode failed: {error}"));
+            assert_eq!(
+                CommandEnvelope::parse_s0(&raw).err(),
+                Some(EnvelopeError::InvalidAutomaticRole)
+            );
+        }
+        for name in [
+            "RolePanelPublished",
+            "RoleResourceMutationRequested",
+            "RoleAssignmentScheduled",
+            "RoleAssignmentRetryScheduled",
+            "RoleAssignmentExpired",
+            "RoleReconciliationCompleted",
+        ] {
+            assert!(matches!(
+                S0EventName::try_from(name),
+                Err(EnvelopeError::UnsupportedSchemaName(_))
+            ));
+        }
     }
 }

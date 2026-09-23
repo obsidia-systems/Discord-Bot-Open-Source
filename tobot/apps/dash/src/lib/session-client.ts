@@ -313,6 +313,87 @@ export async function readWelcome(tenantId: string): Promise<
   }
 }
 
+export type RoleBody = {
+  revision_id: string | null;
+  revision: number | null;
+  role_id: string | null;
+  last_assignment: {
+    intent_id: string;
+    role_id: string;
+    member_id: string;
+    status: string;
+    projection_watermark_unix: number;
+  } | null;
+};
+
+export type RoleChoice = { id: string; name: string };
+
+export async function readAutomaticRoleStatus(tenantId: string): Promise<
+  | { kind: "ready"; body: RoleBody }
+  | { kind: "unauthenticated" }
+  | { kind: "no-access" }
+  | { kind: "unavailable" }
+> {
+  try {
+    const response = await fetch(`/api/v1/guilds/${encodeURIComponent(tenantId)}/roles`, {
+      credentials: "include", cache: "no-store", headers: jsonHeaders,
+    });
+    const access = guildHomeAccess(response.status);
+    if (access === "unauthenticated") return { kind: "unauthenticated" };
+    if (access === "no-access") return { kind: "no-access" };
+    if (access !== "ok") return { kind: "unavailable" };
+    return { kind: "ready", body: (await response.json()) as RoleBody };
+  } catch {
+    return { kind: "unavailable" };
+  }
+}
+
+export async function readAutomaticRole(tenantId: string): Promise<
+  | { kind: "ready"; body: RoleBody; roles: RoleChoice[] }
+  | { kind: "unauthenticated" }
+  | { kind: "no-access" }
+  | { kind: "unavailable" }
+> {
+  try {
+    const [status, catalog] = await Promise.all([
+      readAutomaticRoleStatus(tenantId),
+      fetch(`/api/v1/guilds/${encodeURIComponent(tenantId)}/roles/catalog`, {
+        credentials: "include", cache: "no-store", headers: jsonHeaders,
+      }),
+    ]);
+    if (status.kind !== "ready") return status;
+    if (!catalog.ok) return { kind: "unavailable" };
+    const body = (await catalog.json()) as { roles?: RoleChoice[] };
+    return { kind: "ready", body: status.body, roles: Array.isArray(body.roles) ? body.roles : [] };
+  } catch {
+    return { kind: "unavailable" };
+  }
+}
+
+export async function publishAutomaticRole(
+  tenantId: string,
+  roleId: string,
+): Promise<"done" | "unauthenticated" | "no-access" | "invalid" | "unavailable"> {
+  const csrf = await readCsrfToken();
+  if (csrf.kind !== "token") return csrf.kind;
+  try {
+    const response = await fetch(`/api/v1/guilds/${encodeURIComponent(tenantId)}/roles`, {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      headers: { ...jsonHeaders, "content-type": "application/json", "x-csrf-token": csrf.value },
+      body: JSON.stringify({ role_id: roleId }),
+    });
+    if (response.status === 201) return "done";
+    if (response.status === 401) return "unauthenticated";
+    if (response.status === 404 || response.status === 403) return "no-access";
+    if (response.status === 400) return "invalid";
+    return "unavailable";
+  } catch {
+    return "unavailable";
+  }
+}
+
 export async function publishWelcome(tenantId: string, channelId: string, body: string): Promise<
   "done" | "unauthenticated" | "no-access" | "invalid" | "unavailable"
 > {

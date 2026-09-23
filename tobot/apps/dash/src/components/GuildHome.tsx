@@ -173,6 +173,12 @@ export function GuildHome({ tenantId }: GuildHomeProps) {
           >
             Welcome
           </a>
+          <a
+            className="ml-6 inline-block underline decoration-zinc-400 underline-offset-4 hover:decoration-zinc-950"
+            href={`/guild/${tenantId}/roles`}
+          >
+            Automatic role
+          </a>
         </>
       ) : null}
       {view.kind === "removed" ? (

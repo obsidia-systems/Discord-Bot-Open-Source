@@ -10,8 +10,9 @@ use uuid::Uuid;
 const ADMINISTRATOR: u64 = 1 << 3;
 const MANAGE_GUILD: u64 = 1 << 5;
 
-/// Discord Moderate Members, View Channel, and Send Messages. Administrator stays off.
-pub const SAFETY_GUILD_PERMISSIONS: &str = "1099511630848";
+/// Discord Moderate Members, View Channel, Send Messages, and Manage Roles.
+/// Administrator stays off.
+pub const SAFETY_GUILD_PERMISSIONS: &str = "1099780066304";
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct S0Manifest {

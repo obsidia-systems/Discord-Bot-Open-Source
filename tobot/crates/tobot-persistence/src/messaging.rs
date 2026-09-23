@@ -5,7 +5,7 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tobot_envelope::{EventEnvelope, TraceContext, validate_welcome_body};
 use uuid::Uuid;
 
-use super::{ClaimedOutboxEntry, DeliveryIntentStore, LifecycleStore, QueryStore};
+use super::{AssignmentStore, ClaimedOutboxEntry, DeliveryIntentStore, LifecycleStore, QueryStore};
 
 #[derive(Clone, Debug, sqlx::FromRow)]
 pub struct WelcomeRevision {
@@ -490,7 +490,7 @@ fn intent_payload(intent: &MessageIntent) -> serde_json::Value {
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn append_fact(
+pub(crate) async fn append_fact(
     tx: &mut Transaction<'_, Postgres>,
     schema: &str,
     tenant_id: Uuid,
@@ -529,6 +529,7 @@ async fn append_fact(
     let table = match schema {
         "lifecycle" => "lifecycle.event_outbox",
         "delivery" => "delivery.event_outbox",
+        "assignment" => "assignment.event_outbox",
         _ => return Err(sqlx::Error::Protocol("invalid outbox".to_owned())),
     };
     sqlx::query(&format!("INSERT INTO {table} (outbox_id,tenant_id,event_id,topic,partition_key,envelope) VALUES ($1,$2,$3,$4,$5,$6)"))
@@ -541,6 +542,7 @@ async fn append_fact(
 pub enum MessagingOutbox {
     Lifecycle(LifecycleStore),
     Delivery(DeliveryIntentStore),
+    Assignment(AssignmentStore),
 }
 
 impl MessagingOutbox {
@@ -548,12 +550,14 @@ impl MessagingOutbox {
         match self {
             Self::Lifecycle(_) => "lifecycle.event_outbox",
             Self::Delivery(_) => "delivery.event_outbox",
+            Self::Assignment(_) => "assignment.event_outbox",
         }
     }
     fn pool(&self) -> &sqlx::PgPool {
         match self {
             Self::Lifecycle(store) => &store.pool,
             Self::Delivery(store) => &store.pool,
+            Self::Assignment(store) => &store.pool,
         }
     }
     /// # Errors

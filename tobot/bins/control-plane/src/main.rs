@@ -2,6 +2,7 @@
 //! app origin when the reverse proxy forwards these paths to this binary.
 
 mod cases_http;
+mod roles;
 mod welcome;
 
 use std::{collections::HashMap, net::SocketAddr};
@@ -115,7 +116,9 @@ struct AppState {
     query: QueryStore,
     moderation: ModerationStore,
     lifecycle: LifecycleStore,
+    assignment: tobot_persistence::AssignmentStore,
     welcome_delivery: WelcomeDeliveryClient,
+    role_delivery: tobot_delivery_client::RoleDeliveryClient,
     cases_gateway: cases_http::DeliveryGateway,
     service_token: String,
     secret_store: VaultTransitStore,
@@ -209,6 +212,31 @@ async fn main() -> anyhow::Result<()> {
         "welcome-status-s2",
         "control-plane",
     )?;
+    let role_delivery = tobot_delivery_client::RoleDeliveryClient::new(
+        &config.delivery_url,
+        config.internal_service_token.expose_for_adapter().to_owned(),
+    )
+    .context("cannot construct role delivery client")?;
+    let role_worker_delivery = role_delivery.clone();
+    let assignment_store = database.assignment.clone();
+    let assignment_api = database.assignment.clone();
+    let assignment_worker = database.assignment.clone();
+    let assignment_consumer = RedisStreamConsumer::connect(
+        config.redis_url.expose_for_adapter(),
+        "assignment-s3",
+        "control-plane",
+    )
+    .context("cannot construct assignment consumer")?;
+    let assignment_relay = MessagingOutboxRelay::new(
+        tobot_persistence::MessagingOutbox::Assignment(database.assignment.clone()),
+        RedisStreamPublisher::connect(config.redis_url.expose_for_adapter())?,
+    );
+    let role_query = database.query.clone();
+    let role_consumer = RedisStreamConsumer::connect(
+        config.redis_url.expose_for_adapter(),
+        "role-status-s3",
+        "control-plane",
+    )?;
     let metrics_state = MetricsState {
         identity: database.identity.clone(),
         installation: database.installation.clone(),
@@ -237,7 +265,9 @@ async fn main() -> anyhow::Result<()> {
         query: database.query,
         moderation: database.moderation,
         lifecycle: lifecycle_api_store,
+        assignment: assignment_api,
         welcome_delivery,
+        role_delivery,
         cases_gateway: gateway,
         service_token,
         secret_store,
@@ -269,9 +299,13 @@ async fn main() -> anyhow::Result<()> {
         result = run_case_projector(case_query, case_consumer) => result,
         result = run_moderation_relay(moderation_relay) => result,
         result = run_case_recovery(recovery_store, recovery_gateway) => result,
-        result = welcome::run_lifecycle(lifecycle_worker_store, delivery_intents, lifecycle_consumer, welcome_dispatch) => result,
+        result = welcome::run_lifecycle(lifecycle_worker_store.clone(), delivery_intents, lifecycle_consumer, welcome_dispatch) => result,
         result = welcome::run_lifecycle_relay(lifecycle_relay) => result,
         result = run_welcome_projector(welcome_query, welcome_consumer) => result,
+        result = roles::run_assignment(assignment_store, lifecycle_worker_store, assignment_consumer) => result,
+        result = roles::run_assignment_worker(assignment_worker, role_worker_delivery) => result,
+        result = roles::run_assignment_relay(assignment_relay) => result,
+        result = run_role_projector(role_query, role_consumer) => result,
     }
 }
 
@@ -444,6 +478,21 @@ async fn run_case_projector(
         if let Err(cause) = project_cases(&query, &consumer).await {
             error!(error = %cause, "case projection paused");
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        }
+    }
+}
+
+async fn run_role_projector(
+    query: QueryStore,
+    consumer: RedisStreamConsumer,
+) -> anyhow::Result<()> {
+    loop {
+        match roles::project_roles(&query, &consumer).await {
+            Ok(()) => {}
+            Err(error) => {
+                tracing::error!(%error, "role projection paused");
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
         }
     }
 }
@@ -709,6 +758,14 @@ fn router(state: AppState) -> Router {
         .route(
             "/api/v1/guilds/{tenant_id}/welcome/channels",
             get(welcome::channels),
+        )
+        .route(
+            "/api/v1/guilds/{tenant_id}/roles",
+            get(roles::get_role).post(roles::publish),
+        )
+        .route(
+            "/api/v1/guilds/{tenant_id}/roles/catalog",
+            get(roles::catalog),
         )
         .route(
             "/internal/v1/moderation/actions",
