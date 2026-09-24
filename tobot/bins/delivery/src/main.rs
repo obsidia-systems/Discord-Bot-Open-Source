@@ -707,7 +707,16 @@ async fn reconcile_messages(
     consumer: &RedisStreamConsumer,
 ) -> anyhow::Result<()> {
     for message in consumer.read().await? {
-        let parsed = tobot_envelope::EventEnvelope::parse_s0(&message.envelope)?;
+        // Other owners publish on the same stream. An unknown leaf is not a
+        // nonce failure and must not stall welcome reconciliation.
+        let parsed = match tobot_envelope::EventEnvelope::parse_s0(&message.envelope) {
+            Ok(parsed) => parsed,
+            Err(tobot_envelope::EnvelopeError::UnsupportedSchemaName(_)) => {
+                consumer.acknowledge(&message.stream_id).await?;
+                continue;
+            }
+            Err(error) => return Err(error.into()),
+        };
         if parsed.event.schema_name == "GatewayEventAccepted"
             && parsed.event.payload["dispatch"] == "MessageCreate"
         {

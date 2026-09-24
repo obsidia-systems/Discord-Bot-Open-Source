@@ -47,6 +47,9 @@ pub enum S0EventName {
     RoleAssignmentUnchanged,
     RoleAssignmentSkipped,
     RoleAssignmentFailed,
+    ProgressionPolicyPublished,
+    XpAwardRecorded,
+    LevelChanged,
 }
 
 impl TryFrom<&str> for S0EventName {
@@ -78,6 +81,9 @@ impl TryFrom<&str> for S0EventName {
             "RoleAssignmentUnchanged" => Ok(Self::RoleAssignmentUnchanged),
             "RoleAssignmentSkipped" => Ok(Self::RoleAssignmentSkipped),
             "RoleAssignmentFailed" => Ok(Self::RoleAssignmentFailed),
+            "ProgressionPolicyPublished" => Ok(Self::ProgressionPolicyPublished),
+            "XpAwardRecorded" => Ok(Self::XpAwardRecorded),
+            "LevelChanged" => Ok(Self::LevelChanged),
             _ => Err(EnvelopeError::UnsupportedSchemaName(value.to_owned())),
         }
     }
@@ -135,6 +141,8 @@ pub enum EnvelopeError {
     InvalidWelcomeBody,
     #[error("automatic role revision is invalid")]
     InvalidAutomaticRole,
+    #[error("progression revision is invalid")]
+    InvalidProgression,
 }
 
 /// Permission bits an automatic role must not grant.
@@ -218,6 +226,55 @@ pub fn validate_automatic_role(payload: &Value) -> Result<(), EnvelopeError> {
         > 0
     {
         return Err(EnvelopeError::InvalidAutomaticRole);
+    }
+    Ok(())
+}
+
+/// One fixed text award in one channel. Cooldown, content, voice, and rewards fail closed.
+/// # Errors
+/// Returns an error when the payload is not a publishable progression revision.
+pub fn validate_progression(payload: &Value) -> Result<(), EnvelopeError> {
+    let guild = payload
+        .get("guild_id")
+        .and_then(Value::as_str)
+        .ok_or(EnvelopeError::InvalidProgression)?;
+    let channel = payload
+        .get("channel_id")
+        .and_then(Value::as_str)
+        .ok_or(EnvelopeError::InvalidProgression)?;
+    if !snowflake(guild) || !snowflake(channel) {
+        return Err(EnvelopeError::InvalidProgression);
+    }
+    let award = payload
+        .get("award")
+        .and_then(Value::as_i64)
+        .ok_or(EnvelopeError::InvalidProgression)?;
+    if !(1..=100).contains(&award) {
+        return Err(EnvelopeError::InvalidProgression);
+    }
+    if payload
+        .get("cooldown_seconds")
+        .and_then(Value::as_i64)
+        .unwrap_or(0)
+        != 0
+    {
+        return Err(EnvelopeError::InvalidProgression);
+    }
+    if payload.get("multiplier").and_then(Value::as_i64).unwrap_or(1) != 1 {
+        return Err(EnvelopeError::InvalidProgression);
+    }
+    if payload.get("content_rule").is_some()
+        || payload.get("voice").and_then(Value::as_bool) == Some(true)
+        || payload
+            .get("reward_role_id")
+            .and_then(Value::as_str)
+            .is_some_and(|role| !role.is_empty())
+        || payload
+            .get("announcement_channel_id")
+            .and_then(Value::as_str)
+            .is_some_and(|channel| !channel.is_empty())
+    {
+        return Err(EnvelopeError::InvalidProgression);
     }
     Ok(())
 }
@@ -323,6 +380,7 @@ pub enum S0CommandName {
     SubmitModerationAction,
     PublishWelcomeRevision,
     PublishAutomaticRoleRevision,
+    PublishProgressionRevision,
 }
 
 impl TryFrom<&str> for S0CommandName {
@@ -335,6 +393,7 @@ impl TryFrom<&str> for S0CommandName {
             "SubmitModerationAction" => Ok(Self::SubmitModerationAction),
             "PublishWelcomeRevision" => Ok(Self::PublishWelcomeRevision),
             "PublishAutomaticRoleRevision" => Ok(Self::PublishAutomaticRoleRevision),
+            "PublishProgressionRevision" => Ok(Self::PublishProgressionRevision),
             _ => Err(EnvelopeError::UnsupportedSchemaName(value.to_owned())),
         }
     }
@@ -422,6 +481,9 @@ impl CommandEnvelope {
         }
         if command_name == S0CommandName::PublishAutomaticRoleRevision {
             validate_automatic_role(&command.payload)?;
+        }
+        if command_name == S0CommandName::PublishProgressionRevision {
+            validate_progression(&command.payload)?;
         }
         Ok(ParsedCommand {
             command,
@@ -769,6 +831,74 @@ mod tests {
             "RoleAssignmentRetryScheduled",
             "RoleAssignmentExpired",
             "RoleReconciliationCompleted",
+        ] {
+            assert!(matches!(
+                S0EventName::try_from(name),
+                Err(EnvelopeError::UnsupportedSchemaName(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn progression_publish_rejects_closed_sources() {
+        let tenant = Uuid::now_v7();
+        let mut command = CommandEnvelope {
+            command_id: Uuid::now_v7(),
+            schema_name: "PublishProgressionRevision".to_owned(),
+            schema_version: 1,
+            actor_account_id: Uuid::now_v7(),
+            tenant_id: tenant,
+            idempotency_key: Uuid::now_v7(),
+            deadline_at: "2026-09-23T00:00:00Z".to_owned(),
+            correlation_id: Uuid::now_v7(),
+            trace_context: TraceContext {
+                trace_id: "trace".to_owned(),
+                span_id: "span".to_owned(),
+            },
+            payload: serde_json::json!({
+                "guild_id":"100","channel_id":"200","award":10,"cooldown_seconds":0,"multiplier":1
+            }),
+        };
+        let raw =
+            serde_json::to_vec(&command).unwrap_or_else(|error| panic!("encode failed: {error}"));
+        assert_eq!(
+            CommandEnvelope::parse_s0(&raw).map(|parsed| parsed.command_name),
+            Ok(S0CommandName::PublishProgressionRevision)
+        );
+        for payload in [
+            serde_json::json!({"guild_id":"100","channel_id":"200","award":0}),
+            serde_json::json!({"guild_id":"100","channel_id":"200","award":101}),
+            serde_json::json!({"guild_id":"100","channel_id":"","award":10}),
+            serde_json::json!({"guild_id":"100","channel_id":"200","award":10,"cooldown_seconds":30}),
+            serde_json::json!({"guild_id":"100","channel_id":"200","award":10,"multiplier":2}),
+            serde_json::json!({"guild_id":"100","channel_id":"200","award":10,"content_rule":"words"}),
+            serde_json::json!({"guild_id":"100","channel_id":"200","award":10,"voice":true}),
+            serde_json::json!({"guild_id":"100","channel_id":"200","award":10,"reward_role_id":"9"}),
+            serde_json::json!({"guild_id":"100","channel_id":"200","award":10,"announcement_channel_id":"8"}),
+        ] {
+            command.payload = payload;
+            let raw = serde_json::to_vec(&command)
+                .unwrap_or_else(|error| panic!("encode failed: {error}"));
+            assert_eq!(
+                CommandEnvelope::parse_s0(&raw).err(),
+                Some(EnvelopeError::InvalidProgression)
+            );
+        }
+        for name in [
+            "ProgressionPolicyPublished",
+            "XpAwardRecorded",
+            "LevelChanged",
+        ] {
+            assert!(S0EventName::try_from(name).is_ok());
+        }
+        for name in [
+            "StarboardPolicyPublished",
+            "XpAdjustmentRecorded",
+            "LevelRewardRequested",
+            "VoiceProgressionSessionChanged",
+            "LeaderboardRefreshRequested",
+            "CurrencyPolicyPublished",
+            "IncomePolicyPublished",
         ] {
             assert!(matches!(
                 S0EventName::try_from(name),

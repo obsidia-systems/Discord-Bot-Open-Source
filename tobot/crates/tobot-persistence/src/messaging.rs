@@ -5,7 +5,10 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tobot_envelope::{EventEnvelope, TraceContext, validate_welcome_body};
 use uuid::Uuid;
 
-use super::{AssignmentStore, ClaimedOutboxEntry, DeliveryIntentStore, LifecycleStore, QueryStore};
+use super::{
+    AssignmentStore, ClaimedOutboxEntry, DeliveryIntentStore, LifecycleStore, ProgressionStore,
+    QueryStore,
+};
 
 #[derive(Clone, Debug, sqlx::FromRow)]
 pub struct WelcomeRevision {
@@ -530,6 +533,7 @@ pub(crate) async fn append_fact(
         "lifecycle" => "lifecycle.event_outbox",
         "delivery" => "delivery.event_outbox",
         "assignment" => "assignment.event_outbox",
+        "progression" => "progression.event_outbox",
         _ => return Err(sqlx::Error::Protocol("invalid outbox".to_owned())),
     };
     sqlx::query(&format!("INSERT INTO {table} (outbox_id,tenant_id,event_id,topic,partition_key,envelope) VALUES ($1,$2,$3,$4,$5,$6)"))
@@ -543,6 +547,7 @@ pub enum MessagingOutbox {
     Lifecycle(LifecycleStore),
     Delivery(DeliveryIntentStore),
     Assignment(AssignmentStore),
+    Progression(ProgressionStore),
 }
 
 impl MessagingOutbox {
@@ -551,6 +556,7 @@ impl MessagingOutbox {
             Self::Lifecycle(_) => "lifecycle.event_outbox",
             Self::Delivery(_) => "delivery.event_outbox",
             Self::Assignment(_) => "assignment.event_outbox",
+            Self::Progression(_) => "progression.event_outbox",
         }
     }
     fn pool(&self) -> &sqlx::PgPool {
@@ -558,6 +564,7 @@ impl MessagingOutbox {
             Self::Lifecycle(store) => &store.pool,
             Self::Delivery(store) => &store.pool,
             Self::Assignment(store) => &store.pool,
+            Self::Progression(store) => &store.pool,
         }
     }
     /// # Errors

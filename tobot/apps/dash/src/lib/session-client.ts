@@ -394,6 +394,88 @@ export async function publishAutomaticRole(
   }
 }
 
+export type ProgressionBody = {
+  revision_id: string | null;
+  revision: number | null;
+  channel_id: string | null;
+  award: number | null;
+  last_member: {
+    member_id: string;
+    balance: number;
+    level: number;
+    source_message_id: string;
+    projection_watermark_unix: number;
+  } | null;
+};
+
+export async function readProgressionForm(tenantId: string): Promise<
+  | { kind: "ready"; body: ProgressionBody; channels: WelcomeChannel[] }
+  | { kind: "unauthenticated" }
+  | { kind: "no-access" }
+  | { kind: "unavailable" }
+> {
+  try {
+    const [status, channelResponse] = await Promise.all([
+      readProgression(tenantId),
+      fetch(`/api/v1/guilds/${encodeURIComponent(tenantId)}/welcome/channels`, {
+        credentials: "include", cache: "no-store", headers: jsonHeaders,
+      }),
+    ]);
+    if (status.kind !== "ready") return status;
+    if (!channelResponse.ok) return { kind: "unavailable" };
+    const channels = (await channelResponse.json()) as WelcomeChannel[];
+    if (!Array.isArray(channels)) return { kind: "unavailable" };
+    return { kind: "ready", body: status.body, channels };
+  } catch {
+    return { kind: "unavailable" };
+  }
+}
+
+export async function readProgression(tenantId: string): Promise<
+  | { kind: "ready"; body: ProgressionBody }
+  | { kind: "unauthenticated" }
+  | { kind: "no-access" }
+  | { kind: "unavailable" }
+> {
+  try {
+    const response = await fetch(`/api/v1/guilds/${encodeURIComponent(tenantId)}/progression`, {
+      credentials: "include", cache: "no-store", headers: jsonHeaders,
+    });
+    const access = guildHomeAccess(response.status);
+    if (access === "unauthenticated") return { kind: "unauthenticated" };
+    if (access === "no-access") return { kind: "no-access" };
+    if (access !== "ok") return { kind: "unavailable" };
+    return { kind: "ready", body: (await response.json()) as ProgressionBody };
+  } catch {
+    return { kind: "unavailable" };
+  }
+}
+
+export async function publishProgression(
+  tenantId: string,
+  channelId: string,
+  award: number,
+): Promise<"done" | "unauthenticated" | "no-access" | "invalid" | "unavailable"> {
+  const csrf = await readCsrfToken();
+  if (csrf.kind !== "token") return csrf.kind;
+  try {
+    const response = await fetch(`/api/v1/guilds/${encodeURIComponent(tenantId)}/progression`, {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      headers: { ...jsonHeaders, "content-type": "application/json", "x-csrf-token": csrf.value },
+      body: JSON.stringify({ channel_id: channelId, award }),
+    });
+    if (response.status === 201) return "done";
+    if (response.status === 401) return "unauthenticated";
+    if (response.status === 404 || response.status === 403) return "no-access";
+    if (response.status === 400) return "invalid";
+    return "unavailable";
+  } catch {
+    return "unavailable";
+  }
+}
+
 export async function publishWelcome(tenantId: string, channelId: string, body: string): Promise<
   "done" | "unauthenticated" | "no-access" | "invalid" | "unavailable"
 > {

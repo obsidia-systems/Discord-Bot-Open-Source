@@ -14,7 +14,7 @@ Program locks (greenfield Tobot, Rust platform, twin-track, money late) are in t
 |---|---|
 | Status | Sequence only |
 | Authority | 01–23 remain normative |
-| Next plan | `roadmap/S04-community-xp.md` |
+| Next plan | S5, not written yet. Last plan: `roadmap/S04-community-xp.md` |
 
 ## 1. What becomes true, in order
 
@@ -119,4 +119,4 @@ Those four facts are demonstrated. The running cookie origin is `dash.*`, record
 
 ## 7. Next
 
-`roadmap/S04-community-xp.md` is the current slice plan. It chooses text XP for one channel. Starboard stays closed. S3's one-role outcome is recorded in `roadmap/S03-roles-self-service.md`; replay, bot-join, SIGKILL, and the remaining publish rejections stay open there. S2's SIGKILL and blocked-channel steps stay open in `roadmap/S02-messaging-proof.md`. Implement S4 from the S4 file. Do not plan S5 in the same pass.
+`roadmap/S04-community-xp.md` records the S4 outcome: a human message in the published channel awards XP, and another channel does not. A bot message in that channel and the SIGKILL of Control Plane stay open there. S3's open demo steps stay in `roadmap/S03-roles-self-service.md`. S2's SIGKILL and blocked-channel steps stay open in `roadmap/S02-messaging-proof.md`. The next plan is S5, Support. The plan file is not written yet.

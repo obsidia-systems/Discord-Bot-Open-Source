@@ -74,6 +74,10 @@ owner_store!(
     AssignmentStore,
     "Automatic-role revisions, assignment intents, and the assignment outbox. No other facade writes these rows."
 );
+owner_store!(
+    ProgressionStore,
+    "Text XP revisions, the append-only ledger, and the progression outbox. No other facade writes these rows."
+);
 
 /// The facades Control Plane is allowed to hold. The projector receives
 /// installation and query on their own; this bundle does not add cross-module methods.
@@ -85,6 +89,7 @@ pub struct ControlPlaneDatabase {
     pub moderation: ModerationStore,
     pub lifecycle: LifecycleStore,
     pub assignment: AssignmentStore,
+    pub progression: ProgressionStore,
 }
 
 impl ControlPlaneDatabase {
@@ -99,7 +104,8 @@ impl ControlPlaneDatabase {
             query: QueryStore { pool: pool.clone() },
             moderation: ModerationStore { pool: pool.clone() },
             lifecycle: LifecycleStore { pool: pool.clone() },
-            assignment: AssignmentStore { pool },
+            assignment: AssignmentStore { pool: pool.clone() },
+            progression: ProgressionStore { pool },
         })
     }
 }

@@ -8,6 +8,7 @@ use tobot_envelope::{EventEnvelope, TraceContext};
 use uuid::Uuid;
 
 mod assignment;
+mod progression;
 mod edge;
 mod edge_relay;
 mod identity;
@@ -18,13 +19,15 @@ mod owners;
 mod query;
 
 pub use assignment::{NewRoleJoin, RoleIntent, RoleJoin, RoleRevision, RoleStatus};
+pub use progression::{NewTextMessage, XpDecision, XpEntry, XpRevision, XpStatus};
 pub use messaging::{
     JoinDecision, MessageIntent, MessagingOutbox, NewJoin, WelcomeRevision, WelcomeStatus,
 };
 pub use moderation::{ModerationCaseRecord, NewModerationCase, PinnedPolicy};
 pub use owners::{
     AssignmentStore, ControlPlaneDatabase, DeliveryIntentStore, EdgeRelayStore, EdgeStore,
-    IdentityStore, InstallationStore, LifecycleStore, Migrations, ModerationStore, QueryStore,
+    IdentityStore, InstallationStore, LifecycleStore, Migrations, ModerationStore,
+    ProgressionStore, QueryStore,
 };
 
 pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!();

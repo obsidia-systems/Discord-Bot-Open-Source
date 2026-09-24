@@ -332,19 +332,21 @@ async fn run_gateway(
                 }
             }
             Event::MessageCreate(message) => {
-                if let Some(nonce) = &raw_nonce
-                    && let Some(guild_id) = message.guild_id
-                {
+                if let Some(guild_id) = message.guild_id {
                     let guild_id = guild_id.to_string();
                     persist_gateway_dispatch(
                         shard,
                         store,
                         application_id,
                         Some(&guild_id),
-                        serde_json::json!({"dispatch":"MessageCreate",
-                                "channel_id":message.channel_id.to_string(),
-                                "message_id":message.id.to_string(),
-                                "author_id":message.author.id.to_string(),"nonce":nonce}),
+                        message_create_observation(
+                            &message.channel_id.to_string(),
+                            &message.id.to_string(),
+                            &message.author.id.to_string(),
+                            message.author.bot,
+                            message.webhook_id.is_some(),
+                            raw_nonce.as_deref(),
+                        ),
                     )
                     .await;
                 }
@@ -365,6 +367,29 @@ async fn run_gateway(
         persist_session(shard, store).await?;
     }
     Ok(())
+}
+
+/// Identity of a guild message. Content, embeds, and attachments stay off the bus.
+fn message_create_observation(
+    channel_id: &str,
+    message_id: &str,
+    author_id: &str,
+    author_bot: bool,
+    webhook: bool,
+    nonce: Option<&str>,
+) -> serde_json::Value {
+    let mut payload = serde_json::json!({
+        "dispatch": "MessageCreate",
+        "channel_id": channel_id,
+        "message_id": message_id,
+        "author_id": author_id,
+        "author_bot": author_bot,
+        "webhook": webhook,
+    });
+    if let Some(nonce) = nonce {
+        payload["nonce"] = serde_json::Value::String(nonce.to_owned());
+    }
+    payload
 }
 
 fn message_create_nonce(raw: &str) -> Option<String> {
@@ -1017,7 +1042,7 @@ fn elapsed_ms(started: Instant) -> u64 {
 mod tests {
     use super::{
         EdgeHealth, EdgeMetricsState, gateway_close_requires_stop, gateway_metrics_router,
-        message_create_nonce,
+        message_create_nonce, message_create_observation,
     };
     use axum::{body::Body, http::Request};
     use tobot_discord_adapter::shard_is_ready;
@@ -1028,6 +1053,13 @@ mod tests {
     fn nonce_is_kept_from_raw_message_create_and_4014_stops_identify() {
         let raw = r#"{"t":"MESSAGE_CREATE","d":{"nonce":"123456","id":"999"}}"#;
         assert_eq!(message_create_nonce(raw).as_deref(), Some("123456"));
+        let member = message_create_observation("10", "20", "30", false, false, None);
+        assert!(member.get("content").is_none());
+        assert_eq!(member["author_bot"].as_bool(), Some(false));
+        assert!(member.get("nonce").is_none());
+        let own = message_create_observation("10", "20", "30", true, false, Some("123456"));
+        assert_eq!(own["nonce"], "123456");
+        assert!(own.get("content").is_none());
         assert_eq!(
             message_create_nonce(r#"{"t":"GUILD_MEMBER_ADD","d":{"nonce":"123456"}}"#),
             None

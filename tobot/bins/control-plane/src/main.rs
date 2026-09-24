@@ -2,6 +2,7 @@
 //! app origin when the reverse proxy forwards these paths to this binary.
 
 mod cases_http;
+mod progression;
 mod roles;
 mod welcome;
 
@@ -117,6 +118,7 @@ struct AppState {
     moderation: ModerationStore,
     lifecycle: LifecycleStore,
     assignment: tobot_persistence::AssignmentStore,
+    progression: tobot_persistence::ProgressionStore,
     welcome_delivery: WelcomeDeliveryClient,
     role_delivery: tobot_delivery_client::RoleDeliveryClient,
     cases_gateway: cases_http::DeliveryGateway,
@@ -237,6 +239,24 @@ async fn main() -> anyhow::Result<()> {
         "role-status-s3",
         "control-plane",
     )?;
+    let progression_store = database.progression.clone();
+    let progression_api = database.progression.clone();
+    let progression_consumer = RedisStreamConsumer::connect(
+        config.redis_url.expose_for_adapter(),
+        "progression-s4",
+        "control-plane",
+    )
+    .context("cannot construct progression consumer")?;
+    let progression_relay = MessagingOutboxRelay::new(
+        MessagingOutbox::Progression(database.progression.clone()),
+        RedisStreamPublisher::connect(config.redis_url.expose_for_adapter())?,
+    );
+    let xp_query = database.query.clone();
+    let xp_consumer = RedisStreamConsumer::connect(
+        config.redis_url.expose_for_adapter(),
+        "xp-status-s4",
+        "control-plane",
+    )?;
     let metrics_state = MetricsState {
         identity: database.identity.clone(),
         installation: database.installation.clone(),
@@ -266,6 +286,7 @@ async fn main() -> anyhow::Result<()> {
         moderation: database.moderation,
         lifecycle: lifecycle_api_store,
         assignment: assignment_api,
+        progression: progression_api,
         welcome_delivery,
         role_delivery,
         cases_gateway: gateway,
@@ -302,10 +323,13 @@ async fn main() -> anyhow::Result<()> {
         result = welcome::run_lifecycle(lifecycle_worker_store.clone(), delivery_intents, lifecycle_consumer, welcome_dispatch) => result,
         result = welcome::run_lifecycle_relay(lifecycle_relay) => result,
         result = run_welcome_projector(welcome_query, welcome_consumer) => result,
-        result = roles::run_assignment(assignment_store, lifecycle_worker_store, assignment_consumer) => result,
+        result = roles::run_assignment(assignment_store, lifecycle_worker_store.clone(), assignment_consumer) => result,
         result = roles::run_assignment_worker(assignment_worker, role_worker_delivery) => result,
         result = roles::run_assignment_relay(assignment_relay) => result,
         result = run_role_projector(role_query, role_consumer) => result,
+        result = progression::run_progression(progression_store, lifecycle_worker_store, progression_consumer) => result,
+        result = progression::run_progression_relay(progression_relay) => result,
+        result = run_xp_projector(xp_query, xp_consumer) => result,
     }
 }
 
@@ -478,6 +502,21 @@ async fn run_case_projector(
         if let Err(cause) = project_cases(&query, &consumer).await {
             error!(error = %cause, "case projection paused");
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        }
+    }
+}
+
+async fn run_xp_projector(
+    query: QueryStore,
+    consumer: RedisStreamConsumer,
+) -> anyhow::Result<()> {
+    loop {
+        match progression::project_xp(&query, &consumer).await {
+            Ok(()) => {}
+            Err(error) => {
+                tracing::error!(%error, "xp projection paused");
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
         }
     }
 }
@@ -766,6 +805,10 @@ fn router(state: AppState) -> Router {
         .route(
             "/api/v1/guilds/{tenant_id}/roles/catalog",
             get(roles::catalog),
+        )
+        .route(
+            "/api/v1/guilds/{tenant_id}/progression",
+            get(progression::get_progression).post(progression::publish),
         )
         .route(
             "/internal/v1/moderation/actions",
