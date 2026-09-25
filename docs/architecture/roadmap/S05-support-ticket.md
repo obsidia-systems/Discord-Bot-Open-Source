@@ -13,6 +13,7 @@
 | Not opened | Support Resource Orchestrator, Support Archive, Form Workflow, and doc 10 beyond the tables this slice creates. |
 | Inherited from the running slices | Cookie origin is `dash.tobot.test`. Product Discord HTTP stays on Delivery. `GET /gateway/bot` stays on Edge. One stream `tobot:events:v1`. Consumer groups `query-status-s0`, `case-status-s1`, `lifecycle-s2`, `assignment-s3`, `role-status-s3`, `progression-s4`, and `xp-status-s4` are not renamed. Cases, Lifecycle, Assignment, and Progression stay inside Control Plane. No fourth process. Delivery already ignores an envelope leaf it does not reconcile, so a new support fact does not pause welcome nonce reconciliation. |
 | Explicit dependency | S1. The dashboard session is the staff actor. A Discord role is not that authority. |
+| Next-slice decision | The S5 twin-track outcome is demonstrated, so S6 planning and implementation may proceed under 26 §1. WP6 remains Partial and S5 is not signed off: the pending live checks stay in this ledger and must not be represented as passed by S6 work. |
 | S0 release gates | Stay open. This plan does not mark them Complete. |
 
 This is an implementation plan, not an amendment to RFC sections 01–23. Where it conflicts with an RFC, the RFC wins.
@@ -258,3 +259,14 @@ Updated as packages land. A package is Complete only when its exit evidence exis
 | WP4 — Admission | Complete | `support-s5` consumes the deferred click and edits its original response through Delivery. The PostgreSQL proofs above confirm one case/number for duplicate and concurrent clicks and no number for a mismatched button. |
 | WP5 — Inbox | Complete | `pnpm --filter @tobot/dash check` and `pnpm --filter @tobot/dash build` pass. The inbox reuses the S1 cookie/CSRF and guild-access guards, lists the Query projection, and sends versioned claim/close commands. |
 | WP6 — Demo | Partial | On 2026-09-25, guild tenant `01a0c830-c467-70fb-a89e-40a77dc81748` had panel message `1552591485075988531` in `#incidents`. The non-bot member saw ephemeral “Ticket #1 is open”; the inbox showed case `01a0d791-8815-71ff-a321-5740d5c8ccea` as `Open`. A second click said it was already open. The dashboard claimed and closed #1, then the member opened #2 (`01a0d792-e775-7680-bdeb-15df46f05287`); #2 was closed after the test. With Control Plane stopped by SIGKILL *before* the click, Discord deferred the response; after restart it returned “Ticket #3 is open” once (`01a0d793-c85b-7342-b996-c34912ea9ed5`), and #3 was closed after the test. This checks queued recovery but not the exact after-defer crash window in step 8. Step 5's stale-version repetition and step 7's live token mismatch remain open. The PostgreSQL regression `postgres_edge_interaction` passes against disposable `tobot_test`; it checks the UTF-8 `partition_key` on both interaction outbox writes. Current installation generation 11 remains `Installed`; older generations 9 and 10 were already `Degraded`. |
+
+### WP6 carry-forward decision
+
+These checks are **not blockers for starting S6**: S5's Discord button, ephemeral response, persisted case, and dashboard claim/close outcome were observed end to end. They remain **blockers for marking WP6 and S5 Complete**, and must be resolved in S5 rather than silently counted as S6 evidence.
+
+| Open evidence | Current evidence | Closure required in S5 |
+|---|---|---|
+| Stale claim version, §9 step 5 | The `tobot_test` case-version proof passes; the live dashboard repeat with the old version was not run. | Submit the old version after a successful claim and record that the case is unchanged. |
+| Mismatched button token, §9 step 7 | The `tobot_test` binding proof rejects a mismatch; no live Discord mismatch was sent. | Record one live mismatched-token click and show that no case or number was allocated. |
+| Exact crash window, §9 step 8 | SIGKILL before the click demonstrated queued recovery and one ticket; it did not kill Control Plane between the defer and `SupportCaseOpened`. | Run the specified after-defer crash window and record the response, elapsed recovery time, and single case/number. |
+| Two `Installed` generations, §9 step 2 | Generation 11 remained `Installed`; generations 9 and 10 were already `Degraded` before this demo. | Use a fixture with two baseline `Installed` rows, or explicitly amend this demo criterion and record the baseline and result. |

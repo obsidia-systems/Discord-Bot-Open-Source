@@ -14,7 +14,7 @@ Program locks (greenfield Tobot, Rust platform, twin-track, money late) are in t
 |---|---|
 | Status | Sequence only |
 | Authority | 01–23 remain normative |
-| Next plan | `roadmap/S05-support-ticket.md` |
+| Next plan | S6 Guild ledger (plan not drafted). S5's twin-track outcome is demonstrated; its WP6 live checks remain tracked in `roadmap/S05-support-ticket.md`. |
 
 ## 1. What becomes true, in order
 
@@ -119,4 +119,4 @@ Those four facts are demonstrated. The running cookie origin is `dash.*`, record
 
 ## 7. Next
 
-`roadmap/S05-support-ticket.md` is the current slice plan. It chooses one button panel and an inbox claim and close. A private ticket channel stays closed. S4's bot-message and SIGKILL steps stay open in `roadmap/S04-community-xp.md`. S3's open demo steps stay in `roadmap/S03-roles-self-service.md`. S2's SIGKILL and blocked-channel steps stay open in `roadmap/S02-messaging-proof.md`. Implement S5 from the S5 file. Do not plan S6 in the same pass.
+S5's one-button panel, ephemeral ticket opening, and inbox claim/close were demonstrated on a live guild. Its `roadmap/S05-support-ticket.md` WP6 remains Partial: stale-version repetition, a live mismatched-token click, the exact after-defer SIGKILL window, and the two-`Installed`-generation criterion are still recorded there. Those checks block S5 sign-off, not the start of S6 planning or implementation. The next plan to draft is S6 Guild ledger; apply its own conserved-plane gates without treating open S5 evidence as passed. S4's bot-message and SIGKILL steps stay open in `roadmap/S04-community-xp.md`. S3's open demo steps stay in `roadmap/S03-roles-self-service.md`. S2's SIGKILL and blocked-channel steps stay open in `roadmap/S02-messaging-proof.md`.
