@@ -4,6 +4,7 @@
 mod cases_http;
 mod progression;
 mod roles;
+mod support;
 mod welcome;
 
 use std::{collections::HashMap, net::SocketAddr};
@@ -119,6 +120,8 @@ struct AppState {
     lifecycle: LifecycleStore,
     assignment: tobot_persistence::AssignmentStore,
     progression: tobot_persistence::ProgressionStore,
+    support: tobot_persistence::SupportStore,
+    support_delivery: tobot_delivery_client::SupportDeliveryClient,
     welcome_delivery: WelcomeDeliveryClient,
     role_delivery: tobot_delivery_client::RoleDeliveryClient,
     cases_gateway: cases_http::DeliveryGateway,
@@ -216,7 +219,10 @@ async fn main() -> anyhow::Result<()> {
     )?;
     let role_delivery = tobot_delivery_client::RoleDeliveryClient::new(
         &config.delivery_url,
-        config.internal_service_token.expose_for_adapter().to_owned(),
+        config
+            .internal_service_token
+            .expose_for_adapter()
+            .to_owned(),
     )
     .context("cannot construct role delivery client")?;
     let role_worker_delivery = role_delivery.clone();
@@ -257,6 +263,30 @@ async fn main() -> anyhow::Result<()> {
         "xp-status-s4",
         "control-plane",
     )?;
+    let support_delivery = tobot_delivery_client::SupportDeliveryClient::new(
+        &config.delivery_url,
+        config
+            .internal_service_token
+            .expose_for_adapter()
+            .to_owned(),
+    )?;
+    let support_worker_delivery = support_delivery.clone();
+    let support_worker = database.support.clone();
+    let support_consumer = RedisStreamConsumer::connect(
+        config.redis_url.expose_for_adapter(),
+        "support-s5",
+        "control-plane",
+    )?;
+    let support_relay = MessagingOutboxRelay::new(
+        MessagingOutbox::Support(database.support.clone()),
+        RedisStreamPublisher::connect(config.redis_url.expose_for_adapter())?,
+    );
+    let support_query = database.query.clone();
+    let support_status_consumer = RedisStreamConsumer::connect(
+        config.redis_url.expose_for_adapter(),
+        "support-status-s5",
+        "control-plane",
+    )?;
     let metrics_state = MetricsState {
         identity: database.identity.clone(),
         installation: database.installation.clone(),
@@ -287,6 +317,8 @@ async fn main() -> anyhow::Result<()> {
         lifecycle: lifecycle_api_store,
         assignment: assignment_api,
         progression: progression_api,
+        support: database.support,
+        support_delivery,
         welcome_delivery,
         role_delivery,
         cases_gateway: gateway,
@@ -330,6 +362,9 @@ async fn main() -> anyhow::Result<()> {
         result = progression::run_progression(progression_store, lifecycle_worker_store, progression_consumer) => result,
         result = progression::run_progression_relay(progression_relay) => result,
         result = run_xp_projector(xp_query, xp_consumer) => result,
+        result = support::run_support(support_worker, support_worker_delivery, support_consumer) => result,
+        result = support::run_support_relay(support_relay) => result,
+        result = support::run_support_projector(support_query, support_status_consumer) => result,
     }
 }
 
@@ -506,10 +541,7 @@ async fn run_case_projector(
     }
 }
 
-async fn run_xp_projector(
-    query: QueryStore,
-    consumer: RedisStreamConsumer,
-) -> anyhow::Result<()> {
+async fn run_xp_projector(query: QueryStore, consumer: RedisStreamConsumer) -> anyhow::Result<()> {
     loop {
         match progression::project_xp(&query, &consumer).await {
             Ok(()) => {}
@@ -809,6 +841,19 @@ fn router(state: AppState) -> Router {
         .route(
             "/api/v1/guilds/{tenant_id}/progression",
             get(progression::get_progression).post(progression::publish),
+        )
+        .route("/api/v1/guilds/{tenant_id}/support", get(support::inbox))
+        .route(
+            "/api/v1/guilds/{tenant_id}/support/panel",
+            get(support::panel_status).post(support::publish),
+        )
+        .route(
+            "/api/v1/guilds/{tenant_id}/support/{case_id}/claim",
+            post(support::claim),
+        )
+        .route(
+            "/api/v1/guilds/{tenant_id}/support/{case_id}/close",
+            post(support::close),
         )
         .route(
             "/internal/v1/moderation/actions",

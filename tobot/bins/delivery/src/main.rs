@@ -113,6 +113,11 @@ fn delivery_router(state: Arc<DeliveryState>) -> Router {
             post(observe_timeout),
         )
         .route("/internal/v1/interactions/followup", post(follow_up))
+        .route("/internal/v1/support/panel", post(create_support_panel))
+        .route(
+            "/internal/v1/support/deferred-edit",
+            post(edit_support_response),
+        )
         .route("/internal/v1/messages/text-channels", post(text_channels))
         .route("/internal/v1/messages/create", post(create_message))
         .route("/internal/v1/roles/catalog", post(role_catalog))
@@ -371,6 +376,45 @@ async fn follow_up(
     }
 }
 
+async fn create_support_panel(
+    State(state): State<Arc<DeliveryState>>,
+    headers: HeaderMap,
+    Json(request): Json<tobot_discord_adapter::SupportPanelMessage>,
+) -> Response {
+    if !authorized(&headers, &state.service_token) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    match state.transport.create_support_panel(&request).await {
+        Ok(message_id) => Json(serde_json::json!({"message_id":message_id})).into_response(),
+        Err(error) => {
+            warn!(status=%transport_status(&error), %error, "support panel delivery failed");
+            transport_status(&error).into_response()
+        }
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct SupportEditRequest {
+    callback: InteractionCallback,
+    content: String,
+}
+
+async fn edit_support_response(
+    State(state): State<Arc<DeliveryState>>,
+    headers: HeaderMap,
+    Json(request): Json<SupportEditRequest>,
+) -> StatusCode {
+    if !authorized(&headers, &state.service_token) {
+        return StatusCode::UNAUTHORIZED;
+    }
+    status_for(
+        &state
+            .transport
+            .edit_deferred_support_response(&request.callback, &request.content)
+            .await,
+    )
+}
+
 fn transport_class(error: &TransportError) -> &'static str {
     match error {
         TransportError::RateLimited { .. } => "RateLimited",
@@ -540,7 +584,10 @@ async fn member_roles(
     if !authorized(&headers, &state.service_token) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
-    let (Ok(guild_id), Ok(user_id)) = (request.guild_id.parse::<u64>(), request.user_id.parse::<u64>()) else {
+    let (Ok(guild_id), Ok(user_id)) = (
+        request.guild_id.parse::<u64>(),
+        request.user_id.parse::<u64>(),
+    ) else {
         return StatusCode::BAD_REQUEST.into_response();
     };
     match state.transport.member_roles(guild_id, user_id).await {

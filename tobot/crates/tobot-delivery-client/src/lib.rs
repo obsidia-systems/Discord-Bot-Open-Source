@@ -8,10 +8,12 @@ use tobot_discord_adapter::{DiscordTransport, InteractionCallback, TransportErro
 
 mod cases;
 mod role;
+mod support;
 mod welcome;
 
 pub use cases::{CasesDeliveryClient, ModerationCommandClient, ModerationCommandResponse};
 pub use role::RoleDeliveryClient;
+pub use support::SupportDeliveryClient;
 pub use welcome::WelcomeDeliveryClient;
 
 pub(crate) fn classify_status(status: u16) -> TransportError {

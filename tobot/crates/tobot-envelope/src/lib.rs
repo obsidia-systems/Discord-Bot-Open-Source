@@ -50,6 +50,12 @@ pub enum S0EventName {
     ProgressionPolicyPublished,
     XpAwardRecorded,
     LevelChanged,
+    TicketTemplatePublished,
+    SupportPanelPublished,
+    SupportPanelInteractionAccepted,
+    SupportCaseOpened,
+    SupportCaseClaimed,
+    SupportCaseClosed,
 }
 
 impl TryFrom<&str> for S0EventName {
@@ -84,6 +90,12 @@ impl TryFrom<&str> for S0EventName {
             "ProgressionPolicyPublished" => Ok(Self::ProgressionPolicyPublished),
             "XpAwardRecorded" => Ok(Self::XpAwardRecorded),
             "LevelChanged" => Ok(Self::LevelChanged),
+            "TicketTemplatePublished" => Ok(Self::TicketTemplatePublished),
+            "SupportPanelPublished" => Ok(Self::SupportPanelPublished),
+            "SupportPanelInteractionAccepted" => Ok(Self::SupportPanelInteractionAccepted),
+            "SupportCaseOpened" => Ok(Self::SupportCaseOpened),
+            "SupportCaseClaimed" => Ok(Self::SupportCaseClaimed),
+            "SupportCaseClosed" => Ok(Self::SupportCaseClosed),
             _ => Err(EnvelopeError::UnsupportedSchemaName(value.to_owned())),
         }
     }
@@ -143,6 +155,8 @@ pub enum EnvelopeError {
     InvalidAutomaticRole,
     #[error("progression revision is invalid")]
     InvalidProgression,
+    #[error("support panel revision is invalid")]
+    InvalidSupportPanel,
 }
 
 /// Permission bits an automatic role must not grant.
@@ -260,7 +274,12 @@ pub fn validate_progression(payload: &Value) -> Result<(), EnvelopeError> {
     {
         return Err(EnvelopeError::InvalidProgression);
     }
-    if payload.get("multiplier").and_then(Value::as_i64).unwrap_or(1) != 1 {
+    if payload
+        .get("multiplier")
+        .and_then(Value::as_i64)
+        .unwrap_or(1)
+        != 1
+    {
         return Err(EnvelopeError::InvalidProgression);
     }
     if payload.get("content_rule").is_some()
@@ -275,6 +294,46 @@ pub fn validate_progression(payload: &Value) -> Result<(), EnvelopeError> {
             .is_some_and(|channel| !channel.is_empty())
     {
         return Err(EnvelopeError::InvalidProgression);
+    }
+    Ok(())
+}
+
+/// S5 admite un solo botón de texto, sin formulario, recurso ni espera.
+/// # Errors
+/// Devuelve un error ante campos no admitidos o valores de Discord inválidos.
+pub fn validate_support_panel(payload: &Value) -> Result<(), EnvelopeError> {
+    let object = payload
+        .as_object()
+        .ok_or(EnvelopeError::InvalidSupportPanel)?;
+    if object.keys().any(|key| {
+        !matches!(
+            key.as_str(),
+            "guild_id" | "channel_id" | "button_label" | "cooldown_seconds"
+        )
+    }) {
+        return Err(EnvelopeError::InvalidSupportPanel);
+    }
+    let guild = payload
+        .get("guild_id")
+        .and_then(Value::as_str)
+        .ok_or(EnvelopeError::InvalidSupportPanel)?;
+    let channel = payload
+        .get("channel_id")
+        .and_then(Value::as_str)
+        .ok_or(EnvelopeError::InvalidSupportPanel)?;
+    let label = payload
+        .get("button_label")
+        .and_then(Value::as_str)
+        .ok_or(EnvelopeError::InvalidSupportPanel)?;
+    if !snowflake(guild)
+        || !snowflake(channel)
+        || label.trim().is_empty()
+        || label.chars().count() > 80
+        || label.contains("@everyone")
+        || label.contains("@here")
+        || payload.get("cooldown_seconds").and_then(Value::as_i64) != Some(0)
+    {
+        return Err(EnvelopeError::InvalidSupportPanel);
     }
     Ok(())
 }
@@ -381,6 +440,7 @@ pub enum S0CommandName {
     PublishWelcomeRevision,
     PublishAutomaticRoleRevision,
     PublishProgressionRevision,
+    PublishSupportPanel,
 }
 
 impl TryFrom<&str> for S0CommandName {
@@ -394,6 +454,7 @@ impl TryFrom<&str> for S0CommandName {
             "PublishWelcomeRevision" => Ok(Self::PublishWelcomeRevision),
             "PublishAutomaticRoleRevision" => Ok(Self::PublishAutomaticRoleRevision),
             "PublishProgressionRevision" => Ok(Self::PublishProgressionRevision),
+            "PublishSupportPanel" => Ok(Self::PublishSupportPanel),
             _ => Err(EnvelopeError::UnsupportedSchemaName(value.to_owned())),
         }
     }
@@ -484,6 +545,9 @@ impl CommandEnvelope {
         }
         if command_name == S0CommandName::PublishProgressionRevision {
             validate_progression(&command.payload)?;
+        }
+        if command_name == S0CommandName::PublishSupportPanel {
+            validate_support_panel(&command.payload)?;
         }
         Ok(ParsedCommand {
             command,
@@ -904,6 +968,75 @@ mod tests {
                 S0EventName::try_from(name),
                 Err(EnvelopeError::UnsupportedSchemaName(_))
             ));
+        }
+    }
+
+    #[test]
+    fn support_panel_contract_is_one_button_and_fail_closed() {
+        let mut command = CommandEnvelope {
+            command_id: Uuid::now_v7(),
+            schema_name: "PublishSupportPanel".to_owned(),
+            schema_version: 1,
+            actor_account_id: Uuid::now_v7(),
+            tenant_id: Uuid::now_v7(),
+            idempotency_key: Uuid::now_v7(),
+            deadline_at: "2026-09-25T00:00:00Z".to_owned(),
+            correlation_id: Uuid::now_v7(),
+            trace_context: TraceContext {
+                trace_id: "trace".to_owned(),
+                span_id: "span".to_owned(),
+            },
+            payload: serde_json::json!({"guild_id":"100","channel_id":"200",
+                "button_label":"Open ticket","cooldown_seconds":0}),
+        };
+        let raw =
+            serde_json::to_vec(&command).unwrap_or_else(|error| panic!("encode failed: {error}"));
+        assert_eq!(
+            CommandEnvelope::parse_s0(&raw).map(|p| p.command_name),
+            Ok(S0CommandName::PublishSupportPanel)
+        );
+        for (key, value) in [
+            ("mode", serde_json::json!("select")),
+            ("form_id", serde_json::json!("x")),
+            ("staff_role_id", serde_json::json!("300")),
+            ("parent_category_id", serde_json::json!("400")),
+            ("cooldown_seconds", serde_json::json!(1)),
+            ("button_label", serde_json::json!("@everyone")),
+            ("channel_id", serde_json::json!("")),
+        ] {
+            let original = command.payload.clone();
+            command.payload[key] = value;
+            let raw = serde_json::to_vec(&command)
+                .unwrap_or_else(|error| panic!("encode failed: {error}"));
+            assert_eq!(
+                CommandEnvelope::parse_s0(&raw).err(),
+                Some(EnvelopeError::InvalidSupportPanel)
+            );
+            command.payload = original;
+        }
+        for name in [
+            "TicketTemplatePublished",
+            "SupportPanelPublished",
+            "SupportPanelInteractionAccepted",
+            "SupportCaseOpened",
+            "SupportCaseClaimed",
+            "SupportCaseClosed",
+        ] {
+            assert!(S0EventName::try_from(name).is_ok());
+        }
+        for name in [
+            "SupportResourceRequested",
+            "SupportTranscriptRequested",
+            "SupportArchiveCompleted",
+            "SupportCaseWaiting",
+            "SupportCaseEscalated",
+            "SupportCaseResolved",
+            "SupportCaseReopened",
+            "SupportCaseBlocked",
+            "SupportIntakeRequested",
+            "SupportFormPublished",
+        ] {
+            assert!(S0EventName::try_from(name).is_err());
         }
     }
 }

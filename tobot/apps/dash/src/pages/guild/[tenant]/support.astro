@@ -1,0 +1,18 @@
+---
+import AppHeader from "../../../components/AppHeader.astro";
+import { SupportInboxView } from "../../../components/SupportInboxView";
+import ShellLayout from "../../../layouts/ShellLayout.astro";
+import { SESSION_COOKIE } from "../../../lib/session";
+import { isTenantId } from "../../../lib/shell-state";
+
+const session = Astro.cookies.get(SESSION_COOKIE);
+if (!session?.value) return Astro.redirect("/auth/login");
+const tenant = Astro.params.tenant ?? "";
+---
+
+<ShellLayout title="Support tickets">
+  <AppHeader />
+  <main id="content" class="mx-auto w-full max-w-2xl px-6 pb-16">
+    {isTenantId(tenant) ? <SupportInboxView client:load tenantId={tenant} /> : <p role="alert">No access to this server.</p>}
+  </main>
+</ShellLayout>

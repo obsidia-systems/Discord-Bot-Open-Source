@@ -100,6 +100,7 @@ where
         let acceptance = GatewayInteractionAcceptance {
             context,
             interaction_id: &callback.interaction_id.to_string(),
+            interaction_token: &callback.interaction_token,
             receipt_id: Uuid::now_v7(),
             expires_at: now + INTERACTION_LIFETIME,
             gateway_event,
@@ -124,7 +125,7 @@ where
                 let callback_result = match acknowledgement {
                     ProbeAcknowledgement::Immediate => self
                         .transport
-                        .respond_to_interaction(callback)
+                        .respond_to_interaction(callback.clone())
                         .await
                         .map(|()| {
                             (
@@ -132,14 +133,16 @@ where
                                 IngressOutcome::Acknowledged,
                             )
                         }),
-                    ProbeAcknowledgement::Deferred => {
-                        self.transport.defer_interaction(callback).await.map(|()| {
+                    ProbeAcknowledgement::Deferred => self
+                        .transport
+                        .defer_interaction(callback.clone())
+                        .await
+                        .map(|()| {
                             (
                                 InteractionAcknowledgement::Deferred,
                                 IngressOutcome::Deferred,
                             )
-                        })
-                    }
+                        }),
                 };
                 let callback_ms = elapsed_ms(started);
 

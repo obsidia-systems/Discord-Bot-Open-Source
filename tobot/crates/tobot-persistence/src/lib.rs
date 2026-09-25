@@ -8,7 +8,6 @@ use tobot_envelope::{EventEnvelope, TraceContext};
 use uuid::Uuid;
 
 mod assignment;
-mod progression;
 mod edge;
 mod edge_relay;
 mod identity;
@@ -16,10 +15,11 @@ mod installation;
 mod messaging;
 mod moderation;
 mod owners;
+mod progression;
 mod query;
+mod support;
 
 pub use assignment::{NewRoleJoin, RoleIntent, RoleJoin, RoleRevision, RoleStatus};
-pub use progression::{NewTextMessage, XpDecision, XpEntry, XpRevision, XpStatus};
 pub use messaging::{
     JoinDecision, MessageIntent, MessagingOutbox, NewJoin, WelcomeRevision, WelcomeStatus,
 };
@@ -27,8 +27,10 @@ pub use moderation::{ModerationCaseRecord, NewModerationCase, PinnedPolicy};
 pub use owners::{
     AssignmentStore, ControlPlaneDatabase, DeliveryIntentStore, EdgeRelayStore, EdgeStore,
     IdentityStore, InstallationStore, LifecycleStore, Migrations, ModerationStore,
-    ProgressionStore, QueryStore,
+    ProgressionStore, QueryStore, SupportStore,
 };
+pub use progression::{NewTextMessage, XpDecision, XpEntry, XpRevision, XpStatus};
+pub use support::{SupportCase, SupportClick, SupportDecision, SupportPanel, SupportTicketStatus};
 
 pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!();
 
@@ -91,6 +93,7 @@ pub struct GatewaySessionRecord {
 pub struct GatewayInteractionAcceptance<'a> {
     pub context: TenantContext,
     pub interaction_id: &'a str,
+    pub interaction_token: &'a str,
     pub receipt_id: Uuid,
     pub expires_at: OffsetDateTime,
     pub gateway_event: &'a EventEnvelope,

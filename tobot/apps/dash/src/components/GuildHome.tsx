@@ -185,6 +185,12 @@ export function GuildHome({ tenantId }: GuildHomeProps) {
           >
             Progression
           </a>
+          <a
+            className="ml-6 inline-block underline decoration-zinc-400 underline-offset-4 hover:decoration-zinc-950"
+            href={`/guild/${tenantId}/support`}
+          >
+            Support tickets
+          </a>
         </>
       ) : null}
       {view.kind === "removed" ? (

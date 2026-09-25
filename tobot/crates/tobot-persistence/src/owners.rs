@@ -78,6 +78,10 @@ owner_store!(
     ProgressionStore,
     "Text XP revisions, the append-only ledger, and the progression outbox. No other facade writes these rows."
 );
+owner_store!(
+    SupportStore,
+    "Support templates, panel bindings, cases, numbers and support outbox."
+);
 
 /// The facades Control Plane is allowed to hold. The projector receives
 /// installation and query on their own; this bundle does not add cross-module methods.
@@ -90,6 +94,7 @@ pub struct ControlPlaneDatabase {
     pub lifecycle: LifecycleStore,
     pub assignment: AssignmentStore,
     pub progression: ProgressionStore,
+    pub support: SupportStore,
 }
 
 impl ControlPlaneDatabase {
@@ -105,7 +110,8 @@ impl ControlPlaneDatabase {
             moderation: ModerationStore { pool: pool.clone() },
             lifecycle: LifecycleStore { pool: pool.clone() },
             assignment: AssignmentStore { pool: pool.clone() },
-            progression: ProgressionStore { pool },
+            progression: ProgressionStore { pool: pool.clone() },
+            support: SupportStore { pool },
         })
     }
 }

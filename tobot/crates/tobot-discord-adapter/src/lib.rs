@@ -13,7 +13,10 @@ use twilight_model::{
     },
     channel::{
         ChannelType,
-        message::{AllowedMentions, MessageFlags},
+        message::{
+            AllowedMentions, MessageFlags,
+            component::{ActionRow, Button, ButtonStyle, Component},
+        },
     },
     guild::Permissions,
     http::interaction::{InteractionResponse, InteractionResponseData, InteractionResponseType},
@@ -29,6 +32,7 @@ use twilight_model::{
 pub const DIAGNOSTIC_COMMAND_NAME: &str = "probe";
 pub const TIMEOUT_COMMAND_NAME: &str = "timeout";
 pub const DIAGNOSTIC_ACKNOWLEDGEMENT: &str = "Acknowledged.";
+pub const SUPPORT_PANEL_CONTENT: &str = "Need help? Open a support ticket.";
 pub const INTERACTION_ACK_DEADLINE_MS: u64 = 3_000;
 const DISCORD_EPOCH_MS: u64 = 1_420_070_400_000;
 const GATEWAY_BOT_PROBE_ATTEMPTS: u8 = 8;
@@ -43,6 +47,42 @@ pub struct GuildPresenceInspection {
 pub struct TextChannel {
     pub id: String,
     pub name: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SupportPanelMessage {
+    pub application_id: String,
+    pub channel_id: String,
+    pub content: String,
+    pub button_label: String,
+    pub custom_id: String,
+    pub nonce: u64,
+}
+
+fn support_panel_components(label: &str, custom_id: &str) -> [Component; 1] {
+    [Component::ActionRow(ActionRow {
+        id: None,
+        components: vec![Component::Button(Button {
+            id: None,
+            custom_id: Some(custom_id.to_owned()),
+            disabled: false,
+            emoji: None,
+            label: Some(label.to_owned()),
+            style: ButtonStyle::Primary,
+            url: None,
+            sku_id: None,
+        })],
+    })]
+}
+
+fn deferred_response(ephemeral: bool) -> InteractionResponse {
+    InteractionResponse {
+        kind: InteractionResponseType::DeferredChannelMessageWithSource,
+        data: Some(InteractionResponseData {
+            flags: ephemeral.then_some(MessageFlags::EPHEMERAL),
+            ..InteractionResponseData::default()
+        }),
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -812,6 +852,76 @@ impl TwilightTransport {
         Ok(message.id.to_string())
     }
 
+    /// Envía un mensaje de texto con exactamente un botón primario.
+    /// # Errors
+    /// Devuelve un error clasificado; no se repite un POST de resultado incierto sin reconciliarlo.
+    pub async fn create_support_panel(
+        &self,
+        request: &SupportPanelMessage,
+    ) -> Result<String, TransportError> {
+        let channel = request
+            .channel_id
+            .parse::<u64>()
+            .map_err(|_| TransportError::Rejected { status: 400 })?;
+        let channel = snowflake::<ChannelMarker>(channel)?;
+        let components = support_panel_components(&request.button_label, &request.custom_id);
+        self.preflight()?;
+        let response = self
+            .client
+            .create_message(channel)
+            .content(&request.content)
+            .nonce(request.nonce)
+            .allowed_mentions(Some(&AllowedMentions::default()))
+            .components(&components)
+            .await
+            .map_err(|error| {
+                tracing::warn!(discord_error=%error, "Discord support panel create failed");
+                self.noted(&error)
+            })?;
+        let message = response
+            .model()
+            .await
+            .map_err(|error| self.note_text(error))?;
+        let button_confirmed = matches!(message.components.as_slice(), [Component::ActionRow(row)]
+            if matches!(row.components.as_slice(), [Component::Button(button)]
+                if button.style == ButtonStyle::Primary
+                    && !button.disabled
+                    && button.custom_id.as_deref() == Some(request.custom_id.as_str())
+                    && button.label.as_deref() == Some(request.button_label.as_str())));
+        if message.channel_id != channel
+            || message.author.id.to_string() != request.application_id
+            || message.content != request.content
+            || !button_confirmed
+        {
+            return Err(TransportError::Unavailable(
+                "Discord panel confirmation did not match the requested binding".to_owned(),
+            ));
+        }
+        Ok(message.id.to_string())
+    }
+
+    /// Sustituye el mensaje efímero de espera.
+    /// # Errors
+    /// Devuelve un error clasificado de Discord.
+    pub async fn edit_deferred_support_response(
+        &self,
+        callback: &InteractionCallback,
+        content: &str,
+    ) -> Result<(), TransportError> {
+        let application = snowflake::<ApplicationMarker>(callback.application_id)?;
+        if callback.interaction_token.is_empty() || !callback.ephemeral {
+            return Err(TransportError::Rejected { status: 400 });
+        }
+        self.preflight()?;
+        self.client
+            .interaction(application)
+            .update_response(&callback.interaction_token)
+            .content(Some(content))
+            .await
+            .map_err(|error| self.noted(&error))?;
+        Ok(())
+    }
+
     /// Disposable guild-role read for publish and execution. This is not a catalog write.
     /// # Errors
     /// Returns a classified Discord transport error.
@@ -895,7 +1005,10 @@ impl TwilightTransport {
             .client
             .add_guild_member_role(guild_id, user_id, role_id)
             .reason(reason);
-        request.await.map(|_| ()).map_err(|error| self.noted(&error))
+        request
+            .await
+            .map(|_| ())
+            .map_err(|error| self.noted(&error))
     }
 
     #[must_use]
@@ -1340,10 +1453,7 @@ impl DiscordTransport for TwilightTransport {
     }
 
     async fn defer_interaction(&self, request: InteractionCallback) -> Result<(), TransportError> {
-        let response = InteractionResponse {
-            kind: InteractionResponseType::DeferredChannelMessageWithSource,
-            data: Some(Self::response_data(request.ephemeral, None)),
-        };
+        let response = deferred_response(request.ephemeral);
 
         self.create_response(request, response).await
     }
@@ -1352,6 +1462,25 @@ impl DiscordTransport for TwilightTransport {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn support_panel_has_one_primary_button_and_no_select() {
+        let value = serde_json::to_value(support_panel_components("Open ticket", "support:abc"))
+            .unwrap_or_else(|error| panic!("componentes inválidos: {error}"));
+        assert_eq!(value[0]["type"], 1);
+        assert_eq!(value[0]["components"].as_array().map(Vec::len), Some(1));
+        assert_eq!(value[0]["components"][0]["type"], 2);
+        assert_eq!(value[0]["components"][0]["style"], 1);
+        assert_eq!(value[0]["components"][0]["custom_id"], "support:abc");
+    }
+
+    #[test]
+    fn support_defer_is_type_five_and_ephemeral() {
+        let response = serde_json::to_value(deferred_response(true))
+            .unwrap_or_else(|error| panic!("respuesta inválida: {error}"));
+        assert_eq!(response["type"], 5);
+        assert_eq!(response["data"]["flags"], 64);
+    }
 
     #[test]
     fn assignment_step_reads_before_a_second_put() {
@@ -1382,12 +1511,18 @@ mod tests {
             position: 5,
             permissions: "0".to_owned(),
         };
-        assert_eq!(classify_target_role("1", &above, 5, 1 << 28), RolePreflight::Fail);
+        assert_eq!(
+            classify_target_role("1", &above, 5, 1 << 28),
+            RolePreflight::Fail
+        );
         let safe = GuildRoleView {
             position: 1,
             ..above
         };
-        assert_eq!(classify_target_role("1", &safe, 5, 1 << 28), RolePreflight::Ready);
+        assert_eq!(
+            classify_target_role("1", &safe, 5, 1 << 28),
+            RolePreflight::Ready
+        );
         assert_eq!(classify_target_role("1", &safe, 5, 0), RolePreflight::Fail);
     }
 

@@ -97,7 +97,7 @@ impl EdgeStore {
         .bind(context.tenant_id.as_uuid())
         .bind(event.event_id)
         .bind(&event.schema_name)
-        .bind(context.tenant_id.as_uuid())
+        .bind(context.tenant_id.as_uuid().to_string())
         .bind(raw)
         .execute(&mut *transaction)
         .await?;
@@ -120,6 +120,7 @@ impl EdgeStore {
         let GatewayInteractionAcceptance {
             context,
             interaction_id,
+            interaction_token,
             receipt_id,
             expires_at,
             gateway_event,
@@ -160,14 +161,15 @@ impl EdgeStore {
 
         let interaction_inserted = sqlx::query(
             "INSERT INTO edge.interaction_receipt \
-             (receipt_id, tenant_id, interaction_id, state, expires_at) \
-             VALUES ($1, $2, $3, 'Reserved', $4) \
+             (receipt_id, tenant_id, interaction_id, state, expires_at, interaction_token) \
+             VALUES ($1, $2, $3, 'Reserved', $4, $5) \
              ON CONFLICT (tenant_id, interaction_id) DO NOTHING",
         )
         .bind(receipt_id)
         .bind(context.tenant_id.as_uuid())
         .bind(interaction_id)
         .bind(expires_at)
+        .bind(interaction_token)
         .execute(&mut *transaction)
         .await?
         .rows_affected()
@@ -229,7 +231,7 @@ impl EdgeStore {
             .bind(context.tenant_id.as_uuid())
             .bind(event.event_id)
             .bind(&event.schema_name)
-            .bind(context.tenant_id.as_uuid())
+            .bind(context.tenant_id.as_uuid().to_string())
             .bind(raw)
             .execute(&mut *transaction)
             .await?;

@@ -22,8 +22,8 @@ use tobot_core::render_gauges;
 use tobot_delivery_client::{InternalDeliveryTransport, ModerationCommandClient};
 use tobot_discord_adapter::{
     DIAGNOSTIC_COMMAND_NAME, DiscordTransport, GatewayPhase, GatewaySessionStart,
-    InteractionCallback, ShardReadiness, TIMEOUT_COMMAND_NAME, acknowledgement_deadline_open,
-    interaction_created_ms, plan_gateway_session, shard_is_ready,
+    InteractionCallback, SUPPORT_PANEL_CONTENT, ShardReadiness, TIMEOUT_COMMAND_NAME,
+    acknowledgement_deadline_open, interaction_created_ms, plan_gateway_session, shard_is_ready,
 };
 use tobot_envelope::{EventEnvelope, TraceContext};
 use tobot_interaction_edge::{
@@ -38,6 +38,10 @@ use twilight_model::{
     application::interaction::{
         InteractionData,
         application_command::{CommandData, CommandOptionValue},
+    },
+    channel::{
+        Message as DiscordMessage,
+        message::component::{ButtonStyle, Component},
     },
     gateway::payload::incoming::InteractionCreate,
 };
@@ -346,6 +350,7 @@ async fn run_gateway(
                             message.author.bot,
                             message.webhook_id.is_some(),
                             raw_nonce.as_deref(),
+                            confirmed_support_button(message),
                         ),
                     )
                     .await;
@@ -377,6 +382,7 @@ fn message_create_observation(
     author_bot: bool,
     webhook: bool,
     nonce: Option<&str>,
+    support_button: Option<(&str, &str)>,
 ) -> serde_json::Value {
     let mut payload = serde_json::json!({
         "dispatch": "MessageCreate",
@@ -389,7 +395,31 @@ fn message_create_observation(
     if let Some(nonce) = nonce {
         payload["nonce"] = serde_json::Value::String(nonce.to_owned());
     }
+    if let Some((custom_id, label)) = support_button {
+        payload["support_custom_id"] = serde_json::Value::String(custom_id.to_owned());
+        payload["support_button_label"] = serde_json::Value::String(label.to_owned());
+    }
     payload
+}
+
+fn confirmed_support_button(message: &DiscordMessage) -> Option<(&str, &str)> {
+    if message.content != SUPPORT_PANEL_CONTENT {
+        return None;
+    }
+    let [Component::ActionRow(row)] = message.components.as_slice() else {
+        return None;
+    };
+    let [Component::Button(button)] = row.components.as_slice() else {
+        return None;
+    };
+    if button.style != ButtonStyle::Primary || button.disabled {
+        return None;
+    }
+    let custom_id = button.custom_id.as_deref()?;
+    let label = button.label.as_deref()?;
+    custom_id
+        .starts_with("support:")
+        .then_some((custom_id, label))
 }
 
 fn message_create_nonce(raw: &str) -> Option<String> {
@@ -808,6 +838,14 @@ async fn accept_interaction(
     if application_id != ingress.application_id {
         anyhow::bail!("received interaction for an unexpected application");
     }
+    if let Some(InteractionData::MessageComponent(data)) = &interaction.data {
+        if data.component_type == twilight_model::channel::message::component::ComponentType::Button
+            && data.custom_id.starts_with("support:")
+        {
+            return accept_support_button(ingress, &interaction, &data.custom_id).await;
+        }
+        return Ok(());
+    }
     let Some(InteractionData::ApplicationCommand(data)) = &interaction.data else {
         return Ok(());
     };
@@ -873,6 +911,78 @@ async fn accept_interaction(
         event_id = %interaction_event.event_id,
         "interaction receipt processed"
     );
+    Ok(())
+}
+
+async fn accept_support_button(
+    ingress: &InteractionDispatch<'_>,
+    interaction: &twilight_model::application::interaction::Interaction,
+    custom_id: &str,
+) -> anyhow::Result<()> {
+    let Some(guild_id) = interaction.guild_id.map(|id| id.to_string()) else {
+        return Ok(());
+    };
+    let Some(channel_id) = interaction
+        .channel
+        .as_ref()
+        .map(|channel| channel.id.to_string())
+    else {
+        return Ok(());
+    };
+    let Some(message_id) = interaction
+        .message
+        .as_ref()
+        .map(|message| message.id.to_string())
+    else {
+        return Ok(());
+    };
+    let Some(member_id) = interaction.author_id().map(|id| id.to_string()) else {
+        return Ok(());
+    };
+    let application_id = interaction.application_id.to_string();
+    let Some(context) = ingress
+        .store
+        .resolve_active_guild_tenant(&application_id, &guild_id)
+        .await?
+    else {
+        return Ok(());
+    };
+    let now = OffsetDateTime::now_utc();
+    let (mut gateway_event, mut interaction_event) = diagnostic_envelopes(
+        interaction,
+        DiagnosticIdentity {
+            application_id: &application_id,
+            guild_id: &guild_id,
+            tenant_id: context.tenant_id.as_uuid(),
+            shard_id: ingress.shard_id,
+            session_id: ingress.session_id,
+            gateway_sequence: ingress.gateway_sequence,
+        },
+        &now,
+        "SupportPanelButton",
+    )?;
+    let payload = serde_json::json!({
+        "kind":"SupportPanelButton", "interaction_id":interaction.id.to_string(),
+        "channel_id":channel_id, "message_id":message_id,
+        "custom_id":custom_id, "member_id":member_id,
+    });
+    gateway_event.payload = payload.clone();
+    interaction_event.payload = payload;
+    let gateway_raw = serde_json::to_vec(&gateway_event)?;
+    let interaction_raw = serde_json::to_vec(&interaction_event)?;
+    ingress
+        .edge
+        .accept_and_acknowledge(InteractionIngressRequest {
+            context,
+            callback: interaction_callback(interaction),
+            gateway_event: &gateway_event,
+            gateway_raw: &gateway_raw,
+            interaction_event: &interaction_event,
+            interaction_raw: &interaction_raw,
+            acknowledgement: ProbeAcknowledgement::Deferred,
+            now,
+        })
+        .await?;
     Ok(())
 }
 
@@ -1053,13 +1163,17 @@ mod tests {
     fn nonce_is_kept_from_raw_message_create_and_4014_stops_identify() {
         let raw = r#"{"t":"MESSAGE_CREATE","d":{"nonce":"123456","id":"999"}}"#;
         assert_eq!(message_create_nonce(raw).as_deref(), Some("123456"));
-        let member = message_create_observation("10", "20", "30", false, false, None);
+        let member = message_create_observation("10", "20", "30", false, false, None, None);
         assert!(member.get("content").is_none());
         assert_eq!(member["author_bot"].as_bool(), Some(false));
         assert!(member.get("nonce").is_none());
-        let own = message_create_observation("10", "20", "30", true, false, Some("123456"));
+        let own = message_create_observation("10", "20", "30", true, false, Some("123456"), None);
         assert_eq!(own["nonce"], "123456");
         assert!(own.get("content").is_none());
+        let panel = message_create_observation("10","20","30",true,false,Some("123456"),
+            Some(("support:revision","Open ticket")));
+        assert_eq!(panel["support_custom_id"],"support:revision");
+        assert_eq!(panel["support_button_label"],"Open ticket");
         assert_eq!(
             message_create_nonce(r#"{"t":"GUILD_MEMBER_ADD","d":{"nonce":"123456"}}"#),
             None

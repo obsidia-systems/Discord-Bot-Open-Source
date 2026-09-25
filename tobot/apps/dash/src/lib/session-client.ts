@@ -270,6 +270,97 @@ export type WelcomeBody = {
 
 export type WelcomeChannel = { id: string; name: string };
 
+export type SupportTicket = {
+  case_id: string;
+  support_number: number;
+  member_id: string;
+  state: "Open" | "Claimed" | "Closed";
+  version: number;
+  projection_watermark_unix: number;
+};
+
+export type SupportInbox = {
+  panel: {
+    revision_id: string;
+    channel_id: string;
+    button_label: string;
+    message_id: string;
+    state: string;
+  } | null;
+  tickets: SupportTicket[];
+};
+
+export async function readSupportInbox(tenantId: string): Promise<
+  | { kind: "ready"; body: SupportInbox; channels: WelcomeChannel[] }
+  | { kind: "unauthenticated" }
+  | { kind: "no-access" }
+  | { kind: "unavailable" }
+> {
+  try {
+    const path = `/api/v1/guilds/${encodeURIComponent(tenantId)}`;
+    const response = await fetch(`${path}/support`, { credentials: "include", cache: "no-store", headers: jsonHeaders });
+    const access = guildHomeAccess(response.status);
+    if (access === "unauthenticated") return { kind: "unauthenticated" };
+    if (access === "no-access") return { kind: "no-access" };
+    if (access !== "ok") return { kind: "unavailable" };
+    const [channelsResponse,panelResponse] = await Promise.all([
+      fetch(`${path}/welcome/channels`, { credentials: "include", cache: "no-store", headers: jsonHeaders }),
+      fetch(`${path}/support/panel`, { credentials: "include", cache: "no-store", headers: jsonHeaders }),
+    ]);
+    if (!channelsResponse.ok || !panelResponse.ok) return { kind: "unavailable" };
+    const inbox = (await response.json()) as Pick<SupportInbox,"tickets">;
+    const panel = (await panelResponse.json()) as Pick<SupportInbox,"panel">;
+    const body: SupportInbox = { tickets: inbox.tickets, panel: panel.panel };
+    const channels = (await channelsResponse.json()) as WelcomeChannel[];
+    if (!Array.isArray(body.tickets) || !Array.isArray(channels)) return { kind: "unavailable" };
+    return { kind: "ready", body, channels };
+  } catch { return { kind: "unavailable" }; }
+}
+
+export async function publishSupportPanel(tenantId: string, channelId: string, buttonLabel: string): Promise<
+  "done" | "unauthenticated" | "no-access" | "invalid" | "discord-missing-permissions" | "discord-channel-unavailable" | "discord-invalid-request" | "unavailable"
+> {
+  const csrf = await readCsrfToken();
+  if (csrf.kind !== "token") return csrf.kind;
+  try {
+    const response = await fetch(`/api/v1/guilds/${encodeURIComponent(tenantId)}/support/panel`, {
+      method: "POST", credentials: "include", cache: "no-store",
+      headers: { ...jsonHeaders, "content-type": "application/json", "x-csrf-token": csrf.value },
+      body: JSON.stringify({ channel_id: channelId, button_label: buttonLabel }),
+    });
+    if (response.status === 201) return "done";
+    if (response.status === 401) return "unauthenticated";
+    if (response.status === 403 || response.status === 404) return "no-access";
+    if (response.status === 400) return "invalid";
+    if (response.status === 424) {
+      const body = (await response.json()) as { code?: unknown };
+      if (body.code === "discord_missing_permissions") return "discord-missing-permissions";
+      if (body.code === "discord_channel_unavailable") return "discord-channel-unavailable";
+      if (body.code === "discord_invalid_request") return "discord-invalid-request";
+    }
+    return "unavailable";
+  } catch { return "unavailable"; }
+}
+
+export async function transitionSupportTicket(tenantId: string, caseId: string, version: number, action: "claim" | "close"): Promise<
+  "done" | "stale" | "unauthenticated" | "no-access" | "unavailable"
+> {
+  const csrf = await readCsrfToken();
+  if (csrf.kind !== "token") return csrf.kind;
+  try {
+    const response = await fetch(`/api/v1/guilds/${encodeURIComponent(tenantId)}/support/${encodeURIComponent(caseId)}/${action}`, {
+      method: "POST", credentials: "include", cache: "no-store",
+      headers: { ...jsonHeaders, "content-type": "application/json", "x-csrf-token": csrf.value },
+      body: JSON.stringify({ version }),
+    });
+    if (response.ok) return "done";
+    if (response.status === 409) return "stale";
+    if (response.status === 401) return "unauthenticated";
+    if (response.status === 403 || response.status === 404) return "no-access";
+    return "unavailable";
+  } catch { return "unavailable"; }
+}
+
 export async function readWelcomeStatus(tenantId: string): Promise<
   | { kind: "ready"; body: WelcomeBody }
   | { kind: "unauthenticated" }

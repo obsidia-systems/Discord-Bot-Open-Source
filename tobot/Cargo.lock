@@ -2407,6 +2407,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "tracing",
  "twilight-http",
  "twilight-model",
 ]
@@ -2520,6 +2521,7 @@ dependencies = [
 name = "tobot-persistence"
 version = "0.1.0"
 dependencies = [
+ "serde",
  "serde_json",
  "sqlx",
  "subtle",

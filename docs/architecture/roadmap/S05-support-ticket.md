@@ -6,7 +6,7 @@
 
 | Attribute | Value |
 |---|---|
-| Status | Not started. S0 release gates stay Partial. S1 stays demonstrated. S2's welcome outcome stays demonstrated; its SIGKILL and blocked-channel demo steps stay open in that file. S3's one-role outcome stays demonstrated; its replay, bot-join, SIGKILL, and remaining publish rejections stay open in that file. S4's XP outcome stays demonstrated; a bot message in the published channel and the SIGKILL of Control Plane stay open in that file. |
+| Status | WP1–WP5 implemented and verified locally. WP6 live Discord demo is Partial: publish, open, duplicate-open, claim, close, reopen, and queued recovery were observed; token-mismatch and exact crash-window steps remain open. S0 release gates stay Partial. S1 stays demonstrated. S2's welcome outcome stays demonstrated; its SIGKILL and blocked-channel demo steps stay open in that file. S3's one-role outcome stays demonstrated; its replay, bot-join, SIGKILL, and remaining publish rejections stay open in that file. S4's XP outcome stays demonstrated; a bot message in the published channel and the SIGKILL of Control Plane stay open in that file. |
 | Slice | S5 — Support |
 | Outcome | A member opens one ticket from one Discord button, and staff claim and close that ticket from the inbox on `dash.*`. |
 | Normative inputs | 02 Support Policy, Support Panel, Support Case; 20 §31.6–31.13, §31.16–31.17, §31.25, §31.28; 05 §10.23 and §10.24; 03 §8.27 and §8.28; 14 invariants 92 and 93, and the §25 rows for these three modules; 13 the support rows named in §7. |
@@ -252,9 +252,9 @@ Updated as packages land. A package is Complete only when its exit evidence exis
 
 | Package | Status | Evidence |
 |---|---|---|
-| WP1 — Contracts | Not started | |
-| WP2 — Template, panel, and case | Not started | |
-| WP3 — Panel message and button click | Not started | |
-| WP4 — Admission | Not started | |
-| WP5 — Inbox | Not started | |
-| WP6 — Demo | Not started | |
+| WP1 — Contracts | Complete | `cargo test -p tobot-envelope`: `support_panel_contract_is_one_button_and_fail_closed` passes. |
+| WP2 — Template, panel, and case | Complete | `TOBOT_TEST_DATABASE_URL=.../tobot_test TOBOT_REQUIRE_POSTGRES=1 cargo test -p tobot-persistence --test postgres_support`: four tests pass for immutable revisions, token mismatch, duplicate and concurrent admission, number allocation, nonce reconciliation, supersession ordering, projection, and stale case versions. Migrations 0022–0023 applied only to disposable `tobot_test`. |
+| WP3 — Panel message and button click | Complete | `cargo test -p tobot-discord-adapter`: a single primary button serializes as action row type 1/button type 2; ephemeral defer serializes as callback type 5/flag 64. `cargo check --workspace` passes with the Edge component path; `/probe` and identify code remain on their existing paths. |
+| WP4 — Admission | Complete | `support-s5` consumes the deferred click and edits its original response through Delivery. The PostgreSQL proofs above confirm one case/number for duplicate and concurrent clicks and no number for a mismatched button. |
+| WP5 — Inbox | Complete | `pnpm --filter @tobot/dash check` and `pnpm --filter @tobot/dash build` pass. The inbox reuses the S1 cookie/CSRF and guild-access guards, lists the Query projection, and sends versioned claim/close commands. |
+| WP6 — Demo | Partial | On 2026-09-25, guild tenant `01a0c830-c467-70fb-a89e-40a77dc81748` had panel message `1552591485075988531` in `#incidents`. The non-bot member saw ephemeral “Ticket #1 is open”; the inbox showed case `01a0d791-8815-71ff-a321-5740d5c8ccea` as `Open`. A second click said it was already open. The dashboard claimed and closed #1, then the member opened #2 (`01a0d792-e775-7680-bdeb-15df46f05287`); #2 was closed after the test. With Control Plane stopped by SIGKILL *before* the click, Discord deferred the response; after restart it returned “Ticket #3 is open” once (`01a0d793-c85b-7342-b996-c34912ea9ed5`), and #3 was closed after the test. This checks queued recovery but not the exact after-defer crash window in step 8. Step 5's stale-version repetition and step 7's live token mismatch remain open. The PostgreSQL regression `postgres_edge_interaction` passes against disposable `tobot_test`; it checks the UTF-8 `partition_key` on both interaction outbox writes. Current installation generation 11 remains `Installed`; older generations 9 and 10 were already `Degraded`. |
