@@ -10,4 +10,5 @@ COPY --from=build /src/target/release/tobot-control-plane /usr/local/bin/tobot-c
 COPY --from=build /src/target/release/tobot-discord-edge /usr/local/bin/tobot-discord-edge
 COPY --from=build /src/target/release/tobot-delivery /usr/local/bin/tobot-delivery
 COPY --from=build /src/target/release/tobot-migrate /usr/local/bin/tobot-migrate
+COPY --from=build /src/target/release/tobot-monetary-ledger /usr/local/bin/tobot-monetary-ledger
 USER 65532:65532

@@ -6,7 +6,7 @@
 
 | Attribute | Value |
 |---|---|
-| Status | Planned, not implemented. Work packages below have no exit evidence yet. |
+| Status | Implemented in the local stack on 2026-09-25; automated checks, two live `/daily` claims, own-wallet display, and live cooldown pass. Cross-account isolation and the remaining recovery matrix stay open in WP6. |
 | Slice | S6 — first conserved guild-money plane |
 | Outcome | A member uses `/daily` once, receives a fixed amount of non-redeemable guild currency, and reads the committed wallet balance on `dash.*`. |
 | Normative inputs | 02 §§7.32–7.33 and §6.4; 03 §§8.1–8.2, 8.6, 8.21–8.22, 8.55 and DR-065; 05 §§10.18–10.19; 09 §12.10 monetary and income models; 19 §§30.1–30.9, 30.14–30.15, 30.21, 30.43–30.47; 13 monetary/income recovery and ledger tests; shared 14 §25 forbidden columns and invariants 73–80, 88–89. |
@@ -172,13 +172,26 @@ Run §7 and §9, record artifact ids and balances below, and exercise the indepe
 
 ## 11. Execution tracking
 
-This ledger begins at planning time. A package becomes Complete only when its exit evidence is recorded here; implementation intent or a green UI alone is not proof.
+The code and local Compose services are implemented. The evidence below distinguishes automated proofs from the live Discord demonstration. A package becomes Complete only when its full exit evidence is recorded here.
 
 | Package | Status | Evidence |
 |---|---|---|
-| WP1 — Contracts and boundaries | Planned | — |
-| WP2 — Monetary Ledger owner | Planned | — |
-| WP3 — Earnings decision owner | Planned | — |
-| WP4 — Discord path | Planned | — |
-| WP5 — Wallet screen and query | Planned | — |
-| WP6 — Recovery and live proof | Planned | — |
+| WP1 — Contracts and boundaries | Complete | `cargo test -p tobot-envelope`: 12 passed, including conditional `VirtualPayment`, wrong-plane rejection, signature binding, old non-money envelopes, and integer bounds. The existing install command list adds `/daily` without changing permissions or intents. |
+| WP2 — Monetary Ledger owner | Partial | Separate `postgres-ledger`, `ledger-migrate`, and `monetary-ledger` services and migrations `0001`–`0003` are running locally. Disposable `tobot_ledger_s6_verify` smoke: six concurrent first-use attempts, one grant, one 10-unit income posting, replay with the original transaction, altered-payload conflict, ceiling rejection, unsigned-read rejection, wallet 110, two recent postings. SQL verification: 2 transactions, 4 postings, 1 grant receipt, signed posting sum 0. Deliberate disposable projection divergence returned 409 and closed `write_ready`; repair returned 204 and reopened it. A second isolated-Redis run restarted Ledger after commit and replayed the original command: same transaction id and wallet 110. Kill-before-commit and journal rebuild remain unproven. |
+| WP3 — Earnings decision owner | Partial | `postgres_earnings` on disposable `tobot_test`: two tests pass for one concurrent admission, pending cooldown, disabled circuit, fenced completion, terminal response claim, older Query fact rejection, and unknown-tenant fact discard. Live repeat attempts by member suffix 3457 before the exact 24-hour deadline produced no second income action or posting. End-to-end worker restart with the same Ledger key remains unproven. |
+| WP4 — Discord path | Partial | `/daily` is in the guild command list; Edge durably accepts and defers it, and Control Plane sends a pending edit before settlement and a final edit from durable response claims. `cargo test --workspace` passes. Edge registered the command list for 2 installed guilds. Two live interactions on 2026-09-25 were deferred in 127 ms and 92 ms, settled, and marked `Delivered`. A live uncertain-settlement presentation failure remains unrecorded. |
+| WP5 — Wallet screen and query | Partial | `/wallet` derives the member from the OAuth account and live guild membership; authoritative Ledger read includes committed balance, watermark, and 10 recent credits; Query reports its sequence separately. Operator screen publishes policies and audits circuit changes. `pnpm --filter @tobot/dash check` passes with two pre-existing `FormEvent` hints. Query rows for both live members equal Ledger balances of 110 at sequences 2 and 4; an unauthenticated live wallet GET returned 401. The user confirmed that each signed-in account sees 110 on its own dashboard wallet. Cross-account and foreign-guild browser isolation remain unrecorded. |
+| WP6 — Recovery and live proof | Partial | Local Compose migrations and services start. Disposable reconciliation corruption and Ledger restart/replay after commit passed. Two live `/daily` claims produced one grant and one income transaction per account, both dashboard wallets showed 110, the live cooldown blocked repeat attempts without new postings, and Ledger reconciliation is healthy at journal sequence 4. Cross-account isolation, kill-before-commit and Earnings worker loss, and full journal-to-projection rebuild are still required before the S6 release gate can close. |
+
+### Live `/daily` evidence — 2026-09-25
+
+Tenant `01a0c830-c467-70fb-a89e-40a77dc81748`. The two member ids are shown only by their last four digits here. Times and ACK measurements come from `edge.interaction_receipt`; action, response, and balances come from `earnings.income_action`; monetary ids and sequences come from the separate Ledger database.
+
+| Member suffix | Interaction | ACK | Income action | Grant transaction | Income transaction | Wallet / Query sequence | Response |
+|---|---|---:|---|---|---|---|---|
+| 3457 | `1553128677766594740` | 127 ms | `01a0da13-ea31-73d1-8390-abc670d1d56a` | `01a0da13-ec11-7150-88e1-5cf8812d4470` | `01a0da13-ec3b-7340-8ca9-06c8f68ffc0a` | 110 / 2 | Delivered |
+| 4683 | `1553132261283598346` | 92 ms | `01a0da20-f317-7515-a9b3-9aada58a5718` | `01a0da20-f451-7689-a4ce-ae21e7613a8d` | `01a0da20-f45c-7127-b782-8048cbb0b299` | 110 / 4 | Delivered |
+
+Ledger query: 4 distinct transactions, 8 postings, signed posting sum 0; one `StartingGrant` and one `DailyIncome` per member. Both transactional wallet projections equal 110, both Query wallet rows equal 110, and the latest Ledger reconciliation is healthy at sequence 4. The user confirmed a visible 110-unit wallet from each signed-in account. Because both balances match, this observation alone does not prove cross-account isolation.
+
+The user repeated `/daily` before 24 hours and saw “Daily is available again” followed by Discord's relative timestamp. Edge recorded repeated `DailyCommand` interactions for member suffix 3457, most recently `1553144920666017865` at 2026-09-25 20:43:25 UTC. Earnings still has exactly one action for that member and its `next_available_at` is 2026-09-26 19:38:53 UTC, exactly 24 hours after the first claim. Ledger still has two `DailyIncome` transactions in total, one for each member, and both balances remain 110. The bot emits `<t:UNIX_SECONDS:R>`; Discord renders that fixed deadline as localized relative time.

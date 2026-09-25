@@ -21,7 +21,7 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tobot_core::render_gauges;
 use tobot_delivery_client::{InternalDeliveryTransport, ModerationCommandClient};
 use tobot_discord_adapter::{
-    DIAGNOSTIC_COMMAND_NAME, DiscordTransport, GatewayPhase, GatewaySessionStart,
+    DAILY_COMMAND_NAME, DIAGNOSTIC_COMMAND_NAME, DiscordTransport, GatewayPhase, GatewaySessionStart,
     InteractionCallback, SUPPORT_PANEL_CONTENT, ShardReadiness, TIMEOUT_COMMAND_NAME,
     acknowledgement_deadline_open, interaction_created_ms, plan_gateway_session, shard_is_ready,
 };
@@ -524,6 +524,7 @@ async fn persist_gateway_dispatch(
         event_id: Uuid::now_v7(),
         schema_name: "GatewayEventAccepted".to_owned(),
         schema_version: 1,
+        schema_family: None,
         occurred_at: timestamp.clone(),
         received_at: timestamp,
         application_id: application_id.to_owned(),
@@ -780,6 +781,7 @@ fn diagnostic_envelopes(
         event_id: gateway_event_id,
         schema_name: "GatewayEventAccepted".to_owned(),
         schema_version: 1,
+        schema_family: None,
         occurred_at: timestamp.clone(),
         received_at: timestamp,
         application_id: identity.application_id.to_owned(),
@@ -800,6 +802,7 @@ fn diagnostic_envelopes(
         event_id: Uuid::now_v7(),
         schema_name: "InteractionAccepted".to_owned(),
         schema_version: 1,
+        schema_family: None,
         occurred_at: gateway_event.occurred_at.clone(),
         received_at: gateway_event.received_at.clone(),
         application_id: gateway_event.application_id.clone(),
@@ -851,6 +854,9 @@ async fn accept_interaction(
     };
     if data.name == TIMEOUT_COMMAND_NAME {
         return accept_timeout(ingress, &interaction, data).await;
+    }
+    if data.name == DAILY_COMMAND_NAME {
+        return accept_daily(ingress, &interaction).await;
     }
     if data.name != DIAGNOSTIC_COMMAND_NAME {
         return Ok(());
@@ -911,6 +917,34 @@ async fn accept_interaction(
         event_id = %interaction_event.event_id,
         "interaction receipt processed"
     );
+    Ok(())
+}
+
+async fn accept_daily(
+    ingress: &InteractionDispatch<'_>,
+    interaction: &twilight_model::application::interaction::Interaction,
+) -> anyhow::Result<()> {
+    let Some(guild_id) = interaction.guild_id.map(|id| id.to_string()) else { return Ok(()); };
+    let Some(member_id) = interaction.author_id().map(|id| id.to_string()) else { return Ok(()); };
+    let application_id = interaction.application_id.to_string();
+    let Some(context) = ingress.store.resolve_active_guild_tenant(&application_id,&guild_id).await? else { return Ok(()); };
+    let now = OffsetDateTime::now_utc();
+    let (mut gateway_event,mut interaction_event) = diagnostic_envelopes(
+        interaction,DiagnosticIdentity {application_id:&application_id,guild_id:&guild_id,
+            tenant_id:context.tenant_id.as_uuid(),shard_id:ingress.shard_id,
+            session_id:ingress.session_id,gateway_sequence:ingress.gateway_sequence},
+        &now,"DailyCommand")?;
+    let payload=serde_json::json!({"kind":"DailyCommand","interaction_id":interaction.id.to_string(),
+        "member_id":member_id});
+    gateway_event.payload=payload.clone();
+    interaction_event.payload=payload;
+    let gateway_raw=serde_json::to_vec(&gateway_event)?;
+    let interaction_raw=serde_json::to_vec(&interaction_event)?;
+    ingress.edge.accept_and_acknowledge(InteractionIngressRequest {
+        context,callback:interaction_callback(interaction),gateway_event:&gateway_event,
+        gateway_raw:&gateway_raw,interaction_event:&interaction_event,interaction_raw:&interaction_raw,
+        acknowledgement:ProbeAcknowledgement::Deferred,now,
+    }).await?;
     Ok(())
 }
 

@@ -5,10 +5,46 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
 use thiserror::Error;
 use uuid::Uuid;
 
 pub const CURRENT_SCHEMA_VERSION: u16 = 1;
+
+/// Firma una solicitud interna del ledger sobre método, ruta, expiración y bytes exactos.
+/// # Errors
+/// Devuelve un error si la clave HMAC no puede inicializarse.
+pub fn money_request_signature(
+    key: &[u8], method: &str, path: &str, expires_unix: i64, body: &[u8],
+) -> Result<String, hmac::digest::InvalidLength> {
+    let mut mac = Hmac::<Sha256>::new_from_slice(key)?;
+    mac.update(method.as_bytes());
+    mac.update(b"\n");
+    mac.update(path.as_bytes());
+    mac.update(b"\n");
+    mac.update(expires_unix.to_string().as_bytes());
+    mac.update(b"\n");
+    mac.update(body);
+    Ok(mac.finalize().into_bytes().iter().map(|byte| format!("{byte:02x}")).collect())
+}
+
+#[must_use]
+pub fn verify_money_request_signature(
+    key: &[u8], method: &str, path: &str, expires_unix: i64, body: &[u8], signature: &str,
+) -> bool {
+    if signature.len() != 64 { return false; }
+    let Ok(mut mac) = Hmac::<Sha256>::new_from_slice(key) else { return false; };
+    mac.update(method.as_bytes());
+    mac.update(b"\n");
+    mac.update(path.as_bytes());
+    mac.update(b"\n");
+    mac.update(expires_unix.to_string().as_bytes());
+    mac.update(b"\n");
+    mac.update(body);
+    let Ok(bytes) = (0..32).map(|index| u8::from_str_radix(&signature[index*2..index*2+2], 16)).collect::<Result<Vec<_>,_>>() else { return false; };
+    mac.verify_slice(&bytes).is_ok()
+}
 
 /// A reader at `current` accepts that major and the previous one.
 /// Major 0 is never readable. When `current` is 1, only major 1 is readable.
@@ -56,6 +92,15 @@ pub enum S0EventName {
     SupportCaseOpened,
     SupportCaseClaimed,
     SupportCaseClosed,
+    CurrencyPolicyPublished,
+    AccountOpened,
+    MonetaryTransactionPosted,
+    BalanceProjectionChanged,
+    LedgerReconciled,
+    IncomePolicyPublished,
+    IncomeActionAdmitted,
+    IncomeActionSettled,
+    IncomeActionRejected,
 }
 
 impl TryFrom<&str> for S0EventName {
@@ -96,8 +141,28 @@ impl TryFrom<&str> for S0EventName {
             "SupportCaseOpened" => Ok(Self::SupportCaseOpened),
             "SupportCaseClaimed" => Ok(Self::SupportCaseClaimed),
             "SupportCaseClosed" => Ok(Self::SupportCaseClosed),
+            "CurrencyPolicyPublished" => Ok(Self::CurrencyPolicyPublished),
+            "AccountOpened" => Ok(Self::AccountOpened),
+            "MonetaryTransactionPosted" => Ok(Self::MonetaryTransactionPosted),
+            "BalanceProjectionChanged" => Ok(Self::BalanceProjectionChanged),
+            "LedgerReconciled" => Ok(Self::LedgerReconciled),
+            "IncomePolicyPublished" => Ok(Self::IncomePolicyPublished),
+            "IncomeActionAdmitted" => Ok(Self::IncomeActionAdmitted),
+            "IncomeActionSettled" => Ok(Self::IncomeActionSettled),
+            "IncomeActionRejected" => Ok(Self::IncomeActionRejected),
             _ => Err(EnvelopeError::UnsupportedSchemaName(value.to_owned())),
         }
+    }
+}
+
+impl S0EventName {
+    #[must_use]
+    pub const fn is_virtual_payment(self) -> bool {
+        matches!(self,
+            Self::CurrencyPolicyPublished | Self::AccountOpened | Self::MonetaryTransactionPosted |
+            Self::BalanceProjectionChanged | Self::LedgerReconciled | Self::IncomePolicyPublished |
+            Self::IncomeActionAdmitted | Self::IncomeActionSettled | Self::IncomeActionRejected
+        )
     }
 }
 
@@ -112,6 +177,8 @@ pub struct EventEnvelope {
     pub event_id: Uuid,
     pub schema_name: String,
     pub schema_version: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schema_family: Option<String>,
     pub occurred_at: String,
     pub received_at: String,
     pub application_id: String,
@@ -157,6 +224,8 @@ pub enum EnvelopeError {
     InvalidProgression,
     #[error("support panel revision is invalid")]
     InvalidSupportPanel,
+    #[error("money-plane schema family must be VirtualPayment")]
+    InvalidMoneyPlane,
 }
 
 /// Permission bits an automatic role must not grant.
@@ -338,6 +407,56 @@ pub fn validate_support_panel(payload: &Value) -> Result<(), EnvelopeError> {
     Ok(())
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CurrencyPolicyShape {
+    guild_id: String,
+    starting_grant: i64,
+    wallet_ceiling: i64,
+    issuance_ceiling: i64,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct IncomePolicyShape {
+    guild_id: String,
+    currency_revision_id: Uuid,
+    amount: i64,
+    cooldown_seconds: i64,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WalletShape { member_id: String }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct IncomeShape {
+    member_id: String, income_action_id: Uuid, policy_revision_id: Uuid,
+    interaction_id: String, amount: i64,
+}
+
+fn positive_money(value: i64) -> bool { (1..=9_000_000_000_000).contains(&value) }
+
+/// Admite únicamente las cuatro formas de comando de moneda virtual de S6.
+/// # Errors
+/// Devuelve un error ante imports de otros planos, valores fuera de rango o campos no previstos.
+pub fn validate_virtual_payment_command(name: S0CommandName, payload: &Value) -> Result<(),EnvelopeError> {
+    let raw = payload.clone();
+    let valid = match name {
+        S0CommandName::PublishCurrencyPolicy => serde_json::from_value::<CurrencyPolicyShape>(raw).is_ok_and(|p|
+            snowflake(&p.guild_id) && p.starting_grant>=0 && positive_money(p.wallet_ceiling) &&
+            positive_money(p.issuance_ceiling) && p.starting_grant<=p.wallet_ceiling &&
+            p.starting_grant<=p.issuance_ceiling),
+        S0CommandName::PublishIncomePolicy => serde_json::from_value::<IncomePolicyShape>(raw).is_ok_and(|p|
+            snowflake(&p.guild_id) && !p.currency_revision_id.is_nil() && positive_money(p.amount) &&
+            p.cooldown_seconds==86_400),
+        S0CommandName::EnsureMemberWallet => serde_json::from_value::<WalletShape>(raw).is_ok_and(|p|snowflake(&p.member_id)),
+        S0CommandName::SettleIncomeAction => serde_json::from_value::<IncomeShape>(raw).is_ok_and(|p|
+            snowflake(&p.member_id) && snowflake(&p.interaction_id) && !p.income_action_id.is_nil() &&
+            !p.policy_revision_id.is_nil() && positive_money(p.amount)),
+        _ => false,
+    };
+    if valid {Ok(())} else {Err(EnvelopeError::InvalidMoneyPlane)}
+}
+
 impl EventEnvelope {
     /// Parses an S0 event after preserving its raw bytes for audit.
     ///
@@ -364,6 +483,9 @@ impl EventEnvelope {
             ));
         }
         let event_name = S0EventName::try_from(event.schema_name.as_str())?;
+        if event_name.is_virtual_payment() && event.schema_family.as_deref() != Some("VirtualPayment") {
+            return Err(EnvelopeError::InvalidMoneyPlane);
+        }
         if event_name == S0EventName::GatewayEventAccepted
             && (event.shard_id.is_none()
                 || event.session_id.is_none()
@@ -441,6 +563,10 @@ pub enum S0CommandName {
     PublishAutomaticRoleRevision,
     PublishProgressionRevision,
     PublishSupportPanel,
+    PublishCurrencyPolicy,
+    PublishIncomePolicy,
+    EnsureMemberWallet,
+    SettleIncomeAction,
 }
 
 impl TryFrom<&str> for S0CommandName {
@@ -455,8 +581,20 @@ impl TryFrom<&str> for S0CommandName {
             "PublishAutomaticRoleRevision" => Ok(Self::PublishAutomaticRoleRevision),
             "PublishProgressionRevision" => Ok(Self::PublishProgressionRevision),
             "PublishSupportPanel" => Ok(Self::PublishSupportPanel),
+            "PublishCurrencyPolicy" => Ok(Self::PublishCurrencyPolicy),
+            "PublishIncomePolicy" => Ok(Self::PublishIncomePolicy),
+            "EnsureMemberWallet" => Ok(Self::EnsureMemberWallet),
+            "SettleIncomeAction" => Ok(Self::SettleIncomeAction),
             _ => Err(EnvelopeError::UnsupportedSchemaName(value.to_owned())),
         }
+    }
+}
+
+impl S0CommandName {
+    #[must_use]
+    pub const fn is_virtual_payment(self) -> bool {
+        matches!(self, Self::PublishCurrencyPolicy | Self::PublishIncomePolicy |
+            Self::EnsureMemberWallet | Self::SettleIncomeAction)
     }
 }
 
@@ -465,6 +603,8 @@ pub struct CommandEnvelope {
     pub command_id: Uuid,
     pub schema_name: String,
     pub schema_version: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schema_family: Option<String>,
     pub actor_account_id: Uuid,
     pub tenant_id: Uuid,
     pub idempotency_key: Uuid,
@@ -517,6 +657,10 @@ impl CommandEnvelope {
             ));
         }
         let command_name = S0CommandName::try_from(command.schema_name.as_str())?;
+        if command_name.is_virtual_payment() && command.schema_family.as_deref() != Some("VirtualPayment") {
+            return Err(EnvelopeError::InvalidMoneyPlane);
+        }
+        if command_name.is_virtual_payment() { validate_virtual_payment_command(command_name,&command.payload)?; }
         if command_name == S0CommandName::PublishWelcomeRevision {
             let body = command
                 .payload
@@ -621,6 +765,7 @@ mod tests {
             command_id: Uuid::now_v7(),
             schema_name: "PublishWelcomeRevision".to_owned(),
             schema_version: 1,
+            schema_family: None,
             actor_account_id: Uuid::now_v7(),
             tenant_id: tenant,
             idempotency_key: Uuid::now_v7(),
@@ -853,6 +998,7 @@ mod tests {
             command_id: Uuid::now_v7(),
             schema_name: "PublishAutomaticRoleRevision".to_owned(),
             schema_version: 1,
+            schema_family: None,
             actor_account_id: Uuid::now_v7(),
             tenant_id: tenant,
             idempotency_key: Uuid::now_v7(),
@@ -910,6 +1056,7 @@ mod tests {
             command_id: Uuid::now_v7(),
             schema_name: "PublishProgressionRevision".to_owned(),
             schema_version: 1,
+            schema_family: None,
             actor_account_id: Uuid::now_v7(),
             tenant_id: tenant,
             idempotency_key: Uuid::now_v7(),
@@ -961,13 +1108,16 @@ mod tests {
             "LevelRewardRequested",
             "VoiceProgressionSessionChanged",
             "LeaderboardRefreshRequested",
-            "CurrencyPolicyPublished",
-            "IncomePolicyPublished",
         ] {
             assert!(matches!(
                 S0EventName::try_from(name),
                 Err(EnvelopeError::UnsupportedSchemaName(_))
             ));
+        }
+        for name in ["CurrencyPolicyPublished", "IncomePolicyPublished"] {
+            assert!(S0EventName::try_from(name).is_ok());
+            let raw = VALID_GATEWAY.replace("GatewayEventAccepted", name);
+            assert_eq!(EventEnvelope::parse_s0(raw.as_bytes()).err(), Some(EnvelopeError::InvalidMoneyPlane));
         }
     }
 
@@ -977,6 +1127,7 @@ mod tests {
             command_id: Uuid::now_v7(),
             schema_name: "PublishSupportPanel".to_owned(),
             schema_version: 1,
+            schema_family: None,
             actor_account_id: Uuid::now_v7(),
             tenant_id: Uuid::now_v7(),
             idempotency_key: Uuid::now_v7(),
@@ -1038,5 +1189,46 @@ mod tests {
         ] {
             assert!(S0EventName::try_from(name).is_err());
         }
+    }
+
+    #[test]
+    fn virtual_payment_requires_family_and_bounded_integer_payload() {
+        let mut command = CommandEnvelope {
+            command_id: Uuid::now_v7(),schema_name:"SettleIncomeAction".to_owned(),schema_version:1,
+            schema_family:Some("VirtualPayment".to_owned()),actor_account_id:Uuid::now_v7(),
+            tenant_id:Uuid::now_v7(),idempotency_key:Uuid::now_v7(),deadline_at:"2026-09-25T00:00:00Z".to_owned(),
+            correlation_id:Uuid::now_v7(),trace_context:TraceContext {trace_id:"trace".to_owned(),span_id:"span".to_owned()},
+            payload:serde_json::json!({"member_id":"123","income_action_id":Uuid::now_v7(),
+                "policy_revision_id":Uuid::now_v7(),"interaction_id":"456","amount":10}),
+        };
+        let parse = |value:&CommandEnvelope| CommandEnvelope::parse_s0(&serde_json::to_vec(value).unwrap_or_default());
+        assert!(parse(&command).is_ok());
+        command.schema_family=None;
+        assert!(matches!(parse(&command),Err(EnvelopeError::InvalidMoneyPlane)));
+        command.schema_family=Some("CommercialPayment".to_owned());
+        assert!(matches!(parse(&command),Err(EnvelopeError::InvalidMoneyPlane)));
+        command.schema_family=Some("VirtualPayment".to_owned());
+        for bad in [serde_json::json!(0),serde_json::json!(-1),serde_json::json!(1.5),
+            serde_json::json!(9_000_000_000_001_i64)] {
+            command.payload["amount"]=bad;
+            assert!(matches!(parse(&command),Err(EnvelopeError::InvalidMoneyPlane)));
+        }
+        command.payload["amount"]=serde_json::json!(10);
+        command.payload["payment_id"]=serde_json::json!("other-plane");
+        assert!(matches!(parse(&command),Err(EnvelopeError::InvalidMoneyPlane)));
+        command.schema_name="Payment".to_owned();
+        assert!(matches!(parse(&command),Err(EnvelopeError::UnsupportedSchemaName(_))));
+    }
+
+    #[test]
+    fn ledger_receipt_binds_method_path_expiry_and_exact_bytes() {
+        let key=b"a-secret-key-at-least-thirty-two-bytes";
+        let body=br#"{"tenant_id":"abc","amount":10}"#;
+        let signature=money_request_signature(key,"POST","/internal/v1/ledger/command",123,body).unwrap_or_default();
+        assert!(verify_money_request_signature(key,"POST","/internal/v1/ledger/command",123,body,&signature));
+        assert!(!verify_money_request_signature(key,"GET","/internal/v1/ledger/command",123,body,&signature));
+        assert!(!verify_money_request_signature(key,"POST","/internal/v1/ledger/wallet",123,body,&signature));
+        assert!(!verify_money_request_signature(key,"POST","/internal/v1/ledger/command",124,body,&signature));
+        assert!(!verify_money_request_signature(key,"POST","/internal/v1/ledger/command",123,br#"{"tenant_id":"abc","amount":11}"#,&signature));
     }
 }

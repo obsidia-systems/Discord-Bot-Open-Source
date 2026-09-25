@@ -191,6 +191,7 @@ export function GuildHome({ tenantId }: GuildHomeProps) {
           >
             Support tickets
           </a>
+          <a className="ml-6 inline-block underline decoration-zinc-400 underline-offset-4 hover:decoration-zinc-950" href={`/guild/${tenantId}/economy`}>Guild wallet</a>
         </>
       ) : null}
       {view.kind === "removed" ? (

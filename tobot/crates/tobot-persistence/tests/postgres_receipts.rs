@@ -572,6 +572,7 @@ fn interaction_accepted(tenant_id: TenantId) -> EventEnvelope {
         event_id,
         schema_name: "InteractionAccepted".to_owned(),
         schema_version: 1,
+        schema_family: None,
         occurred_at: "2026-09-22T08:20:18Z".to_owned(),
         received_at: "2026-09-22T08:20:18Z".to_owned(),
         application_id: "app".to_owned(),

@@ -86,6 +86,7 @@ fn installation_fact() -> EventEnvelope {
         event_id,
         schema_name: "InstallationStateChanged".to_owned(),
         schema_version: 1,
+        schema_family: None,
         occurred_at: "2026-09-22T08:20:18Z".to_owned(),
         received_at: "2026-09-22T08:20:18Z".to_owned(),
         application_id: "app".to_owned(),

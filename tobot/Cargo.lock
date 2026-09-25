@@ -2324,6 +2324,7 @@ dependencies = [
  "async-trait",
  "axum",
  "http",
+ "reqwest",
  "serde",
  "serde_json",
  "sqlx",
@@ -2442,8 +2443,10 @@ dependencies = [
 name = "tobot-envelope"
 version = "0.1.0"
 dependencies = [
+ "hmac",
  "serde",
  "serde_json",
+ "sha2",
  "thiserror",
  "uuid",
 ]
@@ -2502,6 +2505,28 @@ dependencies = [
  "anyhow",
  "tobot-persistence",
  "tokio",
+]
+
+[[package]]
+name = "tobot-monetary-ledger"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "hmac",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "subtle",
+ "time",
+ "tobot-bus",
+ "tobot-envelope",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
@@ -2912,6 +2937,7 @@ dependencies = [
  "getrandom 0.4.3",
  "js-sys",
  "serde_core",
+ "sha1_smol",
  "wasm-bindgen",
 ]
 

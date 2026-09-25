@@ -1,0 +1,14 @@
+---
+import AppHeader from "../components/AppHeader.astro";
+import { WalletPicker } from "../components/WalletPicker";
+import ShellLayout from "../layouts/ShellLayout.astro";
+import { SESSION_COOKIE } from "../lib/session";
+if (!Astro.cookies.get(SESSION_COOKIE)?.value) return Astro.redirect("/auth/login");
+---
+<ShellLayout title="Your guild wallets">
+  <AppHeader />
+  <main id="content" class="mx-auto w-full max-w-2xl px-6 pb-16">
+    <h1 class="font-serif text-3xl">Your guild wallets</h1>
+    <WalletPicker client:load />
+  </main>
+</ShellLayout>

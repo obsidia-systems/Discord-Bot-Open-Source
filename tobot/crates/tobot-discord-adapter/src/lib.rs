@@ -30,6 +30,7 @@ use twilight_model::{
 };
 
 pub const DIAGNOSTIC_COMMAND_NAME: &str = "probe";
+pub const DAILY_COMMAND_NAME: &str = "daily";
 pub const TIMEOUT_COMMAND_NAME: &str = "timeout";
 pub const DIAGNOSTIC_ACKNOWLEDGEMENT: &str = "Acknowledged.";
 pub const SUPPORT_PANEL_CONTENT: &str = "Need help? Open a support ticket.";
@@ -1072,7 +1073,7 @@ impl TwilightTransport {
             .ok_or(TransportError::Rejected { status: 400 })?;
         let guild_id = Id::<GuildMarker>::new_checked(guild_id)
             .ok_or(TransportError::Rejected { status: 400 })?;
-        let commands = [diagnostic_command(), timeout_command()];
+        let commands = [diagnostic_command(), timeout_command(), daily_command()];
         self.preflight()?;
         let result = self
             .client
@@ -1867,6 +1868,27 @@ fn diagnostic_command() -> Command {
         integration_types: None,
         kind: CommandType::ChatInput,
         name: DIAGNOSTIC_COMMAND_NAME.to_owned(),
+        name_localizations: None,
+        nsfw: Some(false),
+        options: Vec::new(),
+        version: Id::<CommandVersionMarker>::new(1),
+    }
+}
+
+#[allow(deprecated)]
+fn daily_command() -> Command {
+    Command {
+        application_id: None,
+        contexts: Some(vec![InteractionContextType::Guild]),
+        default_member_permissions: None,
+        dm_permission: Some(false),
+        description: "Claim the daily guild currency reward.".to_owned(),
+        description_localizations: None,
+        guild_id: None,
+        id: None,
+        integration_types: None,
+        kind: CommandType::ChatInput,
+        name: DAILY_COMMAND_NAME.to_owned(),
         name_localizations: None,
         nsfw: Some(false),
         options: Vec::new(),

@@ -10,6 +10,7 @@ use uuid::Uuid;
 mod assignment;
 mod edge;
 mod edge_relay;
+mod earnings;
 mod identity;
 mod installation;
 mod messaging;
@@ -27,8 +28,9 @@ pub use moderation::{ModerationCaseRecord, NewModerationCase, PinnedPolicy};
 pub use owners::{
     AssignmentStore, ControlPlaneDatabase, DeliveryIntentStore, EdgeRelayStore, EdgeStore,
     IdentityStore, InstallationStore, LifecycleStore, Migrations, ModerationStore,
-    ProgressionStore, QueryStore, SupportStore,
+    ProgressionStore, QueryStore, SupportStore, EarningsStore,
 };
+pub use earnings::{DailyAction, DailyDecision, DailyPolicy};
 pub use progression::{NewTextMessage, XpDecision, XpEntry, XpRevision, XpStatus};
 pub use support::{SupportCase, SupportClick, SupportDecision, SupportPanel, SupportTicketStatus};
 
@@ -430,6 +432,7 @@ pub(crate) async fn insert_installation_state_event(
         event_id,
         schema_name: "InstallationStateChanged".to_owned(),
         schema_version: 1,
+        schema_family: None,
         occurred_at: timestamp.clone(),
         received_at: timestamp,
         application_id: request.application_id.to_owned(),

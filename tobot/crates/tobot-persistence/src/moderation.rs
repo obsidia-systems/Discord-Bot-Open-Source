@@ -624,6 +624,7 @@ async fn insert_outbox(
         event_id,
         schema_name: fact_name.to_owned(),
         schema_version: 1,
+        schema_family: None,
         occurred_at: timestamp.clone(),
         received_at: timestamp,
         application_id: application_id.to_owned(),

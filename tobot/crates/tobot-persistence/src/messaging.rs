@@ -511,6 +511,7 @@ pub(crate) async fn append_fact(
         event_id,
         schema_name: name.to_owned(),
         schema_version: 1,
+        schema_family: (schema == "earnings").then(|| "VirtualPayment".to_owned()),
         occurred_at: timestamp.clone(),
         received_at: timestamp,
         application_id: application_id.to_owned(),
@@ -535,6 +536,7 @@ pub(crate) async fn append_fact(
         "assignment" => "assignment.event_outbox",
         "progression" => "progression.event_outbox",
         "support" => "support.event_outbox",
+        "earnings" => "earnings.event_outbox",
         _ => return Err(sqlx::Error::Protocol("invalid outbox".to_owned())),
     };
     sqlx::query(&format!("INSERT INTO {table} (outbox_id,tenant_id,event_id,topic,partition_key,envelope) VALUES ($1,$2,$3,$4,$5,$6)"))
@@ -550,6 +552,7 @@ pub enum MessagingOutbox {
     Assignment(AssignmentStore),
     Progression(ProgressionStore),
     Support(super::SupportStore),
+    Earnings(super::EarningsStore),
 }
 
 impl MessagingOutbox {
@@ -560,6 +563,7 @@ impl MessagingOutbox {
             Self::Assignment(_) => "assignment.event_outbox",
             Self::Progression(_) => "progression.event_outbox",
             Self::Support(_) => "support.event_outbox",
+            Self::Earnings(_) => "earnings.event_outbox",
         }
     }
     fn pool(&self) -> &sqlx::PgPool {
@@ -569,6 +573,7 @@ impl MessagingOutbox {
             Self::Assignment(store) => &store.pool,
             Self::Progression(store) => &store.pool,
             Self::Support(store) => &store.pool,
+            Self::Earnings(store) => &store.pool,
         }
     }
     /// # Errors

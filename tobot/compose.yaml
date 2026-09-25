@@ -37,6 +37,20 @@ services:
       retries: 20
     networks: [data]
 
+  postgres-ledger:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tobot_ledger
+      POSTGRES_PASSWORD: ${TOBOT_LEDGER_DB_PASSWORD:?set TOBOT_LEDGER_DB_PASSWORD}
+      POSTGRES_DB: tobot_ledger
+    volumes: [ledger_pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tobot_ledger -d tobot_ledger"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [data]
+
   redis:
     image: redis:8-alpine
     command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
@@ -54,6 +68,35 @@ services:
       TOBOT_DATABASE_URL: ${TOBOT_DATABASE_URL:?set TOBOT_DATABASE_URL}
     depends_on:
       postgres:
+        condition: service_healthy
+    networks: [data]
+
+  ledger-migrate:
+    build: .
+    command: ["/usr/local/bin/tobot-monetary-ledger", "--migrate"]
+    environment:
+      TOBOT_LEDGER_DATABASE_URL: postgres://tobot_ledger:${TOBOT_LEDGER_DB_PASSWORD:?set TOBOT_LEDGER_DB_PASSWORD}@postgres-ledger:5432/tobot_ledger
+      TOBOT_LEDGER_SERVICE_TOKEN: ${TOBOT_LEDGER_SERVICE_TOKEN:?set TOBOT_LEDGER_SERVICE_TOKEN}
+      TOBOT_LEDGER_RECEIPT_KEY: ${TOBOT_LEDGER_RECEIPT_KEY:?set TOBOT_LEDGER_RECEIPT_KEY}
+    depends_on:
+      postgres-ledger:
+        condition: service_healthy
+    networks: [data]
+
+  monetary-ledger:
+    build: .
+    command: ["/usr/local/bin/tobot-monetary-ledger"]
+    environment:
+      TOBOT_LEDGER_DATABASE_URL: postgres://tobot_ledger:${TOBOT_LEDGER_DB_PASSWORD:?set TOBOT_LEDGER_DB_PASSWORD}@postgres-ledger:5432/tobot_ledger
+      TOBOT_LEDGER_SERVICE_TOKEN: ${TOBOT_LEDGER_SERVICE_TOKEN:?set TOBOT_LEDGER_SERVICE_TOKEN}
+      TOBOT_LEDGER_RECEIPT_KEY: ${TOBOT_LEDGER_RECEIPT_KEY:?set TOBOT_LEDGER_RECEIPT_KEY}
+      TOBOT_DISCORD_APPLICATION_ID: ${TOBOT_DISCORD_APPLICATION_ID:?set TOBOT_DISCORD_APPLICATION_ID}
+      TOBOT_REDIS_URL: ${TOBOT_REDIS_URL:?set TOBOT_REDIS_URL}
+      TOBOT_LEDGER_BIND: 0.0.0.0:8085
+    depends_on:
+      ledger-migrate:
+        condition: service_completed_successfully
+      redis:
         condition: service_healthy
     networks: [data]
 
@@ -75,10 +118,15 @@ services:
       TOBOT_VAULT_TRANSIT_KEY: ${TOBOT_VAULT_TRANSIT_KEY:-tobot-oauth}
       TOBOT_DELIVERY_URL: ${TOBOT_DELIVERY_URL:-http://delivery:8081}
       TOBOT_INTERNAL_SERVICE_TOKEN: ${TOBOT_INTERNAL_SERVICE_TOKEN:?set TOBOT_INTERNAL_SERVICE_TOKEN}
+      TOBOT_LEDGER_URL: http://monetary-ledger:8085
+      TOBOT_LEDGER_SERVICE_TOKEN: ${TOBOT_LEDGER_SERVICE_TOKEN:?set TOBOT_LEDGER_SERVICE_TOKEN}
+      TOBOT_LEDGER_RECEIPT_KEY: ${TOBOT_LEDGER_RECEIPT_KEY:?set TOBOT_LEDGER_RECEIPT_KEY}
       TOBOT_CONTROL_METRICS_BIND: 0.0.0.0:8083
     depends_on:
       migrate:
         condition: service_completed_successfully
+      monetary-ledger:
+        condition: service_started
       redis:
         condition: service_healthy
       vault-init:
@@ -165,6 +213,7 @@ services:
 
 volumes:
   caddy_data:
+  ledger_pgdata:
 
 networks:
   data:

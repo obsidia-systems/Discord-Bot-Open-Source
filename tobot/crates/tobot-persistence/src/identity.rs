@@ -9,6 +9,12 @@ use super::{
 };
 
 impl IdentityStore {
+    /// # Errors
+    /// Devuelve un error si la identidad Discord no se puede leer.
+    pub async fn discord_user_id(&self, account_id: Uuid) -> Result<Option<String>, sqlx::Error> {
+        sqlx::query_scalar("SELECT provider_user_id FROM identity.external_identity WHERE provider='discord' AND account_id=$1")
+            .bind(account_id).fetch_optional(&self.pool).await
+    }
     /// Validates all server-side session authorities and advances only the
     /// idle deadline, never the absolute deadline.
     ///

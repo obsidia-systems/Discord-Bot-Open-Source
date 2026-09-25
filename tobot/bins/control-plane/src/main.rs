@@ -2,6 +2,8 @@
 //! app origin when the reverse proxy forwards these paths to this binary.
 
 mod cases_http;
+mod earnings;
+mod ledger_client;
 mod progression;
 mod roles;
 mod support;
@@ -121,6 +123,8 @@ struct AppState {
     assignment: tobot_persistence::AssignmentStore,
     progression: tobot_persistence::ProgressionStore,
     support: tobot_persistence::SupportStore,
+    earnings: tobot_persistence::EarningsStore,
+    ledger: ledger_client::LedgerClient,
     support_delivery: tobot_delivery_client::SupportDeliveryClient,
     welcome_delivery: WelcomeDeliveryClient,
     role_delivery: tobot_delivery_client::RoleDeliveryClient,
@@ -287,6 +291,22 @@ async fn main() -> anyhow::Result<()> {
         "support-status-s5",
         "control-plane",
     )?;
+    let ledger = ledger_client::LedgerClient::from_env().context("invalid Monetary Ledger client")?;
+    let earnings_worker = database.earnings.clone();
+    let earnings_admission = database.earnings.clone();
+    let earnings_delivery = support_delivery.clone();
+    let earnings_settlement_delivery = support_delivery.clone();
+    let earnings_ledger = ledger.clone();
+    let earnings_admission_ledger = ledger.clone();
+    let earnings_consumer = RedisStreamConsumer::connect(
+        config.redis_url.expose_for_adapter(),"earnings-s6","control-plane")?;
+    let earnings_relay = MessagingOutboxRelay::new(
+        MessagingOutbox::Earnings(database.earnings.clone()),
+        RedisStreamPublisher::connect(config.redis_url.expose_for_adapter())?,
+    );
+    let wallet_query = database.query.clone();
+    let wallet_consumer = RedisStreamConsumer::connect(
+        config.redis_url.expose_for_adapter(),"wallet-status-s6","control-plane")?;
     let metrics_state = MetricsState {
         identity: database.identity.clone(),
         installation: database.installation.clone(),
@@ -318,6 +338,8 @@ async fn main() -> anyhow::Result<()> {
         assignment: assignment_api,
         progression: progression_api,
         support: database.support,
+        earnings: database.earnings,
+        ledger,
         support_delivery,
         welcome_delivery,
         role_delivery,
@@ -365,6 +387,10 @@ async fn main() -> anyhow::Result<()> {
         result = support::run_support(support_worker, support_worker_delivery, support_consumer) => result,
         result = support::run_support_relay(support_relay) => result,
         result = support::run_support_projector(support_query, support_status_consumer) => result,
+        result = earnings::run_admission(earnings_admission,earnings_admission_ledger,earnings_delivery,earnings_consumer) => result,
+        result = earnings::run_settlement(earnings_worker,earnings_ledger,earnings_settlement_delivery) => result,
+        result = earnings::run_relay(earnings_relay) => result,
+        result = earnings::run_projector(wallet_query,wallet_consumer) => result,
     }
 }
 
@@ -843,6 +869,10 @@ fn router(state: AppState) -> Router {
             get(progression::get_progression).post(progression::publish),
         )
         .route("/api/v1/guilds/{tenant_id}/support", get(support::inbox))
+        .route("/api/v1/guilds/{tenant_id}/economy",get(earnings::status).post(earnings::publish))
+        .route("/api/v1/guilds/{tenant_id}/economy/circuit",post(earnings::circuit))
+        .route("/api/v1/guilds/{tenant_id}/wallet",get(earnings::wallet))
+        .route("/api/v1/member/guilds",get(earnings::member_guilds))
         .route(
             "/api/v1/guilds/{tenant_id}/support/panel",
             get(support::panel_status).post(support::publish),
@@ -1811,6 +1841,7 @@ fn admit_installation_command(schema_name: &str, actor_account_id: Uuid, tenant_
         command_id: Uuid::now_v7(),
         schema_name: schema_name.to_owned(),
         schema_version: 1,
+        schema_family: None,
         actor_account_id,
         tenant_id,
         idempotency_key: Uuid::now_v7(),

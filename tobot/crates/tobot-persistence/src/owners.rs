@@ -82,6 +82,10 @@ owner_store!(
     SupportStore,
     "Support templates, panel bindings, cases, numbers and support outbox."
 );
+owner_store!(
+    EarningsStore,
+    "Daily income policy, durable decisions, cooldowns and settlement references."
+);
 
 /// The facades Control Plane is allowed to hold. The projector receives
 /// installation and query on their own; this bundle does not add cross-module methods.
@@ -95,6 +99,7 @@ pub struct ControlPlaneDatabase {
     pub assignment: AssignmentStore,
     pub progression: ProgressionStore,
     pub support: SupportStore,
+    pub earnings: EarningsStore,
 }
 
 impl ControlPlaneDatabase {
@@ -111,7 +116,8 @@ impl ControlPlaneDatabase {
             lifecycle: LifecycleStore { pool: pool.clone() },
             assignment: AssignmentStore { pool: pool.clone() },
             progression: ProgressionStore { pool: pool.clone() },
-            support: SupportStore { pool },
+            support: SupportStore { pool: pool.clone() },
+            earnings: EarningsStore { pool },
         })
     }
 }

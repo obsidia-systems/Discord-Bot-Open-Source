@@ -4,6 +4,7 @@ members = [
   "bins/delivery",
   "bins/discord-edge",
   "bins/migrate",
+  "bins/monetary-ledger",
   "crates/tobot-config",
   "crates/tobot-discord-adapter",
   "crates/tobot-delivery-client",
@@ -29,6 +30,7 @@ publish = false
 
 [workspace.dependencies]
 futures-util = "0.3"
+hmac = "0.12"
 anyhow = "1.0"
 async-trait = "0.1"
 axum = "0.8"
@@ -51,7 +53,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 twilight-http = { version = "0.17.1", default-features = false, features = ["rustls-webpki-roots"] }
 twilight-gateway = "0.17.1"
 twilight-model = "0.17.1"
-uuid = { version = "1.18", features = ["serde", "v4", "v7"] }
+uuid = { version = "1.18", features = ["serde", "v4", "v5", "v7"] }
 url = "2.5"
 
 [workspace.lints.rust]

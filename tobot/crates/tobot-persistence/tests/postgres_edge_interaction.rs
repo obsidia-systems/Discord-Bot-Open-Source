@@ -44,6 +44,7 @@ fn event(schema_name: &str, tenant: Uuid, session_id: &str) -> EventEnvelope {
         event_id: Uuid::now_v7(),
         schema_name: schema_name.to_owned(),
         schema_version: 1,
+        schema_family: None,
         occurred_at: "2026-09-25T00:00:00Z".to_owned(),
         received_at: "2026-09-25T00:00:00Z".to_owned(),
         application_id: "123".to_owned(),

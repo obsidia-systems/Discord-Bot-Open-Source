@@ -144,6 +144,7 @@ pub(super) async fn publish(
         command_id: Uuid::now_v7(),
         schema_name: "PublishWelcomeRevision".to_owned(),
         schema_version: 1,
+        schema_family: None,
         actor_account_id: session.account_id,
         tenant_id,
         idempotency_key: Uuid::now_v7(),

@@ -1,5 +1,76 @@
 import { guildHomeAccess } from "./shell-state";
 
+export type WalletBody = {
+  wallet: { tenant_id: string; currency_id: string; member_id: string; current: number; available: number; journal_sequence: number;
+    recent_postings: {transaction_id:string;kind:string;amount:number;journal_sequence:number;occurred_at:string}[] } | null;
+  projection: { balance: number; journal_sequence: number; projection_watermark_unix: number } | null;
+};
+export type EconomyBody = {
+  currency: { revision_id: string; starting_grant: number; wallet_ceiling: number; issuance_ceiling: number; credit_enabled: boolean; write_ready: boolean } | null;
+  daily: { revision_id: string; currency_revision_id: string; amount: number; enabled: boolean } | null;
+  ready: boolean;
+};
+
+export async function readWallet(tenant: string): Promise<{ kind: "ready"; body: WalletBody } | { kind: "unauthenticated" | "no-access" | "unavailable" }> {
+  try {
+    const response = await fetch(`/api/v1/guilds/${encodeURIComponent(tenant)}/wallet`, {credentials:"include",cache:"no-store",headers:jsonHeaders});
+    if (response.status===401) return {kind:"unauthenticated"};
+    if (response.status===403 || response.status===404) return {kind:"no-access"};
+    if (!response.ok) return {kind:"unavailable"};
+    return {kind:"ready",body:(await response.json()) as WalletBody};
+  } catch {return {kind:"unavailable"};}
+}
+
+export async function readEconomy(tenant: string): Promise<{ kind: "ready"; body: EconomyBody } | { kind: "unauthenticated" | "no-access" | "unavailable" }> {
+  try {
+    const response = await fetch(`/api/v1/guilds/${encodeURIComponent(tenant)}/economy`, {credentials:"include",cache:"no-store",headers:jsonHeaders});
+    if (response.status===401) return {kind:"unauthenticated"};
+    if (response.status===403 || response.status===404) return {kind:"no-access"};
+    if (!response.ok) return {kind:"unavailable"};
+    return {kind:"ready",body:(await response.json()) as EconomyBody};
+  } catch {return {kind:"unavailable"};}
+}
+
+export async function publishEconomy(tenant: string,request: {starting_grant:number;wallet_ceiling:number;issuance_ceiling:number;daily_amount:number}): Promise<"done"|"unauthenticated"|"no-access"|"invalid"|"unavailable"> {
+  const csrf=await readCsrfToken();
+  if (csrf.kind!=="token") return csrf.kind;
+  try {
+    const response=await fetch(`/api/v1/guilds/${encodeURIComponent(tenant)}/economy`,{
+      method:"POST",credentials:"include",cache:"no-store",headers:{...jsonHeaders,"content-type":"application/json","x-csrf-token":csrf.value},body:JSON.stringify(request),
+    });
+    if (response.status===201) return "done";
+    if (response.status===401) return "unauthenticated";
+    if (response.status===403 || response.status===404) return "no-access";
+    if (response.status===400) return "invalid";
+    return "unavailable";
+  } catch {return "unavailable";}
+}
+
+export async function setEconomyCircuit(tenant:string,creditEnabled:boolean,dailyEnabled:boolean):Promise<"done"|"unauthenticated"|"no-access"|"unavailable"> {
+  const csrf=await readCsrfToken();
+  if (csrf.kind!=="token") return csrf.kind;
+  try {
+    const response=await fetch(`/api/v1/guilds/${encodeURIComponent(tenant)}/economy/circuit`,{
+      method:"POST",credentials:"include",cache:"no-store",headers:{...jsonHeaders,"content-type":"application/json","x-csrf-token":csrf.value},
+      body:JSON.stringify({credit_enabled:creditEnabled,daily_enabled:dailyEnabled}),
+    });
+    if (response.status===204) return "done";
+    if (response.status===401) return "unauthenticated";
+    if (response.status===403 || response.status===404) return "no-access";
+    return "unavailable";
+  } catch {return "unavailable";}
+}
+
+export async function readMemberGuilds(): Promise<{kind:"ready";guilds:{tenant_id:string;guild_id:string;name:string|null}[]} | {kind:"unauthenticated"|"unavailable"}> {
+  try {
+    const response=await fetch("/api/v1/member/guilds",{credentials:"include",cache:"no-store",headers:jsonHeaders});
+    if (response.status===401) return {kind:"unauthenticated"};
+    if (!response.ok) return {kind:"unavailable"};
+    const body=(await response.json()) as {guilds?:{tenant_id:string;guild_id:string;name:string|null}[]};
+    return {kind:"ready",guilds:Array.isArray(body.guilds)?body.guilds:[]};
+  } catch {return {kind:"unavailable"};}
+}
+
 export type GuildDiscoveryShell = {
   tenant_id: string;
   installation_state: string;
