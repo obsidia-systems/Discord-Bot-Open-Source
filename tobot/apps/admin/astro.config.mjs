@@ -10,6 +10,9 @@ export default defineConfig({
   site: "https://admin.tobot.test",
   vite: {
     plugins: [tailwindcss()],
+    // El servidor en Compose no comparte el runtime JSX con checks/builds del host.
+    cacheDir: process.env.TOBOT_ADMIN_VITE_CACHE_DIR,
+    optimizeDeps: { force: true },
     server: {
       allowedHosts: ["admin.tobot.test"],
     },

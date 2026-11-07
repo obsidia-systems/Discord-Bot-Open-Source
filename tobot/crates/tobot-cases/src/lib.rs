@@ -95,20 +95,24 @@ pub fn status_after_followup_failure(status: &str) -> &str {
 /// Returns an error when the duration is empty, non-positive, or longer than 28 days.
 pub fn parse_timeout_duration(raw: &str) -> Result<i64, EnvelopeError> {
     let folded = fold_duration(raw.trim());
-    let (count, unit) = split_duration(&folded).ok_or_else(|| {
-        EnvelopeError::UnsupportedSchemaName(format!("duration {raw}"))
-    })?;
-    let count = count.parse::<i64>().map_err(|_| {
-        EnvelopeError::UnsupportedSchemaName(format!("duration {raw}"))
-    })?;
+    let (count, unit) = split_duration(&folded)
+        .ok_or_else(|| EnvelopeError::UnsupportedSchemaName(format!("duration {raw}")))?;
+    let count = count
+        .parse::<i64>()
+        .map_err(|_| EnvelopeError::UnsupportedSchemaName(format!("duration {raw}")))?;
     if count <= 0 {
-        return Err(EnvelopeError::UnsupportedSchemaName(format!("duration {raw}")));
+        return Err(EnvelopeError::UnsupportedSchemaName(format!(
+            "duration {raw}"
+        )));
     }
-    let seconds = count.saturating_mul(unit_seconds(unit).ok_or_else(|| {
-        EnvelopeError::UnsupportedSchemaName(format!("duration {raw}"))
-    })?);
+    let seconds = count.saturating_mul(
+        unit_seconds(unit)
+            .ok_or_else(|| EnvelopeError::UnsupportedSchemaName(format!("duration {raw}")))?,
+    );
     if !(1..=TIMEOUT_MAX_SECONDS).contains(&seconds) {
-        return Err(EnvelopeError::UnsupportedSchemaName(format!("duration {raw}")));
+        return Err(EnvelopeError::UnsupportedSchemaName(format!(
+            "duration {raw}"
+        )));
     }
     Ok(seconds)
 }
@@ -405,7 +409,12 @@ async fn finish_applied(
     let mut extra = serde_json::json!({});
     if record.action_type == "remove_timeout" {
         let compensated = store
-            .compensate_applied_timeouts(record.tenant_id, &record.target_user_id, record.case_id, now)
+            .compensate_applied_timeouts(
+                record.tenant_id,
+                &record.target_user_id,
+                record.case_id,
+                now,
+            )
             .await?;
         extra = serde_json::json!({
             "compensated_case_ids": compensated.iter().map(ToString::to_string).collect::<Vec<_>>()
@@ -507,7 +516,11 @@ async fn reload(store: &ModerationStore, case_id: Uuid) -> Result<CaseDecision, 
 }
 
 fn from_record(record: &ModerationCaseRecord) -> CaseDecision {
-    decision(Some(record.case_id), Some(record.display_number), &record.status)
+    decision(
+        Some(record.case_id),
+        Some(record.display_number),
+        &record.status,
+    )
 }
 
 fn decision(case_id: Option<Uuid>, display_number: Option<i64>, status: &str) -> CaseDecision {
@@ -590,7 +603,10 @@ mod tests {
         assert_eq!(parse_timeout_duration("10m").ok(), Some(600));
         assert_eq!(parse_timeout_duration("10 minutos").ok(), Some(600));
         assert_eq!(parse_timeout_duration("1 día").ok(), Some(86_400));
-        assert_eq!(parse_timeout_duration("28d").ok(), Some(TIMEOUT_MAX_SECONDS));
+        assert_eq!(
+            parse_timeout_duration("28d").ok(),
+            Some(TIMEOUT_MAX_SECONDS)
+        );
         assert!(parse_timeout_duration("29d").is_err());
         assert!(parse_timeout_duration("0m").is_err());
     }
@@ -599,6 +615,9 @@ mod tests {
     fn follow_up_failure_leaves_applied_unchanged() {
         assert_eq!(status_after_followup_failure("Applied"), "Applied");
         assert_eq!(follow_up_text(Some(4), "Applied"), "Case 4: Applied.");
-        assert_eq!(follow_up_text(Some(4), "OutcomeUncertain"), "Case 4: Uncertain.");
+        assert_eq!(
+            follow_up_text(Some(4), "OutcomeUncertain"),
+            "Case 4: Uncertain."
+        );
     }
 }

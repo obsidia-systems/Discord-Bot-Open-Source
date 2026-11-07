@@ -51,6 +51,90 @@ services:
       retries: 20
     networks: [data]
 
+  postgres-provider-edge:
+    profiles: [billing]
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tobot_provider_edge
+      POSTGRES_PASSWORD: ${TOBOT_PROVIDER_EDGE_DB_PASSWORD:-}
+      POSTGRES_DB: tobot_provider_edge
+    volumes: [provider_edge_pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tobot_provider_edge -d tobot_provider_edge"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [data]
+
+  postgres-billing:
+    profiles: [billing]
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tobot_billing
+      POSTGRES_PASSWORD: ${TOBOT_BILLING_DB_PASSWORD:-}
+      POSTGRES_DB: tobot_billing
+    volumes: [billing_pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tobot_billing -d tobot_billing"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [data]
+
+  provider-event-edge:
+    profiles: [billing]
+    build: .
+    command: ["/usr/local/bin/tobot-provider-event-edge"]
+    environment:
+      TOBOT_PROVIDER_EDGE_DATABASE_URL: postgres://tobot_provider_edge:${TOBOT_PROVIDER_EDGE_DB_PASSWORD:-}@postgres-provider-edge:5432/tobot_provider_edge
+      TOBOT_STRIPE_TEST_WEBHOOK_SECRET: ${TOBOT_STRIPE_TEST_WEBHOOK_SECRET:-}
+      TOBOT_STRIPE_TEST_ACCOUNT_SCOPE: ${TOBOT_STRIPE_TEST_ACCOUNT_SCOPE:-}
+      TOBOT_PROVIDER_TO_BILLING_TOKEN: ${TOBOT_PROVIDER_TO_BILLING_TOKEN:-}
+      TOBOT_BILLING_URL: http://billing:8087
+      TOBOT_PROVIDER_EDGE_BIND: 0.0.0.0:8086
+    depends_on:
+      postgres-provider-edge:
+        condition: service_healthy
+    networks: [data, public]
+
+  stripe-listener:
+    profiles: [billing-dev]
+    image: stripe/stripe-cli:v1.51.1
+    logging:
+      driver: none
+    command:
+      - listen
+      - --forward-to
+      - http://provider-event-edge:8086/webhooks/stripe/1
+      - --events
+      - checkout.session.completed,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed,checkout.session.expired,invoice.paid,invoice.payment_failed,customer.subscription.updated,customer.subscription.deleted,customer.subscription.paused,refund.created,refund.updated,refund.failed,charge.dispute.created,charge.dispute.updated,charge.dispute.closed
+    environment:
+      STRIPE_API_KEY: ${TOBOT_STRIPE_TEST_API_KEY:-}
+      STRIPE_DEVICE_NAME: tobot-compose-test
+    depends_on:
+      provider-event-edge:
+        condition: service_started
+    networks: [data, provider]
+
+  billing:
+    profiles: [billing]
+    build: .
+    command: ["/usr/local/bin/tobot-billing"]
+    environment:
+      TOBOT_BILLING_DATABASE_URL: postgres://tobot_billing:${TOBOT_BILLING_DB_PASSWORD:-}@postgres-billing:5432/tobot_billing
+      TOBOT_STRIPE_TEST_API_KEY: ${TOBOT_STRIPE_TEST_API_KEY:-}
+      TOBOT_STRIPE_TEST_ACCOUNT_SCOPE: ${TOBOT_STRIPE_TEST_ACCOUNT_SCOPE:-}
+      TOBOT_BILLING_COMMAND_TOKEN: ${TOBOT_BILLING_COMMAND_TOKEN:-}
+      TOBOT_PROVIDER_TO_BILLING_TOKEN: ${TOBOT_PROVIDER_TO_BILLING_TOKEN:-}
+      TOBOT_BILLING_TO_CONTROL_TOKEN: ${TOBOT_BILLING_TO_CONTROL_TOKEN:-}
+      TOBOT_PUBLIC_APP_ORIGIN: ${TOBOT_PUBLIC_APP_ORIGIN:?set TOBOT_PUBLIC_APP_ORIGIN}
+      TOBOT_CONTROL_URL: http://control-plane:8080
+      TOBOT_BILLING_BIND: 0.0.0.0:8087
+    depends_on:
+      postgres-billing:
+        condition: service_healthy
+    networks: [data, provider]
+
   redis:
     image: redis:8-alpine
     command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
@@ -78,10 +162,56 @@ services:
       TOBOT_LEDGER_DATABASE_URL: postgres://tobot_ledger:${TOBOT_LEDGER_DB_PASSWORD:?set TOBOT_LEDGER_DB_PASSWORD}@postgres-ledger:5432/tobot_ledger
       TOBOT_LEDGER_SERVICE_TOKEN: ${TOBOT_LEDGER_SERVICE_TOKEN:?set TOBOT_LEDGER_SERVICE_TOKEN}
       TOBOT_LEDGER_RECEIPT_KEY: ${TOBOT_LEDGER_RECEIPT_KEY:?set TOBOT_LEDGER_RECEIPT_KEY}
+      TOBOT_BILLING_URL: http://billing:8087
+      TOBOT_BILLING_COMMAND_TOKEN: ${TOBOT_BILLING_COMMAND_TOKEN:-}
+      TOBOT_BILLING_TO_CONTROL_TOKEN: ${TOBOT_BILLING_TO_CONTROL_TOKEN:-}
     depends_on:
       postgres-ledger:
         condition: service_healthy
     networks: [data]
+
+  postgres-ai:
+    profiles: [ai]
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tobot_ai
+      POSTGRES_PASSWORD: ${TOBOT_AI_DB_PASSWORD:-}
+      POSTGRES_DB: tobot_ai
+    volumes: [ai_pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tobot_ai -d tobot_ai"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [data]
+
+  ai-migrate:
+    profiles: [ai]
+    build: .
+    command: ["/usr/local/bin/tobot-ai", "--migrate"]
+    environment:
+      TOBOT_AI_DATABASE_URL: postgres://tobot_ai:${TOBOT_AI_DB_PASSWORD:-}@postgres-ai:5432/tobot_ai
+    depends_on:
+      postgres-ai:
+        condition: service_healthy
+    networks: [data]
+
+  ai:
+    profiles: [ai]
+    build: .
+    command: ["/usr/local/bin/tobot-ai"]
+    environment:
+      TOBOT_AI_DATABASE_URL: postgres://tobot_ai:${TOBOT_AI_DB_PASSWORD:-}@postgres-ai:5432/tobot_ai
+      TOBOT_AI_SERVICE_TOKEN: ${TOBOT_AI_SERVICE_TOKEN:-}
+      TOBOT_AI_RECEIPT_KEY: ${TOBOT_AI_RECEIPT_KEY:-}
+      TOBOT_AI_PROVIDER_URL: ${TOBOT_AI_PROVIDER_URL:-}
+      TOBOT_AI_PROVIDER_KEY: ${TOBOT_AI_PROVIDER_KEY:-}
+      TOBOT_AI_BIND: 0.0.0.0:8088
+      TOBOT_DISCORD_APPLICATION_ID: ${TOBOT_DISCORD_APPLICATION_ID:?set TOBOT_DISCORD_APPLICATION_ID}
+    depends_on:
+      ai-migrate:
+        condition: service_completed_successfully
+    networks: [data, provider]
 
   monetary-ledger:
     build: .
@@ -122,6 +252,13 @@ services:
       TOBOT_LEDGER_SERVICE_TOKEN: ${TOBOT_LEDGER_SERVICE_TOKEN:?set TOBOT_LEDGER_SERVICE_TOKEN}
       TOBOT_LEDGER_RECEIPT_KEY: ${TOBOT_LEDGER_RECEIPT_KEY:?set TOBOT_LEDGER_RECEIPT_KEY}
       TOBOT_CONTROL_METRICS_BIND: 0.0.0.0:8083
+      TOBOT_BILLING_URL: http://billing:8087
+      TOBOT_BILLING_COMMAND_TOKEN: ${TOBOT_BILLING_COMMAND_TOKEN:-}
+      TOBOT_BILLING_TO_CONTROL_TOKEN: ${TOBOT_BILLING_TO_CONTROL_TOKEN:-}
+      TOBOT_CATALOG_ADMIN_TOKEN: ${TOBOT_CATALOG_ADMIN_TOKEN:-}
+      TOBOT_AI_URL: http://ai:8088
+      TOBOT_AI_SERVICE_TOKEN: ${TOBOT_AI_SERVICE_TOKEN:-}
+      TOBOT_AI_RECEIPT_KEY: ${TOBOT_AI_RECEIPT_KEY:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -193,7 +330,12 @@ services:
     working_dir: /workspace
     command: sh -c "rm -f apps/admin/.astro/dev.json && npm install -g pnpm@12 && pnpm install --frozen-lockfile && pnpm --filter @tobot/admin dev --host 0.0.0.0"
     environment:
+      NODE_ENV: development
+      TOBOT_ADMIN_VITE_CACHE_DIR: /tmp/tobot-admin-vite
       TOBOT_INTERNAL_SERVICE_TOKEN: ${TOBOT_INTERNAL_SERVICE_TOKEN:?set TOBOT_INTERNAL_SERVICE_TOKEN}
+      TOBOT_ADMIN_OPERATOR_TOKEN: ${TOBOT_ADMIN_OPERATOR_TOKEN:?set TOBOT_ADMIN_OPERATOR_TOKEN}
+      TOBOT_CATALOG_ADMIN_TOKEN: ${TOBOT_CATALOG_ADMIN_TOKEN:?set TOBOT_CATALOG_ADMIN_TOKEN}
+      TOBOT_STRIPE_TEST_ACCOUNT_SCOPE: ${TOBOT_STRIPE_TEST_ACCOUNT_SCOPE:-}
       TOBOT_CONTROL_URL: http://control-plane:8080
       TOBOT_CONTROL_METRICS_URL: http://control-plane:8083
       TOBOT_DELIVERY_URL: http://delivery:8081
@@ -214,6 +356,9 @@ services:
 volumes:
   caddy_data:
   ledger_pgdata:
+  provider_edge_pgdata:
+  billing_pgdata:
+  ai_pgdata:
 
 networks:
   data:

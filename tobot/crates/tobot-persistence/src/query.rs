@@ -148,14 +148,22 @@ impl QueryStore {
         stream_position: &str,
         received_at: OffsetDateTime,
     ) -> Result<(), sqlx::Error> {
-        let tenant_id = event.tenant_id.ok_or_else(|| {
-            sqlx::Error::Protocol("moderation fact lacks tenant_id".to_owned())
-        })?;
+        let tenant_id = event
+            .tenant_id
+            .ok_or_else(|| sqlx::Error::Protocol("moderation fact lacks tenant_id".to_owned()))?;
         let summary = case_summary(&event.payload)?;
         let mut transaction = self.pool.begin().await?;
-        let inserted = insert_inbox(&mut transaction, event, raw, stream_position, received_at).await?;
+        let inserted =
+            insert_inbox(&mut transaction, event, raw, stream_position, received_at).await?;
         if inserted {
-            upsert_case(&mut transaction, tenant_id, &summary, event.event_id, received_at).await?;
+            upsert_case(
+                &mut transaction,
+                tenant_id,
+                &summary,
+                event.event_id,
+                received_at,
+            )
+            .await?;
             compensate_cases(&mut transaction, &event.payload, received_at).await?;
         }
         transaction.commit().await
@@ -164,7 +172,10 @@ impl QueryStore {
     /// # Errors
     ///
     /// Returns a database error if the tenant-bound cases cannot be read.
-    pub async fn cases_for_tenant(&self, tenant_id: Uuid) -> Result<Vec<CaseProjection>, sqlx::Error> {
+    pub async fn cases_for_tenant(
+        &self,
+        tenant_id: Uuid,
+    ) -> Result<Vec<CaseProjection>, sqlx::Error> {
         sqlx::query_as(
             "SELECT case_id, tenant_id, display_number, action, target_label, target_user_id, \
                     actor_provider_user_id, reason, status, expires_at, projection_watermark \
@@ -225,9 +236,9 @@ fn case_summary(payload: &serde_json::Value) -> Result<CaseSummary, sqlx::Error>
         actor_provider_user_id: required_string(payload, "actor_provider_user_id")?,
         reason: required_string(payload, "reason")?,
         status: required_string(payload, "status")?,
-        expires_at: payload["expires_at"].as_i64().and_then(|seconds| {
-            OffsetDateTime::from_unix_timestamp(seconds).ok()
-        }),
+        expires_at: payload["expires_at"]
+            .as_i64()
+            .and_then(|seconds| OffsetDateTime::from_unix_timestamp(seconds).ok()),
     })
 }
 
@@ -300,7 +311,10 @@ async fn compensate_cases(
     payload: &serde_json::Value,
     received_at: OffsetDateTime,
 ) -> Result<(), sqlx::Error> {
-    let Some(ids) = payload.get("compensated_case_ids").and_then(serde_json::Value::as_array) else {
+    let Some(ids) = payload
+        .get("compensated_case_ids")
+        .and_then(serde_json::Value::as_array)
+    else {
         return Ok(());
     };
     for id in ids {

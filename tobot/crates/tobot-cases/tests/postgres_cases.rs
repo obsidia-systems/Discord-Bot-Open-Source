@@ -1,12 +1,15 @@
 //! Case proofs that need PostgreSQL. They refuse any database other than `tobot_test`.
 
-use std::{env, sync::atomic::{AtomicUsize, Ordering}};
+use std::{
+    env,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 use async_trait::async_trait;
 use time::OffsetDateTime;
 use tobot_cases::{
-    MemberTimeoutGateway, PreflightQuery, SubmittedAction, TimeoutMutation, execute_submitted_action,
-    status_after_followup_failure,
+    MemberTimeoutGateway, PreflightQuery, SubmittedAction, TimeoutMutation,
+    execute_submitted_action, status_after_followup_failure,
 };
 use tobot_discord_adapter::{CapabilityDecision, ModerationPreflightReport, TransportError};
 use tobot_persistence::{Migrations, ModerationStore};
@@ -36,7 +39,11 @@ impl MemberTimeoutGateway for Script {
         Ok(())
     }
 
-    async fn observe_timeout(&self, _guild_id: &str, _user_id: &str) -> Result<bool, TransportError> {
+    async fn observe_timeout(
+        &self,
+        _guild_id: &str,
+        _user_id: &str,
+    ) -> Result<bool, TransportError> {
         Ok(true)
     }
 }
@@ -90,7 +97,10 @@ async fn one_idempotency_key_confirms_one_timeout() -> Result<(), String> {
         return Err("replay opened a second case".to_owned());
     }
     if first.status != "Applied" || second.status != "Applied" {
-        return Err(format!("expected Applied, got {} and {}", first.status, second.status));
+        return Err(format!(
+            "expected Applied, got {} and {}",
+            first.status, second.status
+        ));
     }
     if script.calls.load(Ordering::SeqCst) != 1 {
         return Err("timeout was sent more than once".to_owned());
@@ -197,7 +207,10 @@ async fn connect() -> Result<Option<ModerationStore>, String> {
     let migrations = Migrations::connect(&url)
         .await
         .map_err(|error| error.to_string())?;
-    migrations.migrate().await.map_err(|error| error.to_string())?;
+    migrations
+        .migrate()
+        .await
+        .map_err(|error| error.to_string())?;
     Ok(Some(
         ModerationStore::connect(&url)
             .await

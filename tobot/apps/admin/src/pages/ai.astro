@@ -1,0 +1,15 @@
+---
+import ShellLayout from "../layouts/ShellLayout.astro";
+import { AiReviews } from "../components/AiReviews";
+import { AiSetup } from "../components/AiSetup";
+---
+
+<ShellLayout title="AI credits · Admin">
+  <main id="content" class="mx-auto w-full max-w-2xl px-6 py-12">
+    <a href="/" class="text-sm text-zinc-700 underline">Admin overview</a>
+    <h1 class="mt-6 text-2xl font-semibold tracking-tight">AI credits</h1>
+    <p class="mt-3 leading-relaxed text-zinc-700">Publish the text price, then grant credits to one installation. Close a reservation only after it enters review. The provider key stays on the AI process.</p>
+    <AiSetup client:load />
+    <AiReviews client:load />
+  </main>
+</ShellLayout>

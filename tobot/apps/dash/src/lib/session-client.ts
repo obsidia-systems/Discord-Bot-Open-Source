@@ -5,6 +5,57 @@ export type WalletBody = {
     recent_postings: {transaction_id:string;kind:string;amount:number;journal_sequence:number;occurred_at:string}[] } | null;
   projection: { balance: number; journal_sequence: number; projection_watermark_unix: number } | null;
 };
+export type BillingBody = {
+  entitlement: {generation:number;state:string;feature_key:string;benefits:Array<{kind:"feature"|"perk";key:string}|{kind:"limit";key:string;quantity:number;unit:string}>;valid_until:number|null;active:boolean;source_sequence:number}|null;
+  billing: {order_id:string|null;order_state:string|null;subscription_state?:string|null;invoice_state?:string|null;grace_until?:number|null;purchased_offer?:{name:string;price_minor:number;currency:string;interval:string;support_url?:string}|null;payer_enrolled:boolean}|null;
+  offers:Array<{revision_id:string;product_key:string;display_name:string;currency:string;unit_amount:number;interval_name:string;merchant_of_record:string;terms_url:string;privacy_url:string;support_url:string;benefits:Array<{kind:"feature"|"perk";key:string}|{kind:"limit";key:string;quantity:number;unit:string}>}>;
+};
+
+export type AiUsage = {
+  available: number;
+  reserved: number;
+  operations: Array<{operation_id:string;operation_state:string;reservation_state:string;reserved:number;captured:number;completed:boolean;reply:string|null}>;
+};
+
+export async function readAiUsage(tenant:string):Promise<{kind:"ready";body:AiUsage}|{kind:"unauthenticated"|"no-access"|"unavailable"}> {
+  try {
+    const response=await fetch(`/api/v1/guilds/${encodeURIComponent(tenant)}/ai`,{credentials:"include",cache:"no-store",headers:jsonHeaders});
+    if (response.status===401) return {kind:"unauthenticated"};
+    if (response.status===403||response.status===404) return {kind:"no-access"};
+    if (!response.ok) return {kind:"unavailable"};
+    return {kind:"ready",body:(await response.json()) as AiUsage};
+  } catch {return {kind:"unavailable"};}
+}
+
+export async function readBilling(tenant:string):Promise<{kind:"ready";body:BillingBody}|{kind:"unauthenticated"|"no-access"|"unavailable"}> {
+  try {
+    const response=await fetch(`/api/v1/guilds/${encodeURIComponent(tenant)}/billing`,{credentials:"include",cache:"no-store",headers:jsonHeaders});
+    if (response.status===401) return {kind:"unauthenticated"};
+    if (response.status===403||response.status===404) return {kind:"no-access"};
+    if (!response.ok) return {kind:"unavailable"};
+    return {kind:"ready",body:(await response.json()) as BillingBody};
+  } catch {return {kind:"unavailable"};}
+}
+
+export async function startBillingCheckout(tenant:string,semanticKey:string,revisionId:string):Promise<{kind:"ready";url:string}|{kind:"unauthenticated"|"no-access"|"conflict"|"unavailable"}> {
+  const csrf=await readCsrfToken();
+  if (csrf.kind!=="token") return {kind:csrf.kind};
+  try {
+    const response=await fetch(`/api/v1/guilds/${encodeURIComponent(tenant)}/billing/checkout`,{
+      method:"POST",credentials:"include",cache:"no-store",headers:{...jsonHeaders,"content-type":"application/json","x-csrf-token":csrf.value},
+      body:JSON.stringify({semantic_key:semanticKey,revision_id:revisionId}),
+    });
+    if (response.status===401) return {kind:"unauthenticated"};
+    if (response.status===403||response.status===404) return {kind:"no-access"};
+    if (response.status===409) return {kind:"conflict"};
+    if (!response.ok) return {kind:"unavailable"};
+    const body=(await response.json()) as {checkout_url?:unknown};
+    if (typeof body.checkout_url!=="string") return {kind:"unavailable"};
+    const url=new URL(body.checkout_url);
+    if (url.protocol!=="https:"||url.hostname!=="checkout.stripe.com") return {kind:"unavailable"};
+    return {kind:"ready",url:url.href};
+  } catch {return {kind:"unavailable"};}
+}
 export type EconomyBody = {
   currency: { revision_id: string; starting_grant: number; wallet_ceiling: number; issuance_ceiling: number; credit_enabled: boolean; write_ready: boolean } | null;
   daily: { revision_id: string; currency_revision_id: string; amount: number; enabled: boolean } | null;

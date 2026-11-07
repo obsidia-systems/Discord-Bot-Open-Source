@@ -75,7 +75,8 @@ impl AssignmentStore {
         application_id: &str,
         now: OffsetDateTime,
     ) -> Result<RoleRevision, sqlx::Error> {
-        validate_automatic_role(payload).map_err(|error| sqlx::Error::Protocol(error.to_string()))?;
+        validate_automatic_role(payload)
+            .map_err(|error| sqlx::Error::Protocol(error.to_string()))?;
         let mut tx = self.pool.begin().await?;
         let guild: Option<String> = sqlx::query_scalar(
             "SELECT provider_tenant_ref FROM installation.tenant WHERE tenant_id = $1 AND state = 'Active' FOR UPDATE",
@@ -141,7 +142,10 @@ impl AssignmentStore {
 
     /// # Errors
     /// Returns a database error if the published revision cannot be read.
-    pub async fn published_role(&self, tenant_id: Uuid) -> Result<Option<RoleRevision>, sqlx::Error> {
+    pub async fn published_role(
+        &self,
+        tenant_id: Uuid,
+    ) -> Result<Option<RoleRevision>, sqlx::Error> {
         sqlx::query_as(
             "SELECT revision_id, tenant_id, guild_id, role_id, revision, state FROM assignment.role_policy_revision WHERE tenant_id = $1 AND state = 'Published'",
         )
@@ -247,8 +251,8 @@ impl AssignmentStore {
             })
         } else {
             Ok(RoleJoin::Planned {
-            intent: Box::new(intent),
-        })
+                intent: Box::new(intent),
+            })
         }
     }
 
@@ -361,7 +365,11 @@ impl AssignmentStore {
             "Skipped" => "RoleAssignmentSkipped",
             "Failed" => "RoleAssignmentFailed",
             "OutcomeUncertain" => "",
-            _ => return Err(sqlx::Error::Protocol("unknown assignment status".to_owned())),
+            _ => {
+                return Err(sqlx::Error::Protocol(
+                    "unknown assignment status".to_owned(),
+                ));
+            }
         };
         let mut tx = self.pool.begin().await?;
         let changed = sqlx::query(

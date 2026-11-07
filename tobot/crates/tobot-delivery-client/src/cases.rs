@@ -14,8 +14,12 @@ pub struct CasesDeliveryClient {
 }
 
 #[cfg(test)]
-pub const CASES_DELIVERY_OPERATIONS: &[&str] =
-    &["preflight", "apply_timeout", "clear_timeout", "observe_timeout"];
+pub const CASES_DELIVERY_OPERATIONS: &[&str] = &[
+    "preflight",
+    "apply_timeout",
+    "clear_timeout",
+    "observe_timeout",
+];
 
 impl CasesDeliveryClient {
     /// # Errors
@@ -215,9 +219,10 @@ impl ModerationCommandClient {
         if !status.is_success() {
             return Err(classify_status(status.as_u16()));
         }
-        response.json().await.map_err(|_| {
-            TransportError::Unavailable("Control Plane response invalid".to_owned())
-        })
+        response
+            .json()
+            .await
+            .map_err(|_| TransportError::Unavailable("Control Plane response invalid".to_owned()))
     }
 }
 

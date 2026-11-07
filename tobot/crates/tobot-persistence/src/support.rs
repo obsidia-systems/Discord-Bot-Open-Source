@@ -57,6 +57,7 @@ pub struct SupportClick<'a> {
 pub enum SupportDecision {
     Opened(SupportCase),
     AlreadyOpen(SupportCase),
+    AtCapacity,
     UnknownButton,
 }
 
@@ -316,6 +317,17 @@ impl SupportStore {
         )).bind(click.tenant_id).bind(click.member_id).fetch_optional(&mut *tx).await? {
             tx.commit().await?;
             return Ok(SupportDecision::AlreadyOpen(existing));
+        }
+        // La fila del tenant ya está bloqueada: cuenta y admisión usan el mismo turno transaccional.
+        let paid_limit: Option<i64> = sqlx::query_scalar("SELECT (component->>'quantity')::bigint FROM platform_entitlement.projection p CROSS JOIN LATERAL jsonb_array_elements(p.benefits) component WHERE p.tenant_id=$1 AND p.state IN ('Active','Grace') AND (p.valid_until IS NULL OR p.valid_until>now()) AND component->>'kind'='limit' AND component->>'key'='support.max_open_tickets' LIMIT 1")
+            .bind(click.tenant_id).fetch_optional(&mut *tx).await?;
+        if let Some(limit) = paid_limit {
+            let open_count: i64 = sqlx::query_scalar("SELECT count(*) FROM support.support_case WHERE tenant_id=$1 AND state IN ('Open','Claimed')")
+                .bind(click.tenant_id).fetch_one(&mut *tx).await?;
+            if open_count >= limit {
+                tx.commit().await?;
+                return Ok(SupportDecision::AtCapacity);
+            }
         }
         let number: i64 = sqlx::query_scalar(
             "INSERT INTO support.support_number (tenant_id,next_number) VALUES ($1,2) ON CONFLICT (tenant_id) DO UPDATE SET next_number=support.support_number.next_number+1 RETURNING next_number-1"

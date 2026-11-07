@@ -17,6 +17,9 @@ https://dash.tobot.test {
 	handle /interactions* {
 		respond "not found" 404
 	}
+	handle /webhooks/stripe/* {
+		reverse_proxy provider-event-edge:8086
+	}
 	handle /api/* {
 		reverse_proxy control-plane:8080
 	}

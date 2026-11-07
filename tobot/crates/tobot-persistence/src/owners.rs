@@ -86,6 +86,14 @@ owner_store!(
     EarningsStore,
     "Daily income policy, durable decisions, cooldowns and settlement references."
 );
+owner_store!(
+    PlatformEntitlementStore,
+    "Commercial grant-source applications and the authoritative feature projection."
+);
+owner_store!(
+    CommercialCatalogStore,
+    "Immutable commercial product revisions and their delivery to Billing."
+);
 
 /// The facades Control Plane is allowed to hold. The projector receives
 /// installation and query on their own; this bundle does not add cross-module methods.
@@ -100,6 +108,8 @@ pub struct ControlPlaneDatabase {
     pub progression: ProgressionStore,
     pub support: SupportStore,
     pub earnings: EarningsStore,
+    pub entitlement: PlatformEntitlementStore,
+    pub catalog: CommercialCatalogStore,
 }
 
 impl ControlPlaneDatabase {
@@ -117,7 +127,9 @@ impl ControlPlaneDatabase {
             assignment: AssignmentStore { pool: pool.clone() },
             progression: ProgressionStore { pool: pool.clone() },
             support: SupportStore { pool: pool.clone() },
-            earnings: EarningsStore { pool },
+            earnings: EarningsStore { pool: pool.clone() },
+            entitlement: PlatformEntitlementStore { pool: pool.clone() },
+            catalog: CommercialCatalogStore { pool },
         })
     }
 }

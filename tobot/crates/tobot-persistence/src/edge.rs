@@ -527,4 +527,24 @@ impl EdgeStore {
         transaction.commit().await?;
         Ok(inserted)
     }
+
+    /// Guarda el prompt fuera del evento. El bus solo lleva el id de la interacción.
+    /// # Errors
+    /// Devuelve error si la fila no se puede guardar.
+    pub async fn store_ask_prompt(
+        &self,
+        tenant: Uuid,
+        interaction_id: &str,
+        actor_id: &str,
+        prompt: &str,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query("INSERT INTO edge.ask_input (tenant_id,interaction_id,actor_id,prompt) VALUES ($1,$2,$3,$4) ON CONFLICT (tenant_id,interaction_id) DO NOTHING")
+            .bind(tenant)
+            .bind(interaction_id)
+            .bind(actor_id)
+            .bind(prompt)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
 }

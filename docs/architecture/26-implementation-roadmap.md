@@ -14,7 +14,7 @@ Program locks (greenfield Tobot, Rust platform, twin-track, money late) are in t
 |---|---|
 | Status | Sequence only |
 | Authority | 01–23 remain normative |
-| Next plan | `roadmap/S06-guild-ledger.md` is drafted for implementation. S5's twin-track outcome is demonstrated; its WP6 live checks remain tracked in `roadmap/S05-support-ticket.md`. |
+| Next plan | No later slice is named. S8 is implemented and its release evidence stays open in `roadmap/S08-ai-credits.md`. S7's remaining live admission, lifecycle, and crash checks stay in `roadmap/S07-commercial-billing.md`. |
 
 ## 1. What becomes true, in order
 
@@ -119,4 +119,4 @@ Those four facts are demonstrated. The running cookie origin is `dash.*`, record
 
 ## 7. Next
 
-S5's one-button panel, ephemeral ticket opening, and inbox claim/close were demonstrated on a live guild. Its `roadmap/S05-support-ticket.md` WP6 remains Partial: stale-version repetition, a live mismatched-token click, the exact after-defer SIGKILL window, and the two-`Installed`-generation criterion are still recorded there. Those checks block S5 sign-off, not S6 implementation. Implement `roadmap/S06-guild-ledger.md` next, applying its own conserved-plane gates without treating open S5 evidence as passed. S4's bot-message and SIGKILL steps stay open in `roadmap/S04-community-xp.md`. S3's open demo steps stay in `roadmap/S03-roles-self-service.md`. S2's SIGKILL and blocked-channel steps stay open in `roadmap/S02-messaging-proof.md`.
+S7 demonstrated one fulfilled test checkout and a projection with a ticket limit of 5 on guild `1135838146416881674`. Its live sixth-ticket admission, renewal, refund, dispute, and crash checks stay open in `roadmap/S07-commercial-billing.md` and do not authorize a production charge. S8 is implemented: one ephemeral `/ask` text operation, reserve-before-call, and reservation `Uncertain` / `Disputed` on `dash.*`. Its release evidence stays open in `roadmap/S08-ai-credits.md`. No slice follows S8 on this ladder. S6 WP6 stays in `roadmap/S06-guild-ledger.md`; S5's remaining WP6 checks stay in `roadmap/S05-support-ticket.md`; S4's bot-message and SIGKILL steps stay in `roadmap/S04-community-xp.md`; S3's open demo steps stay in `roadmap/S03-roles-self-service.md`; S2's SIGKILL and blocked-channel steps stay in `roadmap/S02-messaging-proof.md`.

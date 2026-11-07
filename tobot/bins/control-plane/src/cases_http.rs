@@ -10,12 +10,14 @@ use tobot_cases::{
     CaseDecision, MemberTimeoutGateway, PreflightQuery, SubmittedAction, TimeoutMutation,
     execute_submitted_action,
 };
+use tobot_core::Clock;
 use tobot_delivery_client::CasesDeliveryClient;
 use tobot_discord_adapter::{ModerationPreflightReport, TransportError};
-use tobot_core::Clock;
 use uuid::Uuid;
 
-use super::{AppState, authorize_browser_session, clear_session_response, ensure_fresh_discovery, session_id};
+use super::{
+    AppState, authorize_browser_session, clear_session_response, ensure_fresh_discovery, session_id,
+};
 
 #[derive(Clone)]
 pub struct DeliveryGateway {
@@ -64,11 +66,7 @@ impl MemberTimeoutGateway for DeliveryGateway {
             .await
     }
 
-    async fn observe_timeout(
-        &self,
-        guild_id: &str,
-        user_id: &str,
-    ) -> Result<bool, TransportError> {
+    async fn observe_timeout(&self, guild_id: &str, user_id: &str) -> Result<bool, TransportError> {
         self.client.observe_timeout(guild_id, user_id).await
     }
 }

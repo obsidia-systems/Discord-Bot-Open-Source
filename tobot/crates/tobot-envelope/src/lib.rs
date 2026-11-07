@@ -3,9 +3,9 @@
 //! Raw bytes are retained with the validated envelope so stores can audit a
 //! receipt without treating an unsupported payload as a live fact.
 
+use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use thiserror::Error;
 use uuid::Uuid;
@@ -16,7 +16,11 @@ pub const CURRENT_SCHEMA_VERSION: u16 = 1;
 /// # Errors
 /// Devuelve un error si la clave HMAC no puede inicializarse.
 pub fn money_request_signature(
-    key: &[u8], method: &str, path: &str, expires_unix: i64, body: &[u8],
+    key: &[u8],
+    method: &str,
+    path: &str,
+    expires_unix: i64,
+    body: &[u8],
 ) -> Result<String, hmac::digest::InvalidLength> {
     let mut mac = Hmac::<Sha256>::new_from_slice(key)?;
     mac.update(method.as_bytes());
@@ -26,15 +30,29 @@ pub fn money_request_signature(
     mac.update(expires_unix.to_string().as_bytes());
     mac.update(b"\n");
     mac.update(body);
-    Ok(mac.finalize().into_bytes().iter().map(|byte| format!("{byte:02x}")).collect())
+    Ok(mac
+        .finalize()
+        .into_bytes()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect())
 }
 
 #[must_use]
 pub fn verify_money_request_signature(
-    key: &[u8], method: &str, path: &str, expires_unix: i64, body: &[u8], signature: &str,
+    key: &[u8],
+    method: &str,
+    path: &str,
+    expires_unix: i64,
+    body: &[u8],
+    signature: &str,
 ) -> bool {
-    if signature.len() != 64 { return false; }
-    let Ok(mut mac) = Hmac::<Sha256>::new_from_slice(key) else { return false; };
+    if signature.len() != 64 {
+        return false;
+    }
+    let Ok(mut mac) = Hmac::<Sha256>::new_from_slice(key) else {
+        return false;
+    };
     mac.update(method.as_bytes());
     mac.update(b"\n");
     mac.update(path.as_bytes());
@@ -42,7 +60,12 @@ pub fn verify_money_request_signature(
     mac.update(expires_unix.to_string().as_bytes());
     mac.update(b"\n");
     mac.update(body);
-    let Ok(bytes) = (0..32).map(|index| u8::from_str_radix(&signature[index*2..index*2+2], 16)).collect::<Result<Vec<_>,_>>() else { return false; };
+    let Ok(bytes) = (0..32)
+        .map(|index| u8::from_str_radix(&signature[index * 2..index * 2 + 2], 16))
+        .collect::<Result<Vec<_>, _>>()
+    else {
+        return false;
+    };
     mac.verify_slice(&bytes).is_ok()
 }
 
@@ -101,6 +124,12 @@ pub enum S0EventName {
     IncomeActionAdmitted,
     IncomeActionSettled,
     IncomeActionRejected,
+    AiCreditReserved,
+    AiCreditCaptured,
+    AiCreditReleased,
+    AiCreditUncertain,
+    AiCreditDisputed,
+    AiCreditRejected,
 }
 
 impl TryFrom<&str> for S0EventName {
@@ -150,6 +179,12 @@ impl TryFrom<&str> for S0EventName {
             "IncomeActionAdmitted" => Ok(Self::IncomeActionAdmitted),
             "IncomeActionSettled" => Ok(Self::IncomeActionSettled),
             "IncomeActionRejected" => Ok(Self::IncomeActionRejected),
+            "AiCreditReserved" => Ok(Self::AiCreditReserved),
+            "AiCreditCaptured" => Ok(Self::AiCreditCaptured),
+            "AiCreditReleased" => Ok(Self::AiCreditReleased),
+            "AiCreditUncertain" => Ok(Self::AiCreditUncertain),
+            "AiCreditDisputed" => Ok(Self::AiCreditDisputed),
+            "AiCreditRejected" => Ok(Self::AiCreditRejected),
             _ => Err(EnvelopeError::UnsupportedSchemaName(value.to_owned())),
         }
     }
@@ -158,10 +193,30 @@ impl TryFrom<&str> for S0EventName {
 impl S0EventName {
     #[must_use]
     pub const fn is_virtual_payment(self) -> bool {
-        matches!(self,
-            Self::CurrencyPolicyPublished | Self::AccountOpened | Self::MonetaryTransactionPosted |
-            Self::BalanceProjectionChanged | Self::LedgerReconciled | Self::IncomePolicyPublished |
-            Self::IncomeActionAdmitted | Self::IncomeActionSettled | Self::IncomeActionRejected
+        matches!(
+            self,
+            Self::CurrencyPolicyPublished
+                | Self::AccountOpened
+                | Self::MonetaryTransactionPosted
+                | Self::BalanceProjectionChanged
+                | Self::LedgerReconciled
+                | Self::IncomePolicyPublished
+                | Self::IncomeActionAdmitted
+                | Self::IncomeActionSettled
+                | Self::IncomeActionRejected
+        )
+    }
+
+    #[must_use]
+    pub const fn is_ai_credit(self) -> bool {
+        matches!(
+            self,
+            Self::AiCreditReserved
+                | Self::AiCreditCaptured
+                | Self::AiCreditReleased
+                | Self::AiCreditUncertain
+                | Self::AiCreditDisputed
+                | Self::AiCreditRejected
         )
     }
 }
@@ -226,6 +281,8 @@ pub enum EnvelopeError {
     InvalidSupportPanel,
     #[error("money-plane schema family must be VirtualPayment")]
     InvalidMoneyPlane,
+    #[error("AI credit schema family must be AiCreditReservation")]
+    InvalidAiCredit,
 }
 
 /// Permission bits an automatic role must not grant.
@@ -425,36 +482,175 @@ struct IncomePolicyShape {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WalletShape { member_id: String }
+struct WalletShape {
+    member_id: String,
+}
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct IncomeShape {
-    member_id: String, income_action_id: Uuid, policy_revision_id: Uuid,
-    interaction_id: String, amount: i64,
+    member_id: String,
+    income_action_id: Uuid,
+    policy_revision_id: Uuid,
+    interaction_id: String,
+    amount: i64,
 }
 
-fn positive_money(value: i64) -> bool { (1..=9_000_000_000_000).contains(&value) }
+fn positive_money(value: i64) -> bool {
+    (1..=9_000_000_000_000).contains(&value)
+}
 
 /// Admite únicamente las cuatro formas de comando de moneda virtual de S6.
 /// # Errors
 /// Devuelve un error ante imports de otros planos, valores fuera de rango o campos no previstos.
-pub fn validate_virtual_payment_command(name: S0CommandName, payload: &Value) -> Result<(),EnvelopeError> {
+pub fn validate_virtual_payment_command(
+    name: S0CommandName,
+    payload: &Value,
+) -> Result<(), EnvelopeError> {
     let raw = payload.clone();
     let valid = match name {
-        S0CommandName::PublishCurrencyPolicy => serde_json::from_value::<CurrencyPolicyShape>(raw).is_ok_and(|p|
-            snowflake(&p.guild_id) && p.starting_grant>=0 && positive_money(p.wallet_ceiling) &&
-            positive_money(p.issuance_ceiling) && p.starting_grant<=p.wallet_ceiling &&
-            p.starting_grant<=p.issuance_ceiling),
-        S0CommandName::PublishIncomePolicy => serde_json::from_value::<IncomePolicyShape>(raw).is_ok_and(|p|
-            snowflake(&p.guild_id) && !p.currency_revision_id.is_nil() && positive_money(p.amount) &&
-            p.cooldown_seconds==86_400),
-        S0CommandName::EnsureMemberWallet => serde_json::from_value::<WalletShape>(raw).is_ok_and(|p|snowflake(&p.member_id)),
-        S0CommandName::SettleIncomeAction => serde_json::from_value::<IncomeShape>(raw).is_ok_and(|p|
-            snowflake(&p.member_id) && snowflake(&p.interaction_id) && !p.income_action_id.is_nil() &&
-            !p.policy_revision_id.is_nil() && positive_money(p.amount)),
+        S0CommandName::PublishCurrencyPolicy => serde_json::from_value::<CurrencyPolicyShape>(raw)
+            .is_ok_and(|p| {
+                snowflake(&p.guild_id)
+                    && p.starting_grant >= 0
+                    && positive_money(p.wallet_ceiling)
+                    && positive_money(p.issuance_ceiling)
+                    && p.starting_grant <= p.wallet_ceiling
+                    && p.starting_grant <= p.issuance_ceiling
+            }),
+        S0CommandName::PublishIncomePolicy => serde_json::from_value::<IncomePolicyShape>(raw)
+            .is_ok_and(|p| {
+                snowflake(&p.guild_id)
+                    && !p.currency_revision_id.is_nil()
+                    && positive_money(p.amount)
+                    && p.cooldown_seconds == 86_400
+            }),
+        S0CommandName::EnsureMemberWallet => {
+            serde_json::from_value::<WalletShape>(raw).is_ok_and(|p| snowflake(&p.member_id))
+        }
+        S0CommandName::SettleIncomeAction => {
+            serde_json::from_value::<IncomeShape>(raw).is_ok_and(|p| {
+                snowflake(&p.member_id)
+                    && snowflake(&p.interaction_id)
+                    && !p.income_action_id.is_nil()
+                    && !p.policy_revision_id.is_nil()
+                    && positive_money(p.amount)
+            })
+        }
         _ => false,
     };
-    if valid {Ok(())} else {Err(EnvelopeError::InvalidMoneyPlane)}
+    if valid {
+        Ok(())
+    } else {
+        Err(EnvelopeError::InvalidMoneyPlane)
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AiPricingShape {
+    pricing_revision_id: Uuid,
+    operation_class: String,
+    model_class: String,
+    estimate_amount: i64,
+    maximum_amount: i64,
+    unit_charge: i64,
+    user_daily_ceiling: i64,
+    guild_daily_ceiling: i64,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AiGrantShape {
+    source_ref: Uuid,
+    credit_minors: i64,
+    feature_key: String,
+    #[serde(default)]
+    expires_at: Option<i64>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AiTextShape {
+    operation_id: Uuid,
+    semantic_key: Uuid,
+    actor_id: String,
+    pricing_revision_id: Uuid,
+    prompt: String,
+    #[serde(default)]
+    scripted_class: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AiReconcileShape {
+    reservation_id: Uuid,
+    evidence: String,
+}
+
+fn positive_credits(amount: i64) -> bool {
+    amount > 0
+}
+
+fn validate_ai_credit_command(
+    name: S0CommandName,
+    payload: &Value,
+) -> Result<(), EnvelopeError> {
+    let raw = payload.clone();
+    let valid = match name {
+        S0CommandName::PublishAiPricingRevision => {
+            serde_json::from_value::<AiPricingShape>(raw).is_ok_and(|pricing| {
+                !pricing.pricing_revision_id.is_nil()
+                    && pricing.operation_class == "text"
+                    && !pricing.model_class.is_empty()
+                    && pricing.model_class.len() <= 40
+                    && positive_credits(pricing.estimate_amount)
+                    && pricing.maximum_amount >= pricing.estimate_amount
+                    && positive_credits(pricing.unit_charge)
+                    && positive_credits(pricing.user_daily_ceiling)
+                    && pricing.guild_daily_ceiling >= pricing.user_daily_ceiling
+            })
+        }
+        S0CommandName::ApplyAiCreditGrant => {
+            serde_json::from_value::<AiGrantShape>(raw).is_ok_and(|grant| {
+                !grant.source_ref.is_nil()
+                    && positive_credits(grant.credit_minors)
+                    && grant.feature_key == "ai.text"
+                    && grant.expires_at.is_none_or(|deadline| deadline > 0)
+            })
+        }
+        S0CommandName::RunTextOperation => {
+            serde_json::from_value::<AiTextShape>(raw).is_ok_and(|operation| {
+                !operation.operation_id.is_nil()
+                    && !operation.semantic_key.is_nil()
+                    && !operation.pricing_revision_id.is_nil()
+                    && snowflake(&operation.actor_id)
+                    && (1..=500).contains(&operation.prompt.chars().count())
+                    && operation.scripted_class.as_deref().is_none_or(|class| {
+                        matches!(
+                            class,
+                            "ConfirmedResult"
+                                | "ConfirmedFailure"
+                                | "RateLimited"
+                                | "TimeoutNotSent"
+                                | "TimeoutAfterSend"
+                                | "Uncertain"
+                        )
+                    })
+            })
+        }
+        S0CommandName::ReconcileAiCreditReservation => {
+            serde_json::from_value::<AiReconcileShape>(raw).is_ok_and(|review| {
+                !review.reservation_id.is_nil()
+                    && matches!(review.evidence.as_str(), "usage" | "absence")
+            })
+        }
+        _ => false,
+    };
+    if valid {
+        Ok(())
+    } else {
+        Err(EnvelopeError::InvalidAiCredit)
+    }
 }
 
 impl EventEnvelope {
@@ -483,8 +679,14 @@ impl EventEnvelope {
             ));
         }
         let event_name = S0EventName::try_from(event.schema_name.as_str())?;
-        if event_name.is_virtual_payment() && event.schema_family.as_deref() != Some("VirtualPayment") {
+        if event_name.is_virtual_payment()
+            && event.schema_family.as_deref() != Some("VirtualPayment")
+        {
             return Err(EnvelopeError::InvalidMoneyPlane);
+        }
+        if event_name.is_ai_credit() && event.schema_family.as_deref() != Some("AiCreditReservation")
+        {
+            return Err(EnvelopeError::InvalidAiCredit);
         }
         if event_name == S0EventName::GatewayEventAccepted
             && (event.shard_id.is_none()
@@ -567,6 +769,10 @@ pub enum S0CommandName {
     PublishIncomePolicy,
     EnsureMemberWallet,
     SettleIncomeAction,
+    PublishAiPricingRevision,
+    ApplyAiCreditGrant,
+    RunTextOperation,
+    ReconcileAiCreditReservation,
 }
 
 impl TryFrom<&str> for S0CommandName {
@@ -585,6 +791,10 @@ impl TryFrom<&str> for S0CommandName {
             "PublishIncomePolicy" => Ok(Self::PublishIncomePolicy),
             "EnsureMemberWallet" => Ok(Self::EnsureMemberWallet),
             "SettleIncomeAction" => Ok(Self::SettleIncomeAction),
+            "PublishAiPricingRevision" => Ok(Self::PublishAiPricingRevision),
+            "ApplyAiCreditGrant" => Ok(Self::ApplyAiCreditGrant),
+            "RunTextOperation" => Ok(Self::RunTextOperation),
+            "ReconcileAiCreditReservation" => Ok(Self::ReconcileAiCreditReservation),
             _ => Err(EnvelopeError::UnsupportedSchemaName(value.to_owned())),
         }
     }
@@ -593,8 +803,24 @@ impl TryFrom<&str> for S0CommandName {
 impl S0CommandName {
     #[must_use]
     pub const fn is_virtual_payment(self) -> bool {
-        matches!(self, Self::PublishCurrencyPolicy | Self::PublishIncomePolicy |
-            Self::EnsureMemberWallet | Self::SettleIncomeAction)
+        matches!(
+            self,
+            Self::PublishCurrencyPolicy
+                | Self::PublishIncomePolicy
+                | Self::EnsureMemberWallet
+                | Self::SettleIncomeAction
+        )
+    }
+
+    #[must_use]
+    pub const fn is_ai_credit(self) -> bool {
+        matches!(
+            self,
+            Self::PublishAiPricingRevision
+                | Self::ApplyAiCreditGrant
+                | Self::RunTextOperation
+                | Self::ReconcileAiCreditReservation
+        )
     }
 }
 
@@ -657,10 +883,20 @@ impl CommandEnvelope {
             ));
         }
         let command_name = S0CommandName::try_from(command.schema_name.as_str())?;
-        if command_name.is_virtual_payment() && command.schema_family.as_deref() != Some("VirtualPayment") {
+        if command_name.is_virtual_payment()
+            && command.schema_family.as_deref() != Some("VirtualPayment")
+        {
             return Err(EnvelopeError::InvalidMoneyPlane);
         }
-        if command_name.is_virtual_payment() { validate_virtual_payment_command(command_name,&command.payload)?; }
+        if command_name.is_virtual_payment() {
+            validate_virtual_payment_command(command_name, &command.payload)?;
+        }
+        if command_name.is_ai_credit() {
+            if command.schema_family.as_deref() != Some("AiCreditReservation") {
+                return Err(EnvelopeError::InvalidAiCredit);
+            }
+            validate_ai_credit_command(command_name, &command.payload)?;
+        }
         if command_name == S0CommandName::PublishWelcomeRevision {
             let body = command
                 .payload
@@ -1117,7 +1353,10 @@ mod tests {
         for name in ["CurrencyPolicyPublished", "IncomePolicyPublished"] {
             assert!(S0EventName::try_from(name).is_ok());
             let raw = VALID_GATEWAY.replace("GatewayEventAccepted", name);
-            assert_eq!(EventEnvelope::parse_s0(raw.as_bytes()).err(), Some(EnvelopeError::InvalidMoneyPlane));
+            assert_eq!(
+                EventEnvelope::parse_s0(raw.as_bytes()).err(),
+                Some(EnvelopeError::InvalidMoneyPlane)
+            );
         }
     }
 
@@ -1194,41 +1433,177 @@ mod tests {
     #[test]
     fn virtual_payment_requires_family_and_bounded_integer_payload() {
         let mut command = CommandEnvelope {
-            command_id: Uuid::now_v7(),schema_name:"SettleIncomeAction".to_owned(),schema_version:1,
-            schema_family:Some("VirtualPayment".to_owned()),actor_account_id:Uuid::now_v7(),
-            tenant_id:Uuid::now_v7(),idempotency_key:Uuid::now_v7(),deadline_at:"2026-09-25T00:00:00Z".to_owned(),
-            correlation_id:Uuid::now_v7(),trace_context:TraceContext {trace_id:"trace".to_owned(),span_id:"span".to_owned()},
-            payload:serde_json::json!({"member_id":"123","income_action_id":Uuid::now_v7(),
+            command_id: Uuid::now_v7(),
+            schema_name: "SettleIncomeAction".to_owned(),
+            schema_version: 1,
+            schema_family: Some("VirtualPayment".to_owned()),
+            actor_account_id: Uuid::now_v7(),
+            tenant_id: Uuid::now_v7(),
+            idempotency_key: Uuid::now_v7(),
+            deadline_at: "2026-09-25T00:00:00Z".to_owned(),
+            correlation_id: Uuid::now_v7(),
+            trace_context: TraceContext {
+                trace_id: "trace".to_owned(),
+                span_id: "span".to_owned(),
+            },
+            payload: serde_json::json!({"member_id":"123","income_action_id":Uuid::now_v7(),
                 "policy_revision_id":Uuid::now_v7(),"interaction_id":"456","amount":10}),
         };
-        let parse = |value:&CommandEnvelope| CommandEnvelope::parse_s0(&serde_json::to_vec(value).unwrap_or_default());
+        let parse = |value: &CommandEnvelope| {
+            CommandEnvelope::parse_s0(&serde_json::to_vec(value).unwrap_or_default())
+        };
         assert!(parse(&command).is_ok());
-        command.schema_family=None;
-        assert!(matches!(parse(&command),Err(EnvelopeError::InvalidMoneyPlane)));
-        command.schema_family=Some("CommercialPayment".to_owned());
-        assert!(matches!(parse(&command),Err(EnvelopeError::InvalidMoneyPlane)));
-        command.schema_family=Some("VirtualPayment".to_owned());
-        for bad in [serde_json::json!(0),serde_json::json!(-1),serde_json::json!(1.5),
-            serde_json::json!(9_000_000_000_001_i64)] {
-            command.payload["amount"]=bad;
-            assert!(matches!(parse(&command),Err(EnvelopeError::InvalidMoneyPlane)));
+        command.schema_family = None;
+        assert!(matches!(
+            parse(&command),
+            Err(EnvelopeError::InvalidMoneyPlane)
+        ));
+        command.schema_family = Some("CommercialPayment".to_owned());
+        assert!(matches!(
+            parse(&command),
+            Err(EnvelopeError::InvalidMoneyPlane)
+        ));
+        command.schema_family = Some("VirtualPayment".to_owned());
+        for bad in [
+            serde_json::json!(0),
+            serde_json::json!(-1),
+            serde_json::json!(1.5),
+            serde_json::json!(9_000_000_000_001_i64),
+        ] {
+            command.payload["amount"] = bad;
+            assert!(matches!(
+                parse(&command),
+                Err(EnvelopeError::InvalidMoneyPlane)
+            ));
         }
-        command.payload["amount"]=serde_json::json!(10);
-        command.payload["payment_id"]=serde_json::json!("other-plane");
-        assert!(matches!(parse(&command),Err(EnvelopeError::InvalidMoneyPlane)));
-        command.schema_name="Payment".to_owned();
-        assert!(matches!(parse(&command),Err(EnvelopeError::UnsupportedSchemaName(_))));
+        command.payload["amount"] = serde_json::json!(10);
+        command.payload["payment_id"] = serde_json::json!("other-plane");
+        assert!(matches!(
+            parse(&command),
+            Err(EnvelopeError::InvalidMoneyPlane)
+        ));
+        command.schema_name = "Payment".to_owned();
+        assert!(matches!(
+            parse(&command),
+            Err(EnvelopeError::UnsupportedSchemaName(_))
+        ));
     }
 
     #[test]
     fn ledger_receipt_binds_method_path_expiry_and_exact_bytes() {
-        let key=b"a-secret-key-at-least-thirty-two-bytes";
-        let body=br#"{"tenant_id":"abc","amount":10}"#;
-        let signature=money_request_signature(key,"POST","/internal/v1/ledger/command",123,body).unwrap_or_default();
-        assert!(verify_money_request_signature(key,"POST","/internal/v1/ledger/command",123,body,&signature));
-        assert!(!verify_money_request_signature(key,"GET","/internal/v1/ledger/command",123,body,&signature));
-        assert!(!verify_money_request_signature(key,"POST","/internal/v1/ledger/wallet",123,body,&signature));
-        assert!(!verify_money_request_signature(key,"POST","/internal/v1/ledger/command",124,body,&signature));
-        assert!(!verify_money_request_signature(key,"POST","/internal/v1/ledger/command",123,br#"{"tenant_id":"abc","amount":11}"#,&signature));
+        let key = b"a-secret-key-at-least-thirty-two-bytes";
+        let body = br#"{"tenant_id":"abc","amount":10}"#;
+        let signature =
+            money_request_signature(key, "POST", "/internal/v1/ledger/command", 123, body)
+                .unwrap_or_default();
+        assert!(verify_money_request_signature(
+            key,
+            "POST",
+            "/internal/v1/ledger/command",
+            123,
+            body,
+            &signature
+        ));
+        assert!(!verify_money_request_signature(
+            key,
+            "GET",
+            "/internal/v1/ledger/command",
+            123,
+            body,
+            &signature
+        ));
+        assert!(!verify_money_request_signature(
+            key,
+            "POST",
+            "/internal/v1/ledger/wallet",
+            123,
+            body,
+            &signature
+        ));
+        assert!(!verify_money_request_signature(
+            key,
+            "POST",
+            "/internal/v1/ledger/command",
+            124,
+            body,
+            &signature
+        ));
+        assert!(!verify_money_request_signature(
+            key,
+            "POST",
+            "/internal/v1/ledger/command",
+            123,
+            br#"{"tenant_id":"abc","amount":11}"#,
+            &signature
+        ));
+    }
+
+    #[test]
+    fn ai_credit_commands_reject_the_other_money_planes() {
+        let tenant = Uuid::now_v7();
+        let mut command = CommandEnvelope {
+            command_id: Uuid::now_v7(),
+            schema_name: "ApplyAiCreditGrant".to_owned(),
+            schema_version: 1,
+            schema_family: Some("AiCreditReservation".to_owned()),
+            actor_account_id: Uuid::now_v7(),
+            tenant_id: tenant,
+            idempotency_key: Uuid::now_v7(),
+            deadline_at: "2030-01-01T00:00:00Z".to_owned(),
+            correlation_id: Uuid::now_v7(),
+            trace_context: TraceContext {
+                trace_id: "ai".to_owned(),
+                span_id: "ai".to_owned(),
+            },
+            payload: serde_json::json!({"source_ref":Uuid::now_v7(),"credit_minors":100,"feature_key":"ai.text"}),
+        };
+        let parse = |value: &CommandEnvelope| {
+            CommandEnvelope::parse_s0(&serde_json::to_vec(value).unwrap_or_default())
+        };
+        assert!(parse(&command).is_ok());
+        command.schema_family = Some("VirtualPayment".to_owned());
+        assert!(matches!(parse(&command), Err(EnvelopeError::InvalidAiCredit)));
+        command.schema_family = Some("CommercialPayment".to_owned());
+        assert!(matches!(parse(&command), Err(EnvelopeError::InvalidAiCredit)));
+        command.schema_family = Some("AiCreditReservation".to_owned());
+        command.payload["credit_minors"] = serde_json::json!(0);
+        assert!(matches!(parse(&command), Err(EnvelopeError::InvalidAiCredit)));
+        command.payload["credit_minors"] = serde_json::json!(-5);
+        assert!(matches!(parse(&command), Err(EnvelopeError::InvalidAiCredit)));
+        command.schema_name = "Reservation".to_owned();
+        assert!(matches!(
+            parse(&command),
+            Err(EnvelopeError::UnsupportedSchemaName(_))
+        ));
+        let mut event = EventEnvelope {
+            event_id: Uuid::now_v7(),
+            schema_name: "AiCreditDisputed".to_owned(),
+            schema_version: 1,
+            schema_family: None,
+            occurred_at: "2030-01-01T00:00:00Z".to_owned(),
+            received_at: "2030-01-01T00:00:00Z".to_owned(),
+            application_id: "app".to_owned(),
+            tenant_id: Some(tenant),
+            guild_id: None,
+            shard_id: None,
+            session_id: None,
+            gateway_sequence: None,
+            correlation_id: Uuid::now_v7(),
+            causation_id: None,
+            trace_context: TraceContext {
+                trace_id: "ai".to_owned(),
+                span_id: "ai".to_owned(),
+            },
+            payload: serde_json::json!({}),
+        };
+        let parse_event = |value: &EventEnvelope| {
+            EventEnvelope::parse_s0(&serde_json::to_vec(value).unwrap_or_default())
+        };
+        assert!(matches!(
+            parse_event(&event),
+            Err(EnvelopeError::InvalidAiCredit)
+        ));
+        event.schema_family = Some("AiCreditReservation".to_owned());
+        assert!(parse_event(&event).is_ok());
     }
 }

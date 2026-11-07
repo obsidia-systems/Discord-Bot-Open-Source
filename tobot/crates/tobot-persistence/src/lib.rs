@@ -8,9 +8,11 @@ use tobot_envelope::{EventEnvelope, TraceContext};
 use uuid::Uuid;
 
 mod assignment;
+mod catalog;
+mod earnings;
 mod edge;
 mod edge_relay;
-mod earnings;
+mod entitlement;
 mod identity;
 mod installation;
 mod messaging;
@@ -21,16 +23,22 @@ mod query;
 mod support;
 
 pub use assignment::{NewRoleJoin, RoleIntent, RoleJoin, RoleRevision, RoleStatus};
+pub use catalog::{
+    CatalogBenefit, CatalogCapability, CatalogPublication, CatalogPublicationStatus,
+    supported_catalog_capabilities,
+};
+pub use earnings::{DailyAction, DailyDecision, DailyPolicy};
+pub use entitlement::{CommercialGrant, EntitlementProjection};
 pub use messaging::{
     JoinDecision, MessageIntent, MessagingOutbox, NewJoin, WelcomeRevision, WelcomeStatus,
 };
 pub use moderation::{ModerationCaseRecord, NewModerationCase, PinnedPolicy};
 pub use owners::{
-    AssignmentStore, ControlPlaneDatabase, DeliveryIntentStore, EdgeRelayStore, EdgeStore,
-    IdentityStore, InstallationStore, LifecycleStore, Migrations, ModerationStore,
-    ProgressionStore, QueryStore, SupportStore, EarningsStore,
+    AssignmentStore, CommercialCatalogStore, ControlPlaneDatabase, DeliveryIntentStore,
+    EarningsStore, EdgeRelayStore, EdgeStore, IdentityStore, InstallationStore, LifecycleStore,
+    Migrations, ModerationStore, PlatformEntitlementStore, ProgressionStore, QueryStore,
+    SupportStore,
 };
-pub use earnings::{DailyAction, DailyDecision, DailyPolicy};
 pub use progression::{NewTextMessage, XpDecision, XpEntry, XpRevision, XpStatus};
 pub use support::{SupportCase, SupportClick, SupportDecision, SupportPanel, SupportTicketStatus};
 

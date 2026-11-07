@@ -1,6 +1,8 @@
 //! Public Control Plane surface. OAuth and installation routes remain at the
 //! app origin when the reverse proxy forwards these paths to this binary.
 
+mod ai;
+mod billing;
 mod cases_http;
 mod earnings;
 mod ledger_client;
@@ -124,7 +126,12 @@ struct AppState {
     progression: tobot_persistence::ProgressionStore,
     support: tobot_persistence::SupportStore,
     earnings: tobot_persistence::EarningsStore,
+    entitlement: tobot_persistence::PlatformEntitlementStore,
+    catalog: tobot_persistence::CommercialCatalogStore,
+    billing: Option<billing::BillingClient>,
+    catalog_admin_token: Option<String>,
     ledger: ledger_client::LedgerClient,
+    ai: Option<ai::AiClient>,
     support_delivery: tobot_delivery_client::SupportDeliveryClient,
     welcome_delivery: WelcomeDeliveryClient,
     role_delivery: tobot_delivery_client::RoleDeliveryClient,
@@ -291,7 +298,8 @@ async fn main() -> anyhow::Result<()> {
         "support-status-s5",
         "control-plane",
     )?;
-    let ledger = ledger_client::LedgerClient::from_env().context("invalid Monetary Ledger client")?;
+    let ledger =
+        ledger_client::LedgerClient::from_env().context("invalid Monetary Ledger client")?;
     let earnings_worker = database.earnings.clone();
     let earnings_admission = database.earnings.clone();
     let earnings_delivery = support_delivery.clone();
@@ -299,14 +307,40 @@ async fn main() -> anyhow::Result<()> {
     let earnings_ledger = ledger.clone();
     let earnings_admission_ledger = ledger.clone();
     let earnings_consumer = RedisStreamConsumer::connect(
-        config.redis_url.expose_for_adapter(),"earnings-s6","control-plane")?;
+        config.redis_url.expose_for_adapter(),
+        "earnings-s6",
+        "control-plane",
+    )?;
     let earnings_relay = MessagingOutboxRelay::new(
         MessagingOutbox::Earnings(database.earnings.clone()),
         RedisStreamPublisher::connect(config.redis_url.expose_for_adapter())?,
     );
     let wallet_query = database.query.clone();
     let wallet_consumer = RedisStreamConsumer::connect(
-        config.redis_url.expose_for_adapter(),"wallet-status-s6","control-plane")?;
+        config.redis_url.expose_for_adapter(),
+        "wallet-status-s6",
+        "control-plane",
+    )?;
+    let ask_client = ai::AiClient::from_env();
+    let ask_entitlement = database.entitlement.clone();
+    let ask_delivery_entitlement = database.entitlement.clone();
+    let ask_receipts = database.earnings.clone();
+    let ask_delivery = support_delivery.clone();
+    let ask_consumer = RedisStreamConsumer::connect(
+        config.redis_url.expose_for_adapter(),
+        "ask-status-s8",
+        "control-plane",
+    )?;
+    let plan_consumer = RedisStreamConsumer::connect(
+        config.redis_url.expose_for_adapter(),
+        "plan-status-s7",
+        "control-plane",
+    )?;
+    let plan_entitlement = database.entitlement.clone();
+    let catalog_worker = database.catalog.clone();
+    let catalog_billing = billing::BillingClient::from_env();
+    let plan_receipts = database.earnings.clone();
+    let plan_delivery = support_delivery.clone();
     let metrics_state = MetricsState {
         identity: database.identity.clone(),
         installation: database.installation.clone(),
@@ -339,7 +373,14 @@ async fn main() -> anyhow::Result<()> {
         progression: progression_api,
         support: database.support,
         earnings: database.earnings,
+        entitlement: database.entitlement,
+        catalog: database.catalog,
+        billing: catalog_billing.clone(),
+        catalog_admin_token: std::env::var("TOBOT_CATALOG_ADMIN_TOKEN")
+            .ok()
+            .filter(|value| value.len() >= 32),
         ledger,
+        ai: ai::AiClient::from_env(),
         support_delivery,
         welcome_delivery,
         role_delivery,
@@ -391,6 +432,10 @@ async fn main() -> anyhow::Result<()> {
         result = earnings::run_settlement(earnings_worker,earnings_ledger,earnings_settlement_delivery) => result,
         result = earnings::run_relay(earnings_relay) => result,
         result = earnings::run_projector(wallet_query,wallet_consumer) => result,
+        result = billing::run_plan(plan_entitlement,plan_receipts,plan_delivery,plan_consumer) => result,
+        result = billing::run_catalog_delivery(catalog_worker,catalog_billing) => result,
+        result = ai::run_ask(ask_entitlement,ask_receipts,ask_delivery,ask_client.clone(),ask_consumer) => result,
+        result = ai::deliver_pending(ask_delivery_entitlement,ask_client) => result,
     }
 }
 
@@ -869,10 +914,75 @@ fn router(state: AppState) -> Router {
             get(progression::get_progression).post(progression::publish),
         )
         .route("/api/v1/guilds/{tenant_id}/support", get(support::inbox))
-        .route("/api/v1/guilds/{tenant_id}/economy",get(earnings::status).post(earnings::publish))
-        .route("/api/v1/guilds/{tenant_id}/economy/circuit",post(earnings::circuit))
-        .route("/api/v1/guilds/{tenant_id}/wallet",get(earnings::wallet))
-        .route("/api/v1/member/guilds",get(earnings::member_guilds))
+        .route(
+            "/api/v1/guilds/{tenant_id}/economy",
+            get(earnings::status).post(earnings::publish),
+        )
+        .route(
+            "/api/v1/guilds/{tenant_id}/economy/circuit",
+            post(earnings::circuit),
+        )
+        .route("/api/v1/guilds/{tenant_id}/wallet", get(earnings::wallet))
+        .route("/api/v1/guilds/{tenant_id}/billing", get(billing::status))
+        .route("/api/v1/guilds/{tenant_id}/ai", get(ai::usage))
+        .route("/internal/v1/ai/pricing", post(ai::publish_pricing))
+        .route("/internal/v1/ai/compensation", post(ai::compensate))
+        .route("/internal/v1/ai/reviews/{tenant_id}", get(ai::reviews))
+        .route("/internal/v1/ai/reconciliation", post(ai::reconcile))
+        .route(
+            "/api/v1/guilds/{tenant_id}/billing/checkout",
+            post(billing::checkout),
+        )
+        .route("/internal/v1/billing/grants", post(billing::grant))
+        .route(
+            "/internal/v1/catalog/provider/plans",
+            get(billing::provider_plans).post(billing::provider_create_plan),
+        )
+        .route(
+            "/internal/v1/catalog/provider/prices/{price_id}",
+            get(billing::provider_price),
+        )
+        .route(
+            "/internal/v1/catalog/provider/products/{product_id}/prices",
+            post(billing::provider_create_price),
+        )
+        .route(
+            "/internal/v1/catalog/provider/products/{product_id}",
+            post(billing::provider_update_product),
+        )
+        .route(
+            "/internal/v1/catalog/provider/products/{product_id}/archive",
+            post(billing::provider_archive_product),
+        )
+        .route(
+            "/internal/v1/catalog/provider/prices/{price_id}/archive",
+            post(billing::provider_archive_price),
+        )
+        .route(
+            "/internal/v1/catalog/revisions",
+            post(billing::publish_catalog),
+        )
+        .route(
+            "/internal/v1/catalog/revisions/active",
+            get(billing::active_catalog),
+        )
+        .route(
+            "/internal/v1/catalog/capabilities",
+            get(billing::catalog_capabilities),
+        )
+        .route(
+            "/internal/v1/catalog/revisions/latest",
+            get(billing::latest_catalog),
+        )
+        .route(
+            "/internal/v1/catalog/revisions/{revision_id}/retire",
+            post(billing::retire_catalog),
+        )
+        .route(
+            "/internal/v1/catalog/billing-owners",
+            post(billing::enroll_owner),
+        )
+        .route("/api/v1/member/guilds", get(earnings::member_guilds))
         .route(
             "/api/v1/guilds/{tenant_id}/support/panel",
             get(support::panel_status).post(support::publish),

@@ -21,9 +21,10 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tobot_core::render_gauges;
 use tobot_delivery_client::{InternalDeliveryTransport, ModerationCommandClient};
 use tobot_discord_adapter::{
-    DAILY_COMMAND_NAME, DIAGNOSTIC_COMMAND_NAME, DiscordTransport, GatewayPhase, GatewaySessionStart,
-    InteractionCallback, SUPPORT_PANEL_CONTENT, ShardReadiness, TIMEOUT_COMMAND_NAME,
-    acknowledgement_deadline_open, interaction_created_ms, plan_gateway_session, shard_is_ready,
+    ASK_COMMAND_NAME, DAILY_COMMAND_NAME, DIAGNOSTIC_COMMAND_NAME, DiscordTransport, GatewayPhase,
+    GatewaySessionStart, InteractionCallback, PLAN_COMMAND_NAME, SUPPORT_PANEL_CONTENT,
+    ShardReadiness, TIMEOUT_COMMAND_NAME, acknowledgement_deadline_open, interaction_created_ms,
+    plan_gateway_session, shard_is_ready,
 };
 use tobot_envelope::{EventEnvelope, TraceContext};
 use tobot_interaction_edge::{
@@ -858,6 +859,12 @@ async fn accept_interaction(
     if data.name == DAILY_COMMAND_NAME {
         return accept_daily(ingress, &interaction).await;
     }
+    if data.name == PLAN_COMMAND_NAME {
+        return accept_plan(ingress, &interaction).await;
+    }
+    if data.name == ASK_COMMAND_NAME {
+        return accept_ask(ingress, &interaction, data).await;
+    }
     if data.name != DIAGNOSTIC_COMMAND_NAME {
         return Ok(());
     }
@@ -924,27 +931,179 @@ async fn accept_daily(
     ingress: &InteractionDispatch<'_>,
     interaction: &twilight_model::application::interaction::Interaction,
 ) -> anyhow::Result<()> {
-    let Some(guild_id) = interaction.guild_id.map(|id| id.to_string()) else { return Ok(()); };
-    let Some(member_id) = interaction.author_id().map(|id| id.to_string()) else { return Ok(()); };
+    let Some(guild_id) = interaction.guild_id.map(|id| id.to_string()) else {
+        return Ok(());
+    };
+    let Some(member_id) = interaction.author_id().map(|id| id.to_string()) else {
+        return Ok(());
+    };
     let application_id = interaction.application_id.to_string();
-    let Some(context) = ingress.store.resolve_active_guild_tenant(&application_id,&guild_id).await? else { return Ok(()); };
+    let Some(context) = ingress
+        .store
+        .resolve_active_guild_tenant(&application_id, &guild_id)
+        .await?
+    else {
+        return Ok(());
+    };
     let now = OffsetDateTime::now_utc();
-    let (mut gateway_event,mut interaction_event) = diagnostic_envelopes(
-        interaction,DiagnosticIdentity {application_id:&application_id,guild_id:&guild_id,
-            tenant_id:context.tenant_id.as_uuid(),shard_id:ingress.shard_id,
-            session_id:ingress.session_id,gateway_sequence:ingress.gateway_sequence},
-        &now,"DailyCommand")?;
-    let payload=serde_json::json!({"kind":"DailyCommand","interaction_id":interaction.id.to_string(),
+    let (mut gateway_event, mut interaction_event) = diagnostic_envelopes(
+        interaction,
+        DiagnosticIdentity {
+            application_id: &application_id,
+            guild_id: &guild_id,
+            tenant_id: context.tenant_id.as_uuid(),
+            shard_id: ingress.shard_id,
+            session_id: ingress.session_id,
+            gateway_sequence: ingress.gateway_sequence,
+        },
+        &now,
+        "DailyCommand",
+    )?;
+    let payload = serde_json::json!({"kind":"DailyCommand","interaction_id":interaction.id.to_string(),
         "member_id":member_id});
-    gateway_event.payload=payload.clone();
-    interaction_event.payload=payload;
-    let gateway_raw=serde_json::to_vec(&gateway_event)?;
-    let interaction_raw=serde_json::to_vec(&interaction_event)?;
-    ingress.edge.accept_and_acknowledge(InteractionIngressRequest {
-        context,callback:interaction_callback(interaction),gateway_event:&gateway_event,
-        gateway_raw:&gateway_raw,interaction_event:&interaction_event,interaction_raw:&interaction_raw,
-        acknowledgement:ProbeAcknowledgement::Deferred,now,
-    }).await?;
+    gateway_event.payload = payload.clone();
+    interaction_event.payload = payload;
+    let gateway_raw = serde_json::to_vec(&gateway_event)?;
+    let interaction_raw = serde_json::to_vec(&interaction_event)?;
+    ingress
+        .edge
+        .accept_and_acknowledge(InteractionIngressRequest {
+            context,
+            callback: interaction_callback(interaction),
+            gateway_event: &gateway_event,
+            gateway_raw: &gateway_raw,
+            interaction_event: &interaction_event,
+            interaction_raw: &interaction_raw,
+            acknowledgement: ProbeAcknowledgement::Deferred,
+            now,
+        })
+        .await?;
+    Ok(())
+}
+
+async fn accept_ask(
+    ingress: &InteractionDispatch<'_>,
+    interaction: &twilight_model::application::interaction::Interaction,
+    data: &twilight_model::application::interaction::application_command::CommandData,
+) -> anyhow::Result<()> {
+    let Some(guild_id) = interaction.guild_id.map(|id| id.to_string()) else {
+        return Ok(());
+    };
+    let Some(member_id) = interaction.author_id().map(|id| id.to_string()) else {
+        return Ok(());
+    };
+    let application_id = interaction.application_id.to_string();
+    let Some(context) = ingress
+        .store
+        .resolve_active_guild_tenant(&application_id, &guild_id)
+        .await?
+    else {
+        return Ok(());
+    };
+    let prompt = data
+        .options
+        .iter()
+        .find_map(|option| match (&option.name, &option.value) {
+            (name, CommandOptionValue::String(value)) if name == "prompt" => Some(value.clone()),
+            _ => None,
+        });
+    let usable = prompt
+        .as_ref()
+        .is_some_and(|value| (1..=500).contains(&value.chars().count()));
+    if let Some(value) = prompt.filter(|_| usable) {
+        ingress
+            .store
+            .store_ask_prompt(
+                context.tenant_id.as_uuid(),
+                &interaction.id.to_string(),
+                &member_id,
+                &value,
+            )
+            .await?;
+    }
+    let now = OffsetDateTime::now_utc();
+    let (mut gateway_event, mut interaction_event) = diagnostic_envelopes(
+        interaction,
+        DiagnosticIdentity {
+            application_id: &application_id,
+            guild_id: &guild_id,
+            tenant_id: context.tenant_id.as_uuid(),
+            shard_id: ingress.shard_id,
+            session_id: ingress.session_id,
+            gateway_sequence: ingress.gateway_sequence,
+        },
+        &now,
+        "AskCommand",
+    )?;
+    let payload = serde_json::json!({"kind":"AskCommand","interaction_id":interaction.id.to_string(),"member_id":member_id});
+    gateway_event.payload = payload.clone();
+    interaction_event.payload = payload;
+    let gateway_raw = serde_json::to_vec(&gateway_event)?;
+    let interaction_raw = serde_json::to_vec(&interaction_event)?;
+    ingress
+        .edge
+        .accept_and_acknowledge(InteractionIngressRequest {
+            context,
+            callback: interaction_callback(interaction),
+            gateway_event: &gateway_event,
+            gateway_raw: &gateway_raw,
+            interaction_event: &interaction_event,
+            interaction_raw: &interaction_raw,
+            acknowledgement: ProbeAcknowledgement::Deferred,
+            now,
+        })
+        .await?;
+    Ok(())
+}
+
+async fn accept_plan(
+    ingress: &InteractionDispatch<'_>,
+    interaction: &twilight_model::application::interaction::Interaction,
+) -> anyhow::Result<()> {
+    let Some(guild_id) = interaction.guild_id.map(|id| id.to_string()) else {
+        return Ok(());
+    };
+    let application_id = interaction.application_id.to_string();
+    let Some(context) = ingress
+        .store
+        .resolve_active_guild_tenant(&application_id, &guild_id)
+        .await?
+    else {
+        return Ok(());
+    };
+    let now = OffsetDateTime::now_utc();
+    let (mut gateway_event, mut interaction_event) = diagnostic_envelopes(
+        interaction,
+        DiagnosticIdentity {
+            application_id: &application_id,
+            guild_id: &guild_id,
+            tenant_id: context.tenant_id.as_uuid(),
+            shard_id: ingress.shard_id,
+            session_id: ingress.session_id,
+            gateway_sequence: ingress.gateway_sequence,
+        },
+        &now,
+        "PlanCommand",
+    )?;
+    let payload =
+        serde_json::json!({"kind":"PlanCommand","interaction_id":interaction.id.to_string()});
+    gateway_event.payload = payload.clone();
+    interaction_event.payload = payload;
+    let gateway_raw = serde_json::to_vec(&gateway_event)?;
+    let interaction_raw = serde_json::to_vec(&interaction_event)?;
+    ingress
+        .edge
+        .accept_and_acknowledge(InteractionIngressRequest {
+            context,
+            callback: interaction_callback(interaction),
+            gateway_event: &gateway_event,
+            gateway_raw: &gateway_raw,
+            interaction_event: &interaction_event,
+            interaction_raw: &interaction_raw,
+            acknowledgement: ProbeAcknowledgement::Deferred,
+            now,
+        })
+        .await?;
     Ok(())
 }
 
@@ -1204,10 +1363,17 @@ mod tests {
         let own = message_create_observation("10", "20", "30", true, false, Some("123456"), None);
         assert_eq!(own["nonce"], "123456");
         assert!(own.get("content").is_none());
-        let panel = message_create_observation("10","20","30",true,false,Some("123456"),
-            Some(("support:revision","Open ticket")));
-        assert_eq!(panel["support_custom_id"],"support:revision");
-        assert_eq!(panel["support_button_label"],"Open ticket");
+        let panel = message_create_observation(
+            "10",
+            "20",
+            "30",
+            true,
+            false,
+            Some("123456"),
+            Some(("support:revision", "Open ticket")),
+        );
+        assert_eq!(panel["support_custom_id"], "support:revision");
+        assert_eq!(panel["support_button_label"], "Open ticket");
         assert_eq!(
             message_create_nonce(r#"{"t":"GUILD_MEMBER_ADD","d":{"nonce":"123456"}}"#),
             None

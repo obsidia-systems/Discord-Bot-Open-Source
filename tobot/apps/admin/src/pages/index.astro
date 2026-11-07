@@ -10,8 +10,10 @@ const initial = await collectStatus();
   <main id="content" class="mx-auto w-full max-w-2xl px-6 py-16">
     <h1 class="text-2xl font-semibold tracking-tight">Admin</h1>
     <p class="mt-3 leading-relaxed text-zinc-700">
-      Service availability and internal gauges. This origin has no session.
+      Service availability, internal gauges, and operator setup.
     </p>
+    <a href="/billing" class="mt-6 inline-block text-sm font-semibold underline">Billing setup</a>
+    <a href="/ai" class="mt-3 block text-sm font-semibold underline">AI credits</a>
     <StatusBoard client:load initial={initial} />
   </main>
 </ShellLayout>

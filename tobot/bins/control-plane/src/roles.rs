@@ -10,9 +10,7 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tobot_bus::RedisStreamConsumer;
 use tobot_core::Clock;
 use tobot_delivery_client::RoleDeliveryClient;
-use tobot_discord_adapter::{
-    AssignmentStep, RolePreflight, assignment_step, classify_target_role,
-};
+use tobot_discord_adapter::{AssignmentStep, RolePreflight, assignment_step, classify_target_role};
 use tobot_envelope::{CommandEnvelope, TraceContext};
 use tobot_outbox::MessagingOutboxRelay;
 use tobot_persistence::{AssignmentStore, LifecycleStore, NewRoleJoin, RoleIntent, RoleJoin};
@@ -251,7 +249,10 @@ pub(super) async fn run_assignment_worker(
     }
 }
 
-async fn execute_one(store: &AssignmentStore, delivery: &RoleDeliveryClient) -> anyhow::Result<bool> {
+async fn execute_one(
+    store: &AssignmentStore,
+    delivery: &RoleDeliveryClient,
+) -> anyhow::Result<bool> {
     let Some(intent) = store.claim_next(OffsetDateTime::now_utc()).await? else {
         return Ok(false);
     };
@@ -268,7 +269,10 @@ async fn execute_one(store: &AssignmentStore, delivery: &RoleDeliveryClient) -> 
         }
         Err(error) => return Err(anyhow::anyhow!(error.to_string())),
     };
-    let member = match delivery.read_member(&intent.guild_id, &intent.member_id).await {
+    let member = match delivery
+        .read_member(&intent.guild_id, &intent.member_id)
+        .await
+    {
         Ok(member) => Some(member),
         Err(tobot_discord_adapter::TransportError::Rejected { status: 404 }) => None,
         Err(tobot_discord_adapter::TransportError::RateLimited { retry_after_ms }) => {
@@ -286,17 +290,18 @@ async fn execute_one(store: &AssignmentStore, delivery: &RoleDeliveryClient) -> 
         return Ok(true);
     }
     let bot_permissions = catalog.bot_permissions.parse::<u64>().unwrap_or(0);
-    let preflight = catalog.roles.iter().find(|role| role.id == intent.role_id).map_or(
-        RolePreflight::Fail,
-        |role| {
+    let preflight = catalog
+        .roles
+        .iter()
+        .find(|role| role.id == intent.role_id)
+        .map_or(RolePreflight::Fail, |role| {
             classify_target_role(
                 &intent.guild_id,
                 role,
                 catalog.bot_highest_position,
                 bot_permissions,
             )
-        },
-    );
+        });
     let present = member.role_ids.iter().any(|role| role == &intent.role_id);
     match assignment_step(intent.put_count, present, preflight, false) {
         AssignmentStep::Skip => {
@@ -306,7 +311,9 @@ async fn execute_one(store: &AssignmentStore, delivery: &RoleDeliveryClient) -> 
             store.finish(&intent, "Failed", "Blocked", now).await?;
         }
         AssignmentStep::Unchanged => {
-            store.finish(&intent, "Unchanged", "AlreadyPresent", now).await?;
+            store
+                .finish(&intent, "Unchanged", "AlreadyPresent", now)
+                .await?;
         }
         AssignmentStep::AppliedFromRead => {
             store.finish(&intent, "Applied", "MemberRead", now).await?;
@@ -329,7 +336,12 @@ async fn put_role(
     let now = OffsetDateTime::now_utc();
     let reason = format!("automatic-role:{}", intent.revision_id);
     match delivery
-        .add_member_role(&intent.guild_id, &intent.member_id, &intent.role_id, &reason)
+        .add_member_role(
+            &intent.guild_id,
+            &intent.member_id,
+            &intent.role_id,
+            &reason,
+        )
         .await
     {
         Ok(()) => {
@@ -373,7 +385,8 @@ async fn wait_rate_limit(
     intent: &RoleIntent,
     retry_after_ms: u64,
 ) -> anyhow::Result<()> {
-    let until = OffsetDateTime::now_utc() + time::Duration::milliseconds(i64::try_from(retry_after_ms).unwrap_or(1_000));
+    let until = OffsetDateTime::now_utc()
+        + time::Duration::milliseconds(i64::try_from(retry_after_ms).unwrap_or(1_000));
     store.defer_lease(intent, until).await?;
     tokio::time::sleep(std::time::Duration::from_millis(retry_after_ms)).await;
     Ok(())

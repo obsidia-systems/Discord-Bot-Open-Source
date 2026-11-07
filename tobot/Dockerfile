@@ -11,4 +11,7 @@ COPY --from=build /src/target/release/tobot-discord-edge /usr/local/bin/tobot-di
 COPY --from=build /src/target/release/tobot-delivery /usr/local/bin/tobot-delivery
 COPY --from=build /src/target/release/tobot-migrate /usr/local/bin/tobot-migrate
 COPY --from=build /src/target/release/tobot-monetary-ledger /usr/local/bin/tobot-monetary-ledger
+COPY --from=build /src/target/release/tobot-provider-event-edge /usr/local/bin/tobot-provider-event-edge
+COPY --from=build /src/target/release/tobot-billing /usr/local/bin/tobot-billing
+COPY --from=build /src/target/release/tobot-ai /usr/local/bin/tobot-ai
 USER 65532:65532

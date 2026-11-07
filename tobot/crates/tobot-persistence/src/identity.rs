@@ -9,6 +9,16 @@ use super::{
 };
 
 impl IdentityStore {
+    /// Verifica que la cuenta existe y puede actuar como propietaria de facturación.
+    pub async fn active_account(&self, account_id: Uuid) -> Result<bool, sqlx::Error> {
+        let found: Option<Uuid> = sqlx::query_scalar(
+            "SELECT account_id FROM identity.account WHERE account_id=$1 AND state='Active'",
+        )
+        .bind(account_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(found.is_some())
+    }
     /// # Errors
     /// Devuelve un error si la identidad Discord no se puede leer.
     pub async fn discord_user_id(&self, account_id: Uuid) -> Result<Option<String>, sqlx::Error> {

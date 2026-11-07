@@ -24,7 +24,12 @@ async fn fixture() -> Result<Option<(ProgressionStore, sqlx::PgPool, Uuid, Strin
         }
         return Ok(None);
     };
-    if url.split('?').next().and_then(|path| path.rsplit('/').next()) != Some("tobot_test") {
+    if url
+        .split('?')
+        .next()
+        .and_then(|path| path.rsplit('/').next())
+        != Some("tobot_test")
+    {
         return Err("refusing to use a database other than tobot_test".to_owned());
     }
     tobot_persistence::Migrations::connect(&url)
@@ -33,13 +38,18 @@ async fn fixture() -> Result<Option<(ProgressionStore, sqlx::PgPool, Uuid, Strin
         .migrate()
         .await
         .map_err(|error| error.to_string())?;
-    let pool = sqlx::PgPool::connect(&url).await.map_err(|error| error.to_string())?;
+    let pool = sqlx::PgPool::connect(&url)
+        .await
+        .map_err(|error| error.to_string())?;
     sqlx::query("TRUNCATE progression.xp_ledger_entry, progression.progression_policy_revision, progression.progression_policy, progression.event_outbox")
         .execute(&pool)
         .await
         .map_err(|error| error.to_string())?;
     let tenant = Uuid::now_v7();
-    let guild = format!("{}", (Uuid::now_v7().as_u128() % 900_000_000_000_000) + 1_000);
+    let guild = format!(
+        "{}",
+        (Uuid::now_v7().as_u128() % 900_000_000_000_000) + 1_000
+    );
     sqlx::query("INSERT INTO installation.tenant (tenant_id,tenant_type,provider_tenant_ref,application_id,state) VALUES ($1,'Guild',$2,'app','Active')")
         .bind(tenant)
         .bind(&guild)
@@ -53,7 +63,9 @@ async fn fixture() -> Result<Option<(ProgressionStore, sqlx::PgPool, Uuid, Strin
         .await
         .map_err(|error| error.to_string())?;
     Ok(Some((
-        ProgressionStore::connect(&url).await.map_err(|error| error.to_string())?,
+        ProgressionStore::connect(&url)
+            .await
+            .map_err(|error| error.to_string())?,
         pool,
         tenant,
         guild,
@@ -129,25 +141,33 @@ async fn duplicate_message_is_one_award_and_other_sources_write_nothing() -> Res
     assert_eq!(award.balance_after, 10);
     assert_eq!(award.level_before, 0);
     assert_eq!(award.level_after, 1);
-    let rows: i64 = sqlx::query_scalar("SELECT count(*) FROM progression.xp_ledger_entry WHERE tenant_id=$1 AND message_id='5'")
-        .bind(tenant)
-        .fetch_one(&pool)
-        .await
-        .map_err(|error| error.to_string())?;
+    let rows: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM progression.xp_ledger_entry WHERE tenant_id=$1 AND message_id='5'",
+    )
+    .bind(tenant)
+    .fetch_one(&pool)
+    .await
+    .map_err(|error| error.to_string())?;
     assert_eq!(rows, 1);
-    let awards: i64 = sqlx::query_scalar("SELECT count(*) FROM progression.event_outbox WHERE topic='XpAwardRecorded'")
-        .fetch_one(&pool)
-        .await
-        .map_err(|error| error.to_string())?;
-    let rewards: i64 = sqlx::query_scalar("SELECT count(*) FROM progression.event_outbox WHERE topic='LevelRewardRequested'")
-        .fetch_one(&pool)
-        .await
-        .map_err(|error| error.to_string())?;
+    let awards: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM progression.event_outbox WHERE topic='XpAwardRecorded'",
+    )
+    .fetch_one(&pool)
+    .await
+    .map_err(|error| error.to_string())?;
+    let rewards: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM progression.event_outbox WHERE topic='LevelRewardRequested'",
+    )
+    .fetch_one(&pool)
+    .await
+    .map_err(|error| error.to_string())?;
     assert_eq!(awards, 1);
     assert_eq!(rewards, 0);
-    let _query = QueryStore::connect(&env::var("TOBOT_TEST_DATABASE_URL").map_err(|error| error.to_string())?)
-        .await
-        .map_err(|error| error.to_string())?;
+    let _query = QueryStore::connect(
+        &env::var("TOBOT_TEST_DATABASE_URL").map_err(|error| error.to_string())?,
+    )
+    .await
+    .map_err(|error| error.to_string())?;
     Ok(())
 }
 
@@ -174,11 +194,13 @@ async fn a_later_revision_does_not_rewrite_an_older_award() -> Result<(), String
         .await
         .map_err(|error| error.to_string())?;
     assert_ne!(first.revision_id, second.revision_id);
-    let stored: (i32, i64) = sqlx::query_as("SELECT delta, level_after FROM progression.xp_ledger_entry WHERE entry_id=$1")
-        .bind(entry.entry_id)
-        .fetch_one(&pool)
-        .await
-        .map_err(|error| error.to_string())?;
+    let stored: (i32, i64) = sqlx::query_as(
+        "SELECT delta, level_after FROM progression.xp_ledger_entry WHERE entry_id=$1",
+    )
+    .bind(entry.entry_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|error| error.to_string())?;
     assert_eq!(stored, (10, 1));
     let next = store
         .record_message(&message(tenant, &guild, "9", "6", "7", false, false), now)
@@ -191,11 +213,13 @@ async fn a_later_revision_does_not_rewrite_an_older_award() -> Result<(), String
     assert_eq!(later.level_before, 1);
     assert_eq!(later.level_after, 2);
     assert_eq!(later.balance_after, 30);
-    let published: i32 = sqlx::query_scalar("SELECT award FROM progression.progression_policy_revision WHERE revision_id=$1")
-        .bind(first.revision_id)
-        .fetch_one(&pool)
-        .await
-        .map_err(|error| error.to_string())?;
+    let published: i32 = sqlx::query_scalar(
+        "SELECT award FROM progression.progression_policy_revision WHERE revision_id=$1",
+    )
+    .bind(first.revision_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|error| error.to_string())?;
     assert_eq!(published, 10);
     Ok(())
 }

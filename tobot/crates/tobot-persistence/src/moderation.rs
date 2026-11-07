@@ -124,7 +124,8 @@ impl ModerationStore {
         .fetch_one(&mut *transaction)
         .await?;
         let case_id = Uuid::now_v7();
-        let inserted = insert_case(&mut transaction, new_case, case_id, display_number, now).await?;
+        let inserted =
+            insert_case(&mut transaction, new_case, case_id, display_number, now).await?;
         let record = if inserted {
             let record = load_case_in(&mut transaction, case_id).await?;
             append_fact(
@@ -138,7 +139,12 @@ impl ModerationStore {
             .await?;
             record
         } else {
-            load_case_by_key(&mut transaction, new_case.tenant_id, new_case.idempotency_key).await?
+            load_case_by_key(
+                &mut transaction,
+                new_case.tenant_id,
+                new_case.idempotency_key,
+            )
+            .await?
         };
         transaction.commit().await?;
         Ok((record, inserted))
@@ -170,14 +176,12 @@ impl ModerationStore {
             transaction.commit().await?;
             return Ok(false);
         }
-        sqlx::query(
-            "UPDATE moderation.case SET status = $2, updated_at = $3 WHERE case_id = $1",
-        )
-        .bind(case_id)
-        .bind(to_status)
-        .bind(now)
-        .execute(&mut *transaction)
-        .await?;
+        sqlx::query("UPDATE moderation.case SET status = $2, updated_at = $3 WHERE case_id = $1")
+            .bind(case_id)
+            .bind(to_status)
+            .bind(now)
+            .execute(&mut *transaction)
+            .await?;
         let mut updated = record;
         updated.status = to_status.to_owned();
         if let Some(fact_name) = fact_name {
@@ -215,12 +219,10 @@ impl ModerationStore {
     ///
     /// Returns a database error when the receipt cannot be read.
     pub async fn receipt_class(&self, case_id: Uuid) -> Result<Option<String>, sqlx::Error> {
-        sqlx::query_scalar(
-            "SELECT result_class FROM moderation.action_receipt WHERE case_id = $1",
-        )
-        .bind(case_id)
-        .fetch_optional(&self.pool)
-        .await
+        sqlx::query_scalar("SELECT result_class FROM moderation.action_receipt WHERE case_id = $1")
+            .bind(case_id)
+            .fetch_optional(&self.pool)
+            .await
     }
 
     /// Inserts `NotSent` once. A later class does not replace `Confirmed`.
@@ -492,9 +494,7 @@ async fn load_case_for_update(
     transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     case_id: Uuid,
 ) -> Result<Option<ModerationCaseRecord>, sqlx::Error> {
-    let sql = format!(
-        "SELECT {CASE_COLUMNS} FROM moderation.case WHERE case_id = $1 FOR UPDATE"
-    );
+    let sql = format!("SELECT {CASE_COLUMNS} FROM moderation.case WHERE case_id = $1 FOR UPDATE");
     sqlx::query_as(&sql)
         .bind(case_id)
         .fetch_optional(&mut **transaction)
@@ -641,7 +641,8 @@ async fn insert_outbox(
         },
         payload: payload.clone(),
     };
-    let raw = serde_json::to_vec(&event).map_err(|error| sqlx::Error::Protocol(error.to_string()))?;
+    let raw =
+        serde_json::to_vec(&event).map_err(|error| sqlx::Error::Protocol(error.to_string()))?;
     sqlx::query(
         "INSERT INTO moderation.event_outbox \
          (outbox_id, tenant_id, event_id, topic, partition_key, envelope) \

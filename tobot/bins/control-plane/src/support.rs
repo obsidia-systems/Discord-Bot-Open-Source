@@ -166,7 +166,10 @@ pub(super) async fn publish(
                 404 => "discord_channel_unavailable",
                 _ => "discord_invalid_request",
             };
-            return (StatusCode::FAILED_DEPENDENCY, Json(serde_json::json!({"code":code})))
+            return (
+                StatusCode::FAILED_DEPENDENCY,
+                Json(serde_json::json!({"code":code})),
+            )
                 .into_response();
         }
         Err(error) => {
@@ -363,6 +366,9 @@ async fn consume(
                 }
                 SupportDecision::AlreadyOpen(case) => {
                     format!("Ticket #{} is already open.", case.support_number)
+                }
+                SupportDecision::AtCapacity => {
+                    "This server has reached its active ticket limit.".to_owned()
                 }
                 SupportDecision::UnknownButton => {
                     "This support button is no longer active.".to_owned()

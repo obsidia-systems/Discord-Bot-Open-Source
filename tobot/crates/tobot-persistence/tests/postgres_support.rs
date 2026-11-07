@@ -2,7 +2,10 @@
 
 use std::env;
 use time::OffsetDateTime;
-use tobot_persistence::{QueryStore, SupportClick, SupportDecision, SupportStore};
+use tobot_persistence::{
+    CatalogBenefit, CommercialGrant, PlatformEntitlementStore, QueryStore, SupportClick,
+    SupportDecision, SupportStore,
+};
 use uuid::Uuid;
 
 async fn fixture() -> Result<Option<(SupportStore, sqlx::PgPool, Uuid, String)>, String> {
@@ -77,9 +80,7 @@ async fn panel_binding_capacity_numbers_and_case_versions() -> Result<(), String
         .await
         .map_err(|e| e.to_string())?;
     assert_eq!(first.state, "Preparing");
-    assert!(
-        first.nonce.parse::<u64>().map_err(|e| e.to_string())? < (1_u64 << 53)
-    );
+    assert!(first.nonce.parse::<u64>().map_err(|e| e.to_string())? < (1_u64 << 53));
     let base = (Uuid::now_v7().as_u128() % 900_000_000_000_000) as u64 + 1_000;
     let i1 = base.to_string();
     let i2 = (base + 1).to_string();
@@ -140,6 +141,51 @@ async fn panel_binding_capacity_numbers_and_case_versions() -> Result<(), String
         .await
         .map_err(|e| e.to_string())?;
     assert!(matches!(second,SupportDecision::AlreadyOpen(ref row) if row.case_id==case.case_id));
+    let entitlement = PlatformEntitlementStore::connect(
+        &env::var("TOBOT_TEST_DATABASE_URL").map_err(|e| e.to_string())?,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    entitlement
+        .apply_commercial_grant(&CommercialGrant {
+            fact_id: Uuid::now_v7(),
+            order_id: Uuid::now_v7(),
+            tenant_id: tenant,
+            source_sequence: 1,
+            source_version: "paid-test".to_owned(),
+            schema_family: "CommercialPayment".to_owned(),
+            state: "Active".to_owned(),
+            feature_key: "platform.base".to_owned(),
+            benefits: vec![
+                CatalogBenefit::Feature {
+                    key: "platform.base".to_owned(),
+                },
+                CatalogBenefit::Limit {
+                    key: "support.max_open_tickets".to_owned(),
+                    quantity: 1,
+                    unit: "tickets".to_owned(),
+                },
+            ],
+            valid_until: Some((now + time::Duration::days(30)).unix_timestamp()),
+        })
+        .await
+        .map_err(|e| e.to_string())?;
+    let limited = store
+        .admit_click(
+            &click(
+                tenant,
+                &guild,
+                "200",
+                "300",
+                &first_button,
+                &(base + 4).to_string(),
+                "501",
+            ),
+            now,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+    assert!(matches!(limited, SupportDecision::AtCapacity));
     let counter: i64 =
         sqlx::query_scalar("SELECT next_number FROM support.support_number WHERE tenant_id=$1")
             .bind(tenant)
@@ -342,6 +388,7 @@ async fn concurrent_clicks_keep_one_active_case_per_member() -> Result<(), Strin
         {
             SupportDecision::Opened(_) => opened += 1,
             SupportDecision::AlreadyOpen(_) => already += 1,
+            SupportDecision::AtCapacity => return Err("unexpected paid ticket limit".to_owned()),
             SupportDecision::UnknownButton => return Err("published button rejected".to_owned()),
         }
     }

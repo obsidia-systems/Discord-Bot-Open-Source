@@ -31,6 +31,8 @@ use twilight_model::{
 
 pub const DIAGNOSTIC_COMMAND_NAME: &str = "probe";
 pub const DAILY_COMMAND_NAME: &str = "daily";
+pub const PLAN_COMMAND_NAME: &str = "plan";
+pub const ASK_COMMAND_NAME: &str = "ask";
 pub const TIMEOUT_COMMAND_NAME: &str = "timeout";
 pub const DIAGNOSTIC_ACKNOWLEDGEMENT: &str = "Acknowledged.";
 pub const SUPPORT_PANEL_CONTENT: &str = "Need help? Open a support ticket.";
@@ -1073,7 +1075,13 @@ impl TwilightTransport {
             .ok_or(TransportError::Rejected { status: 400 })?;
         let guild_id = Id::<GuildMarker>::new_checked(guild_id)
             .ok_or(TransportError::Rejected { status: 400 })?;
-        let commands = [diagnostic_command(), timeout_command(), daily_command()];
+        let commands = [
+            diagnostic_command(),
+            timeout_command(),
+            daily_command(),
+            plan_command(),
+            ask_command(),
+        ];
         self.preflight()?;
         let result = self
             .client
@@ -1892,6 +1900,57 @@ fn daily_command() -> Command {
         name_localizations: None,
         nsfw: Some(false),
         options: Vec::new(),
+        version: Id::<CommandVersionMarker>::new(1),
+    }
+}
+
+#[allow(deprecated)]
+fn plan_command() -> Command {
+    Command {
+        application_id: None,
+        contexts: Some(vec![InteractionContextType::Guild]),
+        default_member_permissions: None,
+        dm_permission: Some(false),
+        description: "Check this server's platform feature access.".to_owned(),
+        description_localizations: None,
+        guild_id: None,
+        id: None,
+        integration_types: None,
+        kind: CommandType::ChatInput,
+        name: PLAN_COMMAND_NAME.to_owned(),
+        name_localizations: None,
+        nsfw: Some(false),
+        options: Vec::new(),
+        version: Id::<CommandVersionMarker>::new(1),
+    }
+}
+
+#[allow(deprecated)]
+fn ask_command() -> Command {
+    let mut prompt = command_option(
+        "prompt",
+        "Text to transform",
+        CommandOptionType::String,
+        Some(true),
+        None,
+    );
+    prompt.min_length = Some(1);
+    prompt.max_length = Some(500);
+    Command {
+        application_id: None,
+        contexts: Some(vec![InteractionContextType::Guild]),
+        default_member_permissions: None,
+        dm_permission: Some(false),
+        description: "Run one text operation with AI credits.".to_owned(),
+        description_localizations: None,
+        guild_id: None,
+        id: None,
+        integration_types: None,
+        kind: CommandType::ChatInput,
+        name: ASK_COMMAND_NAME.to_owned(),
+        name_localizations: None,
+        nsfw: Some(false),
+        options: vec![prompt],
         version: Id::<CommandVersionMarker>::new(1),
     }
 }
