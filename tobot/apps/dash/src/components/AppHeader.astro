@@ -1,10 +1,19 @@
 ---
 import { AccountName } from "./AccountName";
 import { LogoutButton } from "./LogoutButton";
+
+interface Props {
+  wide?: boolean;
+}
+
+const { wide = false } = Astro.props;
 ---
 
 <header
-  class="mx-auto flex w-full max-w-2xl items-center justify-between gap-4 px-6 py-6"
+  class:list={[
+    "mx-auto flex w-full items-center justify-between gap-4 px-6 py-6",
+    wide ? "max-w-5xl" : "max-w-2xl",
+  ]}
 >
   <a
     class="font-semibold tracking-tight underline-offset-4 hover:underline"

@@ -8,7 +8,6 @@ import {
   discoveryPollDelay,
   installationLabel,
   installationView,
-  projectionAgeLabel,
 } from "../lib/shell-state";
 
 type HomeState =
@@ -104,35 +103,27 @@ export function GuildHome({ tenantId }: GuildHomeProps) {
     installationState: state.body.installation_state,
     capabilities: state.body.capabilities,
   });
+  const name = state.body.name.trim() || "This server";
+  const health = state.body.health_state;
+  const showHealth = health.length > 0 && health !== "Healthy";
+  const modules = [
+    { href: "cases", title: "Cases", text: "Moderation history for this server." },
+    { href: "welcome", title: "Welcome", text: "The message sent when someone joins." },
+    { href: "roles", title: "Automatic role", text: "The role given to new members." },
+    { href: "progression", title: "Progression", text: "How members earn experience." },
+    { href: "support", title: "Support tickets", text: "Requests opened in this server." },
+    { href: "economy", title: "Guild wallet", text: "Balances for this server." },
+    { href: "billing", title: "Platform plan", text: "The plan bought for this server." },
+    { href: "ai", title: "AI credits", text: "Credit use for this server." },
+  ];
 
   return (
     <>
-      <h1 className="text-2xl font-semibold tracking-tight">{installationLabel(view)}</h1>
-      <dl className="mt-6 space-y-2 text-sm leading-relaxed text-zinc-700">
-        <div>
-          <dt className="inline">Server </dt>
-          <dd className="inline">{state.body.provider_guild_id}</dd>
-        </div>
-        <div>
-          <dt className="inline">Generation </dt>
-          <dd className="inline">{state.body.installation_generation}</dd>
-        </div>
-        <div>
-          <dt className="inline">Health </dt>
-          <dd className="inline">{state.body.health_state}</dd>
-        </div>
-        <div>
-          <dt className="inline">Probe </dt>
-          <dd className="inline">{state.body.probe_state}</dd>
-        </div>
-        <div>
-          <dt className="inline">Watermark </dt>
-          <dd className="inline">
-            {state.body.projection_watermark_unix}.{" "}
-            {projectionAgeLabel(state.body.projection_age_seconds)}
-          </dd>
-        </div>
-      </dl>
+      <h1 className="text-2xl font-semibold tracking-tight">{name}</h1>
+      <p className="mt-2 text-sm text-zinc-700">
+        {installationLabel(view)}
+        {showHealth ? ` ${health}` : ""}
+      </p>
       {view.kind === "verifying" ? (
         <p className="mt-4 text-zinc-700" aria-live="polite">
           Installation is verifying. This page refreshes automatically.
@@ -159,42 +150,19 @@ export function GuildHome({ tenantId }: GuildHomeProps) {
         </div>
       ) : null}
       {view.kind === "installed" ? (
-        <>
-          <p className="mt-4 text-zinc-700">The application is installed on this server.</p>
-          <a
-            className="mt-4 inline-block underline decoration-zinc-400 underline-offset-4 hover:decoration-zinc-950"
-            href={`/guild/${tenantId}/cases`}
-          >
-            Cases
-          </a>
-          <a
-            className="ml-6 inline-block underline decoration-zinc-400 underline-offset-4 hover:decoration-zinc-950"
-            href={`/guild/${tenantId}/welcome`}
-          >
-            Welcome
-          </a>
-          <a
-            className="ml-6 inline-block underline decoration-zinc-400 underline-offset-4 hover:decoration-zinc-950"
-            href={`/guild/${tenantId}/roles`}
-          >
-            Automatic role
-          </a>
-          <a
-            className="ml-6 inline-block underline decoration-zinc-400 underline-offset-4 hover:decoration-zinc-950"
-            href={`/guild/${tenantId}/progression`}
-          >
-            Progression
-          </a>
-          <a
-            className="ml-6 inline-block underline decoration-zinc-400 underline-offset-4 hover:decoration-zinc-950"
-            href={`/guild/${tenantId}/support`}
-          >
-            Support tickets
-          </a>
-          <a className="ml-6 inline-block underline decoration-zinc-400 underline-offset-4 hover:decoration-zinc-950" href={`/guild/${tenantId}/economy`}>Guild wallet</a>
-          <a className="ml-6 inline-block underline decoration-zinc-400 underline-offset-4 hover:decoration-zinc-950" href={`/guild/${tenantId}/billing`}>Platform plan</a>
-          <a className="ml-6 inline-block underline decoration-zinc-400 underline-offset-4 hover:decoration-zinc-950" href={`/guild/${tenantId}/ai`}>AI credits</a>
-        </>
+        <ul className="mt-8 grid list-none gap-3 p-0 sm:grid-cols-2">
+          {modules.map((module) => (
+            <li key={module.href}>
+              <a
+                className="block border border-zinc-200 p-4 hover:border-zinc-950"
+                href={`/guild/${tenantId}/${module.href}`}
+              >
+                <span className="font-medium">{module.title}</span>
+                <span className="mt-1 block text-sm text-zinc-600">{module.text}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
       ) : null}
       {view.kind === "removed" ? (
         <div className="mt-4 border-l-2 border-zinc-950 pl-3" role="alert">

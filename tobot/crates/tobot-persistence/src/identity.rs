@@ -256,6 +256,27 @@ impl IdentityStore {
         .fetch_one(&self.pool)
         .await
     }
+    /// Nombre observado para un servidor de esta cuenta, dentro de la ventana vigente.
+    ///
+    /// # Errors
+    ///
+    /// Devuelve un error si la observación no se puede leer.
+    pub async fn discovered_guild_name(
+        &self,
+        account_id: Uuid,
+        provider_guild_id: &str,
+        now: OffsetDateTime,
+    ) -> Result<Option<String>, sqlx::Error> {
+        sqlx::query_scalar(
+            "SELECT guild_name FROM identity.guild_discovery_observation \
+             WHERE account_id = $1 AND provider_guild_id = $2 AND expires_at >= $3",
+        )
+        .bind(account_id)
+        .bind(provider_guild_id)
+        .bind(now)
+        .fetch_optional(&self.pool)
+        .await
+    }
     /// Returns presentation-only guild identifiers that remain within the
     /// 15-minute freshness window. Callers pass them as an explicit predicate
     /// to the separate Query owner.

@@ -147,6 +147,7 @@ export type GuildDiscoveryBody = {
 export type GuildShellBody = {
   tenant_id: string;
   provider_guild_id: string;
+  name: string;
   installation_state: string;
   health_state: string;
   installation_generation: number;
@@ -278,6 +279,7 @@ export async function readGuildShell(
       kind: "ready",
       body: {
         ...body,
+        name: typeof body.name === "string" ? body.name : "",
         capabilities:
           body.capabilities && typeof body.capabilities === "object"
             ? body.capabilities

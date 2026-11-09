@@ -1,6 +1,6 @@
 ---
-import AppHeader from "../../components/AppHeader.astro";
 import { GuildHome } from "../../components/GuildHome";
+import GuildFrame from "../../components/GuildFrame.astro";
 import ShellLayout from "../../layouts/ShellLayout.astro";
 import { SESSION_COOKIE } from "../../lib/session";
 import { isTenantId } from "../../lib/shell-state";
@@ -13,8 +13,7 @@ const knownTenant = isTenantId(tenant);
 ---
 
 <ShellLayout title="Server">
-  <AppHeader />
-  <main id="content" class="mx-auto w-full max-w-2xl px-6 pb-16">
+  <GuildFrame tenant={tenant} section="overview">
     {
       knownTenant ? (
         <GuildHome client:load tenantId={tenant} />
@@ -31,5 +30,5 @@ const knownTenant = isTenantId(tenant);
         </>
       )
     }
-  </main>
+  </GuildFrame>
 </ShellLayout>

@@ -1,0 +1,92 @@
+---
+import AppHeader from "./AppHeader.astro";
+import { isTenantId } from "../lib/shell-state";
+
+interface Props {
+  tenant: string;
+  section:
+    | "overview"
+    | "cases"
+    | "welcome"
+    | "roles"
+    | "progression"
+    | "support"
+    | "economy"
+    | "billing"
+    | "ai";
+}
+
+const { tenant, section } = Astro.props;
+const known = isTenantId(tenant);
+
+const server = [
+  { id: "overview", label: "Overview", href: `/guild/${tenant}` },
+  { id: "cases", label: "Cases", href: `/guild/${tenant}/cases` },
+  { id: "welcome", label: "Welcome", href: `/guild/${tenant}/welcome` },
+  { id: "roles", label: "Automatic role", href: `/guild/${tenant}/roles` },
+  { id: "progression", label: "Progression", href: `/guild/${tenant}/progression` },
+  { id: "support", label: "Support tickets", href: `/guild/${tenant}/support` },
+];
+const money = [
+  { id: "economy", label: "Guild wallet", href: `/guild/${tenant}/economy` },
+  { id: "billing", label: "Platform plan", href: `/guild/${tenant}/billing` },
+  { id: "ai", label: "AI credits", href: `/guild/${tenant}/ai` },
+];
+---
+
+<AppHeader wide />
+<div class="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 pb-16 sm:flex-row sm:items-start sm:gap-10">
+  {
+    known ? (
+      <nav aria-label="Server" class="w-44 shrink-0">
+        <p class="text-xs font-semibold tracking-wide text-zinc-500">Server</p>
+        <ul class="mt-2 list-none p-0">
+          {server.map((item) => (
+            <li>
+              <a
+                href={item.href}
+                aria-current={section === item.id ? "page" : undefined}
+                class:list={[
+                  "block border-l-2 py-1 pl-2 text-sm",
+                  section === item.id
+                    ? "border-zinc-950 font-medium text-zinc-950"
+                    : "border-transparent text-zinc-600 hover:text-zinc-950",
+                ]}
+              >
+                {item.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+        <p class="mt-6 text-xs font-semibold tracking-wide text-zinc-500">This server</p>
+        <ul class="mt-2 list-none p-0">
+          {money.map((item) => (
+            <li>
+              <a
+                href={item.href}
+                aria-current={section === item.id ? "page" : undefined}
+                class:list={[
+                  "block border-l-2 py-1 pl-2 text-sm",
+                  section === item.id
+                    ? "border-zinc-950 font-medium text-zinc-950"
+                    : "border-transparent text-zinc-600 hover:text-zinc-950",
+                ]}
+              >
+                {item.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+        <a
+          class="mt-8 inline-block text-sm underline decoration-zinc-400 underline-offset-4 hover:decoration-zinc-950"
+          href="/"
+        >
+          Your servers
+        </a>
+      </nav>
+    ) : null
+  }
+  <main id="content" class="min-w-0 flex-1">
+    <slot />
+  </main>
+</div>

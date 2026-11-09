@@ -1892,6 +1892,7 @@ async fn guilds(State(state): State<AppState>, headers: HeaderMap) -> Response {
 struct GuildShellResponse {
     tenant_id: Uuid,
     provider_guild_id: String,
+    name: String,
     installation_state: String,
     health_state: String,
     installation_generation: i64,
@@ -1935,11 +1936,23 @@ async fn guild_shell(
     else {
         return StatusCode::NOT_FOUND.into_response();
     };
+    let name = match state
+        .identity
+        .discovered_guild_name(session.account_id, &provider_guild_id, now)
+        .await
+    {
+        Ok(name) => name.unwrap_or_default(),
+        Err(error) => {
+            error!(%error, "guild name unavailable");
+            return StatusCode::SERVICE_UNAVAILABLE.into_response();
+        }
+    };
     (
         [(header::CACHE_CONTROL, "private, no-store")],
         axum::Json(GuildShellResponse {
             tenant_id: shell.tenant_id,
             provider_guild_id,
+            name,
             installation_state: shell.installation_state,
             health_state: shell.health_state,
             installation_generation,
