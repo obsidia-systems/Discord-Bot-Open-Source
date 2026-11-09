@@ -332,3 +332,17 @@ async fn compensate_cases(
     }
     Ok(())
 }
+
+impl QueryStore {
+    /// Suma las seis bandejas de mensajería. Los nombres de tabla están fijos en el SQL.
+    ///
+    /// # Errors
+    ///
+    /// Devuelve error si el agregado no se puede leer.
+    pub async fn messaging_relay_gauge(
+        &self,
+        now: OffsetDateTime,
+    ) -> Result<super::RelayGauge, sqlx::Error> {
+        super::relay_gauge(&self.pool, super::MESSAGING_RELAY_GAUGE, now).await
+    }
+}

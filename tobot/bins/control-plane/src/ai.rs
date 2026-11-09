@@ -26,7 +26,7 @@ use super::{AppState, session_id};
 use crate::welcome::access;
 
 #[derive(Clone)]
-pub(super) struct AiClient {
+pub(crate) struct AiClient {
     http: Client,
     base: String,
     token: String,
@@ -172,6 +172,15 @@ impl AiClient {
             .await
             .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
         Ok((status, bytes.to_vec()))
+    }
+
+    pub(crate) async fn reservation_counts(&self) -> Result<(i64, i64), StatusCode> {
+        let body = self
+            .request(Method::GET, "/internal/v1/ai/reservations", Vec::new())
+            .await?;
+        let uncertain = body["uncertain"].as_i64().ok_or(StatusCode::BAD_GATEWAY)?;
+        let disputed = body["disputed"].as_i64().ok_or(StatusCode::BAD_GATEWAY)?;
+        Ok((uncertain, disputed))
     }
 
     pub(super) async fn usage(&self, tenant: Uuid, actor: &str) -> Result<Value, StatusCode> {

@@ -73,6 +73,50 @@ pub(crate) const EDGE_RELAY_GAUGE: &str = "SELECT \
      count(*) FILTER (WHERE published_at IS NULL AND lease_expires_at IS NOT NULL AND lease_expires_at < $1)::bigint AS expired_leases \
      FROM edge.event_outbox";
 
+/// Las seis bandejas que retransmiten bienvenida, mensajes, roles, experiencia, soporte e ingreso.
+pub(crate) const MESSAGING_RELAY_GAUGE: &str = "SELECT \
+     COALESCE(SUM(unpublished), 0)::bigint AS unpublished, \
+     COALESCE(MAX(oldest_age_seconds), 0)::bigint AS oldest_age_seconds, \
+     COALESCE(MAX(max_publish_attempts), 0)::bigint AS max_publish_attempts, \
+     COALESCE(SUM(expired_leases), 0)::bigint AS expired_leases \
+     FROM ( \
+       SELECT count(*) FILTER (WHERE published_at IS NULL)::bigint AS unpublished, \
+         COALESCE(FLOOR(EXTRACT(EPOCH FROM ($1 - min(available_at) FILTER (WHERE published_at IS NULL)))), 0)::bigint AS oldest_age_seconds, \
+         COALESCE(max(publish_attempts) FILTER (WHERE published_at IS NULL), 0)::bigint AS max_publish_attempts, \
+         count(*) FILTER (WHERE published_at IS NULL AND lease_expires_at IS NOT NULL AND lease_expires_at < $1)::bigint AS expired_leases \
+         FROM lifecycle.event_outbox \
+       UNION ALL \
+       SELECT count(*) FILTER (WHERE published_at IS NULL)::bigint, \
+         COALESCE(FLOOR(EXTRACT(EPOCH FROM ($1 - min(available_at) FILTER (WHERE published_at IS NULL)))), 0)::bigint, \
+         COALESCE(max(publish_attempts) FILTER (WHERE published_at IS NULL), 0)::bigint, \
+         count(*) FILTER (WHERE published_at IS NULL AND lease_expires_at IS NOT NULL AND lease_expires_at < $1)::bigint \
+         FROM delivery.event_outbox \
+       UNION ALL \
+       SELECT count(*) FILTER (WHERE published_at IS NULL)::bigint, \
+         COALESCE(FLOOR(EXTRACT(EPOCH FROM ($1 - min(available_at) FILTER (WHERE published_at IS NULL)))), 0)::bigint, \
+         COALESCE(max(publish_attempts) FILTER (WHERE published_at IS NULL), 0)::bigint, \
+         count(*) FILTER (WHERE published_at IS NULL AND lease_expires_at IS NOT NULL AND lease_expires_at < $1)::bigint \
+         FROM assignment.event_outbox \
+       UNION ALL \
+       SELECT count(*) FILTER (WHERE published_at IS NULL)::bigint, \
+         COALESCE(FLOOR(EXTRACT(EPOCH FROM ($1 - min(available_at) FILTER (WHERE published_at IS NULL)))), 0)::bigint, \
+         COALESCE(max(publish_attempts) FILTER (WHERE published_at IS NULL), 0)::bigint, \
+         count(*) FILTER (WHERE published_at IS NULL AND lease_expires_at IS NOT NULL AND lease_expires_at < $1)::bigint \
+         FROM progression.event_outbox \
+       UNION ALL \
+       SELECT count(*) FILTER (WHERE published_at IS NULL)::bigint, \
+         COALESCE(FLOOR(EXTRACT(EPOCH FROM ($1 - min(available_at) FILTER (WHERE published_at IS NULL)))), 0)::bigint, \
+         COALESCE(max(publish_attempts) FILTER (WHERE published_at IS NULL), 0)::bigint, \
+         count(*) FILTER (WHERE published_at IS NULL AND lease_expires_at IS NOT NULL AND lease_expires_at < $1)::bigint \
+         FROM support.event_outbox \
+       UNION ALL \
+       SELECT count(*) FILTER (WHERE published_at IS NULL)::bigint, \
+         COALESCE(FLOOR(EXTRACT(EPOCH FROM ($1 - min(available_at) FILTER (WHERE published_at IS NULL)))), 0)::bigint, \
+         COALESCE(max(publish_attempts) FILTER (WHERE published_at IS NULL), 0)::bigint, \
+         count(*) FILTER (WHERE published_at IS NULL AND lease_expires_at IS NOT NULL AND lease_expires_at < $1)::bigint \
+         FROM earnings.event_outbox \
+     ) AS messaging_outbox";
+
 #[derive(Debug, sqlx::FromRow)]
 pub struct ClaimedOutboxEntry {
     pub outbox_id: Uuid,
@@ -485,4 +529,24 @@ pub(crate) async fn insert_installation_state_event(
 #[must_use]
 pub fn bound_tenant_id(context: TenantContext) -> TenantId {
     context.tenant_id
+}
+
+#[cfg(test)]
+mod messaging_gauge_tests {
+    #[test]
+    fn messaging_gauge_names_the_six_outboxes() {
+        for table in [
+            "lifecycle.event_outbox",
+            "delivery.event_outbox",
+            "assignment.event_outbox",
+            "progression.event_outbox",
+            "support.event_outbox",
+            "earnings.event_outbox",
+        ] {
+            assert!(
+                super::MESSAGING_RELAY_GAUGE.contains(table),
+                "{table} missing"
+            );
+        }
+    }
 }

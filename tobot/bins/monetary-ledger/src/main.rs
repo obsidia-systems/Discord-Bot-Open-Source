@@ -131,7 +131,31 @@ fn router(state: AppState) -> Router {
         .route("/internal/v1/ledger/wallet/{tenant}/{member}", get(wallet))
         .route("/internal/v1/ledger/reconcile/{tenant}", post(reconcile))
         .route("/internal/v1/ledger/circuit/{tenant}", post(circuit))
+        .route("/internal/v1/ledger/outbox", get(outbox))
         .with_state(state)
+}
+
+async fn outbox(
+    State(state): State<AppState>,
+    uri: Uri,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    if !authorized(&state, &headers, "GET", &uri, &body) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    match state.store.outbox_gauge(OffsetDateTime::now_utc()).await {
+        Ok((unpublished, oldest_age_seconds, expired_leases)) => Json(serde_json::json!({
+            "unpublished": unpublished,
+            "oldest_age_seconds": oldest_age_seconds,
+            "expired_leases": expired_leases
+        }))
+        .into_response(),
+        Err(error) => {
+            error!(%error, "ledger outbox gauge unavailable");
+            StatusCode::SERVICE_UNAVAILABLE.into_response()
+        }
+    }
 }
 
 async fn ready(State(state): State<AppState>) -> StatusCode {

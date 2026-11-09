@@ -114,7 +114,10 @@ impl DefaultPlan {
     }
 
     pub fn validate(&self) -> Result<(), &'static str> {
-        if self.ticket_quantity.is_some_and(|quantity| !(1..=1000).contains(&quantity)) {
+        if self
+            .ticket_quantity
+            .is_some_and(|quantity| !(1..=1000).contains(&quantity))
+        {
             return Err("ticket cap must be from 1 to 1000");
         }
         Ok(())
@@ -241,6 +244,19 @@ fn from_row(row: &sqlx::postgres::PgRow) -> Result<CatalogPublication, sqlx::Err
 const FIELDS: &str = "revision_id,product_key,product_kind,display_name,provider,environment,provider_account,provider_price_ref,currency,unit_amount,interval_name,feature_key,benefits,regions,tax_classification,merchant_of_record,terms_url,privacy_url,support_url,grace_seconds";
 
 impl CommercialCatalogStore {
+    /// Cuenta revisiones que Billing todavía no confirmó.
+    ///
+    /// # Errors
+    ///
+    /// Devuelve error si el conteo no se puede leer.
+    pub async fn pending_delivery_count(&self) -> Result<i64, sqlx::Error> {
+        sqlx::query_scalar(
+            "SELECT count(*)::bigint FROM commercial_catalog.delivery_outbox WHERE delivered_at IS NULL",
+        )
+        .fetch_one(&self.pool)
+        .await
+    }
+
     pub async fn request_publication(
         &self,
         revision: &CatalogPublication,

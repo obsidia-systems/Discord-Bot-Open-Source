@@ -115,6 +115,21 @@ struct Price {
 }
 
 impl AiStore {
+    /// Cuenta reservas que siguen en duda. No devuelve prompts ni costes.
+    ///
+    /// # Errors
+    ///
+    /// Devuelve error si el conteo no se puede leer.
+    pub async fn reservation_counts(&self) -> Result<(i64, i64), sqlx::Error> {
+        sqlx::query_as(
+            "SELECT count(*) FILTER (WHERE state = 'Uncertain')::bigint, \
+             count(*) FILTER (WHERE state = 'Disputed')::bigint \
+             FROM ai_ledger.reservation",
+        )
+        .fetch_one(&self.pool)
+        .await
+    }
+
     /// Publica una revisión inmutable y retira solo la revisión activa anterior.
     /// # Errors
     /// Devuelve un error si la revisión contradice una fila ya guardada.

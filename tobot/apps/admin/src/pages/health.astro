@@ -10,7 +10,7 @@ const initial = await collectStatus();
   <main id="content" class="mx-auto w-full max-w-4xl px-6 py-12">
     <h1 class="text-2xl font-semibold tracking-tight">Health</h1>
     <p class="mt-3 max-w-2xl leading-relaxed text-zinc-700">
-      Control Plane, Delivery, and Discord Edge. Up, Not ready, and Down are written out next to each probe.
+      Processes, and the queues that hold work when a process is up. A number above zero is marked. Nothing here is a chart: each figure is the current sample.
     </p>
     <StatusBoard client:load initial={initial} />
   </main>

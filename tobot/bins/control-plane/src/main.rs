@@ -5,6 +5,7 @@ mod ai;
 mod billing;
 mod cases_http;
 mod earnings;
+mod health;
 mod ledger_client;
 mod progression;
 mod roles;
@@ -345,9 +346,12 @@ async fn main() -> anyhow::Result<()> {
         identity: database.identity.clone(),
         installation: database.installation.clone(),
         query: database.query.clone(),
+        moderation: database.moderation.clone(),
+        catalog: database.catalog.clone(),
         consumer: query_consumer.clone(),
         service_token: case_runtime.service_token.clone(),
         clock: SystemClock,
+        remote: health::RemoteHealth::new(ai::AiClient::from_env(), ledger.clone()),
     };
     let metrics_address: SocketAddr = config
         .metrics_bind
@@ -483,9 +487,12 @@ struct MetricsState {
     identity: IdentityStore,
     installation: InstallationStore,
     query: QueryStore,
+    moderation: ModerationStore,
+    catalog: tobot_persistence::CommercialCatalogStore,
     consumer: RedisStreamConsumer,
     service_token: String,
     clock: SystemClock,
+    remote: health::RemoteHealth,
 }
 
 fn metrics_router(state: MetricsState) -> Router {
@@ -516,7 +523,10 @@ async fn control_metrics_body(state: &MetricsState) -> anyhow::Result<String> {
         .recent_auth_rejection_count(now - time::Duration::minutes(15))
         .await?;
     let pending = state.consumer.pending_entries().await?;
-    render_gauges(&[
+    let moderation = state.moderation.moderation_relay_gauge(now).await?;
+    let messaging = state.query.messaging_relay_gauge(now).await?;
+    let catalog = state.catalog.pending_delivery_count().await?;
+    let mut samples = vec![
         (
             "tobot_installation_outbox_unpublished",
             installation.unpublished,
@@ -533,11 +543,42 @@ async fn control_metrics_body(state: &MetricsState) -> anyhow::Result<String> {
             "tobot_installation_outbox_expired_leases",
             installation.expired_leases,
         ),
+        (
+            "tobot_moderation_outbox_unpublished",
+            moderation.unpublished,
+        ),
+        (
+            "tobot_moderation_outbox_oldest_age_seconds",
+            moderation.oldest_age_seconds,
+        ),
+        (
+            "tobot_moderation_outbox_max_publish_attempts",
+            moderation.max_publish_attempts,
+        ),
+        (
+            "tobot_moderation_outbox_expired_leases",
+            moderation.expired_leases,
+        ),
+        ("tobot_messaging_outbox_unpublished", messaging.unpublished),
+        (
+            "tobot_messaging_outbox_oldest_age_seconds",
+            messaging.oldest_age_seconds,
+        ),
+        (
+            "tobot_messaging_outbox_max_publish_attempts",
+            messaging.max_publish_attempts,
+        ),
+        (
+            "tobot_messaging_outbox_expired_leases",
+            messaging.expired_leases,
+        ),
+        ("tobot_catalog_delivery_pending", catalog),
         ("tobot_degraded_installations", degraded),
         ("tobot_auth_rejections_15m", rejections),
         ("tobot_stream_pending", pending),
-    ])
-    .context("operational gauge name was rejected")
+    ];
+    samples.extend(state.remote.samples().await);
+    render_gauges(&samples).context("operational gauge name was rejected")
 }
 
 fn bearer_matches(headers: &HeaderMap, expected_token: &str) -> bool {
@@ -931,7 +972,10 @@ fn router(state: AppState) -> Router {
         .route("/internal/v1/ai/reconciliation", post(ai::reconcile))
         .route("/internal/v1/ai/desk", get(ai::desk))
         .route("/internal/v1/ai/providers", post(ai::save_provider))
-        .route("/internal/v1/ai/providers/enable", post(ai::enable_provider))
+        .route(
+            "/internal/v1/ai/providers/enable",
+            post(ai::enable_provider),
+        )
         .route("/internal/v1/ai/providers/models", post(ai::refresh_models))
         .route("/internal/v1/ai/models/price", post(ai::save_model_price))
         .route("/internal/v1/ai/functions/ask", post(ai::save_ask))
@@ -981,10 +1025,7 @@ fn router(state: AppState) -> Router {
             "/internal/v1/catalog/default-plan",
             get(billing::default_plan).post(billing::save_default_plan),
         )
-        .route(
-            "/internal/v1/catalog/servers",
-            get(billing::listed_guilds),
-        )
+        .route("/internal/v1/catalog/servers", get(billing::listed_guilds))
         .route(
             "/internal/v1/catalog/revisions/latest",
             get(billing::latest_catalog),
@@ -2215,13 +2256,21 @@ async fn live() -> StatusCode {
     StatusCode::NO_CONTENT
 }
 
-async fn ready(State(state): State<AppState>) -> StatusCode {
+fn ready_reason(database_ready: bool, vault_ready: bool) -> Option<&'static str> {
+    match (database_ready, vault_ready) {
+        (true, true) => None,
+        (false, true) => Some("Database"),
+        (true, false) => Some("Vault"),
+        (false, false) => Some("Database and Vault"),
+    }
+}
+
+async fn ready(State(state): State<AppState>) -> Response {
     let database_ready = state.identity.ping().await.is_ok();
     let vault_ready = state.secret_store.health().await.is_ok();
-    if database_ready && vault_ready {
-        StatusCode::NO_CONTENT
-    } else {
-        StatusCode::SERVICE_UNAVAILABLE
+    match ready_reason(database_ready, vault_ready) {
+        None => StatusCode::NO_CONTENT.into_response(),
+        Some(reason) => (StatusCode::SERVICE_UNAVAILABLE, reason).into_response(),
     }
 }
 
@@ -2268,7 +2317,7 @@ mod tests {
     use super::{
         BrowserFailure, DiscordGuildObservation, GuildShellSummary, admit_installation_command,
         discovery_response_items, guilds_absent_from_snapshot, install_error_path,
-        login_error_path, presentation_guilds,
+        login_error_path, presentation_guilds, ready_reason,
     };
     use uuid::Uuid;
 
@@ -2285,6 +2334,14 @@ mod tests {
             owner: false,
             permissions: "0".to_owned(),
         }
+    }
+
+    #[test]
+    fn ready_names_database_and_vault() {
+        assert_eq!(ready_reason(true, true), None);
+        assert_eq!(ready_reason(false, true), Some("Database"));
+        assert_eq!(ready_reason(true, false), Some("Vault"));
+        assert_eq!(ready_reason(false, false), Some("Database and Vault"));
     }
 
     #[test]

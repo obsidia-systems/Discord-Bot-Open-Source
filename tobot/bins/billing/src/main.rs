@@ -98,6 +98,7 @@ async fn main() -> Result<()> {
     let worker = app.clone();
     let router = Router::new()
         .route("/health/live", get(|| async { StatusCode::NO_CONTENT }))
+        .route("/health/ready", get(ready))
         .route("/internal/v1/checkout", post(checkout))
         .route("/internal/v1/catalog/revisions", post(receive_catalog))
         .route(
@@ -132,6 +133,14 @@ async fn main() -> Result<()> {
     tokio::select! {
         result = axum::serve(tokio::net::TcpListener::bind(bind).await?, router) => result.context("billing listener failed"),
         result = run_worker(worker) => result,
+    }
+}
+
+async fn ready(State(app): State<App>) -> Response {
+    if sqlx::query("SELECT 1").execute(&app.pool).await.is_ok() {
+        StatusCode::NO_CONTENT.into_response()
+    } else {
+        (StatusCode::SERVICE_UNAVAILABLE, "Database").into_response()
     }
 }
 
@@ -776,10 +785,12 @@ async fn close_expired_subscription(app: &App, object: &Value) -> Result<bool> {
     .fetch_optional(&mut *tx)
     .await?;
     if paid.is_none() && order_state == "Open" {
-        sqlx::query("UPDATE billing.subscription SET state='Cancelled',updated_at=now() WHERE order_id=$1")
-            .bind(order)
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query(
+            "UPDATE billing.subscription SET state='Cancelled',updated_at=now() WHERE order_id=$1",
+        )
+        .bind(order)
+        .execute(&mut *tx)
+        .await?;
         sqlx::query("UPDATE billing.checkout_attempt SET state='Expired' WHERE order_id=$1 AND state IN ('Open','Creating','Completed')")
             .bind(order)
             .execute(&mut *tx)
@@ -910,10 +921,7 @@ async fn apply_paid_invoice(app: &App, object: &Value) -> Result<bool> {
     };
     // Current Stripe invoices report payment with `status`. The legacy boolean
     // `paid` is absent; an explicit false still rejects.
-    if object["status"] != "paid"
-        || object["paid"] == false
-        || object["paid_out_of_band"] == true
-    {
+    if object["status"] != "paid" || object["paid"] == false || object["paid_out_of_band"] == true {
         return Ok(false);
     }
     let order_id: Option<Uuid> = sqlx::query_scalar(
@@ -1658,8 +1666,14 @@ mod tests {
         let subscription = format!("sub_{suffix}");
         sqlx::query("INSERT INTO billing.catalog_revision (revision_id,product_key,provider_price_ref,currency,unit_amount,interval_name,feature_key,publication,benefits) VALUES ($1,'base',$2,'usd',499,'month','platform.base',$3,'[]'::jsonb)")
             .bind(revision).bind(format!("price_{suffix}")).bind(json!({"display_name":"Tobot Pro","unit_amount":499,"currency":"usd","interval_name":"month","benefits":[]})).execute(&pool).await.unwrap();
-        sqlx::query("INSERT INTO billing.billing_owner (billing_owner_id,account_id) VALUES ($1,$2)")
-            .bind(owner).bind(Uuid::now_v7()).execute(&pool).await.unwrap();
+        sqlx::query(
+            "INSERT INTO billing.billing_owner (billing_owner_id,account_id) VALUES ($1,$2)",
+        )
+        .bind(owner)
+        .bind(Uuid::now_v7())
+        .execute(&pool)
+        .await
+        .unwrap();
         sqlx::query("INSERT INTO billing.commercial_order (order_id,semantic_key,billing_owner_id,tenant_id,guild_id,revision_id,state) VALUES ($1,$2,$3,$4,'123',$5,'Open')")
             .bind(order).bind(Uuid::now_v7()).bind(owner).bind(Uuid::now_v7()).bind(revision).execute(&pool).await.unwrap();
         sqlx::query("INSERT INTO billing.checkout_attempt (attempt_id,order_id,state,provider_session_ref,provider_subscription_ref) VALUES ($1,$2,'Completed',$3,$4)")
@@ -1669,14 +1683,30 @@ mod tests {
         let expired = json!({"id": subscription, "status": "incomplete_expired"});
         assert!(apply_subscription_update(&app, &expired).await.unwrap());
         assert!(apply_subscription_update(&app, &expired).await.unwrap());
-        let order_state: String = sqlx::query_scalar("SELECT state FROM billing.commercial_order WHERE order_id=$1")
-            .bind(order).fetch_one(&pool).await.unwrap();
-        let attempt_state: String = sqlx::query_scalar("SELECT state FROM billing.checkout_attempt WHERE order_id=$1")
-            .bind(order).fetch_one(&pool).await.unwrap();
-        let subscription_state: String = sqlx::query_scalar("SELECT state FROM billing.subscription WHERE order_id=$1")
-            .bind(order).fetch_one(&pool).await.unwrap();
-        let grants: i64 = sqlx::query_scalar("SELECT count(*) FROM billing.grant_outbox WHERE order_id=$1")
-            .bind(order).fetch_one(&pool).await.unwrap();
+        let order_state: String =
+            sqlx::query_scalar("SELECT state FROM billing.commercial_order WHERE order_id=$1")
+                .bind(order)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let attempt_state: String =
+            sqlx::query_scalar("SELECT state FROM billing.checkout_attempt WHERE order_id=$1")
+                .bind(order)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let subscription_state: String =
+            sqlx::query_scalar("SELECT state FROM billing.subscription WHERE order_id=$1")
+                .bind(order)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let grants: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM billing.grant_outbox WHERE order_id=$1")
+                .bind(order)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         assert_eq!(order_state, "Cancelled");
         assert_eq!(attempt_state, "Expired");
         assert_eq!(subscription_state, "Cancelled");
@@ -1733,8 +1763,14 @@ mod tests {
         });
         sqlx::query("INSERT INTO billing.catalog_revision (revision_id,product_key,provider_price_ref,currency,unit_amount,interval_name,feature_key,publication,benefits) VALUES ($1,'legacy.paid',$2,'usd',499,'month','platform.base',$3,'[]'::jsonb)")
             .bind(revision).bind(&price).bind(&publication).execute(&pool).await.unwrap();
-        sqlx::query("INSERT INTO billing.billing_owner (billing_owner_id,account_id) VALUES ($1,$2)")
-            .bind(owner).bind(Uuid::now_v7()).execute(&pool).await.unwrap();
+        sqlx::query(
+            "INSERT INTO billing.billing_owner (billing_owner_id,account_id) VALUES ($1,$2)",
+        )
+        .bind(owner)
+        .bind(Uuid::now_v7())
+        .execute(&pool)
+        .await
+        .unwrap();
         sqlx::query("INSERT INTO billing.provider_customer_mapping (mapping_id,billing_owner_id,provider_account,environment,provider_customer_ref,state) VALUES ($1,$2,$3,'test',$4,'Active')")
             .bind(Uuid::now_v7()).bind(owner).bind(&app.provider_account).bind(&customer).execute(&pool).await.unwrap();
         sqlx::query("INSERT INTO billing.commercial_order (order_id,semantic_key,billing_owner_id,tenant_id,guild_id,revision_id,state) VALUES ($1,$2,$3,$4,'123',$5,'Open')")
@@ -1752,8 +1788,12 @@ mod tests {
             "lines": {"data": [{"quantity": 1, "pricing": {"price_details": {"price": price}}, "period": {"end": period}}]}
         });
         assert!(apply_paid_invoice(&app, &invoice).await.unwrap());
-        let state: String = sqlx::query_scalar("SELECT state FROM billing.commercial_order WHERE order_id=$1")
-            .bind(order).fetch_one(&pool).await.unwrap();
+        let state: String =
+            sqlx::query_scalar("SELECT state FROM billing.commercial_order WHERE order_id=$1")
+                .bind(order)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         assert_eq!(state, "Fulfilled");
     }
 }

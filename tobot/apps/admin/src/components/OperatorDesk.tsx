@@ -52,7 +52,10 @@ export function OperatorDesk({ initial }: { initial: AdminStatus }) {
     };
   }, []);
 
-  const health = status.services.length === 0 || error ? "Unavailable" : healthLabel(worst(status));
+  const waiting = status.queues.filter((gauge) => gauge.value > 0).length;
+  const health = status.services.length === 0 || error
+    ? "Unavailable"
+    : `${healthLabel(worst(status))}. ${waiting === 0 ? "Nothing is waiting." : `${waiting} waiting.`}`;
 
   return (
     <ul className="mt-8 grid gap-4 sm:grid-cols-3">

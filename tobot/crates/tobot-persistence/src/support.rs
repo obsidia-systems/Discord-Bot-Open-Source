@@ -97,17 +97,17 @@ async fn current_ticket_rule(
 
 pub fn ticket_rule(paid: Option<&[CatalogBenefit]>, free: &DefaultPlan) -> TicketRule {
     if let Some(benefits) = paid {
-        if benefits.iter().any(|benefit| {
-            matches!(benefit, CatalogBenefit::Feature { key } if key == "support.closed")
-        }) {
+        if benefits.iter().any(
+            |benefit| matches!(benefit, CatalogBenefit::Feature { key } if key == "support.closed"),
+        ) {
             return TicketRule::Closed;
         }
         if let Some(quantity) = benefits.iter().find_map(|benefit| match benefit {
-            CatalogBenefit::Limit { key, quantity, unit }
-                if key == "support.max_open_tickets" && unit == "tickets" =>
-            {
-                Some(*quantity)
-            }
+            CatalogBenefit::Limit {
+                key,
+                quantity,
+                unit,
+            } if key == "support.max_open_tickets" && unit == "tickets" => Some(*quantity),
             _ => None,
         }) {
             return TicketRule::Cap(quantity);
@@ -117,8 +117,9 @@ pub fn ticket_rule(paid: Option<&[CatalogBenefit]>, free: &DefaultPlan) -> Ticke
     if !free.enabled || !free.support_open {
         return TicketRule::Closed;
     }
-    free.ticket_quantity
-        .map_or(TicketRule::Open, |quantity| TicketRule::Cap(i64::from(quantity)))
+    free.ticket_quantity.map_or(TicketRule::Open, |quantity| {
+        TicketRule::Cap(i64::from(quantity))
+    })
 }
 
 const PANEL_COLUMNS: &str = "p.revision_id,p.template_revision_id,p.revision,p.channel_id,p.button_label,p.state,p.nonce,b.message_id,b.custom_id";
@@ -605,10 +606,7 @@ mod ticket_rule_tests {
             ticket_quantity: Some(3),
         };
         assert_eq!(ticket_rule(None, &capped), TicketRule::Cap(3));
-        assert_eq!(
-            ticket_rule(None, &DefaultPlan::open()),
-            TicketRule::Open
-        );
+        assert_eq!(ticket_rule(None, &DefaultPlan::open()), TicketRule::Open);
         let disabled = DefaultPlan {
             enabled: false,
             support_open: true,

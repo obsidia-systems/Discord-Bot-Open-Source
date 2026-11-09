@@ -4,10 +4,11 @@ use std::{net::SocketAddr, time::Duration};
 
 use anyhow::Context;
 use axum::{
-    Router,
+    Json, Router,
     body::Bytes,
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
+    response::{IntoResponse, Response},
     routing::{get, post},
 };
 use hmac::{Hmac, Mac};
@@ -68,6 +69,8 @@ async fn main() -> anyhow::Result<()> {
     let worker = app.clone();
     let router = Router::new()
         .route("/health/live", get(|| async { StatusCode::NO_CONTENT }))
+        .route("/health/ready", get(ready))
+        .route("/internal/v1/ingress/pending", get(pending))
         .route("/webhooks/stripe/{generation}", post(webhook))
         .with_state(app);
     info!(%bind, "provider event edge starting");
@@ -75,6 +78,41 @@ async fn main() -> anyhow::Result<()> {
         result = axum::serve(tokio::net::TcpListener::bind(bind).await?, router) => result.context("provider edge listener failed"),
         result = deliver(worker) => result,
     }
+}
+
+async fn ready(State(app): State<App>) -> Response {
+    if sqlx::query("SELECT 1").execute(&app.pool).await.is_ok() {
+        StatusCode::NO_CONTENT.into_response()
+    } else {
+        (StatusCode::SERVICE_UNAVAILABLE, "Database").into_response()
+    }
+}
+
+async fn pending(State(app): State<App>, headers: HeaderMap) -> Response {
+    if !service_token(&headers, &app.delivery_token) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    match sqlx::query_scalar::<_, i64>(
+        "SELECT count(*)::bigint FROM provider_edge.event_receipt WHERE delivered_at IS NULL",
+    )
+    .fetch_one(&app.pool)
+    .await
+    {
+        Ok(pending) => Json(serde_json::json!({ "pending": pending })).into_response(),
+        Err(error) => {
+            error!(%error, "stripe receipt count unavailable");
+            StatusCode::SERVICE_UNAVAILABLE.into_response()
+        }
+    }
+}
+
+fn service_token(headers: &HeaderMap, expected: &str) -> bool {
+    headers
+        .get("x-provider-service-token")
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| {
+            value.len() == expected.len() && value.as_bytes().ct_eq(expected.as_bytes()).into()
+        })
 }
 
 fn required(name: &str) -> anyhow::Result<String> {

@@ -149,6 +149,23 @@ async fn lock_tenant(tx: &mut Transaction<'_, Postgres>, tenant: Uuid) -> Result
 }
 
 impl LedgerStore {
+    /// Edad y tamaño de la bandeja. No hay intentos: esa columna no existe.
+    ///
+    /// # Errors
+    ///
+    /// Devuelve error si el agregado no se puede leer.
+    pub async fn outbox_gauge(&self, now: OffsetDateTime) -> Result<(i64, i64, i64), sqlx::Error> {
+        sqlx::query_as(
+            "SELECT count(*) FILTER (WHERE published_at IS NULL)::bigint, \
+             COALESCE(FLOOR(EXTRACT(EPOCH FROM ($1 - min(created_at) FILTER (WHERE published_at IS NULL)))), 0)::bigint, \
+             count(*) FILTER (WHERE published_at IS NULL AND lease_expires_at IS NOT NULL AND lease_expires_at < $1)::bigint \
+             FROM ledger.event_outbox",
+        )
+        .bind(now)
+        .fetch_one(&self.pool)
+        .await
+    }
+
     pub async fn set_credit_enabled(
         &self,
         tenant: Uuid,

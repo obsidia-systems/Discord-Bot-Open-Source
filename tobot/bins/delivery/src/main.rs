@@ -130,12 +130,16 @@ async fn live() -> StatusCode {
     StatusCode::NO_CONTENT
 }
 
-async fn ready(State(state): State<Arc<DeliveryState>>) -> StatusCode {
+async fn ready(State(state): State<Arc<DeliveryState>>) -> Response {
     let database_ready = match &state.store {
         Some(store) => store.ping().await.is_ok(),
         None => false,
     };
-    transport_readiness(state.credentials_present, database_ready)
+    let (status, reason) = transport_readiness(state.credentials_present, database_ready);
+    match reason {
+        None => status.into_response(),
+        Some(reason) => (status, reason).into_response(),
+    }
 }
 
 async fn metrics() -> StatusCode {
@@ -183,11 +187,18 @@ async fn edge_outbox_metrics(
     ([(header::CONTENT_TYPE, "text/plain; version=0.0.4")], body).into_response()
 }
 
-const fn transport_readiness(credentials_present: bool, database_ready: bool) -> StatusCode {
-    if credentials_present && database_ready {
-        StatusCode::NO_CONTENT
-    } else {
-        StatusCode::SERVICE_UNAVAILABLE
+const fn transport_readiness(
+    credentials_present: bool,
+    database_ready: bool,
+) -> (StatusCode, Option<&'static str>) {
+    match (database_ready, credentials_present) {
+        (true, true) => (StatusCode::NO_CONTENT, None),
+        (false, true) => (StatusCode::SERVICE_UNAVAILABLE, Some("Database")),
+        (true, false) => (StatusCode::SERVICE_UNAVAILABLE, Some("Discord credentials")),
+        (false, false) => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Some("Database and Discord credentials"),
+        ),
     }
 }
 
@@ -848,14 +859,24 @@ mod tests {
 
     #[test]
     fn transport_is_ready_only_with_credentials_and_database() {
-        assert_eq!(transport_readiness(true, true), StatusCode::NO_CONTENT);
+        assert_eq!(
+            transport_readiness(true, true),
+            (StatusCode::NO_CONTENT, None)
+        );
         assert_eq!(
             transport_readiness(true, false),
-            StatusCode::SERVICE_UNAVAILABLE
+            (StatusCode::SERVICE_UNAVAILABLE, Some("Database"))
         );
         assert_eq!(
             transport_readiness(false, true),
-            StatusCode::SERVICE_UNAVAILABLE
+            (StatusCode::SERVICE_UNAVAILABLE, Some("Discord credentials"))
+        );
+        assert_eq!(
+            transport_readiness(false, false),
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Some("Database and Discord credentials")
+            )
         );
     }
 

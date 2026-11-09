@@ -280,11 +280,7 @@ pub(super) async fn default_plan(State(state): State<AppState>, headers: HeaderM
         return StatusCode::UNAUTHORIZED.into_response();
     }
     match state.catalog.default_plan().await {
-        Ok(plan) => (
-            [(header::CACHE_CONTROL, "private, no-store")],
-            Json(plan),
-        )
-            .into_response(),
+        Ok(plan) => ([(header::CACHE_CONTROL, "private, no-store")], Json(plan)).into_response(),
         Err(error) => {
             tracing::error!(%error, "default plan read failed");
             StatusCode::SERVICE_UNAVAILABLE.into_response()
@@ -301,11 +297,7 @@ pub(super) async fn save_default_plan(
         return StatusCode::UNAUTHORIZED.into_response();
     }
     match state.catalog.save_default_plan(&plan).await {
-        Ok(()) => (
-            [(header::CACHE_CONTROL, "private, no-store")],
-            Json(plan),
-        )
-            .into_response(),
+        Ok(()) => ([(header::CACHE_CONTROL, "private, no-store")], Json(plan)).into_response(),
         Err(sqlx::Error::Protocol(reason)) => {
             (StatusCode::BAD_REQUEST, Json(json!({"error": reason}))).into_response()
         }
@@ -321,11 +313,7 @@ pub(super) async fn listed_guilds(State(state): State<AppState>, headers: Header
         return StatusCode::UNAUTHORIZED.into_response();
     }
     match state.entitlement.listed_guilds().await {
-        Ok(list) => (
-            [(header::CACHE_CONTROL, "private, no-store")],
-            Json(list),
-        )
-            .into_response(),
+        Ok(list) => ([(header::CACHE_CONTROL, "private, no-store")], Json(list)).into_response(),
         Err(error) => {
             tracing::error!(%error, "guild list failed");
             StatusCode::SERVICE_UNAVAILABLE.into_response()

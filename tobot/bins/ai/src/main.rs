@@ -115,7 +115,30 @@ fn router(state: AppState) -> Router {
         .route("/internal/v1/ai/models/price", post(desk::save_price))
         .route("/internal/v1/ai/functions/ask", post(desk::save_ask))
         .route("/internal/v1/ai/operations", get(desk::operations))
+        .route("/internal/v1/ai/reservations", get(reservations))
         .with_state(state)
+}
+
+async fn reservations(
+    State(state): State<AppState>,
+    uri: Uri,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    if !authorized(&state, &headers, "GET", &uri, &body) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    match state.store.reservation_counts().await {
+        Ok((uncertain, disputed)) => Json(serde_json::json!({
+            "uncertain": uncertain,
+            "disputed": disputed
+        }))
+        .into_response(),
+        Err(error) => {
+            error!(%error, "reservation counts unavailable");
+            StatusCode::SERVICE_UNAVAILABLE.into_response()
+        }
+    }
 }
 
 async fn ready(State(state): State<AppState>) -> StatusCode {

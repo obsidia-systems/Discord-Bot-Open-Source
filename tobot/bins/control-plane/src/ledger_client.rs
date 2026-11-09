@@ -85,6 +85,22 @@ impl LedgerClient {
         Ok(body)
     }
 
+    pub async fn outbox_gauge(&self) -> Result<(i64, i64, i64), LedgerError> {
+        let body = self
+            .request(Method::GET, "/internal/v1/ledger/outbox", Vec::new())
+            .await?;
+        let unpublished = body["unpublished"]
+            .as_i64()
+            .ok_or(LedgerError::Unavailable)?;
+        let oldest = body["oldest_age_seconds"]
+            .as_i64()
+            .ok_or(LedgerError::Unavailable)?;
+        let expired = body["expired_leases"]
+            .as_i64()
+            .ok_or(LedgerError::Unavailable)?;
+        Ok((unpublished, oldest, expired))
+    }
+
     pub async fn command(
         &self,
         name: &str,
