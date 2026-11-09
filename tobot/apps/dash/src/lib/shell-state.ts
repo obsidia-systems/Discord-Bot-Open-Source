@@ -111,6 +111,20 @@ export function projectionAgeLabel(ageSeconds: number): string {
   return `Projection age ${ageSeconds}s (${projectionFreshness(ageSeconds)}).`;
 }
 
+const GUILD_ID = /^\d{17,22}$/;
+const ICON_HASH = /^(?:a_)?[0-9a-fA-F]{32}$/;
+
+/** Icono público de Discord. Un hash que no es el de Discord no se convierte en URL. */
+export function guildIconUrl(guildId: string, iconHash: string | null): string | null {
+  if (!GUILD_ID.test(guildId) || iconHash === null || !ICON_HASH.test(iconHash)) return null;
+  const extension = iconHash.startsWith("a_") ? "gif" : "png";
+  return `https://cdn.discordapp.com/icons/${guildId}/${iconHash}.${extension}`;
+}
+
+export function guildGroup(view: InstallationView): "with" | "without" {
+  return view.kind === "not-enabled" ? "without" : "with";
+}
+
 export function discoveryExpiryLabel(
   nowUnix: number,
   expiresAtUnix: number,

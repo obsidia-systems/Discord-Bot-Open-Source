@@ -173,11 +173,20 @@ pub struct ConsumedOAuthTransaction {
     pub requested_scopes: Vec<String>,
 }
 
+pub struct DiscordAccountProfile {
+    pub display_name: Option<String>,
+    pub username: String,
+    pub provider_user_id: String,
+    /// `None` todavía no se observó. Vacío: Discord no tiene foto propia.
+    pub avatar_hash: Option<String>,
+}
+
 pub struct NewDiscordAuthorization<'a> {
     pub candidate_account_id: Uuid,
     pub provider_user_id: &'a str,
     pub username: &'a str,
     pub display_name: Option<&'a str>,
+    pub avatar_hash: &'a str,
     pub credential_id: Uuid,
     pub access_token_ciphertext: &'a [u8],
     pub refresh_token_ciphertext: &'a [u8],

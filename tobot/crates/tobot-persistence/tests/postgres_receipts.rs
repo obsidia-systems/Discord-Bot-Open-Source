@@ -515,6 +515,7 @@ async fn open_session(
             provider_user_id,
             username: "operator",
             display_name: None,
+            avatar_hash: "",
             credential_id: Uuid::now_v7(),
             access_token_ciphertext: b"access-ciphertext",
             refresh_token_ciphertext: b"refresh-ciphertext",

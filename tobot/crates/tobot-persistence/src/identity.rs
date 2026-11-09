@@ -1,11 +1,12 @@
+use sqlx::Row;
 use subtle::ConstantTimeEq;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
 use super::{
     ActiveAuthorizationSession, AuditFact, ConsumedOAuthTransaction, CreatedAuthorization,
-    GuildDiscoveryObservation, IdentityStore, NewDiscordAuthorization, NewOAuthTransaction,
-    insert_audit_event, revoke_other_sessions,
+    DiscordAccountProfile, GuildDiscoveryObservation, IdentityStore, NewDiscordAuthorization,
+    NewOAuthTransaction, insert_audit_event, revoke_other_sessions,
 };
 
 impl IdentityStore {
@@ -24,6 +25,54 @@ impl IdentityStore {
     pub async fn discord_user_id(&self, account_id: Uuid) -> Result<Option<String>, sqlx::Error> {
         sqlx::query_scalar("SELECT provider_user_id FROM identity.external_identity WHERE provider='discord' AND account_id=$1")
             .bind(account_id).fetch_optional(&self.pool).await
+    }
+    /// Nombre, usuario y hash de la foto. No incluye tokens.
+    ///
+    /// # Errors
+    ///
+    /// Devuelve un error si la identidad no se puede leer.
+    pub async fn discord_account_profile(
+        &self,
+        account_id: Uuid,
+    ) -> Result<Option<DiscordAccountProfile>, sqlx::Error> {
+        let Some(row) = sqlx::query(
+            "SELECT display_name, username, provider_user_id, avatar_hash \
+             FROM identity.external_identity \
+             WHERE provider = 'discord' AND account_id = $1",
+        )
+        .bind(account_id)
+        .fetch_optional(&self.pool)
+        .await?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(DiscordAccountProfile {
+            display_name: row.try_get("display_name")?,
+            username: row.try_get("username")?,
+            provider_user_id: row.try_get("provider_user_id")?,
+            avatar_hash: row.try_get("avatar_hash")?,
+        }))
+    }
+    /// Guarda el hash ya validado. Cadena vacía significa que Discord no tiene foto propia.
+    ///
+    /// # Errors
+    ///
+    /// Devuelve un error si la fila no se puede actualizar.
+    pub async fn remember_discord_avatar(
+        &self,
+        account_id: Uuid,
+        avatar_hash: &str,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "UPDATE identity.external_identity \
+             SET avatar_hash = $2, updated_at = CURRENT_TIMESTAMP \
+             WHERE provider = 'discord' AND account_id = $1",
+        )
+        .bind(account_id)
+        .bind(avatar_hash)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
     /// Validates all server-side session authorities and advances only the
     /// idle deadline, never the absolute deadline.
@@ -277,14 +326,15 @@ impl IdentityStore {
             .await?;
         let identity_inserted = sqlx::query(
             "INSERT INTO identity.external_identity \
-             (provider, provider_user_id, account_id, username, display_name) \
-             VALUES ('discord', $1, $2, $3, $4) \
+             (provider, provider_user_id, account_id, username, display_name, avatar_hash) \
+             VALUES ('discord', $1, $2, $3, $4, $5) \
              ON CONFLICT (provider, provider_user_id) DO NOTHING",
         )
         .bind(request.provider_user_id)
         .bind(request.candidate_account_id)
         .bind(request.username)
         .bind(request.display_name)
+        .bind(request.avatar_hash)
         .execute(&mut *transaction)
         .await?
         .rows_affected()
@@ -303,11 +353,13 @@ impl IdentityStore {
                 .await?;
             sqlx::query(
                 "UPDATE identity.external_identity SET username = $2, display_name = $3, \
-                 updated_at = CURRENT_TIMESTAMP WHERE provider = 'discord' AND provider_user_id = $1",
+                 avatar_hash = $4, updated_at = CURRENT_TIMESTAMP \
+                 WHERE provider = 'discord' AND provider_user_id = $1",
             )
             .bind(request.provider_user_id)
             .bind(request.username)
             .bind(request.display_name)
+            .bind(request.avatar_hash)
             .execute(&mut *transaction)
             .await?;
         }

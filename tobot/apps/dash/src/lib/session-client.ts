@@ -133,6 +133,7 @@ export type GuildDiscoveryShell = {
 export type GuildDiscoveryItem = {
   provider_guild_id: string;
   name: string;
+  icon_hash: string | null;
   shell: GuildDiscoveryShell | null;
 };
 
@@ -163,6 +164,42 @@ type TokenResult =
   | { kind: "unavailable" };
 
 const jsonHeaders = { accept: "application/json" };
+
+export async function readSessionAccount(): Promise<
+  { kind: "ready"; name: string | null; avatarUrl: string | null } | { kind: "unavailable" }
+> {
+  try {
+    const response = await fetch("/api/v1/session", {
+      credentials: "include",
+      cache: "no-store",
+      headers: jsonHeaders,
+    });
+    if (!response.ok) return { kind: "unavailable" };
+    const body = (await response.json()) as { name?: unknown; avatar_url?: unknown };
+    const name =
+      typeof body.name === "string" && body.name.length > 0 && body.name.length <= 32
+        ? body.name
+        : null;
+    return { kind: "ready", name, avatarUrl: discordAvatarUrl(body.avatar_url) };
+  } catch {
+    return { kind: "unavailable" };
+  }
+}
+
+function discordAvatarUrl(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" || url.hostname !== "cdn.discordapp.com") return null;
+  if (!url.pathname.startsWith("/avatars/") && !url.pathname.startsWith("/embed/avatars/")) {
+    return null;
+  }
+  return url.toString();
+}
 
 async function readCsrfToken(): Promise<TokenResult> {
   try {

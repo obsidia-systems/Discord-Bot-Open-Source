@@ -6,6 +6,8 @@ import {
   discoveryExpiryLabel,
   discoveryFreshness,
   discoveryPollDelay,
+  guildGroup,
+  guildIconUrl,
   guildHomeAccess,
   installationView,
   projectionAgeLabel,
@@ -71,6 +73,36 @@ test("verifying is explicit", () => {
       capabilities: null,
     }),
     { kind: "verifying" },
+  );
+});
+
+test("a discord icon hash becomes a cdn url and anything else does not", () => {
+  const hash = "a".repeat(32);
+  assert.equal(
+    guildIconUrl("1507220191078252674", hash),
+    `https://cdn.discordapp.com/icons/1507220191078252674/${hash}.png`,
+  );
+  assert.equal(
+    guildIconUrl("1507220191078252674", `a_${hash}`),
+    `https://cdn.discordapp.com/icons/1507220191078252674/a_${hash}.gif`,
+  );
+  assert.equal(guildIconUrl("1507220191078252674", "not-a-hash"), null);
+  assert.equal(guildIconUrl("guild", hash), null);
+  assert.equal(guildIconUrl("1507220191078252674", null), null);
+});
+
+test("only a server without a tenant is outside Tobot", () => {
+  assert.equal(
+    guildGroup(installationView({ tenantId: null, installationState: null, capabilities: null })),
+    "without",
+  );
+  assert.equal(
+    guildGroup(installationView({ tenantId, installationState: "Installed", capabilities: null })),
+    "with",
+  );
+  assert.equal(
+    guildGroup(installationView({ tenantId, installationState: "Removed", capabilities: null })),
+    "with",
   );
 });
 

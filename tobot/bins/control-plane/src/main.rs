@@ -930,6 +930,7 @@ fn router(state: AppState) -> Router {
             "/api/v1/install/repair/{tenant_id}",
             post(start_guild_repair),
         )
+        .route("/api/v1/session", get(session_account))
         .route("/api/v1/session/logout", post(logout))
         .route("/api/v1/csrf", get(csrf))
         .route("/api/v1/guilds", get(guilds))
@@ -1193,6 +1194,7 @@ async fn complete_discord_callback(
     let expires_at = now
         .checked_add(std::time::Duration::from_secs(tokens.expires_in_seconds))
         .ok_or(BrowserFailure::Unavailable)?;
+    let avatar_hash = stored_avatar_hash(user.avatar.as_deref());
     state
         .identity
         .create_discord_authorization(NewDiscordAuthorization {
@@ -1200,6 +1202,7 @@ async fn complete_discord_callback(
             provider_user_id: &user.id,
             username: &user.username,
             display_name: user.global_name.as_deref(),
+            avatar_hash: &avatar_hash,
             credential_id,
             access_token_ciphertext: access_ciphertext.as_bytes(),
             refresh_token_ciphertext: refresh_ciphertext.as_bytes(),
@@ -1485,6 +1488,148 @@ async fn csrf(State(state): State<AppState>, headers: HeaderMap) -> Response {
         axum::Json(CsrfResponse { csrf_token }),
     )
         .into_response()
+}
+
+#[derive(serde::Serialize)]
+struct SessionAccountResponse {
+    name: Option<String>,
+    avatar_url: Option<String>,
+}
+
+/// Nombre que cabe en el encabezado. El display de Discord gana; si viene vacío, el usuario.
+fn account_label(display_name: Option<&str>, username: &str) -> Option<String> {
+    let preferred = display_name.unwrap_or("").trim();
+    let source = if preferred.is_empty() {
+        username.trim()
+    } else {
+        preferred
+    };
+    let name: String = source.chars().take(32).collect();
+    if name.is_empty() { None } else { Some(name) }
+}
+
+fn avatar_hash_valid(hash: &str) -> bool {
+    let body = hash.strip_prefix("a_").unwrap_or(hash);
+    body.len() == 32 && body.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+/// Hash de Discord, o cadena vacía cuando no hay foto propia.
+fn stored_avatar_hash(avatar: Option<&str>) -> String {
+    avatar
+        .map(str::trim)
+        .filter(|hash| avatar_hash_valid(hash))
+        .unwrap_or("")
+        .to_owned()
+}
+
+fn account_avatar_url(user_id: &str, avatar_hash: &str) -> Option<String> {
+    if !(17..=22).contains(&user_id.len()) || !user_id.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    if avatar_hash.is_empty() {
+        let id: u64 = user_id.parse().ok()?;
+        let index = (id >> 22) % 6;
+        return Some(format!(
+            "https://cdn.discordapp.com/embed/avatars/{index}.png"
+        ));
+    }
+    if !avatar_hash_valid(avatar_hash) {
+        return None;
+    }
+    let extension = if avatar_hash.starts_with("a_") {
+        "gif"
+    } else {
+        "png"
+    };
+    Some(format!(
+        "https://cdn.discordapp.com/avatars/{user_id}/{avatar_hash}.{extension}"
+    ))
+}
+
+async fn session_account(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let Some(session_id) = session_id(&headers) else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    let now = time::OffsetDateTime::from(state.clock.now());
+    let session = match authorize_browser_session(&state, session_id, now).await {
+        Ok(Some(session)) => session,
+        Ok(None) => return clear_session_response(StatusCode::UNAUTHORIZED),
+        Err(error) => {
+            error!(%error, "session account unavailable");
+            return StatusCode::SERVICE_UNAVAILABLE.into_response();
+        }
+    };
+    let profile = match state
+        .identity
+        .discord_account_profile(session.account_id)
+        .await
+    {
+        Ok(Some(profile)) => profile,
+        Ok(None) => {
+            return (
+                [(header::CACHE_CONTROL, "no-store")],
+                axum::Json(SessionAccountResponse {
+                    name: None,
+                    avatar_url: None,
+                }),
+            )
+                .into_response();
+        }
+        Err(error) => {
+            error!(%error, "account name unavailable");
+            return StatusCode::SERVICE_UNAVAILABLE.into_response();
+        }
+    };
+    let name = account_label(profile.display_name.as_deref(), &profile.username);
+    let avatar_hash = match profile.avatar_hash {
+        Some(hash) => Some(hash),
+        None => match observe_discord_avatar(&state, &session).await {
+            Some(hash) => {
+                if let Err(error) = state
+                    .identity
+                    .remember_discord_avatar(session.account_id, &hash)
+                    .await
+                {
+                    error!(%error, "avatar hash was not stored");
+                }
+                Some(hash)
+            }
+            None => None,
+        },
+    };
+    let avatar_url = avatar_hash
+        .as_deref()
+        .and_then(|hash| account_avatar_url(&profile.provider_user_id, hash));
+    (
+        [(header::CACHE_CONTROL, "no-store")],
+        axum::Json(SessionAccountResponse { name, avatar_url }),
+    )
+        .into_response()
+}
+
+/// Lee la foto una vez cuando la cuenta todavía no la tiene guardada.
+async fn observe_discord_avatar(
+    state: &AppState,
+    session: &ActiveAuthorizationSession,
+) -> Option<String> {
+    let now = time::OffsetDateTime::from(state.clock.now());
+    let (access_token, refreshed) = if session.credential_expires_at <= now {
+        (refresh_discord_credential(state, session).await.ok()?, true)
+    } else {
+        (decrypt_access_token(state, session).await.ok()?, false)
+    };
+    let user = match state.discord_oauth.current_user(&access_token).await {
+        Ok((user, _)) => user,
+        Err(TransportError::Rejected { status: 401 }) if !refreshed => {
+            let access_token = refresh_discord_credential(state, session).await.ok()?;
+            match state.discord_oauth.current_user(&access_token).await {
+                Ok((user, _)) => user,
+                Err(_) => return None,
+            }
+        }
+        Err(_) => return None,
+    };
+    Some(stored_avatar_hash(user.avatar.as_deref()))
 }
 
 async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Response {
@@ -2315,9 +2460,10 @@ use axum::http::HeaderName;
 #[cfg(test)]
 mod tests {
     use super::{
-        BrowserFailure, DiscordGuildObservation, GuildShellSummary, admit_installation_command,
-        discovery_response_items, guilds_absent_from_snapshot, install_error_path,
-        login_error_path, presentation_guilds, ready_reason,
+        BrowserFailure, DiscordGuildObservation, GuildShellSummary, account_avatar_url,
+        account_label, admit_installation_command, discovery_response_items,
+        guilds_absent_from_snapshot, install_error_path, login_error_path, presentation_guilds,
+        ready_reason,
     };
     use uuid::Uuid;
 
@@ -2334,6 +2480,46 @@ mod tests {
             owner: false,
             permissions: "0".to_owned(),
         }
+    }
+
+    #[test]
+    fn account_avatar_uses_the_discord_cdn() {
+        let hash = "a".repeat(32);
+        assert_eq!(
+            account_avatar_url("1507220191078252674", &hash),
+            Some(format!(
+                "https://cdn.discordapp.com/avatars/1507220191078252674/{hash}.png"
+            ))
+        );
+        assert_eq!(
+            account_avatar_url("1507220191078252674", &format!("a_{hash}")),
+            Some(format!(
+                "https://cdn.discordapp.com/avatars/1507220191078252674/a_{hash}.gif"
+            ))
+        );
+        assert_eq!(
+            account_avatar_url("1507220191078252674", ""),
+            Some("https://cdn.discordapp.com/embed/avatars/4.png".to_owned())
+        );
+        assert_eq!(account_avatar_url("1507220191078252674", "nope"), None);
+        assert_eq!(account_avatar_url("guild", &hash), None);
+    }
+
+    #[test]
+    fn account_label_prefers_the_discord_display_name() {
+        assert_eq!(
+            account_label(Some("Ada"), "ada_user"),
+            Some("Ada".to_owned())
+        );
+        assert_eq!(
+            account_label(Some("  "), "ada_user"),
+            Some("ada_user".to_owned())
+        );
+        assert_eq!(account_label(None, "   "), None);
+        assert_eq!(
+            account_label(Some(&"ñ".repeat(40)), "unused"),
+            Some("ñ".repeat(32))
+        );
     }
 
     #[test]

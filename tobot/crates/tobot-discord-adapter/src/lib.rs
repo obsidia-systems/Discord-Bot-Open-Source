@@ -392,6 +392,8 @@ pub struct DiscordAuthorizationUser {
     pub id: String,
     pub username: String,
     pub global_name: Option<String>,
+    #[serde(default)]
+    pub avatar: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
