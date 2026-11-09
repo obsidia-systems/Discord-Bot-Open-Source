@@ -10,7 +10,7 @@
 | Slice | S8 — third conserved plane |
 | Outcome | A member runs one ephemeral text operation in Discord. The call reserves AI Credits before the provider, then captures actual rated usage or leaves the reservation `Uncertain` / `Disputed`. `dash.*` shows that usage and the reservation state. |
 | Normative inputs | 02 §§6.2, 7.56–7.57 and DR-003; 03 §§8.1–8.2, 8.6 AI Credits leaves, 8.46–8.47, 8.53, 8.55 and DR-065; 05 §§10.39–10.40, 10.56–10.58; 10a §12.14.3; 23 §§34.14–34.17; 13 lot, reservation, provider, and money-plane tests; 14 invariants 218, 227, 234; DR-016, DR-031, DR-038, DR-061–063, DR-070. |
-| Entry evidence | S7 demonstrated one fulfilled test checkout, one paid invoice, one commercial grant, and a projection with `support.max_open_tickets` = 5 on guild `1135838146416881674`. S7 remains open: the live sixth-ticket admission, renewal, refund, dispute, and crash evidence stay in `roadmap/S07-commercial-billing.md`. They are not S8 passes and do not authorize a production charge. |
+| Entry evidence | S7 demonstrated one fulfilled test checkout and, on 2026-11-09, the live ticket cap, one renewal, one refund, one dispute, and three SIGKILL restarts. Those records are in `roadmap/S07-commercial-billing.md`. S7 remains open for expired grace, the remaining negative cases, and production charging. They are not S8 passes and do not authorize a production charge. |
 | Boundary | `AiCreditReservation` is separate from guild `VirtualPayment` and `CommercialPayment`. AI Usage Ledger is the only lot and journal writer. Billing, Catalog, and the dashboard cannot mint or edit a lot. |
 | Next slice | No later slice is opened by this plan. |
 
