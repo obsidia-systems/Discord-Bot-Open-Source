@@ -1,11 +1,13 @@
 //! Dueño de soporte S5. Una revisión se publica solo al vincular su mensaje de Discord.
 
+use sqlx::Row;
 use time::OffsetDateTime;
 use tobot_envelope::EventEnvelope;
 use uuid::Uuid;
 
 use super::messaging::append_fact;
 use super::{QueryStore, SupportStore};
+use crate::{CatalogBenefit, DefaultPlan};
 
 #[derive(Clone, Debug, sqlx::FromRow, serde::Serialize)]
 pub struct SupportPanel {
@@ -58,7 +60,65 @@ pub enum SupportDecision {
     Opened(SupportCase),
     AlreadyOpen(SupportCase),
     AtCapacity,
+    NotIncluded,
     UnknownButton,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TicketRule {
+    Open,
+    Cap(i64),
+    Closed,
+}
+
+/// La proyección de pago manda. Sin ella, manda el plan free.
+async fn current_ticket_rule(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant: Uuid,
+) -> Result<TicketRule, sqlx::Error> {
+    let paid_benefits: Option<serde_json::Value> = sqlx::query_scalar("SELECT benefits FROM platform_entitlement.projection WHERE tenant_id=$1 AND state IN ('Active','Grace') AND (valid_until IS NULL OR valid_until>now())")
+        .bind(tenant).fetch_optional(&mut **tx).await?;
+    let paid = paid_benefits
+        .map(serde_json::from_value::<Vec<CatalogBenefit>>)
+        .transpose()
+        .map_err(|error| sqlx::Error::Decode(Box::new(error)))?;
+    let free_row = sqlx::query("SELECT enabled, support_open, ticket_quantity FROM commercial_catalog.default_plan WHERE plan_key='free'")
+        .fetch_optional(&mut **tx).await?;
+    let free = match free_row {
+        Some(row) => DefaultPlan {
+            enabled: row.try_get("enabled")?,
+            support_open: row.try_get("support_open")?,
+            ticket_quantity: row.try_get("ticket_quantity")?,
+        },
+        None => DefaultPlan::open(),
+    };
+    Ok(ticket_rule(paid.as_deref(), &free))
+}
+
+pub fn ticket_rule(paid: Option<&[CatalogBenefit]>, free: &DefaultPlan) -> TicketRule {
+    if let Some(benefits) = paid {
+        if benefits.iter().any(|benefit| {
+            matches!(benefit, CatalogBenefit::Feature { key } if key == "support.closed")
+        }) {
+            return TicketRule::Closed;
+        }
+        if let Some(quantity) = benefits.iter().find_map(|benefit| match benefit {
+            CatalogBenefit::Limit { key, quantity, unit }
+                if key == "support.max_open_tickets" && unit == "tickets" =>
+            {
+                Some(*quantity)
+            }
+            _ => None,
+        }) {
+            return TicketRule::Cap(quantity);
+        }
+        return TicketRule::Open;
+    }
+    if !free.enabled || !free.support_open {
+        return TicketRule::Closed;
+    }
+    free.ticket_quantity
+        .map_or(TicketRule::Open, |quantity| TicketRule::Cap(i64::from(quantity)))
 }
 
 const PANEL_COLUMNS: &str = "p.revision_id,p.template_revision_id,p.revision,p.channel_id,p.button_label,p.state,p.nonce,b.message_id,b.custom_id";
@@ -319,15 +379,20 @@ impl SupportStore {
             return Ok(SupportDecision::AlreadyOpen(existing));
         }
         // La fila del tenant ya está bloqueada: cuenta y admisión usan el mismo turno transaccional.
-        let paid_limit: Option<i64> = sqlx::query_scalar("SELECT (component->>'quantity')::bigint FROM platform_entitlement.projection p CROSS JOIN LATERAL jsonb_array_elements(p.benefits) component WHERE p.tenant_id=$1 AND p.state IN ('Active','Grace') AND (p.valid_until IS NULL OR p.valid_until>now()) AND component->>'kind'='limit' AND component->>'key'='support.max_open_tickets' LIMIT 1")
-            .bind(click.tenant_id).fetch_optional(&mut *tx).await?;
-        if let Some(limit) = paid_limit {
-            let open_count: i64 = sqlx::query_scalar("SELECT count(*) FROM support.support_case WHERE tenant_id=$1 AND state IN ('Open','Claimed')")
-                .bind(click.tenant_id).fetch_one(&mut *tx).await?;
-            if open_count >= limit {
+        match current_ticket_rule(&mut tx, click.tenant_id).await? {
+            TicketRule::Closed => {
                 tx.commit().await?;
-                return Ok(SupportDecision::AtCapacity);
+                return Ok(SupportDecision::NotIncluded);
             }
+            TicketRule::Cap(limit) => {
+                let open_count: i64 = sqlx::query_scalar("SELECT count(*) FROM support.support_case WHERE tenant_id=$1 AND state IN ('Open','Claimed')")
+                    .bind(click.tenant_id).fetch_one(&mut *tx).await?;
+                if open_count >= limit {
+                    tx.commit().await?;
+                    return Ok(SupportDecision::AtCapacity);
+                }
+            }
+            TicketRule::Open => {}
         }
         let number: i64 = sqlx::query_scalar(
             "INSERT INTO support.support_number (tenant_id,next_number) VALUES ($1,2) ON CONFLICT (tenant_id) DO UPDATE SET next_number=support.support_number.next_number+1 RETURNING next_number-1"
@@ -490,5 +555,71 @@ impl QueryStore {
     ) -> Result<Vec<SupportTicketStatus>, sqlx::Error> {
         sqlx::query_as("SELECT case_id,tenant_id,member_id,support_number,state,version,projection_watermark FROM query_status.support_ticket WHERE tenant_id=$1 ORDER BY support_number DESC LIMIT 100")
             .bind(tenant).fetch_all(&self.pool).await
+    }
+}
+
+#[cfg(test)]
+mod ticket_rule_tests {
+    use super::{TicketRule, ticket_rule};
+    use crate::{CatalogBenefit, DefaultPlan};
+
+    fn base() -> CatalogBenefit {
+        CatalogBenefit::Feature {
+            key: "platform.base".to_owned(),
+        }
+    }
+
+    #[test]
+    fn legacy_paid_plan_stays_open_and_a_closed_mark_does_not() {
+        let legacy = [base()];
+        assert_eq!(
+            ticket_rule(Some(&legacy), &DefaultPlan::open()),
+            TicketRule::Open
+        );
+        let closed = [
+            base(),
+            CatalogBenefit::Feature {
+                key: "support.closed".to_owned(),
+            },
+        ];
+        assert_eq!(
+            ticket_rule(Some(&closed), &DefaultPlan::open()),
+            TicketRule::Closed
+        );
+        let capped = [CatalogBenefit::Limit {
+            key: "support.max_open_tickets".to_owned(),
+            quantity: 4,
+            unit: "tickets".to_owned(),
+        }];
+        assert_eq!(
+            ticket_rule(Some(&capped), &DefaultPlan::open()),
+            TicketRule::Cap(4)
+        );
+    }
+
+    #[test]
+    fn free_plan_applies_only_without_a_paid_projection() {
+        let capped = DefaultPlan {
+            enabled: true,
+            support_open: true,
+            ticket_quantity: Some(3),
+        };
+        assert_eq!(ticket_rule(None, &capped), TicketRule::Cap(3));
+        assert_eq!(
+            ticket_rule(None, &DefaultPlan::open()),
+            TicketRule::Open
+        );
+        let disabled = DefaultPlan {
+            enabled: false,
+            support_open: true,
+            ticket_quantity: None,
+        };
+        assert_eq!(ticket_rule(None, &disabled), TicketRule::Closed);
+        let unchecked = DefaultPlan {
+            enabled: true,
+            support_open: false,
+            ticket_quantity: Some(3),
+        };
+        assert_eq!(ticket_rule(None, &unchecked), TicketRule::Closed);
     }
 }

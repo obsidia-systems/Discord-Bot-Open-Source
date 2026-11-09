@@ -14,6 +14,7 @@ use crate::{
 #[derive(Debug)]
 pub enum AiError {
     Rejected(&'static str),
+    Unavailable(&'static str),
     Conflict,
     Database(sqlx::Error),
 }
@@ -80,6 +81,25 @@ pub struct CreditReview {
     pub captured_amount: i64,
     pub review_at: Option<String>,
     pub model_class: String,
+}
+
+#[derive(Clone)]
+pub struct AttemptMeter {
+    pub input_tokens: Option<i64>,
+    pub output_tokens: Option<i64>,
+    pub cost_micro_usd: Option<i64>,
+    pub model_name: Option<String>,
+}
+
+impl AttemptMeter {
+    fn plain(model_name: Option<String>) -> Self {
+        Self {
+            input_tokens: None,
+            output_tokens: None,
+            cost_micro_usd: None,
+            model_name,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -208,6 +228,8 @@ impl AiStore {
         input: &TextInput,
         now: OffsetDateTime,
         provider: Option<&TextProvider>,
+        token_prices: Option<(i64, i64)>,
+        system_prompt: &str,
     ) -> Result<TextOutcome, AiError> {
         if let Some(existing) = self
             .outcome(tenant, &input.actor_id, input.semantic_key)
@@ -219,7 +241,7 @@ impl AiStore {
         if input.script.is_empty()
             && let Some(provider) = provider
         {
-            self.complete_with_provider(input, now, &price, provider)
+            self.complete_with_provider(input, now, &price, provider, token_prices, system_prompt)
                 .await?;
             return self
                 .outcome(tenant, &input.actor_id, input.semantic_key)
@@ -237,8 +259,14 @@ impl AiStore {
             if attempt_number > 3 {
                 break;
             }
-            self.record_attempt(input.operation_id, attempt_number, *class)
-                .await?;
+            self.record_attempt(
+                input.operation_id,
+                attempt_number,
+                *class,
+                AttemptMeter::plain(Some(price.model_class.clone())),
+                now,
+            )
+            .await?;
             if class.may_retry()
                 && attempt_number < 3
                 && usize::try_from(attempt_number).unwrap_or(3) < script.len()
@@ -266,7 +294,8 @@ impl AiStore {
             ) {
                 self.mark_uncertain(input.operation_id, now).await?;
             } else {
-                self.release(input.operation_id, "Failed", now).await?;
+                self.release(input.operation_id, "Failed", now, None)
+                    .await?;
             }
             break;
         }
@@ -281,6 +310,8 @@ impl AiStore {
         now: OffsetDateTime,
         price: &Price,
         provider: &TextProvider,
+        token_prices: Option<(i64, i64)>,
+        system_prompt: &str,
     ) -> Result<(), AiError> {
         let mut attempt_number = 0_i32;
         loop {
@@ -289,43 +320,66 @@ impl AiStore {
                 self.mark_uncertain(input.operation_id, now).await?;
                 break;
             }
-            let outcome = provider.generate(&price.model_class, &input.prompt).await;
+            let outcome = provider
+                .generate(&price.model_class, &input.prompt, system_prompt)
+                .await;
             tracing::info!(
                 operation_id = %input.operation_id,
                 class = outcome.class.as_str(),
                 "text provider attempt finished"
             );
-            self.record_attempt(input.operation_id, attempt_number, outcome.class)
-                .await?;
+            let cost = match (outcome.input_tokens, outcome.output_tokens, token_prices) {
+                (Some(input_tokens), Some(output_tokens), Some((input_price, output_price))) => {
+                    rules::provider_cost(input_tokens, output_tokens, input_price, output_price)
+                }
+                _ => None,
+            };
+            self.record_attempt(
+                input.operation_id,
+                attempt_number,
+                outcome.class,
+                AttemptMeter {
+                    input_tokens: outcome.input_tokens,
+                    output_tokens: outcome.output_tokens,
+                    cost_micro_usd: cost,
+                    model_name: Some(price.model_class.clone()),
+                },
+                now,
+            )
+            .await?;
             if outcome.class.may_retry() && attempt_number < 3 {
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                 continue;
             }
             if outcome.class == AttemptClass::ConfirmedResult {
-                let Some(charge) =
-                    rules::rated_charge(price.estimate, price.unit_charge, outcome.characters)
-                else {
+                let charge = token_prices.and_then(|(input_price, output_price)| {
+                    rules::credit_charge(
+                        price.estimate,
+                        outcome.input_tokens,
+                        outcome.output_tokens,
+                        input_price,
+                        output_price,
+                    )
+                });
+                let Some(charge) = charge else {
                     self.mark_uncertain(input.operation_id, now).await?;
                     break;
                 };
-                if charge <= 0 {
-                    self.release(input.operation_id, "Failed", now).await?;
-                    break;
+                let reply = outcome.reply.as_deref().unwrap_or_default();
+                if charge == 0 {
+                    self.release(input.operation_id, "Settled", now, Some(reply))
+                        .await?;
+                } else {
+                    self.capture(input.operation_id, charge, reply, now).await?;
                 }
-                self.capture(
-                    input.operation_id,
-                    charge,
-                    outcome.reply.as_deref().unwrap_or_default(),
-                    now,
-                )
-                .await?;
             } else if matches!(
                 outcome.class,
                 AttemptClass::TimeoutAfterSend | AttemptClass::Uncertain
             ) {
                 self.mark_uncertain(input.operation_id, now).await?;
             } else {
-                self.release(input.operation_id, "Failed", now).await?;
+                self.release(input.operation_id, "Failed", now, None)
+                    .await?;
             }
             break;
         }
@@ -422,7 +476,7 @@ impl AiStore {
             )
             .await?;
         } else if evidence == "absence" {
-            self.release(operation_id, "Failed", now).await?;
+            self.release(operation_id, "Failed", now, None).await?;
         } else {
             return Err(AiError::Rejected("unknown reconciliation evidence"));
         }
@@ -664,12 +718,19 @@ impl AiStore {
         operation_id: Uuid,
         number: i32,
         class: AttemptClass,
+        meter: AttemptMeter,
+        now: OffsetDateTime,
     ) -> Result<(), AiError> {
-        sqlx::query("INSERT INTO ai_execution.attempt (attempt_id,operation_id,attempt_number,result_class) VALUES ($1,$2,$3,$4)")
+        sqlx::query("INSERT INTO ai_execution.attempt (attempt_id,operation_id,attempt_number,result_class,input_tokens,output_tokens,cost_micro_usd,model_name,occurred_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)")
             .bind(Uuid::now_v7())
             .bind(operation_id)
             .bind(number)
             .bind(class.as_str())
+            .bind(meter.input_tokens)
+            .bind(meter.output_tokens)
+            .bind(meter.cost_micro_usd)
+            .bind(meter.model_name)
+            .bind(now)
             .execute(&self.pool)
             .await?;
         Ok(())
@@ -796,15 +857,16 @@ impl AiStore {
         operation_id: Uuid,
         operation_state: &str,
         now: OffsetDateTime,
+        reply: Option<&str>,
     ) -> Result<(), AiError> {
         let mut tx = self.pool.begin().await?;
-        let reservation: Option<(Uuid, Uuid, i64, String)> = sqlx::query_as(
-            "SELECT r.reservation_id,a.account_id,r.estimated_amount,r.state FROM ai_ledger.reservation r JOIN ai_execution.operation o ON o.operation_id=r.operation_id JOIN ai_ledger.account a ON a.tenant_id=r.tenant_id WHERE r.operation_id=$1 FOR UPDATE OF r",
+        let reservation: Option<(Uuid, Uuid, i64, String, Uuid)> = sqlx::query_as(
+            "SELECT r.reservation_id,a.account_id,r.estimated_amount,r.state,r.tenant_id FROM ai_ledger.reservation r JOIN ai_execution.operation o ON o.operation_id=r.operation_id JOIN ai_ledger.account a ON a.tenant_id=r.tenant_id WHERE r.operation_id=$1 FOR UPDATE OF r",
         )
         .bind(operation_id)
         .fetch_optional(&mut *tx)
         .await?;
-        let Some((reservation_id, account, estimated, state)) = reservation else {
+        let Some((reservation_id, account, estimated, state, tenant)) = reservation else {
             return Err(AiError::Rejected("reservation missing"));
         };
         if !matches!(state.as_str(), "Reserved" | "Uncertain" | "Disputed") {
@@ -847,9 +909,23 @@ impl AiStore {
             format!("release:{reservation_id}"),
         )
         .await?;
-        sqlx::query("UPDATE ai_execution.operation SET state='Settled' WHERE operation_id=$1 AND $2 IN ('Failed','Settled')")
+        let result_ref = reply.map(|_| Uuid::now_v7());
+        if let (Some(reply), Some(result_ref)) = (reply, result_ref) {
+            store_bytes(
+                &mut tx,
+                tenant,
+                Uuid::now_v7(),
+                result_ref,
+                operation_id,
+                "OperationOutput",
+                reply.as_bytes(),
+            )
+            .await?;
+        }
+        sqlx::query("UPDATE ai_execution.operation SET state='Settled',result_ref=COALESCE($3,result_ref) WHERE operation_id=$1 AND $2 IN ('Failed','Settled')")
             .bind(operation_id)
             .bind(operation_state)
+            .bind(result_ref)
             .execute(&mut *tx)
             .await?;
         self.record_reservation_fact(&mut tx, reservation_id, "AiCreditReleased", now)
@@ -1160,14 +1236,14 @@ mod tests {
             script: vec![AttemptClass::ConfirmedResult],
         };
         let first = store
-            .run_text(tenant, &input, now, None)
+            .run_text(tenant, &input, now, None, None, "")
             .await
             .expect("run");
         assert!(first.completed);
         assert_eq!(first.captured, 4);
         assert_eq!(first.reserved, 10);
         let replay = store
-            .run_text(tenant, &input, now, None)
+            .run_text(tenant, &input, now, None, None, "")
             .await
             .expect("replay");
         assert_eq!(replay.operation_id, first.operation_id);
@@ -1187,7 +1263,7 @@ mod tests {
             script: vec![AttemptClass::TimeoutAfterSend],
         };
         let pending = store
-            .run_text(tenant, &uncertain, now, None)
+            .run_text(tenant, &uncertain, now, None, None, "")
             .await
             .expect("uncertain");
         assert!(!pending.completed);

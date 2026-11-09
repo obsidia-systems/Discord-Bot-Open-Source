@@ -14,8 +14,8 @@ use tobot_core::Clock;
 use tobot_delivery_client::SupportDeliveryClient;
 use tobot_discord_adapter::{InteractionCallback, TransportError};
 use tobot_persistence::{
-    CatalogBenefit, CatalogPublication, CommercialCatalogStore, CommercialGrant, EarningsStore,
-    PlatformEntitlementStore, supported_catalog_capabilities,
+    CatalogBenefit, CatalogPublication, CommercialCatalogStore, CommercialGrant, DefaultPlan,
+    EarningsStore, PlatformEntitlementStore, supported_catalog_capabilities,
 };
 use uuid::Uuid;
 
@@ -273,6 +273,64 @@ pub(super) async fn catalog_capabilities(
         Json(supported_catalog_capabilities()),
     )
         .into_response()
+}
+
+pub(super) async fn default_plan(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    if !catalog_admin(&headers, &state) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    match state.catalog.default_plan().await {
+        Ok(plan) => (
+            [(header::CACHE_CONTROL, "private, no-store")],
+            Json(plan),
+        )
+            .into_response(),
+        Err(error) => {
+            tracing::error!(%error, "default plan read failed");
+            StatusCode::SERVICE_UNAVAILABLE.into_response()
+        }
+    }
+}
+
+pub(super) async fn save_default_plan(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(plan): Json<DefaultPlan>,
+) -> Response {
+    if !catalog_admin(&headers, &state) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    match state.catalog.save_default_plan(&plan).await {
+        Ok(()) => (
+            [(header::CACHE_CONTROL, "private, no-store")],
+            Json(plan),
+        )
+            .into_response(),
+        Err(sqlx::Error::Protocol(reason)) => {
+            (StatusCode::BAD_REQUEST, Json(json!({"error": reason}))).into_response()
+        }
+        Err(error) => {
+            tracing::error!(%error, "default plan save failed");
+            StatusCode::SERVICE_UNAVAILABLE.into_response()
+        }
+    }
+}
+
+pub(super) async fn listed_guilds(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    if !catalog_admin(&headers, &state) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    match state.entitlement.listed_guilds().await {
+        Ok(list) => (
+            [(header::CACHE_CONTROL, "private, no-store")],
+            Json(list),
+        )
+            .into_response(),
+        Err(error) => {
+            tracing::error!(%error, "guild list failed");
+            StatusCode::SERVICE_UNAVAILABLE.into_response()
+        }
+    }
 }
 
 pub(super) async fn latest_catalog(State(state): State<AppState>, headers: HeaderMap) -> Response {

@@ -1,19 +1,17 @@
 ---
-import { StatusBoard } from "../components/StatusBoard";
+import { OperatorDesk } from "../components/OperatorDesk";
 import ShellLayout from "../layouts/ShellLayout.astro";
 import { collectStatus } from "../lib/status";
 
 const initial = await collectStatus();
 ---
 
-<ShellLayout title="Admin">
-  <main id="content" class="mx-auto w-full max-w-2xl px-6 py-16">
-    <h1 class="text-2xl font-semibold tracking-tight">Admin</h1>
-    <p class="mt-3 leading-relaxed text-zinc-700">
-      Service availability, internal gauges, and operator setup.
+<ShellLayout title="Overview · Admin">
+  <main id="content" class="mx-auto w-full max-w-4xl px-6 py-12">
+    <h1 class="text-2xl font-semibold tracking-tight">Overview</h1>
+    <p class="mt-3 max-w-2xl leading-relaxed text-zinc-700">
+      This console sells plans and operates AI credits. Server setup lives on the dashboard.
     </p>
-    <a href="/billing" class="mt-6 inline-block text-sm font-semibold underline">Billing setup</a>
-    <a href="/ai" class="mt-3 block text-sm font-semibold underline">AI credits</a>
-    <StatusBoard client:load initial={initial} />
+    <OperatorDesk client:load initial={initial} />
   </main>
 </ShellLayout>

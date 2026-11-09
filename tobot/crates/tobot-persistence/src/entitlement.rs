@@ -37,6 +37,23 @@ pub struct EntitlementProjection {
     pub active: bool,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct ListedGuild {
+    pub tenant_id: Uuid,
+    pub guild_id: String,
+    pub tenant_state: String,
+    pub installation_state: Option<String>,
+    pub plan_state: Option<String>,
+    pub plan_active: bool,
+    pub benefits: Vec<CatalogBenefit>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GuildList {
+    pub servers: Vec<ListedGuild>,
+    pub truncated: bool,
+}
+
 impl PlatformEntitlementStore {
     pub async fn apply_commercial_grant(&self, fact: &CommercialGrant) -> Result<(), sqlx::Error> {
         if fact.schema_family != "CommercialPayment"
@@ -192,6 +209,65 @@ impl PlatformEntitlementStore {
         sqlx::query("UPDATE platform_entitlement.compensation_grant SET delivered_at=now() WHERE fact_id=$1")
             .bind(fact_id).execute(&self.pool).await?;
         Ok(())
+    }
+
+    /// Una fila por servidor. El nombre de Discord no está guardado.
+    ///
+    /// # Errors
+    ///
+    /// Devuelve error si la lista o un beneficio no se pueden leer.
+    pub async fn listed_guilds(&self) -> Result<GuildList, sqlx::Error> {
+        let rows = sqlx::query(
+            "SELECT t.tenant_id, t.provider_tenant_ref, t.state AS tenant_state, i.state AS installation_state, p.state AS plan_state, p.benefits, p.valid_until FROM installation.tenant t LEFT JOIN LATERAL (SELECT state FROM installation.installation WHERE tenant_id=t.tenant_id ORDER BY generation DESC LIMIT 1) i ON true LEFT JOIN platform_entitlement.projection p ON p.tenant_id=t.tenant_id WHERE t.tenant_type='Guild' ORDER BY t.provider_tenant_ref LIMIT 201",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        let truncated = rows.len() > 200;
+        let mut servers = Vec::new();
+        for row in rows.into_iter().take(200) {
+            let plan_state: Option<String> = row.try_get("plan_state")?;
+            let valid_until: Option<OffsetDateTime> = row.try_get("valid_until")?;
+            let now = OffsetDateTime::now_utc();
+            let benefits = match row.try_get::<Option<serde_json::Value>, _>("benefits")? {
+                Some(value) => serde_json::from_value(value)
+                    .map_err(|error| sqlx::Error::Decode(Box::new(error)))?,
+                None => Vec::new(),
+            };
+            servers.push(ListedGuild {
+                tenant_id: row.try_get("tenant_id")?,
+                guild_id: row.try_get("provider_tenant_ref")?,
+                tenant_state: row.try_get("tenant_state")?,
+                installation_state: row.try_get("installation_state")?,
+                plan_active: matches!(plan_state.as_deref(), Some("Active" | "Grace"))
+                    && valid_until.is_none_or(|until| until > now),
+                plan_state,
+                benefits,
+            });
+        }
+        Ok(GuildList { servers, truncated })
+    }
+
+    /// Snowflake de Discord para los tenants que el lector ya acotó.
+    /// # Errors
+    /// Devuelve un error si la instalación no se puede leer.
+    pub async fn guild_snowflakes(&self, ids: &[Uuid]) -> Result<Vec<(Uuid, String)>, sqlx::Error> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let rows = sqlx::query(
+            "SELECT tenant_id, provider_tenant_ref FROM installation.tenant WHERE tenant_id = ANY($1)",
+        )
+        .bind(ids)
+        .fetch_all(&self.pool)
+        .await?;
+        let mut found = Vec::new();
+        for row in rows {
+            found.push((
+                row.try_get("tenant_id")?,
+                row.try_get("provider_tenant_ref")?,
+            ));
+        }
+        Ok(found)
     }
 }
 

@@ -389,6 +389,7 @@ async fn concurrent_clicks_keep_one_active_case_per_member() -> Result<(), Strin
             SupportDecision::Opened(_) => opened += 1,
             SupportDecision::AlreadyOpen(_) => already += 1,
             SupportDecision::AtCapacity => return Err("unexpected paid ticket limit".to_owned()),
+            SupportDecision::NotIncluded => return Err("support closed".to_owned()),
             SupportDecision::UnknownButton => return Err("published button rejected".to_owned()),
         }
     }

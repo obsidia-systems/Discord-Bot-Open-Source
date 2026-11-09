@@ -1,8 +1,11 @@
 //! Admisión de `/ask` y entrega del grant de compensación al diario de créditos.
 
+use std::collections::HashMap;
+
 use axum::{
     Json,
-    extract::{Path, State},
+    body::Bytes,
+    extract::{Path, Query, State},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
 };
@@ -134,6 +137,41 @@ impl AiClient {
             Err(StatusCode::NOT_FOUND) => Ok(None),
             Err(code) => Err(code),
         }
+    }
+
+    /// Reenvía un cuerpo al proceso de IA. El cuerpo no se registra ni se guarda.
+    pub(super) async fn exchange(
+        &self,
+        method: Method,
+        path: &str,
+        query: &str,
+        body: Vec<u8>,
+    ) -> Result<(u16, Vec<u8>), StatusCode> {
+        let expiry = OffsetDateTime::now_utc().unix_timestamp() + 30;
+        let signature = money_request_signature(&self.key, method.as_str(), path, expiry, &body)
+            .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+        let url = if query.is_empty() {
+            format!("{}{path}", self.base)
+        } else {
+            format!("{}{path}?{query}", self.base)
+        };
+        let response = self
+            .http
+            .request(method, url)
+            .bearer_auth(&self.token)
+            .header("x-ai-expires", expiry.to_string())
+            .header("x-ai-signature", signature)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(body)
+            .send()
+            .await
+            .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+        let status = response.status().as_u16();
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+        Ok((status, bytes.to_vec()))
     }
 
     pub(super) async fn usage(&self, tenant: Uuid, actor: &str) -> Result<Value, StatusCode> {
@@ -512,4 +550,278 @@ pub(super) async fn deliver_pending(
             }
         }
     }
+}
+
+async fn forward(
+    state: &AppState,
+    headers: &HeaderMap,
+    method: Method,
+    path: &str,
+    query: &str,
+    body: Vec<u8>,
+) -> Response {
+    if !admin(headers, state) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    let Some(ai) = state.ai.as_ref() else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    match ai.exchange(method, path, query, body).await {
+        Ok((status, bytes)) => forwarded(status, &bytes),
+        Err(code) => code.into_response(),
+    }
+}
+
+fn forwarded(status: u16, bytes: &[u8]) -> Response {
+    let status = StatusCode::from_u16(status).unwrap_or(StatusCode::SERVICE_UNAVAILABLE);
+    let body = scrub(bytes);
+    (
+        status,
+        [
+            (header::CACHE_CONTROL, "no-store"),
+            (header::CONTENT_TYPE, "application/json"),
+        ],
+        body,
+    )
+        .into_response()
+}
+
+fn scrub(bytes: &[u8]) -> Vec<u8> {
+    if bytes.is_empty() {
+        return Vec::new();
+    }
+    let Ok(mut value) = serde_json::from_slice::<Value>(bytes) else {
+        return Vec::new();
+    };
+    strip_secrets(&mut value);
+    serde_json::to_vec(&value).unwrap_or_default()
+}
+
+fn strip_secrets(value: &mut Value) {
+    match value {
+        Value::Object(map) => {
+            map.retain(|key, _| {
+                key != "secret"
+                    && key != "api_key"
+                    && key != "credential"
+                    && key != "secret_ciphertext"
+            });
+            for child in map.values_mut() {
+                strip_secrets(child);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                strip_secrets(item);
+            }
+        }
+        Value::String(_) | Value::Number(_) | Value::Bool(_) | Value::Null => {}
+    }
+}
+
+pub(super) async fn desk(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    forward(
+        &state,
+        &headers,
+        Method::GET,
+        "/internal/v1/ai/desk",
+        "",
+        Vec::new(),
+    )
+    .await
+}
+
+pub(super) async fn save_provider(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    forward(
+        &state,
+        &headers,
+        Method::POST,
+        "/internal/v1/ai/providers",
+        "",
+        body.to_vec(),
+    )
+    .await
+}
+
+pub(super) async fn enable_provider(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    forward(
+        &state,
+        &headers,
+        Method::POST,
+        "/internal/v1/ai/providers/enable",
+        "",
+        body.to_vec(),
+    )
+    .await
+}
+
+pub(super) async fn refresh_models(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    forward(
+        &state,
+        &headers,
+        Method::POST,
+        "/internal/v1/ai/providers/models",
+        "",
+        body.to_vec(),
+    )
+    .await
+}
+
+pub(super) async fn save_model_price(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    forward(
+        &state,
+        &headers,
+        Method::POST,
+        "/internal/v1/ai/models/price",
+        "",
+        body.to_vec(),
+    )
+    .await
+}
+
+pub(super) async fn save_ask(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    forward(
+        &state,
+        &headers,
+        Method::POST,
+        "/internal/v1/ai/functions/ask",
+        "",
+        body.to_vec(),
+    )
+    .await
+}
+
+#[derive(Deserialize)]
+pub(super) struct OperationQuery {
+    tenant_id: Option<Uuid>,
+    actor_id: Option<String>,
+    from: Option<i64>,
+    to: Option<i64>,
+}
+
+pub(super) async fn operations(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<OperationQuery>,
+) -> Response {
+    if !admin(&headers, &state) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    let Some(ai) = state.ai.as_ref() else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    let Ok(encoded) = operation_query(&query) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    let Ok((status, bytes)) = ai
+        .exchange(
+            Method::GET,
+            "/internal/v1/ai/operations",
+            &encoded,
+            Vec::new(),
+        )
+        .await
+    else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    if status != 200 {
+        return forwarded(status, &bytes);
+    }
+    let Ok(mut value) = serde_json::from_slice::<Value>(&bytes) else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    strip_secrets(&mut value);
+    if let Err(code) = attach_guilds(&state, &mut value).await {
+        return code.into_response();
+    }
+    (
+        StatusCode::OK,
+        [(header::CACHE_CONTROL, "no-store")],
+        Json(value),
+    )
+        .into_response()
+}
+
+fn operation_query(query: &OperationQuery) -> Result<String, ()> {
+    let mut parts = Vec::new();
+    if let Some(tenant) = query.tenant_id {
+        parts.push(format!("tenant_id={tenant}"));
+    }
+    if let Some(actor) = &query.actor_id {
+        if actor.is_empty()
+            || !actor.chars().all(|character| character.is_ascii_digit())
+            || actor.len() > 32
+        {
+            return Err(());
+        }
+        parts.push(format!("actor_id={actor}"));
+    }
+    if let Some(from) = query.from {
+        if from < 0 {
+            return Err(());
+        }
+        parts.push(format!("from={from}"));
+    }
+    if let Some(to) = query.to {
+        if to < 0 {
+            return Err(());
+        }
+        parts.push(format!("to={to}"));
+    }
+    Ok(parts.join("&"))
+}
+
+async fn attach_guilds(state: &AppState, value: &mut Value) -> Result<(), StatusCode> {
+    let Some(rows) = value.get_mut("operations").and_then(Value::as_array_mut) else {
+        return Ok(());
+    };
+    let mut ids = Vec::new();
+    for row in rows.iter() {
+        if let Some(tenant) = row
+            .get("tenant_id")
+            .and_then(Value::as_str)
+            .and_then(|item| Uuid::parse_str(item).ok())
+        {
+            ids.push(tenant);
+        }
+    }
+    ids.sort_unstable();
+    ids.dedup();
+    let found = state
+        .entitlement
+        .guild_snowflakes(&ids)
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    let names: HashMap<Uuid, String> = found.into_iter().collect();
+    for row in rows {
+        let guild = row
+            .get("tenant_id")
+            .and_then(Value::as_str)
+            .and_then(|item| Uuid::parse_str(item).ok())
+            .and_then(|tenant| names.get(&tenant).cloned());
+        if let Some(object) = row.as_object_mut() {
+            object.insert("guild_id".to_owned(), json!(guild));
+        }
+    }
+    Ok(())
 }

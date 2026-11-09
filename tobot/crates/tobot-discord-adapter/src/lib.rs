@@ -916,10 +916,12 @@ impl TwilightTransport {
             return Err(TransportError::Rejected { status: 400 });
         }
         self.preflight()?;
+        let mentions = AllowedMentions::default();
         self.client
             .interaction(application)
             .update_response(&callback.interaction_token)
             .content(Some(content))
+            .allowed_mentions(Some(&mentions))
             .await
             .map_err(|error| self.noted(&error))?;
         Ok(())
@@ -1575,6 +1577,15 @@ mod tests {
         assert_eq!(denied.owner_protection, CapabilityDecision::Denied);
         assert_eq!(denied.actor_permission, CapabilityDecision::Allowed);
         assert_eq!(combine_preflight(&denied), CapabilityDecision::Denied);
+    }
+
+    #[test]
+    fn ask_reply_mentions_parse_nothing() {
+        let mentions = AllowedMentions::default();
+        assert!(mentions.parse.is_empty());
+        assert!(mentions.users.is_empty());
+        assert!(mentions.roles.is_empty());
+        assert!(!mentions.replied_user);
     }
 
     #[test]

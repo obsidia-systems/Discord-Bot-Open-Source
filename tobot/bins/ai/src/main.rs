@@ -1,8 +1,10 @@
 //! Proceso privado de créditos de IA y ejecución de texto.
 //! No tiene token de Discord ni credencial de Billing.
 
+mod desk;
 mod provider;
 mod rules;
+mod secret;
 mod store;
 
 use std::{net::SocketAddr, sync::Arc};
@@ -16,7 +18,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use provider::TextProvider;
+use secret::SecretBox;
 use sqlx::postgres::PgPoolOptions;
 use store::{AiError, AiStore, GrantInput, PricingInput, TextInput};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
@@ -34,7 +36,7 @@ struct AppState {
     service_token: Arc<str>,
     receipt_key: Arc<[u8]>,
     allow_fixture: bool,
-    provider: Option<TextProvider>,
+    secrets: Option<SecretBox>,
 }
 
 #[tokio::main]
@@ -59,7 +61,6 @@ async fn main() -> anyhow::Result<()> {
     if token.len() < 32 || key.len() < 32 {
         anyhow::bail!("AI service credentials must be at least 32 characters");
     }
-    let provider = TextProvider::from_env()?;
     let application_id =
         std::env::var("TOBOT_DISCORD_APPLICATION_ID").unwrap_or_else(|_| "tobot-ai".to_owned());
     let store = AiStore {
@@ -74,13 +75,9 @@ async fn main() -> anyhow::Result<()> {
         service_token: Arc::from(token),
         receipt_key: Arc::from(key.into_bytes()),
         allow_fixture: std::env::var("TOBOT_AI_ALLOW_FIXTURE").ok().as_deref() == Some("1"),
-        provider: provider.clone(),
+        secrets: SecretBox::from_env(),
     });
-    tracing::info!(
-        %bind,
-        text_provider = provider.as_ref().map(TextProvider::kind).unwrap_or("none"),
-        "ai credits starting"
-    );
+    tracing::info!(%bind, "ai credits starting");
     tokio::select! {
         result = axum::serve(tokio::net::TcpListener::bind(bind).await?, app) => result.context("ai listener failed"),
         result = sweep(store) => result,
@@ -105,6 +102,19 @@ fn router(state: AppState) -> Router {
         .route("/internal/v1/ai/pricing", get(pricing))
         .route("/internal/v1/ai/usage/{tenant}/{actor}", get(usage))
         .route("/internal/v1/ai/reviews/{tenant}", get(reviews))
+        .route("/internal/v1/ai/desk", get(desk::desk))
+        .route("/internal/v1/ai/providers", post(desk::save_provider))
+        .route(
+            "/internal/v1/ai/providers/enable",
+            post(desk::enable_provider),
+        )
+        .route(
+            "/internal/v1/ai/providers/models",
+            post(desk::refresh_models),
+        )
+        .route("/internal/v1/ai/models/price", post(desk::save_price))
+        .route("/internal/v1/ai/functions/ask", post(desk::save_ask))
+        .route("/internal/v1/ai/operations", get(desk::operations))
         .with_state(state)
 }
 
@@ -120,7 +130,13 @@ async fn ready(State(state): State<AppState>) -> StatusCode {
     }
 }
 
-fn authorized(state: &AppState, headers: &HeaderMap, method: &str, uri: &Uri, body: &[u8]) -> bool {
+pub(crate) fn authorized(
+    state: &AppState,
+    headers: &HeaderMap,
+    method: &str,
+    uri: &Uri,
+    body: &[u8],
+) -> bool {
     let Some(token) = headers
         .get(header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
@@ -197,6 +213,11 @@ async fn command(
             Json(serde_json::json!({"code": code})),
         )
             .into_response(),
+        Err(AiError::Unavailable(code)) => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({"code": code})),
+        )
+            .into_response(),
         Err(AiError::Conflict) => (
             StatusCode::CONFLICT,
             Json(serde_json::json!({"code": "conflict"})),
@@ -264,9 +285,30 @@ async fn dispatch(
                 prompt: text_field(&command.payload, "prompt")?,
                 script: class.into_iter().collect(),
             };
+            let resolved = if input.script.is_empty() {
+                desk::resolve_call(
+                    &state.store,
+                    input.pricing_revision_id,
+                    state.secrets.as_ref(),
+                )
+                .await?
+            } else {
+                desk::ResolvedCall {
+                    provider: None,
+                    prices: None,
+                    system_prompt: String::new(),
+                }
+            };
             let outcome = state
                 .store
-                .run_text(command.tenant_id, &input, now, state.provider.as_ref())
+                .run_text(
+                    command.tenant_id,
+                    &input,
+                    now,
+                    resolved.provider.as_ref(),
+                    resolved.prices,
+                    &resolved.system_prompt,
+                )
                 .await?;
             Ok(
                 serde_json::to_value(outcome)

@@ -18,6 +18,7 @@ function accessLabel(body:BillingBody):string {
 
 function benefitLabel(benefit:BillingBody["offers"][number]["benefits"][number]):string {
   if (benefit.key==="platform.base") return "Platform plan access";
+  if (benefit.key==="support.closed") return "Open support tickets are not included";
   if (benefit.kind==="limit"&&benefit.key==="support.max_open_tickets") return `Open support ticket cap: ${benefit.quantity} simultaneous tickets`;
   if (benefit.kind==="limit") return `${benefit.key}: ${benefit.quantity} ${benefit.unit}`;
   return benefit.key;

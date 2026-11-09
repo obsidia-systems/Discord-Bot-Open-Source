@@ -11,6 +11,24 @@ function label(state: ProbeState): string {
   return "Down";
 }
 
+const gaugeLabels: Record<string, string> = {
+  tobot_installation_outbox_unpublished: "Unpublished installation events",
+  tobot_installation_outbox_oldest_age_seconds: "Oldest unpublished installation event",
+  tobot_installation_outbox_max_publish_attempts: "Installation publish attempts",
+  tobot_installation_outbox_expired_leases: "Expired installation leases",
+  tobot_edge_outbox_unpublished: "Unpublished edge events",
+  tobot_edge_outbox_oldest_age_seconds: "Oldest unpublished edge event",
+  tobot_edge_outbox_max_publish_attempts: "Edge publish attempts",
+  tobot_edge_outbox_expired_leases: "Expired edge leases",
+  tobot_degraded_installations: "Degraded installations",
+  tobot_auth_rejections_15m: "Auth rejections, 15 minutes",
+  tobot_stream_pending: "Pending stream entries",
+  tobot_gateway_session_established: "Gateway session",
+  tobot_gateway_heartbeat_alive: "Gateway heartbeat",
+  tobot_transport_http_429: "Discord HTTP 429",
+  tobot_transport_invalid_requests_10m: "Invalid transport requests, 10 minutes",
+};
+
 export function StatusBoard({ initial }: Props) {
   const [status, setStatus] = useState(initial);
   const [error, setError] = useState("");
@@ -58,10 +76,13 @@ export function StatusBoard({ initial }: Props) {
               Live {label(service.live)}. Ready {label(service.ready)}.
             </p>
             {service.gauges.length > 0 ? (
-              <dl className="mt-3 grid grid-cols-[1fr_auto] gap-x-6 gap-y-1 text-sm">
+              <dl className="mt-3 grid grid-cols-[1fr_auto] gap-x-6 gap-y-3 text-sm">
                 {service.gauges.map((gauge) => (
                   <div key={gauge.name} className="contents">
-                    <dt className="font-mono text-zinc-700">{gauge.name}</dt>
+                    <dt className="text-zinc-800">
+                      {gaugeLabels[gauge.name] ?? gauge.name}
+                      <span className="mt-0.5 block font-mono text-xs text-zinc-500">{gauge.name}</span>
+                    </dt>
                     <dd className="text-right tabular-nums">{gauge.value}</dd>
                   </div>
                 ))}

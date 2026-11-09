@@ -109,6 +109,53 @@ pub fn rated_charge(estimate: i64, unit_charge: i64, characters: i64) -> Option<
     Some(usage.min(estimate))
 }
 
+/// Crédito que gasta el servidor: el costo en micro-USD, hacia arriba, nunca por encima de la reserva.
+/// Un modelo con ambos precios en cero no gasta. Si el precio no es cero y no hay tokens, se cobra la reserva.
+#[must_use]
+pub fn credit_charge(
+    estimate: i64,
+    input_tokens: Option<i64>,
+    output_tokens: Option<i64>,
+    input_price: i64,
+    output_price: i64,
+) -> Option<i64> {
+    if estimate <= 0 || input_price < 0 || output_price < 0 {
+        return None;
+    }
+    if input_price == 0 && output_price == 0 {
+        return Some(0);
+    }
+    let (Some(input_tokens), Some(output_tokens)) = (input_tokens, output_tokens) else {
+        return Some(estimate);
+    };
+    if input_tokens < 0 || output_tokens < 0 {
+        return None;
+    }
+    let input_cost = i128::from(input_tokens).checked_mul(i128::from(input_price))?;
+    let output_cost = i128::from(output_tokens).checked_mul(i128::from(output_price))?;
+    let numerator = input_cost.checked_add(output_cost)?;
+    let micro = numerator.checked_add(999_999)? / 1_000_000;
+    let charge = i64::try_from(micro).ok()?;
+    let charge = if charge == 0 { 1 } else { charge };
+    Some(charge.min(estimate))
+}
+
+/// Costo del operador en micro-USD, truncado. El crédito cobrado redondea hacia arriba.
+#[must_use]
+pub fn provider_cost(
+    input_tokens: i64,
+    output_tokens: i64,
+    input_price: i64,
+    output_price: i64,
+) -> Option<i64> {
+    if input_tokens < 0 || output_tokens < 0 || input_price < 0 || output_price < 0 {
+        return None;
+    }
+    let cost = i128::from(input_tokens) * i128::from(input_price)
+        + i128::from(output_tokens) * i128::from(output_price);
+    i64::try_from(cost / 1_000_000).ok()
+}
+
 #[must_use]
 pub fn reservation_after_ttl(state: &str) -> &str {
     if state == "Reserved" {
@@ -212,5 +259,30 @@ mod tests {
         assert_eq!(rated_charge(10, 3, 2), Some(6));
         assert_eq!(rated_charge(10, 8, 2), Some(10));
         assert!(rated_charge(10, i64::MAX, 3).is_none());
+        assert_eq!(provider_cost(1_000, 2_000, 150_000, 600_000), Some(1_350));
+        assert_eq!(provider_cost(0, 0, 0, 0), Some(0));
+        assert!(provider_cost(-1, 0, 1, 1).is_none());
+        assert_eq!(
+            credit_charge(1_000, Some(50), Some(183), 50_000, 150_000),
+            Some(30)
+        );
+        assert_eq!(
+            credit_charge(1_000, Some(50), Some(96), 50_000, 150_000),
+            Some(17)
+        );
+        assert_eq!(
+            credit_charge(1_000, Some(0), Some(0), 50_000, 150_000),
+            Some(1)
+        );
+        assert_eq!(
+            credit_charge(1_000, None, None, 50_000, 150_000),
+            Some(1_000)
+        );
+        assert_eq!(
+            credit_charge(10, Some(50), Some(183), 50_000, 150_000),
+            Some(10)
+        );
+        assert_eq!(credit_charge(1_000, Some(10), Some(10), 0, 0), Some(0));
+        assert!(credit_charge(1_000, Some(-1), Some(1), 1, 1).is_none());
     }
 }

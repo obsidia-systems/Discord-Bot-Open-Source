@@ -929,6 +929,13 @@ fn router(state: AppState) -> Router {
         .route("/internal/v1/ai/compensation", post(ai::compensate))
         .route("/internal/v1/ai/reviews/{tenant_id}", get(ai::reviews))
         .route("/internal/v1/ai/reconciliation", post(ai::reconcile))
+        .route("/internal/v1/ai/desk", get(ai::desk))
+        .route("/internal/v1/ai/providers", post(ai::save_provider))
+        .route("/internal/v1/ai/providers/enable", post(ai::enable_provider))
+        .route("/internal/v1/ai/providers/models", post(ai::refresh_models))
+        .route("/internal/v1/ai/models/price", post(ai::save_model_price))
+        .route("/internal/v1/ai/functions/ask", post(ai::save_ask))
+        .route("/internal/v1/ai/operations", get(ai::operations))
         .route(
             "/api/v1/guilds/{tenant_id}/billing/checkout",
             post(billing::checkout),
@@ -969,6 +976,14 @@ fn router(state: AppState) -> Router {
         .route(
             "/internal/v1/catalog/capabilities",
             get(billing::catalog_capabilities),
+        )
+        .route(
+            "/internal/v1/catalog/default-plan",
+            get(billing::default_plan).post(billing::save_default_plan),
+        )
+        .route(
+            "/internal/v1/catalog/servers",
+            get(billing::listed_guilds),
         )
         .route(
             "/internal/v1/catalog/revisions/latest",

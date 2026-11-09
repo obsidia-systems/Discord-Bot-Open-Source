@@ -44,7 +44,7 @@ export function AiUsageView({ tenantId }: { tenantId: string }) {
   const body = view.body;
   return (
     <section className="mt-8">
-      <p>Available {body.available} credit-minors. Reserved {body.reserved}.</p>
+      <p>Available {body.available} credits. Reserved {body.reserved}. One credit is one micro-USD of the Ask model price.</p>
       {body.operations.length === 0 ? <p className="mt-4">No text operations yet.</p> : null}
       <ul className="mt-4 space-y-3">
         {body.operations.map((operation) => (

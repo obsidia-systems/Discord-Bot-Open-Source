@@ -370,6 +370,9 @@ async fn consume(
                 SupportDecision::AtCapacity => {
                     "This server has reached its active ticket limit.".to_owned()
                 }
+                SupportDecision::NotIncluded => {
+                    "Support tickets are not included in this server's plan.".to_owned()
+                }
                 SupportDecision::UnknownButton => {
                     "This support button is no longer active.".to_owned()
                 }

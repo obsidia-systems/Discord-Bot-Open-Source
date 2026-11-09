@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface CreditReview {
   reservation_id: string;
@@ -22,11 +22,18 @@ function held(review: CreditReview): number {
   return Math.max(0, review.estimated_amount - review.captured_amount);
 }
 
-export function AiReviews() {
-  const [tenantId, setTenantId] = useState("");
+export function AiReviews({ tenantId }: { tenantId: string }) {
   const [reviews, setReviews] = useState<CreditReview[] | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    if (!tenantId) {
+      setReviews(null);
+      return;
+    }
+    void load(tenantId);
+  }, [tenantId]);
 
   async function load(tenant: string, keepNotice = false) {
     setPending(true);
@@ -71,19 +78,10 @@ export function AiReviews() {
   const heldTotal = waiting.reduce((sum, review) => sum + held(review), 0);
 
   return (
-    <section className="mt-10 space-y-3">
+    <section className="mt-8 space-y-3">
       <h2 className="text-lg font-semibold">Credit review</h2>
       <p className="text-sm text-zinc-700">Pending verification stays reserved. Release and capture are available only after the reservation enters review. Release returns the held credits. Confirm usage captures the full reserve.</p>
-      <form className="space-y-3" onSubmit={(event) => {
-        event.preventDefault();
-        const data = new FormData(event.currentTarget);
-        const tenant = String(data.get("tenant_id") ?? "").trim();
-        setTenantId(tenant);
-        void load(tenant);
-      }}>
-        <label className="block text-sm">Installation id <input className="mt-1 block w-full border px-2 py-1 font-mono" name="tenant_id" required defaultValue={tenantId} /></label>
-        <button className="border px-3 py-1.5 text-sm" type="submit" disabled={pending}>Load reviews</button>
-      </form>
+      {tenantId ? null : <p className="text-sm">Choose a server to load its reviews.</p>}
       {reviews && reviews.length === 0 ? <p>No reservations are waiting.</p> : null}
       {reviews && reviews.length > 0 ? <p>{reviews.length} waiting. Held {heldTotal} credit-minors.</p> : null}
       <ul className="space-y-3">

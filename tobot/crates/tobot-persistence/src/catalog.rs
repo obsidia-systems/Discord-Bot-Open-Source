@@ -50,7 +50,7 @@ pub fn supported_catalog_capabilities() -> Vec<CatalogCapability> {
             kind: "limit",
             key: "support.max_open_tickets",
             label: "Open support tickets",
-            description: "Maximum simultaneous open or claimed tickets. Free support currently has no cap, so use this only to test enforcement, not as a paid upgrade.",
+            description: "Checked with an empty number means no cap. A number from 1 to 1000 is the cap. Unchecked means support is not included.",
             unit: Some("tickets"),
             minimum: Some(1),
             maximum: Some(1000),
@@ -66,7 +66,9 @@ pub(crate) fn validate_benefits(benefits: &[CatalogBenefit]) -> Result<(), &'sta
     let mut keys = std::collections::HashSet::new();
     for benefit in benefits {
         let (key, valid) = match benefit {
-            CatalogBenefit::Feature { key } => (key, key == "platform.base"),
+            CatalogBenefit::Feature { key } => {
+                (key, key == "platform.base" || key == "support.closed")
+            }
             CatalogBenefit::Perk { key } => (key, false),
             CatalogBenefit::Limit {
                 key,
@@ -86,7 +88,37 @@ pub(crate) fn validate_benefits(benefits: &[CatalogBenefit]) -> Result<(), &'sta
     if !keys.contains("platform.base") {
         return Err("base plan feature is required");
     }
+    if keys.contains("support.closed") && keys.contains("support.max_open_tickets") {
+        return Err("support cannot be closed and capped");
+    }
     Ok(())
+}
+
+/// Plan de la app para un servidor sin proyección de pago. No tiene precio de Stripe.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct DefaultPlan {
+    pub enabled: bool,
+    pub support_open: bool,
+    pub ticket_quantity: Option<i32>,
+}
+
+impl DefaultPlan {
+    #[must_use]
+    pub const fn open() -> Self {
+        Self {
+            enabled: true,
+            support_open: true,
+            ticket_quantity: None,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.ticket_quantity.is_some_and(|quantity| !(1..=1000).contains(&quantity)) {
+            return Err("ticket cap must be from 1 to 1000");
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -374,12 +406,87 @@ impl CommercialCatalogStore {
         tx.commit().await?;
         Ok(retired.rows_affected() != 0)
     }
+
+    /// El plan free. Si la fila no existe, el comportamiento histórico: activo y sin tope.
+    ///
+    /// # Errors
+    ///
+    /// Devuelve error si la fila no se puede leer.
+    pub async fn default_plan(&self) -> Result<DefaultPlan, sqlx::Error> {
+        let row = sqlx::query(
+            "SELECT enabled, support_open, ticket_quantity FROM commercial_catalog.default_plan WHERE plan_key='free'",
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        let Some(row) = row else {
+            return Ok(DefaultPlan::open());
+        };
+        Ok(DefaultPlan {
+            enabled: row.try_get("enabled")?,
+            support_open: row.try_get("support_open")?,
+            ticket_quantity: row.try_get("ticket_quantity")?,
+        })
+    }
+
+    /// # Errors
+    ///
+    /// Rechaza un tope fuera de 1–1000. Un error de base de datos también se devuelve.
+    pub async fn save_default_plan(&self, plan: &DefaultPlan) -> Result<(), sqlx::Error> {
+        if let Err(reason) = plan.validate() {
+            return Err(sqlx::Error::Protocol(reason.to_owned()));
+        }
+        sqlx::query(
+            "INSERT INTO commercial_catalog.default_plan (plan_key, enabled, support_open, ticket_quantity) VALUES ('free',$1,$2,$3) ON CONFLICT (plan_key) DO UPDATE SET enabled=EXCLUDED.enabled, support_open=EXCLUDED.support_open, ticket_quantity=EXCLUDED.ticket_quantity",
+        )
+        .bind(plan.enabled)
+        .bind(plan.support_open)
+        .bind(plan.ticket_quantity)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::Migrations;
+
+    #[test]
+    fn closed_support_is_explicit_and_cannot_also_set_a_cap() {
+        let closed = vec![
+            CatalogBenefit::Feature {
+                key: "platform.base".to_owned(),
+            },
+            CatalogBenefit::Feature {
+                key: "support.closed".to_owned(),
+            },
+        ];
+        assert!(validate_benefits(&closed).is_ok());
+        let both = vec![
+            CatalogBenefit::Feature {
+                key: "platform.base".to_owned(),
+            },
+            CatalogBenefit::Feature {
+                key: "support.closed".to_owned(),
+            },
+            CatalogBenefit::Limit {
+                key: "support.max_open_tickets".to_owned(),
+                quantity: 1,
+                unit: "tickets".to_owned(),
+            },
+        ];
+        assert!(validate_benefits(&both).is_err());
+        assert!(
+            DefaultPlan {
+                enabled: true,
+                support_open: true,
+                ticket_quantity: Some(0),
+            }
+            .validate()
+            .is_err()
+        );
+    }
 
     #[tokio::test]
     async fn publication_is_immutable_and_retries_until_billing_ack() {

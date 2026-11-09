@@ -28,7 +28,7 @@ export function validMutation(request: Request): boolean {
     && request.headers.get("content-type")?.startsWith("application/json") === true;
 }
 
-export async function controlCatalog(path: string, method: "GET" | "POST", payload?: object): Promise<Response> {
+export async function controlCatalog(path: string, method: "GET" | "POST", payload?: object, timeoutMs = 8_000): Promise<Response> {
   const token = process.env.TOBOT_CATALOG_ADMIN_TOKEN;
   if (!token || token.length < 32) return new Response(null, { status: 503 });
   try {
@@ -36,7 +36,7 @@ export async function controlCatalog(path: string, method: "GET" | "POST", paylo
       method,
       headers: { "x-catalog-admin-token": token, ...(payload ? { "content-type": "application/json" } : {}) },
       body: payload ? JSON.stringify(payload) : undefined,
-      signal: AbortSignal.timeout(8_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch {
     return new Response(null, { status: 503 });

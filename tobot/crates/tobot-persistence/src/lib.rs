@@ -24,11 +24,11 @@ mod support;
 
 pub use assignment::{NewRoleJoin, RoleIntent, RoleJoin, RoleRevision, RoleStatus};
 pub use catalog::{
-    CatalogBenefit, CatalogCapability, CatalogPublication, CatalogPublicationStatus,
+    CatalogBenefit, CatalogCapability, CatalogPublication, CatalogPublicationStatus, DefaultPlan,
     supported_catalog_capabilities,
 };
 pub use earnings::{DailyAction, DailyDecision, DailyPolicy};
-pub use entitlement::{CommercialGrant, EntitlementProjection};
+pub use entitlement::{CommercialGrant, EntitlementProjection, GuildList, ListedGuild};
 pub use messaging::{
     JoinDecision, MessageIntent, MessagingOutbox, NewJoin, WelcomeRevision, WelcomeStatus,
 };
