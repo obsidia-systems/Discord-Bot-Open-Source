@@ -1,9 +1,0 @@
-<!-- @dsCard group="Brand" viewport="700x260" name="Module glyphs" subtitle="Lucide, 2px stroke, 20px box — one glyph per module, no mascot" -->
-<!doctype html><html data-theme="dark"><head><meta charset="utf-8"><title>Glyphs</title><link rel="stylesheet" href="../styles.css"><style>body{padding:20px;background:var(--bg-base)}.lb{font-family:var(--font-mono);font-size:11px;color:var(--text-muted)}.nm{font-size:12px;font-weight:600}.wm{font-family:var(--font-display);font-weight:800;letter-spacing:-.045em}</style></head><body><script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.js"></script>
-<div id="g" style="display:grid;grid-template-columns:repeat(9,1fr);gap:14px"></div>
-<div class="lb" style="margin-top:14px">Line only. Never filled, never duotone, never in a colored circle except the 32px module well.</div>
-<script>
-const items=[['message-square','Embeds'],['image','Cards'],['user-plus','Autoroles'],['mouse-pointer-click','Buttons'],['scroll-text','Logs'],['shield-alert','Auto-mod'],['timer','Auto-delete'],['clipboard-list','Forms'],['calendar-clock','Scheduled'],['terminal','Commands'],['trending-up','Levels'],['coins','Economy'],['dices','Casino'],['gavel','Moderation'],['users-round','Roles'],['swords','Pokémon'],['webhook','Webhooks'],['bar-chart-3','Stats']];
-document.getElementById('g').innerHTML=items.map(([n,l])=>'<div style="display:flex;flex-direction:column;align-items:center;gap:6px"><span data-i="'+n+'" style="display:flex;color:var(--text-secondary)"></span><span class="lb" style="font-size:10px;text-align:center">'+l+'</span></div>').join('');
-document.querySelectorAll('[data-i]').forEach(el=>{const k=el.dataset.i.split('-').map(p=>p[0].toUpperCase()+p.slice(1)).join('');const ic=lucide[k];if(ic){const s=lucide.createElement(ic);s.setAttribute('width',20);s.setAttribute('height',20);s.setAttribute('stroke-width',2);el.appendChild(s)}});
-</script></body></html>
