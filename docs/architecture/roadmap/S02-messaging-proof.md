@@ -244,7 +244,7 @@ Updated as packages land. A package is Complete only when its exit evidence exis
 | WP3 — Delivery create | Complete | `postgres_messaging`: duplicate join, one live claim, terminal Blocked, uncertain nonce reconciliation, dead letter, tenant claim rotation, outbox projection. Two live joins each created one confirmed attempt and one Discord message. |
 | WP4 — Member join on Edge | Complete | Edge emits member joins and raw `MESSAGE_CREATE` nonce; unit test checks nonce capture and terminal `4014`. The operator confirmed the portal Guild Members toggle. A fresh `Identify` completed at 20:09:10 UTC, and the human joins at 20:13:03 and 20:16:41 UTC were admitted. Bot suppression passed on `tobot_test`. |
 | WP5 — Welcome screen | Complete in code | Dashboard check/build pass; the live unauthenticated GET returned 401. API uses session, tenant discovery, Origin, and CSRF guards. Live foreign-tenant and status display checks are part of WP6. |
-| WP6 — Demo | Partial | Steps 1–5 were observed in guild `1507220191078252674`. The operator chose to defer steps 6–7: SIGKILL recovery and blocked-channel demonstrations. |
+| WP6 — Demo | Partial | Steps 1–5 were observed in guild `1507220191078252674`. On 2026-11-09 steps 6 and 7 stayed open: no live join was available to leave an intent in `Sending` or to aim a new revision at a channel the bot cannot use. A store call is not that window. |
 
 Local verification: `cargo test --workspace` ran against a disposable PostgreSQL 16 database named `tobot_test`; `cargo clippy --workspace --all-targets -- -D warnings`, `pnpm --filter @tobot/dash check`, and `pnpm --filter @tobot/dash build` passed. The running `tobot` database and Discord guild were not changed by these checks.
 

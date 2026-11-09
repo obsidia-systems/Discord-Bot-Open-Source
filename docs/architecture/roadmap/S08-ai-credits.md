@@ -6,11 +6,11 @@
 
 | Attribute | Value |
 |---|---|
-| Status | Local implementation is in place and is not a release-gate pass. `cargo test` passes for `tobot-ai` and `tobot-control-plane`. The store test does not open a database unless `TOBOT_AI_TEST_DATABASE_URL` is set. Compose profile `ai` is optional. A local `/ask` captured rated usage, and Google `Uncertain` reservations stayed reserved. The matching dash read, a `Disputed` row that the dashboard does not show as completed, replay, crash, credential-mount, and the disposable-database matrix stay open. |
+| Status | Local implementation is in place and is not a release-gate pass. On 2026-11-09 `one_grant_reserves_once_and_dispute_is_not_complete` passed on disposable `tobot_ai_s8_matrix`, and `TOBOT_AI_SECRET_KEY` was set only on `tobot-ai`. The live ledger had no `Uncertain` or `Disputed` row. The matching dash read, a displayed `Disputed` row, replay, and the `tobot-ai` SIGKILL stay open. |
 | Slice | S8 — third conserved plane |
 | Outcome | A member runs one ephemeral text operation in Discord. The call reserves AI Credits before the provider, then captures actual rated usage or leaves the reservation `Uncertain` / `Disputed`. `dash.*` shows that usage and the reservation state. |
 | Normative inputs | 02 §§6.2, 7.56–7.57 and DR-003; 03 §§8.1–8.2, 8.6 AI Credits leaves, 8.46–8.47, 8.53, 8.55 and DR-065; 05 §§10.39–10.40, 10.56–10.58; 10a §12.14.3; 23 §§34.14–34.17; 13 lot, reservation, provider, and money-plane tests; 14 invariants 218, 227, 234; DR-016, DR-031, DR-038, DR-061–063, DR-070. |
-| Entry evidence | S7 demonstrated one fulfilled test checkout and, on 2026-11-09, the live ticket cap, one renewal, one refund, one dispute, and three SIGKILL restarts. Those records are in `roadmap/S07-commercial-billing.md`. S7 remains open for expired grace, the remaining negative cases, and production charging. They are not S8 passes and do not authorize a production charge. |
+| Entry evidence | S7 demonstrated one fulfilled test checkout and, on 2026-11-09, the live ticket cap, one renewal, one refund, one dispute, three SIGKILL restarts, and expired grace on the already-reversed subscription. Those records are in `roadmap/S07-commercial-billing.md`. S7 remains open for owner-loss invalidation and production charging. They are not S8 passes and do not authorize a production charge. |
 | Boundary | `AiCreditReservation` is separate from guild `VirtualPayment` and `CommercialPayment`. AI Usage Ledger is the only lot and journal writer. Billing, Catalog, and the dashboard cannot mint or edit a lot. |
 | Next slice | No later slice is opened by this plan. |
 
@@ -160,3 +160,13 @@ Register `/ask`, defer and edit through Delivery, and add the member usage scree
 Run §6 and §8 on disposable databases. Record ids, reservation states, crash points, credential mounts, and the negative cases. Leave S7's open evidence in its own plan.
 
 **Exit:** every S8 release-gate fact is evidenced. No duplicate capture appears. A `Disputed` reservation cannot display as a completed operation.
+
+### Recorded 2026-11-09
+
+The live `tobot_ai` reservation table was read before and after this proof: 46 `Captured`, 6 `Released`, and no `Uncertain` or `Disputed` row. It was not written. No live `Uncertain` reservation was released.
+
+1. **Disposable matrix.** Database `tobot_ai_s8_matrix` on the AI Postgres, owned by a role created for this run. `cargo test -p tobot-ai one_grant_reserves_once_and_dispute_is_not_complete` passed. The test reserves 10, captures 4, replays the same semantic key as one attempt, leaves a timeout `Uncertain` and not completed, sweeps it to `Disputed` with the operation still `Uncertain`, and then its own `reconcile` releases that fixture. The disposable database ended with 1 `Captured` and 1 `Released` reservation. That release is the test fixture, not a live reservation.
+
+2. **Credential names.** `TOBOT_AI_SECRET_KEY` was set on `tobot-ai` and unset on Control Plane, Delivery, Discord Edge, and Billing. `TOBOT_AI_PROVIDER_KEY` was unset on all five. `TOBOT_AI_RECEIPT_KEY` was set on `tobot-ai` and Control Plane; that is the receipt signing key, not the provider credential. No value was printed.
+
+3. **Still open.** No operator session reloaded the AI usage screen, and the live ledger has no `Disputed` row to show. `AiUsageView` maps `Disputed` to “In review”, which is the component text, not a displayed row. No interaction or receipt was replayed. `tobot-ai` was not killed between reserve and attempt completion.

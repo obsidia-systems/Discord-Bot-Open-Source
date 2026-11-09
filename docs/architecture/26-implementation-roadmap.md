@@ -14,7 +14,7 @@ Program locks (greenfield Tobot, Rust platform, twin-track, money late) are in t
 |---|---|
 | Status | Sequence only |
 | Authority | 01–23 remain normative |
-| Next plan | No later slice is named. S8 is implemented and its release evidence stays open in `roadmap/S08-ai-credits.md`. S7's 2026-11-09 cap, renewal, refund, dispute, and crash records are in `roadmap/S07-commercial-billing.md`; expired grace and production charging stay open there. |
+| Next plan | No later slice is named. S8 is implemented and its release evidence stays open in `roadmap/S08-ai-credits.md`. S7's 2026-11-09 cap, renewal, refund, dispute, crash, and expired-grace records are in `roadmap/S07-commercial-billing.md`; owner-loss invalidation and production charging stay open there. |
 
 ## 1. What becomes true, in order
 
@@ -119,4 +119,4 @@ Those four facts are demonstrated. The running cookie origin is `dash.*`, record
 
 ## 7. Next
 
-S7 demonstrated one fulfilled test checkout and, on 2026-11-09, the live ticket cap, one renewal, one refund, one dispute, and three SIGKILL restarts. Those records are in `roadmap/S07-commercial-billing.md`. Expired grace and a production charge stay open there. S8 is implemented: one ephemeral `/ask` text operation, reserve-before-call, and reservation `Uncertain` / `Disputed` on `dash.*`. Its release evidence stays open in `roadmap/S08-ai-credits.md`. No slice follows S8 on this ladder. S6 WP6 stays in `roadmap/S06-guild-ledger.md`; S5's remaining WP6 checks stay in `roadmap/S05-support-ticket.md`; S4's bot-message and SIGKILL steps stay in `roadmap/S04-community-xp.md`; S3's open demo steps stay in `roadmap/S03-roles-self-service.md`; S2's SIGKILL and blocked-channel steps stay in `roadmap/S02-messaging-proof.md`.
+S7 demonstrated one fulfilled test checkout and, on 2026-11-09, the live ticket cap, one renewal, one refund, one dispute, three SIGKILL restarts, and expired grace on the already-reversed subscription. Those records are in `roadmap/S07-commercial-billing.md`. Owner-loss invalidation and a production charge stay open there. S8 is implemented: one ephemeral `/ask` text operation, reserve-before-call, and reservation `Uncertain` / `Disputed` on `dash.*`. On 2026-11-09 its disposable reservation matrix and the provider-secret mount were recorded; the dashboard read, a displayed `Disputed` row, replay, and the AI SIGKILL stay open in `roadmap/S08-ai-credits.md`. No slice follows S8 on this ladder. S6 WP6 stays open for isolation, Earnings loss, kill-before-commit, and a journal rebuild. S5's after-defer SIGKILL stays open. S4's bot-message and SIGKILL steps stay open. S3's join replay, bot join, and SIGKILL stay open. S2's SIGKILL and blocked-channel steps stay open.

@@ -99,16 +99,18 @@ This is a review of the checks S0 can actually meet. It is not a release pass. L
 
 On 2026-09-22 the operator decided not to run these yet. They stay open. They are not passed, and they are not required before the empty-database demo.
 
-| Check | Why it waits |
+| Check | Result on 2026-11-09 |
 |---|---|
-| Live duplicate interaction | PostgreSQL already rejects a second receipt. A live Discord retry was not captured. |
-| Slow consumer | The Redis outage already showed the Discord acknowledgement does not wait for the bus. |
-| Acknowledgement p99 | The live samples are three calls, not a percentile. |
-| Invalid-request circuit on a second replica | The local stack runs one Delivery process. |
-| Browser idle slide and the 7-day cap | PostgreSQL proves the idle slide stops at the absolute expiry. A 7-day browser wait adds no new fact. |
-| Point-in-time recovery | The local Compose Postgres has no WAL archive. The `tobot_restore` drill is the backup evidence. |
-| Clean CI bootstrap | Not part of the local proof. |
-| Threat-review sign-off | The review above is recorded. It does not clear the release gate while these rows stay deferred. |
+| Live duplicate interaction | Still open. No live `/probe` retry was captured in this run. The PostgreSQL duplicate receipt does not close it. |
+| Slow consumer | Closed by the 2026-09-22 record. `/probe` was acknowledged at 22:23:16Z (`callback_ms` 380) while Redis could not be resolved. The same two outbox facts were published at 22:23:46Z. The acknowledgement did not wait for the bus. Redis was not stopped again. |
+| Acknowledgement p99 | Still open. Three live samples are not a percentile, and this run did not invent one. |
+| Invalid-request circuit on a second replica | Still open. Compose runs one Delivery process, `tobot-delivery-1`. |
+| Session idle on a disposable database | Closed for the mechanism. `oauth_replay_and_revoked_session_fail_closed_in_postgres` passed on disposable `tobot_test`: an `idle_expires_at` in the past was not authorized and did not match CSRF. A presented unknown session cookie on `GET /api/v1/session` returned HTTP 401 and `Set-Cookie` `__Host-tobot_session=; Max-Age=0`. The operator's live session was not changed. |
+| Browser idle slide and the 7-day cap | Still open. A seven-day browser wait adds no new fact. The disposable result above does not sign that wait. |
+| Point-in-time recovery | Still open. Compose Postgres has no WAL archive. The earlier `tobot_restore` dump is not point-in-time recovery. |
+| Clean CI bootstrap | Still open. Workflow run `42572415619` on `codex/s0-platform-skeleton` finished in 38s: `browser` succeeded, `rust` failed `cargo fmt` in `tobot-envelope`. The workflow builds and tests. It does not start every binary and browser app. |
+| Installed shell refresh | Still open. This run had no operator session, so `/guild/01a0c830-c467-70fb-a89e-40a77dc81748` was not reloaded while signed in. |
+| Threat-review sign-off | Still open. The 2026-09-22 review stays recorded. It does not clear the release gate while the rows above remain deferred. |
 
 ## What this runbook does not demonstrate
 
