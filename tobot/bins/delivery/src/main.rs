@@ -118,6 +118,17 @@ fn delivery_router(state: Arc<DeliveryState>) -> Router {
             "/internal/v1/support/deferred-edit",
             post(edit_support_response),
         )
+        .route("/internal/v1/support/channel", post(create_ticket_channel))
+        .route("/internal/v1/support/access", post(set_ticket_access))
+        .route("/internal/v1/support/message", post(post_ticket_message))
+        .route("/internal/v1/support/messages", post(read_ticket_messages))
+        .route(
+            "/internal/v1/support/channel-delete",
+            post(delete_ticket_channel),
+        )
+        .route("/internal/v1/support/direct", post(direct_ticket_message))
+        .route("/internal/v1/support/modal", post(support_modal))
+        .route("/internal/v1/support/categories", post(list_categories))
         .route("/internal/v1/messages/text-channels", post(text_channels))
         .route("/internal/v1/messages/create", post(create_message))
         .route("/internal/v1/roles/catalog", post(role_catalog))
@@ -401,6 +412,245 @@ async fn create_support_panel(
             warn!(status=%transport_status(&error), %error, "support panel delivery failed");
             transport_status(&error).into_response()
         }
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct TicketChannelRequest {
+    guild_id: String,
+    name: String,
+    category_id: String,
+    overflow_category_id: Option<String>,
+    opener_id: String,
+    staff_role_id: String,
+}
+
+async fn create_ticket_channel(
+    State(state): State<Arc<DeliveryState>>,
+    headers: HeaderMap,
+    Json(request): Json<TicketChannelRequest>,
+) -> Response {
+    if !authorized(&headers, &state.service_token) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    let Ok(guild) = request.guild_id.parse::<u64>() else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    let Ok(category) = request.category_id.parse::<u64>() else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    let Ok(opener) = request.opener_id.parse::<u64>() else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    let Ok(staff) = request.staff_role_id.parse::<u64>() else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    let overflow = request
+        .overflow_category_id
+        .and_then(|value| value.parse::<u64>().ok());
+    match state
+        .transport
+        .create_ticket_channel(guild, &request.name, category, overflow, opener, staff)
+        .await
+    {
+        Ok(channel_id) => Json(serde_json::json!({"channel_id":channel_id})).into_response(),
+        Err(error) => transport_status(&error).into_response(),
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct TicketAccessRequest {
+    channel_id: String,
+    staff_role_id: String,
+    member_id: Option<String>,
+    mode: String,
+}
+
+async fn set_ticket_access(
+    State(state): State<Arc<DeliveryState>>,
+    headers: HeaderMap,
+    Json(request): Json<TicketAccessRequest>,
+) -> StatusCode {
+    if !authorized(&headers, &state.service_token) {
+        return StatusCode::UNAUTHORIZED;
+    }
+    let (Ok(channel), Ok(staff)) = (
+        request.channel_id.parse::<u64>(),
+        request.staff_role_id.parse::<u64>(),
+    ) else {
+        return StatusCode::BAD_REQUEST;
+    };
+    let member = request
+        .member_id
+        .and_then(|value| value.parse::<u64>().ok());
+    status_for(
+        &state
+            .transport
+            .set_ticket_access(channel, staff, member, &request.mode)
+            .await,
+    )
+}
+
+#[derive(serde::Deserialize)]
+struct TicketButton {
+    id: String,
+    label: String,
+}
+
+#[derive(serde::Deserialize)]
+struct TicketMessageRequest {
+    channel_id: String,
+    content: String,
+    buttons: Vec<TicketButton>,
+}
+
+async fn post_ticket_message(
+    State(state): State<Arc<DeliveryState>>,
+    headers: HeaderMap,
+    Json(request): Json<TicketMessageRequest>,
+) -> Response {
+    if !authorized(&headers, &state.service_token) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    let Ok(channel) = request.channel_id.parse::<u64>() else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    let buttons: Vec<(String, String)> = request
+        .buttons
+        .into_iter()
+        .map(|button| (button.id, button.label))
+        .collect();
+    match state
+        .transport
+        .post_ticket_message(channel, &request.content, &buttons)
+        .await
+    {
+        Ok(message_id) => Json(serde_json::json!({"message_id":message_id})).into_response(),
+        Err(error) => transport_status(&error).into_response(),
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct TicketReadRequest {
+    channel_id: String,
+}
+
+async fn read_ticket_messages(
+    State(state): State<Arc<DeliveryState>>,
+    headers: HeaderMap,
+    Json(request): Json<TicketReadRequest>,
+) -> Response {
+    if !authorized(&headers, &state.service_token) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    let Ok(channel) = request.channel_id.parse::<u64>() else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    match state.transport.ticket_messages(channel).await {
+        Ok(messages) => Json(serde_json::json!({"messages":messages})).into_response(),
+        Err(error) => transport_status(&error).into_response(),
+    }
+}
+
+async fn delete_ticket_channel(
+    State(state): State<Arc<DeliveryState>>,
+    headers: HeaderMap,
+    Json(request): Json<TicketReadRequest>,
+) -> StatusCode {
+    if !authorized(&headers, &state.service_token) {
+        return StatusCode::UNAUTHORIZED;
+    }
+    let Ok(channel) = request.channel_id.parse::<u64>() else {
+        return StatusCode::BAD_REQUEST;
+    };
+    status_for(&state.transport.delete_ticket_channel(channel).await)
+}
+
+#[derive(serde::Deserialize)]
+struct TicketDirectRequest {
+    user_id: String,
+    content: String,
+    buttons: Vec<TicketButton>,
+}
+
+async fn direct_ticket_message(
+    State(state): State<Arc<DeliveryState>>,
+    headers: HeaderMap,
+    Json(request): Json<TicketDirectRequest>,
+) -> StatusCode {
+    if !authorized(&headers, &state.service_token) {
+        return StatusCode::UNAUTHORIZED;
+    }
+    let Ok(user) = request.user_id.parse::<u64>() else {
+        return StatusCode::BAD_REQUEST;
+    };
+    let buttons: Vec<(String, String)> = request
+        .buttons
+        .into_iter()
+        .map(|button| (button.id, button.label))
+        .collect();
+    status_for(
+        &state
+            .transport
+            .direct_ticket_message(user, &request.content, &buttons)
+            .await,
+    )
+}
+
+#[derive(serde::Deserialize)]
+struct TicketQuestion {
+    label: String,
+    required: bool,
+}
+
+#[derive(serde::Deserialize)]
+struct TicketModalRequest {
+    callback: InteractionCallback,
+    title: String,
+    custom_id: String,
+    questions: Vec<TicketQuestion>,
+}
+
+async fn support_modal(
+    State(state): State<Arc<DeliveryState>>,
+    headers: HeaderMap,
+    Json(request): Json<TicketModalRequest>,
+) -> StatusCode {
+    if !authorized(&headers, &state.service_token) {
+        return StatusCode::UNAUTHORIZED;
+    }
+    let questions: Vec<(String, bool)> = request
+        .questions
+        .into_iter()
+        .map(|question| (question.label, question.required))
+        .collect();
+    status_for(
+        &state
+            .transport
+            .support_modal(
+                &request.callback,
+                &request.title,
+                &request.custom_id,
+                &questions,
+            )
+            .await,
+    )
+}
+
+async fn list_categories(
+    State(state): State<Arc<DeliveryState>>,
+    headers: HeaderMap,
+    Json(request): Json<GuildInspectionRequest>,
+) -> Response {
+    if !authorized(&headers, &state.service_token) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    let Ok(guild) = request.provider_guild_id.parse::<u64>() else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    match state.transport.list_categories(guild).await {
+        Ok(categories) => Json(serde_json::json!({"categories":categories})).into_response(),
+        Err(error) => transport_status(&error).into_response(),
     }
 }
 

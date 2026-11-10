@@ -1,0 +1,19 @@
+---
+import GuildFrame from "../../../../components/GuildFrame.astro";
+import { SupportTicketView } from "../../../../components/SupportTicketView";
+import ShellLayout from "../../../../layouts/ShellLayout.astro";
+import { SESSION_COOKIE } from "../../../../lib/session";
+import { isTenantId } from "../../../../lib/shell-state";
+
+const session = Astro.cookies.get(SESSION_COOKIE);
+if (!session?.value) return Astro.redirect("/auth/login");
+const tenant = Astro.params.tenant ?? "";
+const caseId = Astro.params.case ?? "";
+const known = isTenantId(tenant) && isTenantId(caseId);
+---
+
+<ShellLayout title="Ticket">
+  <GuildFrame tenant={tenant} section="support">
+    {known ? <SupportTicketView client:load tenantId={tenant} caseId={caseId} /> : <p role="alert">No access to this server.</p>}
+  </GuildFrame>
+</ShellLayout>

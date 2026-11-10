@@ -21,6 +21,7 @@ mod owners;
 mod progression;
 mod query;
 mod support;
+mod support_desk;
 
 pub use assignment::{NewRoleJoin, RoleIntent, RoleJoin, RoleRevision, RoleStatus};
 pub use catalog::{
@@ -40,7 +41,14 @@ pub use owners::{
     SupportStore,
 };
 pub use progression::{NewTextMessage, XpDecision, XpEntry, XpRevision, XpStatus};
-pub use support::{SupportCase, SupportClick, SupportDecision, SupportPanel, SupportTicketStatus};
+pub use support::{
+    IntakeAnswer, SupportCase, SupportClick, SupportDecision, SupportPanel, SupportPanelChoice,
+    SupportServerLimits, SupportTicketStatus,
+};
+pub use support_desk::{
+    DeskConfig, HoursGate, SupportQuestion, TranscriptLine, WeeklyWindow, hours_gate,
+    ticket_channel_name, transcript_html,
+};
 
 pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!();
 

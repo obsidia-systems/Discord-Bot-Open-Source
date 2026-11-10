@@ -19,7 +19,9 @@ use std::{
 use subtle::ConstantTimeEq;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tobot_core::render_gauges;
-use tobot_delivery_client::{InternalDeliveryTransport, ModerationCommandClient};
+use tobot_delivery_client::{
+    InternalDeliveryTransport, ModerationCommandClient, SupportDeliveryClient,
+};
 use tobot_discord_adapter::{
     ASK_COMMAND_NAME, DAILY_COMMAND_NAME, DIAGNOSTIC_COMMAND_NAME, DiscordTransport, GatewayPhase,
     GatewaySessionStart, InteractionCallback, PLAN_COMMAND_NAME, SUPPORT_PANEL_CONTENT,
@@ -30,7 +32,7 @@ use tobot_envelope::{EventEnvelope, TraceContext};
 use tobot_interaction_edge::{
     IngressOutcome, InteractionEdge, InteractionIngressRequest, ProbeAcknowledgement,
 };
-use tobot_persistence::EdgeStore;
+use tobot_persistence::{DeskConfig, EdgeStore, HoursGate, SupportStore, hours_gate};
 use tracing::{info, warn};
 use twilight_gateway::{
     CloseFrame, ConfigBuilder, Event, EventTypeFlags, Intents, Message, Session, Shard, ShardId,
@@ -51,6 +53,8 @@ use uuid::Uuid;
 struct EdgeClients {
     delivery: InternalDeliveryTransport,
     cases: ModerationCommandClient,
+    support: SupportStore,
+    support_delivery: SupportDeliveryClient,
 }
 
 #[tokio::main]
@@ -77,9 +81,17 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|_| "http://control-plane:8080".to_owned());
     let cases = ModerationCommandClient::new(&control_url, internal_service_token.clone())
         .context("invalid Control Plane command client")?;
+    let support = SupportStore::connect(&database_url)
+        .await
+        .context("support store unavailable")?;
+    let support_delivery =
+        SupportDeliveryClient::new(&delivery_url, internal_service_token.clone())
+            .context("invalid support delivery client")?;
     let clients = EdgeClients {
         delivery: delivery_transport.clone(),
         cases,
+        support,
+        support_delivery,
     };
     let interaction_edge = InteractionEdge::new(store.clone(), delivery_transport);
     let discord = GatewaySessionStart::new(bot_token.clone());
@@ -833,6 +845,7 @@ struct InteractionDispatch<'a> {
     gateway_sequence: u64,
 }
 
+#[allow(clippy::too_many_lines)]
 async fn accept_interaction(
     ingress: &InteractionDispatch<'_>,
     interaction: InteractionCreate,
@@ -844,9 +857,22 @@ async fn accept_interaction(
     }
     if let Some(InteractionData::MessageComponent(data)) = &interaction.data {
         if data.component_type == twilight_model::channel::message::component::ComponentType::Button
-            && data.custom_id.starts_with("support:")
         {
-            return accept_support_button(ingress, &interaction, &data.custom_id).await;
+            if data.custom_id.starts_with("support-staff:")
+                || data.custom_id.starts_with("support-close:")
+                || data.custom_id.starts_with("support-rate:")
+            {
+                return accept_ticket_control(ingress, &interaction, &data.custom_id).await;
+            }
+            if data.custom_id.starts_with("support:") {
+                return accept_support_button(ingress, &interaction, &data.custom_id).await;
+            }
+        }
+        return Ok(());
+    }
+    if let Some(InteractionData::ModalSubmit(data)) = &interaction.data {
+        if data.custom_id.starts_with("support-form:") {
+            return accept_support_form(ingress, &interaction, data).await;
         }
         return Ok(());
     }
@@ -1107,6 +1133,7 @@ async fn accept_plan(
     Ok(())
 }
 
+#[allow(clippy::too_many_lines)]
 async fn accept_support_button(
     ingress: &InteractionDispatch<'_>,
     interaction: &twilight_model::application::interaction::Interaction,
@@ -1140,6 +1167,12 @@ async fn accept_support_button(
     else {
         return Ok(());
     };
+    if let Some(desk) = ingress.clients.support.button_desk(custom_id).await?
+        && !desk.questions.is_empty()
+        && hours_gate(&desk, OffsetDateTime::now_utc()) != HoursGate::Block
+    {
+        return offer_support_form(ingress, interaction, custom_id, context, &desk).await;
+    }
     let now = OffsetDateTime::now_utc();
     let (mut gateway_event, mut interaction_event) = diagnostic_envelopes(
         interaction,
@@ -1159,6 +1192,251 @@ async fn accept_support_button(
         "channel_id":channel_id, "message_id":message_id,
         "custom_id":custom_id, "member_id":member_id,
     });
+    gateway_event.payload = payload.clone();
+    interaction_event.payload = payload;
+    let gateway_raw = serde_json::to_vec(&gateway_event)?;
+    let interaction_raw = serde_json::to_vec(&interaction_event)?;
+    ingress
+        .edge
+        .accept_and_acknowledge(InteractionIngressRequest {
+            context,
+            callback: interaction_callback(interaction),
+            gateway_event: &gateway_event,
+            gateway_raw: &gateway_raw,
+            interaction_event: &interaction_event,
+            interaction_raw: &interaction_raw,
+            acknowledgement: ProbeAcknowledgement::Deferred,
+            now,
+        })
+        .await?;
+    Ok(())
+}
+
+async fn offer_support_form(
+    ingress: &InteractionDispatch<'_>,
+    interaction: &twilight_model::application::interaction::Interaction,
+    custom_id: &str,
+    context: tobot_core::TenantContext,
+    desk: &DeskConfig,
+) -> anyhow::Result<()> {
+    let revision = custom_id.trim_start_matches("support:");
+    let questions: Vec<(String, bool)> = desk
+        .questions
+        .iter()
+        .take(5)
+        .map(|question| (question.title.clone(), question.required))
+        .collect();
+    let refs: Vec<(&str, bool)> = questions
+        .iter()
+        .map(|(title, required)| (title.as_str(), *required))
+        .collect();
+    ingress
+        .clients
+        .support_delivery
+        .modal(
+            interaction_callback(interaction),
+            "Open a ticket",
+            &format!("support-form:{revision}"),
+            &refs,
+        )
+        .await?;
+    ingress
+        .store
+        .reserve_interaction(context, &interaction.id.to_string(), Uuid::now_v7())
+        .await?;
+    Ok(())
+}
+
+async fn accept_support_form(
+    ingress: &InteractionDispatch<'_>,
+    interaction: &twilight_model::application::interaction::Interaction,
+    data: &twilight_model::application::interaction::modal::ModalInteractionData,
+) -> anyhow::Result<()> {
+    let Some(guild_id) = interaction.guild_id.map(|id| id.to_string()) else {
+        return Ok(());
+    };
+    let Some(channel_id) = interaction
+        .channel
+        .as_ref()
+        .map(|channel| channel.id.to_string())
+    else {
+        return Ok(());
+    };
+    let Some(message_id) = interaction
+        .message
+        .as_ref()
+        .map(|message| message.id.to_string())
+    else {
+        return Ok(());
+    };
+    let Some(member_id) = interaction.author_id().map(|id| id.to_string()) else {
+        return Ok(());
+    };
+    let revision = data.custom_id.trim_start_matches("support-form:");
+    let panel_custom_id = format!("support:{revision}");
+    let answers = modal_answers(&data.components);
+    accept_support_event(
+        ingress,
+        interaction,
+        &guild_id,
+        serde_json::json!({
+            "kind":"SupportFormSubmit",
+            "interaction_id":interaction.id.to_string(),
+            "channel_id":channel_id,
+            "message_id":message_id,
+            "custom_id":panel_custom_id,
+            "member_id":member_id,
+            "answers":answers,
+        }),
+    )
+    .await
+}
+
+async fn accept_ticket_control(
+    ingress: &InteractionDispatch<'_>,
+    interaction: &twilight_model::application::interaction::Interaction,
+    custom_id: &str,
+) -> anyhow::Result<()> {
+    let Some(member_id) = interaction.author_id().map(|id| id.to_string()) else {
+        answer_rating(ingress, interaction, "This rating is no longer active.").await;
+        return Ok(());
+    };
+    let guild_id = if let Some(id) = interaction.guild_id {
+        id.to_string()
+    } else if let Some(guild) = rating_guild(ingress, custom_id).await {
+        guild
+    } else {
+        answer_rating(ingress, interaction, "This rating is no longer active.").await;
+        return Ok(());
+    };
+    let Some(payload) = ticket_control_payload(custom_id, &interaction.id.to_string(), &member_id)
+    else {
+        answer_rating(ingress, interaction, "This rating is no longer active.").await;
+        return Ok(());
+    };
+    accept_support_event(ingress, interaction, &guild_id, payload).await
+}
+
+async fn rating_guild(ingress: &InteractionDispatch<'_>, custom_id: &str) -> Option<String> {
+    let rest = custom_id.strip_prefix("support-rate:")?;
+    let case_id = Uuid::parse_str(rest.split(':').next()?).ok()?;
+    ingress
+        .clients
+        .support
+        .case_provider_guild(case_id)
+        .await
+        .ok()
+        .flatten()
+}
+
+async fn answer_rating(
+    ingress: &InteractionDispatch<'_>,
+    interaction: &twilight_model::application::interaction::Interaction,
+    content: &str,
+) {
+    let callback = interaction_callback(interaction);
+    if ingress
+        .clients
+        .delivery
+        .defer_interaction(callback.clone())
+        .await
+        .is_err()
+    {
+        return;
+    }
+    let _ = ingress
+        .clients
+        .support_delivery
+        .edit_deferred(callback, content)
+        .await;
+}
+
+#[allow(clippy::question_mark)]
+fn ticket_control_payload(
+    custom_id: &str,
+    interaction_id: &str,
+    member_id: &str,
+) -> Option<serde_json::Value> {
+    let (kind, action, rest) = if let Some(rest) = custom_id.strip_prefix("support-staff:") {
+        (
+            "SupportStaff",
+            rest.split(':').next()?,
+            rest.split(':').nth(1)?,
+        )
+    } else if let Some(rest) = custom_id.strip_prefix("support-close:") {
+        (
+            "SupportClose",
+            rest.split(':').next()?,
+            rest.split(':').nth(1)?,
+        )
+    } else if let Some(rest) = custom_id.strip_prefix("support-rate:") {
+        let mut parts = rest.split(':');
+        let case_id = parts.next()?;
+        let rating = parts.next()?.parse::<i64>().ok()?;
+        return Some(serde_json::json!({
+            "kind":"SupportRating","interaction_id":interaction_id,
+            "case_id":case_id,"member_id":member_id,"score":rating,
+        }));
+    } else {
+        return None;
+    };
+    Some(serde_json::json!({
+        "kind":kind,"action":action,"case_id":rest,
+        "interaction_id":interaction_id,"member_id":member_id,
+    }))
+}
+
+fn modal_answers(
+    components: &[twilight_model::application::interaction::modal::ModalInteractionComponent],
+) -> Vec<serde_json::Value> {
+    use twilight_model::application::interaction::modal::ModalInteractionComponent;
+    let mut answers = Vec::new();
+    for component in components {
+        match component {
+            ModalInteractionComponent::Label(label) => {
+                answers.extend(modal_answers(std::slice::from_ref(&label.component)));
+            }
+            ModalInteractionComponent::ActionRow(row) => {
+                answers.extend(modal_answers(&row.components));
+            }
+            ModalInteractionComponent::TextInput(input) => {
+                answers.push(serde_json::json!({"answer":input.value}));
+            }
+            _ => {}
+        }
+    }
+    answers
+}
+
+async fn accept_support_event(
+    ingress: &InteractionDispatch<'_>,
+    interaction: &twilight_model::application::interaction::Interaction,
+    guild_id: &str,
+    payload: serde_json::Value,
+) -> anyhow::Result<()> {
+    let application_id = interaction.application_id.to_string();
+    let Some(context) = ingress
+        .store
+        .resolve_active_guild_tenant(&application_id, guild_id)
+        .await?
+    else {
+        return Ok(());
+    };
+    let now = OffsetDateTime::now_utc();
+    let kind = payload["kind"].as_str().unwrap_or("SupportPanelButton");
+    let (mut gateway_event, mut interaction_event) = diagnostic_envelopes(
+        interaction,
+        DiagnosticIdentity {
+            application_id: &application_id,
+            guild_id,
+            tenant_id: context.tenant_id.as_uuid(),
+            shard_id: ingress.shard_id,
+            session_id: ingress.session_id,
+            gateway_sequence: ingress.gateway_sequence,
+        },
+        &now,
+        kind,
+    )?;
     gateway_event.payload = payload.clone();
     interaction_event.payload = payload;
     let gateway_raw = serde_json::to_vec(&gateway_event)?;

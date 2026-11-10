@@ -435,23 +435,86 @@ export type SupportTicket = {
   case_id: string;
   support_number: number;
   member_id: string;
-  state: "Open" | "Claimed" | "Closed";
+  state: "Provisioning" | "Open" | "Claimed" | "Closing" | "Closed";
   version: number;
+  channel_id: string | null;
+  rating: number | null;
+  outside_hours: boolean;
+  answers: { question: string; answer: string }[];
+  transcript_ready: boolean;
   projection_watermark_unix: number;
 };
 
-export type SupportInbox = {
-  panel: {
-    revision_id: string;
-    channel_id: string;
-    button_label: string;
-    message_id: string;
-    state: string;
-  } | null;
-  tickets: SupportTicket[];
+export type SupportQuestionDraft = { title: string; required: boolean };
+export type SupportWindowDraft = { weekday: number; start_minute: number; end_minute: number };
+
+export type SupportPanelDraft = {
+  name: string;
+  channelId: string;
+  buttonLabel: string;
+  categoryId: string;
+  overflowCategoryId: string;
+  staffRoleId: string;
+  questions: SupportQuestionDraft[];
+  timezoneOffsetMinutes: number;
+  weeklyHours: SupportWindowDraft[];
+  closedHours: "open" | "block" | "warn";
+  confirmClose: boolean;
+  inactivityMinutes: string;
+  transcriptEnabled: boolean;
+  logChannelId: string;
 };
 
-export async function readSupportInbox(tenantId: string): Promise<
+export type SupportLimits = {
+  support_open: boolean;
+  open_per_member: number;
+  open_cap: number | null;
+};
+
+export type SupportPanelChoice = {
+  revision_id: string;
+  name: string;
+  revision: number;
+  channel_id: string;
+  button_label: string;
+  state: string;
+  message_id: string;
+  category_id: string | null;
+  overflow_category_id: string | null;
+  staff_role_id: string | null;
+  questions: SupportQuestionDraft[];
+  timezone_offset_minutes: number | null;
+  weekly_hours: SupportWindowDraft[];
+  closed_hours: string;
+  confirm_close: boolean;
+  inactivity_minutes: number | null;
+  transcript_enabled: boolean;
+  log_channel_id: string | null;
+};
+
+export type SupportTranscriptLine = {
+  message_id: string;
+  author_id: string;
+  body: string | null;
+  observed_at_unix: number;
+};
+
+export type SupportInbox = {
+  panels: SupportPanelChoice[];
+  limits: SupportLimits | null;
+  tickets: SupportTicket[];
+  categories: WelcomeChannel[];
+  roles: RoleChoice[];
+};
+
+async function listed<T>(response: Response, key?: string): Promise<T[]> {
+  if (!response.ok) return [];
+  const body = (await response.json()) as unknown;
+  const value = key === undefined ? body : (body as Record<string, unknown>)[key];
+  return Array.isArray(value) ? value as T[] : [];
+}
+
+export async function readSupportInbox(tenantId: string, catalog = true): Promise<
   | { kind: "ready"; body: SupportInbox; channels: WelcomeChannel[] }
   | { kind: "unauthenticated" }
   | { kind: "no-access" }
@@ -464,30 +527,52 @@ export async function readSupportInbox(tenantId: string): Promise<
     if (access === "unauthenticated") return { kind: "unauthenticated" };
     if (access === "no-access") return { kind: "no-access" };
     if (access !== "ok") return { kind: "unavailable" };
-    const [channelsResponse,panelResponse] = await Promise.all([
-      fetch(`${path}/welcome/channels`, { credentials: "include", cache: "no-store", headers: jsonHeaders }),
-      fetch(`${path}/support/panel`, { credentials: "include", cache: "no-store", headers: jsonHeaders }),
-    ]);
-    if (!channelsResponse.ok || !panelResponse.ok) return { kind: "unavailable" };
-    const inbox = (await response.json()) as Pick<SupportInbox,"tickets">;
-    const panel = (await panelResponse.json()) as Pick<SupportInbox,"panel">;
-    const body: SupportInbox = { tickets: inbox.tickets, panel: panel.panel };
-    const channels = (await channelsResponse.json()) as WelcomeChannel[];
-    if (!Array.isArray(body.tickets) || !Array.isArray(channels)) return { kind: "unavailable" };
-    return { kind: "ready", body, channels };
+    const panelsResponse = await fetch(`${path}/support/panels`, { credentials: "include", cache: "no-store", headers: jsonHeaders });
+    if (!panelsResponse.ok) return { kind: "unavailable" };
+    const [channels, categories, roles] = catalog
+      ? await Promise.all([
+          fetch(`${path}/welcome/channels`, { credentials: "include", cache: "no-store", headers: jsonHeaders }).then((item) => listed<WelcomeChannel>(item)),
+          fetch(`${path}/support/categories`, { credentials: "include", cache: "no-store", headers: jsonHeaders }).then((item) => listed<WelcomeChannel>(item, "categories")),
+          fetch(`${path}/roles/catalog`, { credentials: "include", cache: "no-store", headers: jsonHeaders }).then((item) => listed<RoleChoice>(item, "roles")),
+        ])
+      : [[], [], []] as [WelcomeChannel[], WelcomeChannel[], RoleChoice[]];
+    const inbox = (await response.json()) as Pick<SupportInbox, "tickets">;
+    const panelsBody = (await panelsResponse.json()) as { panels?: SupportPanelChoice[]; limits?: SupportLimits };
+    if (!Array.isArray(inbox.tickets) || !Array.isArray(panelsBody.panels)) return { kind: "unavailable" };
+    return {
+      kind: "ready",
+      channels,
+      body: { tickets: inbox.tickets, panels: panelsBody.panels, limits: supportLimits(panelsBody.limits), categories, roles },
+    };
   } catch { return { kind: "unavailable" }; }
 }
 
-export async function publishSupportPanel(tenantId: string, channelId: string, buttonLabel: string): Promise<
+export async function publishSupportPanel(tenantId: string, draft: SupportPanelDraft): Promise<
   "done" | "unauthenticated" | "no-access" | "invalid" | "discord-missing-permissions" | "discord-channel-unavailable" | "discord-invalid-request" | "unavailable"
 > {
   const csrf = await readCsrfToken();
   if (csrf.kind !== "token") return csrf.kind;
+  const inactivity = draft.inactivityMinutes.trim() === "" ? null : Number(draft.inactivityMinutes);
   try {
     const response = await fetch(`/api/v1/guilds/${encodeURIComponent(tenantId)}/support/panel`, {
       method: "POST", credentials: "include", cache: "no-store",
       headers: { ...jsonHeaders, "content-type": "application/json", "x-csrf-token": csrf.value },
-      body: JSON.stringify({ channel_id: channelId, button_label: buttonLabel }),
+      body: JSON.stringify({
+        name: draft.name,
+        channel_id: draft.channelId,
+        button_label: draft.buttonLabel,
+        category_id: draft.categoryId,
+        overflow_category_id: draft.overflowCategoryId || null,
+        staff_role_id: draft.staffRoleId,
+        questions: draft.questions.filter((question) => question.title.trim() !== ""),
+        timezone_offset_minutes: draft.timezoneOffsetMinutes,
+        weekly_hours: draft.weeklyHours,
+        closed_hours: draft.closedHours,
+        confirm_close: draft.confirmClose,
+        inactivity_minutes: Number.isInteger(inactivity) ? inactivity : null,
+        transcript_enabled: draft.transcriptEnabled,
+        log_channel_id: draft.transcriptEnabled ? draft.logChannelId : null,
+      }),
     });
     if (response.status === 201) return "done";
     if (response.status === 401) return "unauthenticated";
@@ -503,7 +588,68 @@ export async function publishSupportPanel(tenantId: string, channelId: string, b
   } catch { return "unavailable"; }
 }
 
-export async function transitionSupportTicket(tenantId: string, caseId: string, version: number, action: "claim" | "close"): Promise<
+export async function saveSupportPanel(tenantId: string, revisionId: string, draft: SupportPanelDraft): Promise<
+  "done" | "unauthenticated" | "no-access" | "invalid" | "unavailable"
+> {
+  const csrf = await readCsrfToken();
+  if (csrf.kind !== "token") return csrf.kind;
+  const inactivity = draft.inactivityMinutes.trim() === "" ? null : Number(draft.inactivityMinutes);
+  try {
+    const response = await fetch(`/api/v1/guilds/${encodeURIComponent(tenantId)}/support/panels/${encodeURIComponent(revisionId)}`, {
+      method: "POST", credentials: "include", cache: "no-store",
+      headers: { ...jsonHeaders, "content-type": "application/json", "x-csrf-token": csrf.value },
+      body: JSON.stringify({
+        name: draft.name,
+        channel_id: draft.channelId,
+        button_label: draft.buttonLabel,
+        category_id: draft.categoryId,
+        overflow_category_id: draft.overflowCategoryId || null,
+        staff_role_id: draft.staffRoleId,
+        questions: draft.questions.filter((question) => question.title.trim() !== ""),
+        timezone_offset_minutes: draft.timezoneOffsetMinutes,
+        weekly_hours: draft.weeklyHours,
+        closed_hours: draft.closedHours,
+        confirm_close: draft.confirmClose,
+        inactivity_minutes: Number.isInteger(inactivity) ? inactivity : null,
+        transcript_enabled: draft.transcriptEnabled,
+        log_channel_id: draft.transcriptEnabled ? draft.logChannelId : null,
+      }),
+    });
+    if (response.status === 204) return "done";
+    if (response.status === 401) return "unauthenticated";
+    if (response.status === 403 || response.status === 404) return "no-access";
+    if (response.status === 400) return "invalid";
+    return "unavailable";
+  } catch { return "unavailable"; }
+}
+
+function supportLimits(value: SupportLimits | undefined): SupportLimits | null {
+  if (!value || typeof value.support_open !== "boolean" || typeof value.open_per_member !== "number") return null;
+  if (value.open_cap !== null && typeof value.open_cap !== "number") return null;
+  return value;
+}
+
+export async function readSupportTicket(tenantId: string, caseId: string): Promise<
+  | { kind: "ready"; ticket: SupportTicket; lines: SupportTranscriptLine[] }
+  | { kind: "unauthenticated" }
+  | { kind: "no-access" }
+  | { kind: "unavailable" }
+> {
+  try {
+    const response = await fetch(`/api/v1/guilds/${encodeURIComponent(tenantId)}/support/${encodeURIComponent(caseId)}`, {
+      credentials: "include", cache: "no-store", headers: jsonHeaders,
+    });
+    const access = guildHomeAccess(response.status);
+    if (access === "unauthenticated") return { kind: "unauthenticated" };
+    if (access === "no-access") return { kind: "no-access" };
+    if (access !== "ok") return { kind: "unavailable" };
+    const body = (await response.json()) as { ticket?: SupportTicket; lines?: SupportTranscriptLine[] };
+    if (!body.ticket) return { kind: "unavailable" };
+    return { kind: "ready", ticket: body.ticket, lines: Array.isArray(body.lines) ? body.lines : [] };
+  } catch { return { kind: "unavailable" }; }
+}
+
+export async function transitionSupportTicket(tenantId: string, caseId: string, version: number, action: "claim" | "close" | "unclaim"): Promise<
   "done" | "stale" | "unauthenticated" | "no-access" | "unavailable"
 > {
   const csrf = await readCsrfToken();

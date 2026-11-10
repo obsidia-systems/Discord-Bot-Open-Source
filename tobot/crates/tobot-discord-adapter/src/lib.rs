@@ -29,6 +29,10 @@ use twilight_model::{
     },
 };
 
+mod ticket;
+
+pub use ticket::TicketMessage;
+
 pub const DIAGNOSTIC_COMMAND_NAME: &str = "probe";
 pub const DAILY_COMMAND_NAME: &str = "daily";
 pub const PLAN_COMMAND_NAME: &str = "plan";

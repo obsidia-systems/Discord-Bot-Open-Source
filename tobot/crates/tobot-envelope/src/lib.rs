@@ -15,6 +15,7 @@ pub const CURRENT_SCHEMA_VERSION: u16 = 1;
 /// Firma una solicitud interna del ledger sobre método, ruta, expiración y bytes exactos.
 /// # Errors
 /// Devuelve un error si la clave HMAC no puede inicializarse.
+#[allow(clippy::format_collect)]
 pub fn money_request_signature(
     key: &[u8],
     method: &str,
@@ -424,7 +425,7 @@ pub fn validate_progression(payload: &Value) -> Result<(), EnvelopeError> {
     Ok(())
 }
 
-/// S5 admite un solo botón de texto, sin formulario, recurso ni espera.
+/// Un panel publica un botón y, si abre un canal, la categoría y el rol de staff.
 /// # Errors
 /// Devuelve un error ante campos no admitidos o valores de Discord inválidos.
 pub fn validate_support_panel(payload: &Value) -> Result<(), EnvelopeError> {
@@ -434,7 +435,21 @@ pub fn validate_support_panel(payload: &Value) -> Result<(), EnvelopeError> {
     if object.keys().any(|key| {
         !matches!(
             key.as_str(),
-            "guild_id" | "channel_id" | "button_label" | "cooldown_seconds"
+            "guild_id"
+                | "channel_id"
+                | "button_label"
+                | "cooldown_seconds"
+                | "category_id"
+                | "overflow_category_id"
+                | "staff_role_id"
+                | "questions"
+                | "timezone_offset_minutes"
+                | "weekly_hours"
+                | "closed_hours"
+                | "confirm_close"
+                | "inactivity_minutes"
+                | "transcript_enabled"
+                | "log_channel_id"
         )
     }) {
         return Err(EnvelopeError::InvalidSupportPanel);
@@ -451,14 +466,112 @@ pub fn validate_support_panel(payload: &Value) -> Result<(), EnvelopeError> {
         .get("button_label")
         .and_then(Value::as_str)
         .ok_or(EnvelopeError::InvalidSupportPanel)?;
+    let category = payload
+        .get("category_id")
+        .and_then(Value::as_str)
+        .ok_or(EnvelopeError::InvalidSupportPanel)?;
+    let staff = payload
+        .get("staff_role_id")
+        .and_then(Value::as_str)
+        .ok_or(EnvelopeError::InvalidSupportPanel)?;
     if !snowflake(guild)
         || !snowflake(channel)
+        || !snowflake(category)
+        || !snowflake(staff)
         || label.trim().is_empty()
         || label.chars().count() > 80
         || label.contains("@everyone")
         || label.contains("@here")
         || payload.get("cooldown_seconds").and_then(Value::as_i64) != Some(0)
     {
+        return Err(EnvelopeError::InvalidSupportPanel);
+    }
+    if payload
+        .get("overflow_category_id")
+        .and_then(Value::as_str)
+        .is_some_and(|overflow| !snowflake(overflow) || overflow == category)
+    {
+        return Err(EnvelopeError::InvalidSupportPanel);
+    }
+    support_panel_questions(payload)?;
+    support_panel_schedule(payload)?;
+    let transcript = payload
+        .get("transcript_enabled")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    if transcript
+        && !snowflake(
+            payload
+                .get("log_channel_id")
+                .and_then(Value::as_str)
+                .unwrap_or(""),
+        )
+    {
+        return Err(EnvelopeError::InvalidSupportPanel);
+    }
+    Ok(())
+}
+
+fn support_panel_questions(payload: &Value) -> Result<(), EnvelopeError> {
+    let invalid = payload
+        .get("questions")
+        .and_then(Value::as_array)
+        .is_some_and(|questions| {
+            questions.len() > 5
+                || questions.iter().any(|question| {
+                    let title = question.get("title").and_then(Value::as_str).unwrap_or("");
+                    title.trim().is_empty()
+                        || title.chars().count() > 45
+                        || title.contains("@everyone")
+                        || question.get("required").and_then(Value::as_bool).is_none()
+                })
+        });
+    if invalid {
+        return Err(EnvelopeError::InvalidSupportPanel);
+    }
+    Ok(())
+}
+
+fn support_panel_schedule(payload: &Value) -> Result<(), EnvelopeError> {
+    let offset_invalid = payload
+        .get("timezone_offset_minutes")
+        .and_then(Value::as_i64)
+        .is_some_and(|offset| !(-12 * 60..=14 * 60).contains(&offset));
+    let hours_invalid = payload
+        .get("weekly_hours")
+        .and_then(Value::as_array)
+        .is_some_and(|hours| {
+            hours.iter().any(|window| {
+                let weekday = window.get("weekday").and_then(Value::as_i64).unwrap_or(-1);
+                let start = window
+                    .get("start_minute")
+                    .and_then(Value::as_i64)
+                    .unwrap_or(-1);
+                let end = window
+                    .get("end_minute")
+                    .and_then(Value::as_i64)
+                    .unwrap_or(-1);
+                !(0..=6).contains(&weekday)
+                    || !(0..24 * 60).contains(&start)
+                    || !(1..=24 * 60).contains(&end)
+                    || start >= end
+            })
+        });
+    let mode_invalid = payload
+        .get("closed_hours")
+        .and_then(Value::as_str)
+        .is_some_and(|mode| !matches!(mode, "open" | "block" | "warn"));
+    let flags_invalid = payload
+        .get("confirm_close")
+        .is_some_and(|value| !value.is_boolean())
+        || payload
+            .get("transcript_enabled")
+            .is_some_and(|value| !value.is_boolean());
+    let inactivity_invalid = payload
+        .get("inactivity_minutes")
+        .and_then(Value::as_i64)
+        .is_some_and(|minutes| !(5..=10_080).contains(&minutes));
+    if offset_invalid || hours_invalid || mode_invalid || flags_invalid || inactivity_invalid {
         return Err(EnvelopeError::InvalidSupportPanel);
     }
     Ok(())
@@ -591,14 +704,11 @@ fn positive_credits(amount: i64) -> bool {
     amount > 0
 }
 
-fn validate_ai_credit_command(
-    name: S0CommandName,
-    payload: &Value,
-) -> Result<(), EnvelopeError> {
+fn validate_ai_credit_command(name: S0CommandName, payload: &Value) -> Result<(), EnvelopeError> {
     let raw = payload.clone();
     let valid = match name {
-        S0CommandName::PublishAiPricingRevision => {
-            serde_json::from_value::<AiPricingShape>(raw).is_ok_and(|pricing| {
+        S0CommandName::PublishAiPricingRevision => serde_json::from_value::<AiPricingShape>(raw)
+            .is_ok_and(|pricing| {
                 !pricing.pricing_revision_id.is_nil()
                     && pricing.operation_class == "text"
                     && !pricing.model_class.is_empty()
@@ -608,8 +718,7 @@ fn validate_ai_credit_command(
                     && positive_credits(pricing.unit_charge)
                     && positive_credits(pricing.user_daily_ceiling)
                     && pricing.guild_daily_ceiling >= pricing.user_daily_ceiling
-            })
-        }
+            }),
         S0CommandName::ApplyAiCreditGrant => {
             serde_json::from_value::<AiGrantShape>(raw).is_ok_and(|grant| {
                 !grant.source_ref.is_nil()
@@ -684,7 +793,8 @@ impl EventEnvelope {
         {
             return Err(EnvelopeError::InvalidMoneyPlane);
         }
-        if event_name.is_ai_credit() && event.schema_family.as_deref() != Some("AiCreditReservation")
+        if event_name.is_ai_credit()
+            && event.schema_family.as_deref() != Some("AiCreditReservation")
         {
             return Err(EnvelopeError::InvalidAiCredit);
         }
@@ -1377,7 +1487,8 @@ mod tests {
                 span_id: "span".to_owned(),
             },
             payload: serde_json::json!({"guild_id":"100","channel_id":"200",
-                "button_label":"Open ticket","cooldown_seconds":0}),
+                "button_label":"Open ticket","cooldown_seconds":0,
+                "category_id":"300","staff_role_id":"400"}),
         };
         let raw =
             serde_json::to_vec(&command).unwrap_or_else(|error| panic!("encode failed: {error}"));
@@ -1388,11 +1499,14 @@ mod tests {
         for (key, value) in [
             ("mode", serde_json::json!("select")),
             ("form_id", serde_json::json!("x")),
-            ("staff_role_id", serde_json::json!("300")),
             ("parent_category_id", serde_json::json!("400")),
             ("cooldown_seconds", serde_json::json!(1)),
             ("button_label", serde_json::json!("@everyone")),
             ("channel_id", serde_json::json!("")),
+            (
+                "questions",
+                serde_json::json!([{"title":"a","required":true},{"title":"b","required":true},{"title":"c","required":true},{"title":"d","required":true},{"title":"e","required":true},{"title":"f","required":true}]),
+            ),
         ] {
             let original = command.payload.clone();
             command.payload[key] = value;
@@ -1562,14 +1676,26 @@ mod tests {
         };
         assert!(parse(&command).is_ok());
         command.schema_family = Some("VirtualPayment".to_owned());
-        assert!(matches!(parse(&command), Err(EnvelopeError::InvalidAiCredit)));
+        assert!(matches!(
+            parse(&command),
+            Err(EnvelopeError::InvalidAiCredit)
+        ));
         command.schema_family = Some("CommercialPayment".to_owned());
-        assert!(matches!(parse(&command), Err(EnvelopeError::InvalidAiCredit)));
+        assert!(matches!(
+            parse(&command),
+            Err(EnvelopeError::InvalidAiCredit)
+        ));
         command.schema_family = Some("AiCreditReservation".to_owned());
         command.payload["credit_minors"] = serde_json::json!(0);
-        assert!(matches!(parse(&command), Err(EnvelopeError::InvalidAiCredit)));
+        assert!(matches!(
+            parse(&command),
+            Err(EnvelopeError::InvalidAiCredit)
+        ));
         command.payload["credit_minors"] = serde_json::json!(-5);
-        assert!(matches!(parse(&command), Err(EnvelopeError::InvalidAiCredit)));
+        assert!(matches!(
+            parse(&command),
+            Err(EnvelopeError::InvalidAiCredit)
+        ));
         command.schema_name = "Reservation".to_owned();
         assert!(matches!(
             parse(&command),

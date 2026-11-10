@@ -283,7 +283,9 @@ async fn main() -> anyhow::Result<()> {
             .to_owned(),
     )?;
     let support_worker_delivery = support_delivery.clone();
+    let support_maintenance_delivery = support_delivery.clone();
     let support_worker = database.support.clone();
+    let support_maintenance = database.support.clone();
     let support_consumer = RedisStreamConsumer::connect(
         config.redis_url.expose_for_adapter(),
         "support-s5",
@@ -430,6 +432,7 @@ async fn main() -> anyhow::Result<()> {
         result = progression::run_progression_relay(progression_relay) => result,
         result = run_xp_projector(xp_query, xp_consumer) => result,
         result = support::run_support(support_worker, support_worker_delivery, support_consumer) => result,
+        result = support::run_support_maintenance(support_maintenance, support_maintenance_delivery) => result,
         result = support::run_support_relay(support_relay) => result,
         result = support::run_support_projector(support_query, support_status_consumer) => result,
         result = earnings::run_admission(earnings_admission,earnings_admission_ledger,earnings_delivery,earnings_consumer) => result,
@@ -1045,12 +1048,36 @@ fn router(state: AppState) -> Router {
             get(support::panel_status).post(support::publish),
         )
         .route(
+            "/api/v1/guilds/{tenant_id}/support/panels",
+            get(support::panels),
+        )
+        .route(
+            "/api/v1/guilds/{tenant_id}/support/panels/{revision_id}",
+            post(support::save_panel),
+        )
+        .route(
+            "/api/v1/guilds/{tenant_id}/support/{case_id}",
+            get(support::ticket),
+        )
+        .route(
             "/api/v1/guilds/{tenant_id}/support/{case_id}/claim",
             post(support::claim),
         )
         .route(
             "/api/v1/guilds/{tenant_id}/support/{case_id}/close",
             post(support::close),
+        )
+        .route(
+            "/api/v1/guilds/{tenant_id}/support/{case_id}/unclaim",
+            post(support::unclaim),
+        )
+        .route(
+            "/api/v1/guilds/{tenant_id}/support/{case_id}/transcript",
+            get(support::transcript),
+        )
+        .route(
+            "/api/v1/guilds/{tenant_id}/support/categories",
+            get(support::categories),
         )
         .route(
             "/internal/v1/moderation/actions",

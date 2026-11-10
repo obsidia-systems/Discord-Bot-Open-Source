@@ -65,6 +65,7 @@ fn click<'a>(
         custom_id: button,
         interaction_id: interaction,
         member_id: member,
+        answers: &[],
     }
 }
 
@@ -76,7 +77,7 @@ async fn panel_binding_capacity_numbers_and_case_versions() -> Result<(), String
     };
     let now = OffsetDateTime::now_utc();
     let first = store
-        .prepare_panel(tenant, &guild, "200", "Open ticket", now)
+        .prepare_panel(tenant, &guild, "200", "Open ticket", "Open ticket", now)
         .await
         .map_err(|e| e.to_string())?;
     assert_eq!(first.state, "Preparing");
@@ -194,7 +195,7 @@ async fn panel_binding_capacity_numbers_and_case_versions() -> Result<(), String
             .map_err(|e| e.to_string())?;
     assert_eq!(counter, 2);
     let newer = store
-        .prepare_panel(tenant, &guild, "201", "Help", now)
+        .prepare_panel(tenant, &guild, "201", "Help", "Help", now)
         .await
         .map_err(|e| e.to_string())?;
     let second_button = format!("support:{}", newer.revision_id);
@@ -227,7 +228,9 @@ async fn panel_binding_capacity_numbers_and_case_versions() -> Result<(), String
         )
         .await
         .map_err(|e| e.to_string())?;
-    assert!(matches!(old_new_click, SupportDecision::UnknownButton));
+    assert!(
+        matches!(old_new_click, SupportDecision::AlreadyOpen(ref row) if row.case_id == case.case_id)
+    );
     let pinned: Uuid = sqlx::query_scalar(
         "SELECT template_revision_id FROM support.support_case WHERE case_id=$1",
     )
@@ -342,7 +345,7 @@ async fn concurrent_clicks_keep_one_active_case_per_member() -> Result<(), Strin
     };
     let now = OffsetDateTime::now_utc();
     let panel = store
-        .prepare_panel(tenant, &guild, "200", "Open", now)
+        .prepare_panel(tenant, &guild, "200", "Open", "Open", now)
         .await
         .map_err(|e| e.to_string())?;
     let button = format!("support:{}", panel.revision_id);
@@ -391,6 +394,12 @@ async fn concurrent_clicks_keep_one_active_case_per_member() -> Result<(), Strin
             SupportDecision::AtCapacity => return Err("unexpected paid ticket limit".to_owned()),
             SupportDecision::NotIncluded => return Err("support closed".to_owned()),
             SupportDecision::UnknownButton => return Err("published button rejected".to_owned()),
+            SupportDecision::OutsideHours => {
+                return Err("hours blocked an unrestricted panel".to_owned());
+            }
+            SupportDecision::MissingAnswers => {
+                return Err("answers required without a form".to_owned());
+            }
         }
     }
     assert_eq!((opened, already), (2, 1));
@@ -417,7 +426,7 @@ async fn uncertain_panel_create_reconciles_its_nonce_once() -> Result<(), String
     };
     let now = OffsetDateTime::now_utc();
     let panel = store
-        .prepare_panel(tenant, &guild, "220", "Support", now)
+        .prepare_panel(tenant, &guild, "220", "Support", "Support", now)
         .await
         .map_err(|e| e.to_string())?;
     store
@@ -501,13 +510,13 @@ async fn uncertain_panel_create_reconciles_its_nonce_once() -> Result<(), String
 }
 
 #[tokio::test]
-async fn older_uncertain_revision_cannot_replace_newer_panel() -> Result<(), String> {
-    let Some((store, _pool, tenant, guild)) = fixture().await? else {
+async fn older_uncertain_revision_stays_beside_the_newer_panel() -> Result<(), String> {
+    let Some((store, pool, tenant, guild)) = fixture().await? else {
         return Ok(());
     };
     let now = OffsetDateTime::now_utc();
     let older = store
-        .prepare_panel(tenant, &guild, "220", "First", now)
+        .prepare_panel(tenant, &guild, "220", "First", "First", now)
         .await
         .map_err(|e| e.to_string())?;
     store
@@ -515,7 +524,7 @@ async fn older_uncertain_revision_cannot_replace_newer_panel() -> Result<(), Str
         .await
         .map_err(|e| e.to_string())?;
     let newer = store
-        .prepare_panel(tenant, &guild, "221", "Second", now)
+        .prepare_panel(tenant, &guild, "221", "Second", "Second", now)
         .await
         .map_err(|e| e.to_string())?;
     store
@@ -531,7 +540,7 @@ async fn older_uncertain_revision_cannot_replace_newer_panel() -> Result<(), Str
         .await
         .map_err(|e| e.to_string())?;
     assert!(
-        !store
+        store
             .reconcile_panel_nonce(
                 &older.nonce,
                 "220",
@@ -545,11 +554,20 @@ async fn older_uncertain_revision_cannot_replace_newer_panel() -> Result<(), Str
             .await
             .map_err(|e| e.to_string())?
     );
-    let published = store
-        .published_panel(tenant)
-        .await
-        .map_err(|e| e.to_string())?
-        .ok_or("panel missing")?;
-    assert_eq!(published.revision_id, newer.revision_id);
+    let published_count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM support.support_panel_revision WHERE tenant_id=$1 AND state='Published'",
+    )
+    .bind(tenant)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    assert_eq!(published_count, 2);
+    let newer_state: String =
+        sqlx::query_scalar("SELECT state FROM support.support_panel_revision WHERE revision_id=$1")
+            .bind(newer.revision_id)
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    assert_eq!(newer_state, "Published");
     Ok(())
 }
